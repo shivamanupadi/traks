@@ -1,0 +1,11 @@
+{
+  "name": "@traks/typescript-config",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "lint": "echo 'No linting configured for typescript-config'",
+    "format": "prettier --write .",
+    "clean": "rimraf node_modules .turbo",
+    "reset": "npm run clean && npm install"
+  }
+}

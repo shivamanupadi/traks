@@ -1,0 +1,43 @@
+name = "traks-collect-dev"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+
+# --- Dev (default: wrangler dev --remote) ---
+
+[[analytics_engine_datasets]]
+binding = "ANALYTICS"
+dataset = "traks-dev"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "traks-db-dev"
+database_id = "d890dbfe-f384-4711-b921-32fd5c91e20c"
+
+[vars]
+ENVIRONMENT = "development"
+# For production, use: wrangler secret put VISITOR_HASH_SECRET --env production
+# For local dev, a static secret is fine:
+VISITOR_HASH_SECRET = "pb-dev-secret-do-not-use-in-production"
+
+# --- Production: wrangler deploy --env production ---
+
+[env.production]
+name = "traks-collect"
+
+[[env.production.analytics_engine_datasets]]
+binding = "ANALYTICS"
+dataset = "traks"
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "traks-db"
+database_id = "TODO_CREATE_WHEN_READY"
+
+[env.production.vars]
+ENVIRONMENT = "production"
+
+# Custom domain (uncomment when ready):
+# [[env.production.routes]]
+# pattern = "collect.traks.dev"
+# custom_domain = true

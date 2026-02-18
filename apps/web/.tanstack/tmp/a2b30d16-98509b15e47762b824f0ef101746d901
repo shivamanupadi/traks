@@ -1,0 +1,15 @@
+import type { ReactElement } from 'react';
+import { createFileRoute, Outlet, redirect } from '@tanstack/react-router';
+import { DashboardLayout } from '@/components/layout/DashboardLayout';
+
+export const Route = createFileRoute('/portal')({
+  component: DashboardPage,
+});
+
+function DashboardPage(): ReactElement {
+  return (
+    <DashboardLayout>
+      <Outlet />
+    </DashboardLayout>
+  );
+}

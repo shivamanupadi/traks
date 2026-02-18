@@ -1,0 +1,31 @@
+{
+  "name": "@traks/collect",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --remote --port 5010",
+    "build": "tsc --noEmit",
+    "deploy": "wrangler deploy --env production",
+    "deploy:dev": "wrangler deploy",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint src --ext .ts --fix",
+    "format": "prettier --write src",
+    "clean": "rimraf .turbo .wrangler"
+  },
+  "dependencies": {
+    "@traks/shared": "*",
+    "hono": "^4.6.16",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241218.0",
+    "@traks/eslint-config": "*",
+    "eslint": "^8.57.0",
+    "typescript": "^5.7.0",
+    "wrangler": "^3.99.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

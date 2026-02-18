@@ -1,0 +1,92 @@
+import { useState, type ReactElement } from 'react';
+import { createFileRoute } from '@tanstack/react-router';
+import { useAuth } from '@clerk/clerk-react';
+import { useQuery } from '@tanstack/react-query';
+import type { Period } from '@pulsebeam/shared';
+import { StatsCards } from '@/components/analytics/StatsCards';
+import { TimeseriesChart } from '@/components/analytics/TimeseriesChart';
+import { TopList } from '@/components/analytics/TopList';
+import { PeriodPicker } from '@/components/layout/PeriodPicker';
+import { api } from '@/lib/api';
+
+export const Route = createFileRoute('/portal/site/$siteId')({
+  component: SiteAnalyticsPage,
+});
+
+function SiteAnalyticsPage(): ReactElement {
+  const { siteId } = Route.useParams();
+  const { getToken } = useAuth();
+  const [period, setPeriod] = useState<Period>('7d');
+
+  const { data: statsData, isLoading: statsLoading } = useQuery({
+    queryKey: ['stats', 'main', siteId, period],
+    queryFn: async () => {
+      const token = await getToken();
+      if (!token) throw new Error('Not authenticated');
+      return api.getMainStats(siteId, period, token);
+    },
+  });
+
+  const { data: timeseriesData, isLoading: timeseriesLoading } = useQuery({
+    queryKey: ['stats', 'timeseries', siteId, period],
+    queryFn: async () => {
+      const token = await getToken();
+      if (!token) throw new Error('Not authenticated');
+      return api.getTimeseries(siteId, period, token);
+    },
+  });
+
+  const { data: pagesData, isLoading: pagesLoading } = useQuery({
+    queryKey: ['stats', 'pages', siteId, period],
+    queryFn: async () => {
+      const token = await getToken();
+      if (!token) throw new Error('Not authenticated');
+      return api.getTopPages(siteId, period, token);
+    },
+  });
+
+  const { data: referrersData, isLoading: referrersLoading } = useQuery({
+    queryKey: ['stats', 'referrers', siteId, period],
+    queryFn: async () => {
+      const token = await getToken();
+      if (!token) throw new Error('Not authenticated');
+      return api.getTopReferrers(siteId, period, token);
+    },
+  });
+
+  const stats = (statsData as any)?.data;
+  const timeseries = (timeseriesData as any)?.data;
+  const pages = (pagesData as any)?.data;
+  const referrers = (referrersData as any)?.data;
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold">Analytics</h1>
+        <PeriodPicker value={period} onChange={setPeriod} />
+      </div>
+
+      {/* Stats cards */}
+      <StatsCards stats={stats} isLoading={statsLoading} />
+
+      {/* Timeseries chart */}
+      <TimeseriesChart data={timeseries} isLoading={timeseriesLoading} />
+
+      {/* Two-column: Pages + Referrers */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <TopList
+          title="Top Pages"
+          items={pages}
+          isLoading={pagesLoading}
+          showPageviews
+        />
+        <TopList
+          title="Top Referrers"
+          items={referrers}
+          isLoading={referrersLoading}
+        />
+      </div>
+    </div>
+  );
+}

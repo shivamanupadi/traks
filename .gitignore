@@ -1,0 +1,10 @@
+node_modules
+dist
+.turbo
+.vite
+.wrangler
+*.log
+.env
+.env.*
+!.env.example
+.DS_Store

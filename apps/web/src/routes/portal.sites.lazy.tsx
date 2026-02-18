@@ -1,0 +1,199 @@
+import { useState, useMemo, useRef, type ReactElement } from 'react';
+import { createLazyFileRoute } from '@tanstack/react-router';
+import { useAuth } from '@clerk/clerk-react';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
+import { Plus, Globe, Search, X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { api } from '@/lib/api';
+import { SiteTile } from '@/components/sites/SiteTile';
+import { AddSiteWizard } from '@/components/sites/AddSiteWizard';
+
+export const Route = createLazyFileRoute('/portal/sites')({
+  component: SitesPage,
+});
+
+const TILE_COLORS = ['#9b72cf', '#5b9a6f', '#e07a5f'];
+const PAGE_SIZE = 6;
+
+function SitesPage(): ReactElement {
+  const { getToken } = useAuth();
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  const { data: sitesData, isLoading } = useQuery({
+    queryKey: ['sites'],
+    queryFn: async () => {
+      const token = await getToken();
+      if (!token) throw new Error('Not authenticated');
+      return api.getSites(token);
+    },
+  });
+
+  const allSites = (sitesData as any)?.data || [];
+
+  // Client-side search: case-insensitive match on name or domain
+  const filteredSites = useMemo(() => {
+    if (!search.trim()) return allSites;
+    const q = search.toLowerCase();
+    return allSites.filter(
+      (site: any) =>
+        site.name.toLowerCase().includes(q) || site.domain.toLowerCase().includes(q)
+    );
+  }, [allSites, search]);
+
+  // Paginate: show only `visibleCount` sites
+  const visibleSites = filteredSites.slice(0, visibleCount);
+  const hasMore = filteredSites.length > visibleCount;
+
+  // Stable string key for visible site IDs — prevents unnecessary refetches
+  const idsJoined = visibleSites.map((s: any) => s.id).join(',');
+  const visibleSiteIdsKey = useMemo(() => idsJoined, [idsJoined]);
+  const visibleSiteIds = useMemo(() => visibleSiteIdsKey ? visibleSiteIdsKey.split(',') : [], [visibleSiteIdsKey]);
+
+  // Batch stats scoped to visible sites only
+  const { data: batchStatsData, isLoading: batchStatsLoading } = useQuery({
+    queryKey: ['stats', 'batch', 'today', visibleSiteIdsKey],
+    queryFn: async () => {
+      const token = await getToken();
+      if (!token) throw new Error('Not authenticated');
+      return api.getBatchStats('today', token, visibleSiteIds);
+    },
+    enabled: visibleSiteIds.length > 0,
+    staleTime: 60_000,
+    placeholderData: keepPreviousData,
+  });
+
+  const batchStats = (batchStatsData as any)?.data || {};
+
+  // Track tiles already rendered so only new ones animate in
+  const renderedIdsRef = useRef(new Set<string>());
+
+  // Reset pagination when search changes
+  const handleSearchChange = (value: string): void => {
+    renderedIdsRef.current.clear();
+    setSearch(value);
+    setVisibleCount(PAGE_SIZE);
+  };
+
+  return (
+    <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+      {/* Page header */}
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-[24px] font-bold text-[#2D3436] tracking-[-0.02em]">Your Sites</h1>
+          <p className="mt-1 text-[14px] text-[#9B9590]">
+            Select a site to view its analytics
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          {!isLoading && allSites.length > 0 && (
+            <div className="relative">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#B5B0AA]" strokeWidth={1.8} />
+              <Input
+                placeholder="Search sites..."
+                value={search}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                className="pl-10 pr-9 rounded-xl h-10 w-56 border-[#e8e3ed] focus:border-[#9b72cf]/40 text-[14px]"
+              />
+              {search && (
+                <button
+                  onClick={() => handleSearchChange('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#B5B0AA] hover:text-[#2D3436] transition-colors"
+                >
+                  <X className="w-4 h-4" strokeWidth={1.8} />
+                </button>
+              )}
+            </div>
+          )}
+          <Button
+            onClick={() => setWizardOpen(true)}
+            className="bg-[#9b72cf] hover:bg-[#8a63bf] text-white rounded-xl px-5 h-10"
+          >
+            <Plus className="h-4 w-4" />
+            Add Site
+          </Button>
+        </div>
+      </div>
+
+      {/* Add site wizard modal */}
+      <AddSiteWizard open={wizardOpen} onOpenChange={setWizardOpen} />
+
+      {/* Site tiles grid */}
+      {isLoading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {[...Array(3)].map((_, i) => (
+            <div
+              key={i}
+              className="h-[210px] animate-pulse rounded-2xl border border-[#e8e3ed] bg-white"
+            />
+          ))}
+        </div>
+      ) : allSites.length === 0 ? (
+        <div className="rounded-2xl border-2 border-dashed border-[#e8e3ed] bg-white px-8 py-16 text-center">
+          <div className="mx-auto w-16 h-16 rounded-2xl bg-[#9b72cf]/10 flex items-center justify-center mb-4">
+            <Globe className="h-8 w-8 text-[#9b72cf]" />
+          </div>
+          <p className="text-[17px] font-semibold text-[#2D3436]">No sites yet</p>
+          <p className="mt-2 text-[14px] text-[#9B9590] max-w-sm mx-auto">
+            Add your first website to start tracking visitors, pageviews, and more
+          </p>
+          <Button
+            onClick={() => setWizardOpen(true)}
+            className="mt-5 bg-[#9b72cf] hover:bg-[#8a63bf] text-white rounded-xl px-6"
+          >
+            <Plus className="h-4 w-4" />
+            Add Your First Site
+          </Button>
+        </div>
+      ) : filteredSites.length === 0 ? (
+        <div className="rounded-2xl border border-[#e8e3ed] bg-white px-8 py-12 text-center">
+          <Search className="mx-auto h-8 w-8 text-[#B5B0AA] mb-3" strokeWidth={1.5} />
+          <p className="text-[15px] font-medium text-[#2D3436]">No sites match "{search}"</p>
+          <p className="mt-1 text-[13px] text-[#9B9590]">Try a different search term</p>
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {visibleSites.map((site: any, i: number) => {
+              const color = TILE_COLORS[i % TILE_COLORS.length];
+              const isNew = !renderedIdsRef.current.has(site.id);
+              renderedIdsRef.current.add(site.id);
+              const batchIndex = isNew ? i % PAGE_SIZE : 0;
+              return (
+                <SiteTile
+                  key={site.id}
+                  site={site}
+                  color={color}
+                  stats={batchStats[site.id]}
+                  isStatsLoading={batchStatsLoading}
+                  isNew={isNew}
+                  batchIndex={batchIndex}
+                />
+              );
+            })}
+          </div>
+
+          {/* Load more button */}
+          {hasMore && (
+            <div className="mt-8 text-center">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setVisibleCount(prev => prev + PAGE_SIZE);
+                  requestAnimationFrame(() => {
+                    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+                  });
+                }}
+                className="rounded-xl border-[#e8e3ed] text-[13px] text-[#9B9590] hover:text-[#2D3436] hover:border-[#d5cfe0] px-8"
+              >
+                Load more
+              </Button>
+            </div>
+          )}
+        </>
+      )}
+    </main>
+  );
+}

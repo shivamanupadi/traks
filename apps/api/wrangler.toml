@@ -1,0 +1,50 @@
+name = "traks-api-dev"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+
+# --- Dev (default: wrangler dev --remote) ---
+
+[[d1_databases]]
+binding = "DB"
+database_name = "traks-db-dev"
+database_id = "d890dbfe-f384-4711-b921-32fd5c91e20c"
+migrations_dir = "src/db/migrations"
+
+[[kv_namespaces]]
+binding = "CACHE"
+id = "310dd4538d8b4b0fbf8babacb86e6ac0"
+preview_id = "310dd4538d8b4b0fbf8babacb86e6ac0"
+
+[vars]
+ENVIRONMENT = "development"
+ALLOWED_ORIGINS = "*"
+
+# --- Production: wrangler deploy --env production ---
+
+[env.production]
+name = "traks-api"
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "traks-db"
+database_id = "TODO_CREATE_WHEN_READY"
+migrations_dir = "src/db/migrations"
+
+[[env.production.kv_namespaces]]
+binding = "CACHE"
+id = "<prod-namespace-id>"
+
+[env.production.vars]
+ENVIRONMENT = "production"
+ALLOWED_ORIGINS = "https://traks.dev,https://www.traks.dev"
+
+# Custom domain (uncomment when ready):
+# [[env.production.routes]]
+# pattern = "api.traks.dev"
+# custom_domain = true
+
+# Secrets (set per environment):
+# wrangler secret put CLERK_SECRET_KEY --env production
+# wrangler secret put CF_ACCOUNT_ID --env production
+# wrangler secret put CF_API_TOKEN --env production

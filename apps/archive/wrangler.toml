@@ -1,0 +1,70 @@
+name = "traks-archive-dev"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+
+[triggers]
+crons = ["0 3 * * *"]
+
+# --- Dev (default: wrangler dev --remote) ---
+
+[[d1_databases]]
+binding = "DB"
+database_name = "traks-db-dev"
+database_id = "d890dbfe-f384-4711-b921-32fd5c91e20c"
+
+[[r2_buckets]]
+binding = "ARCHIVE_BUCKET"
+bucket_name = "traks-archive-dev"
+preview_bucket_name = "traks-archive-dev"
+
+[[queues.producers]]
+binding = "ARCHIVE_QUEUE"
+queue = "traks-archive-queue-dev"
+
+[[queues.consumers]]
+queue = "traks-archive-queue-dev"
+max_batch_size = 1
+max_retries = 5
+max_concurrency = 2
+dead_letter_queue = "traks-archive-dlq-dev"
+
+[vars]
+ENVIRONMENT = "development"
+
+# --- Production: wrangler deploy --env production ---
+
+[env.production]
+name = "traks-archive"
+
+[env.production.triggers]
+crons = ["0 3 * * *"]
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "traks-db"
+database_id = "TODO_CREATE_WHEN_READY"
+
+[[env.production.r2_buckets]]
+binding = "ARCHIVE_BUCKET"
+bucket_name = "traks-archive"
+
+[[env.production.queues.producers]]
+binding = "ARCHIVE_QUEUE"
+queue = "traks-archive-queue"
+
+[[env.production.queues.consumers]]
+queue = "traks-archive-queue"
+max_batch_size = 1
+max_retries = 5
+max_concurrency = 2
+dead_letter_queue = "traks-archive-dlq"
+
+[env.production.vars]
+ENVIRONMENT = "production"
+
+# Secrets (set per environment):
+# wrangler secret put CF_ACCOUNT_ID
+# wrangler secret put CF_API_TOKEN
+# wrangler secret put CF_ACCOUNT_ID --env production
+# wrangler secret put CF_API_TOKEN --env production

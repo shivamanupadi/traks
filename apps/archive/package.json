@@ -1,0 +1,27 @@
+{
+  "name": "@traks/archive",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --remote --test-scheduled --port 5013",
+    "build": "tsc --noEmit",
+    "deploy": "wrangler deploy --env production",
+    "deploy:dev": "wrangler deploy",
+    "trigger-dev": "curl http://localhost:5013/__scheduled?cron=0+3+*+*+*",
+    "type-check": "tsc --noEmit",
+    "clean": "rimraf .turbo .wrangler"
+  },
+  "dependencies": {
+    "@traks/shared": "*",
+    "drizzle-orm": "^0.38.3"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241218.0",
+    "typescript": "^5.7.0",
+    "wrangler": "^3.99.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

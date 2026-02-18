@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Traks Test Page</title>
+</head>
+<body>
+  <h1>Traks Tracking Test</h1>
+  <p>This page loads the tracker from your local collect worker.</p>
+  <p>Check the Network tab — you should see a POST to <code>localhost:5010/api/event</code>.</p>
+
+  <nav>
+    <a href="#page1" onclick="navigateTo('/page1')">Page 1</a> |
+    <a href="#page2" onclick="navigateTo('/page2')">Page 2</a> |
+    <a href="#page3" onclick="navigateTo('/page3')">Page 3</a>
+  </nav>
+
+  <div id="content">
+    <p>Click the links above to simulate SPA navigation (generates more pageviews).</p>
+  </div>
+
+  <button onclick="window.traks('button_click', {label: 'test'}, 1)">
+    Send Custom Event
+  </button>
+
+  <script>
+    function navigateTo(path) {
+      history.pushState({}, '', path);
+      document.getElementById('content').innerHTML = '<p>Now at: ' + path + '</p>';
+    }
+  </script>
+
+  <!-- Traks tracker -->
+  <script defer data-site="pb_live_otvzvzvlnt35w0s14bk8zl2g" src="http://localhost:5010/t.js"></script>
+</body>
+</html>

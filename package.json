@@ -1,0 +1,31 @@
+{
+  "name": "traks",
+  "private": true,
+  "version": "0.0.1",
+  "packageManager": "yarn@1.22.22",
+  "description": "Traks - Self-hosted analytics platform on Cloudflare",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "yarn kill-ports && turbo run dev",
+    "kill-ports": "kill -9 $(lsof -ti :5010,:5011,:5012,:5013) 2>/dev/null; echo 'Ports 5010-5013 cleared'",
+    "build": "turbo run build",
+    "lint": "turbo lint",
+    "type-check": "turbo run type-check",
+    "clean": "turbo clean && rimraf node_modules .turbo dist yarn.lock '**/node_modules' '**/dist' '**/.turbo' '**/.vite' '**/.wrangler'",
+    "format": "turbo run format",
+    "reset": "yarn clean && yarn install",
+    "check:push": "yarn lint && yarn build"
+  },
+  "devDependencies": {
+    "prettier": "^3.2.5",
+    "rimraf": "^5.0.5",
+    "turbo": "^2.5.4",
+    "typescript": "^5.4.5"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

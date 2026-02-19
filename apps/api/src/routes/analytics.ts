@@ -38,11 +38,7 @@ const siteKeyTTL = 5 * 60_000; // 5 minutes
 const siteKeyStore = new Map<string, { key: string | null; at: number }>();
 
 // Helper: get the site's active API key, cached across requests
-async function getCachedSiteKey(
-  c: any,
-  siteId: string,
-  userId: string
-): Promise<string | null> {
+async function getCachedSiteKey(c: any, siteId: string, userId: string): Promise<string | null> {
   const cacheKey = `${siteId}:${userId}`;
   const cached = siteKeyStore.get(cacheKey);
   if (cached && Date.now() - cached.at < siteKeyTTL) {
@@ -81,7 +77,7 @@ function getQueryConfig(c: any): { accountId: string; apiToken: string; dataset:
   };
 }
 
-// Query schemas for zValidator — enables Hono RPC type inference
+// Query schemas for zValidator - enables Hono RPC type inference
 const periodQuery = z.object({
   period: z.enum(PERIODS).default('7d'),
 });
@@ -105,14 +101,22 @@ const utmQuery = z.object({
 // Cache durations by period
 function getCacheMaxAge(period: Period): number {
   switch (period) {
-    case 'today': return 30;   // 30s for today
-    case '7d':    return 120;  // 2min
-    case '30d':   return 300;  // 5min
-    case '90d':   return 600;  // 10min
-    case '6m':    return 1800; // 30min
-    case '1y':    return 3600; // 1hr
-    case 'all':   return 3600; // 1hr
-    default:      return 60;
+    case 'today':
+      return 30; // 30s for today
+    case '7d':
+      return 120; // 2min
+    case '30d':
+      return 300; // 5min
+    case '90d':
+      return 600; // 10min
+    case '6m':
+      return 1800; // 30min
+    case '1y':
+      return 3600; // 1hr
+    case 'all':
+      return 3600; // 1hr
+    default:
+      return 60;
   }
 }
 
@@ -120,14 +124,19 @@ function setCacheHeaders(c: any, period: Period): void {
   c.header('Cache-Control', `private, max-age=${getCacheMaxAge(period)}`);
 }
 
-// KV cache TTLs (seconds) — match getCacheMaxAge
+// KV cache TTLs (seconds) - match getCacheMaxAge
 function getKvTtl(period: Period): number {
   switch (period) {
-    case 'today': return 60;   // KV minimum is 60s
-    case '7d':    return 120;
-    case '30d':   return 300;
-    case '90d':   return 600;
-    default:      return 60;
+    case 'today':
+      return 60; // KV minimum is 60s
+    case '7d':
+      return 120;
+    case '30d':
+      return 300;
+    case '90d':
+      return 600;
+    default:
+      return 60;
   }
 }
 
@@ -142,7 +151,9 @@ async function kvGet<T>(kv: KVNamespace, key: string): Promise<T | null> {
 async function kvPut(kv: KVNamespace, key: string, value: unknown, period: Period): Promise<void> {
   try {
     await kv.put(key, JSON.stringify(value), { expirationTtl: getKvTtl(period) });
-  } catch { /* best-effort */ }
+  } catch {
+    /* best-effort */
+  }
 }
 
 export const analyticsRoute = app
@@ -182,7 +193,10 @@ export const analyticsRoute = app
       await Promise.all(
         siteKeys.map(async ({ siteId, key }) => {
           const cacheKey = `batch:${siteId}:${period}`;
-          const cached = await kvGet<{ visitors: number; pageviews: number; sessions: number }>(kv, cacheKey);
+          const cached = await kvGet<{ visitors: number; pageviews: number; sessions: number }>(
+            kv,
+            cacheKey
+          );
           if (cached) {
             results[siteId] = cached;
             return;
@@ -229,7 +243,13 @@ export const analyticsRoute = app
       setCacheHeaders(c, period);
       return c.json({
         data: {
-          main: { ...stats, bounceRate: 0, visitorsChange: 0, pageviewsChange: 0, sessionsChange: 0 },
+          main: {
+            ...stats,
+            bounceRate: 0,
+            visitorsChange: 0,
+            pageviewsChange: 0,
+            sessionsChange: 0,
+          },
           timeseries,
           pages,
           referrers,

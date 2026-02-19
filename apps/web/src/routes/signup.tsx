@@ -19,7 +19,7 @@ function SignupPage(): React.ReactNode {
 
   return (
     <div className="min-h-screen flex bg-white">
-      {/* Left side — Sign up form */}
+      {/* Left side - Sign up form */}
       <div className="flex-1 flex flex-col justify-center px-6 py-12 lg:px-16">
         <div className="mx-auto w-full max-w-sm">
           {/* Back button */}
@@ -47,7 +47,7 @@ function SignupPage(): React.ReactNode {
         </div>
       </div>
 
-      {/* Right side — Creative showcase */}
+      {/* Right side - Creative showcase */}
       <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-bl from-[#e07a5f]/5 via-white to-[#f3f0f7]/50 relative overflow-hidden">
         {/* Dot pattern */}
         <div
@@ -60,7 +60,7 @@ function SignupPage(): React.ReactNode {
 
         {/* Content */}
         <div className="relative z-10 flex flex-col items-center justify-center w-full p-12">
-          {/* Main showcase — setup snippet */}
+          {/* Main showcase - setup snippet */}
           <div className="relative w-full max-w-sm">
             <div className="relative transform hover:scale-[1.02] transition-all duration-500 cursor-pointer group">
               {/* Washi tape */}

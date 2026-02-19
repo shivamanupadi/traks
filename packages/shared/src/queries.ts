@@ -216,8 +216,7 @@ export function buildDevicesQuery(
 ) {
   const interval = periodToInterval(period);
   const key = esc(siteKey);
-  const blobCol =
-    type === 'browser' ? BLOB.BROWSER : type === 'os' ? BLOB.OS : BLOB.DEVICE_TYPE;
+  const blobCol = type === 'browser' ? BLOB.BROWSER : type === 'os' ? BLOB.OS : BLOB.DEVICE_TYPE;
   return (dataset: string) => `
     SELECT
       ${blobCol} AS name,
@@ -361,8 +360,7 @@ export function buildDailyDevicesQuery(
 ) {
   const key = esc(siteKey);
   const d = esc(date);
-  const blobCol =
-    type === 'browser' ? BLOB.BROWSER : type === 'os' ? BLOB.OS : BLOB.DEVICE_TYPE;
+  const blobCol = type === 'browser' ? BLOB.BROWSER : type === 'os' ? BLOB.OS : BLOB.DEVICE_TYPE;
   return (dataset: string) => `
     SELECT
       ${blobCol} AS name,

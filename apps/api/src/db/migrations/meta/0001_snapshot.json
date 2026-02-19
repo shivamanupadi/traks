@@ -68,23 +68,17 @@
       "indexes": {
         "api_keys_key_idx": {
           "name": "api_keys_key_idx",
-          "columns": [
-            "key"
-          ],
+          "columns": ["key"],
           "isUnique": true
         },
         "api_keys_site_id_idx": {
           "name": "api_keys_site_id_idx",
-          "columns": [
-            "site_id"
-          ],
+          "columns": ["site_id"],
           "isUnique": false
         },
         "api_keys_user_id_idx": {
           "name": "api_keys_user_id_idx",
-          "columns": [
-            "user_id"
-          ],
+          "columns": ["user_id"],
           "isUnique": false
         }
       },
@@ -93,12 +87,8 @@
           "name": "api_keys_site_id_sites_id_fk",
           "tableFrom": "api_keys",
           "tableTo": "sites",
-          "columnsFrom": [
-            "site_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["site_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -106,12 +96,8 @@
           "name": "api_keys_user_id_users_id_fk",
           "tableFrom": "api_keys",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -173,12 +159,8 @@
           "name": "archive_state_site_id_sites_id_fk",
           "tableFrom": "archive_state",
           "tableTo": "sites",
-          "columnsFrom": [
-            "site_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["site_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -237,10 +219,7 @@
       "indexes": {
         "daily_devices_site_date_idx": {
           "name": "daily_devices_site_date_idx",
-          "columns": [
-            "site_id",
-            "date"
-          ],
+          "columns": ["site_id", "date"],
           "isUnique": false
         }
       },
@@ -249,12 +228,8 @@
           "name": "daily_devices_site_id_sites_id_fk",
           "tableFrom": "daily_devices",
           "tableTo": "sites",
-          "columnsFrom": [
-            "site_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["site_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -314,10 +289,7 @@
       "indexes": {
         "daily_events_site_date_idx": {
           "name": "daily_events_site_date_idx",
-          "columns": [
-            "site_id",
-            "date"
-          ],
+          "columns": ["site_id", "date"],
           "isUnique": false
         }
       },
@@ -326,12 +298,8 @@
           "name": "daily_events_site_id_sites_id_fk",
           "tableFrom": "daily_events",
           "tableTo": "sites",
-          "columnsFrom": [
-            "site_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["site_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -390,10 +358,7 @@
       "indexes": {
         "daily_locations_site_date_idx": {
           "name": "daily_locations_site_date_idx",
-          "columns": [
-            "site_id",
-            "date"
-          ],
+          "columns": ["site_id", "date"],
           "isUnique": false
         }
       },
@@ -402,12 +367,8 @@
           "name": "daily_locations_site_id_sites_id_fk",
           "tableFrom": "daily_locations",
           "tableTo": "sites",
-          "columnsFrom": [
-            "site_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["site_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -467,10 +428,7 @@
       "indexes": {
         "daily_pages_site_date_idx": {
           "name": "daily_pages_site_date_idx",
-          "columns": [
-            "site_id",
-            "date"
-          ],
+          "columns": ["site_id", "date"],
           "isUnique": false
         }
       },
@@ -479,12 +437,8 @@
           "name": "daily_pages_site_id_sites_id_fk",
           "tableFrom": "daily_pages",
           "tableTo": "sites",
-          "columnsFrom": [
-            "site_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["site_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -536,10 +490,7 @@
       "indexes": {
         "daily_referrers_site_date_idx": {
           "name": "daily_referrers_site_date_idx",
-          "columns": [
-            "site_id",
-            "date"
-          ],
+          "columns": ["site_id", "date"],
           "isUnique": false
         }
       },
@@ -548,12 +499,8 @@
           "name": "daily_referrers_site_id_sites_id_fk",
           "tableFrom": "daily_referrers",
           "tableTo": "sites",
-          "columnsFrom": [
-            "site_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["site_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -614,10 +561,7 @@
       "indexes": {
         "daily_stats_site_date_idx": {
           "name": "daily_stats_site_date_idx",
-          "columns": [
-            "site_id",
-            "date"
-          ],
+          "columns": ["site_id", "date"],
           "isUnique": true
         }
       },
@@ -626,12 +570,8 @@
           "name": "daily_stats_site_id_sites_id_fk",
           "tableFrom": "daily_stats",
           "tableTo": "sites",
-          "columnsFrom": [
-            "site_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["site_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -698,10 +638,7 @@
       "indexes": {
         "daily_utm_site_date_idx": {
           "name": "daily_utm_site_date_idx",
-          "columns": [
-            "site_id",
-            "date"
-          ],
+          "columns": ["site_id", "date"],
           "isUnique": false
         }
       },
@@ -710,12 +647,8 @@
           "name": "daily_utm_site_id_sites_id_fk",
           "tableFrom": "daily_utm",
           "tableTo": "sites",
-          "columnsFrom": [
-            "site_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["site_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -789,16 +722,12 @@
       "indexes": {
         "sites_user_id_idx": {
           "name": "sites_user_id_idx",
-          "columns": [
-            "user_id"
-          ],
+          "columns": ["user_id"],
           "isUnique": false
         },
         "sites_domain_idx": {
           "name": "sites_domain_idx",
-          "columns": [
-            "domain"
-          ],
+          "columns": ["domain"],
           "isUnique": true
         }
       },
@@ -807,12 +736,8 @@
           "name": "sites_user_id_users_id_fk",
           "tableFrom": "sites",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }

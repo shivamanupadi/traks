@@ -13,7 +13,7 @@
   const endpoint = new URL(scriptEl.src).origin + '/api/event';
   let lastPage: string;
 
-  // Random session ID via sessionStorage (not a fingerprint — just a random token)
+  // Random session ID via sessionStorage (not a fingerprint - just a random token)
   function getSessionId(): string {
     const key = '_pb_s';
     const now = Date.now();
@@ -42,7 +42,7 @@
     }).catch(function () {});
   }
 
-  // Track a pageview — mirrors Plausible's autocapture.js logic
+  // Track a pageview - mirrors Plausible's autocapture.js logic
   function page(isSPANavigation?: boolean): void {
     // SPA dedup: skip if same pathname on SPA navigation
     if (isSPANavigation && lastPage === location.pathname) return;
@@ -67,11 +67,7 @@
   }
 
   // Custom event API: window.traks('event_name', { props }, value)
-  w.traks = function (
-    name: string,
-    props?: Record<string, unknown>,
-    value?: number
-  ): void {
+  w.traks = function (name: string, props?: Record<string, unknown>, value?: number): void {
     sendRequest({
       t: 'event',
       s: siteKey,
@@ -84,7 +80,7 @@
     });
   };
 
-  // SPA support — mirrors Plausible exactly:
+  // SPA support - mirrors Plausible exactly:
   // - Intercept pushState only (NOT replaceState)
   // - Listen to popstate
   // - Pass isSPANavigation=true for dedup
@@ -95,7 +91,9 @@
       originalPushState.apply(this, args);
       page(true);
     };
-    window.addEventListener('popstate', function () { page(true); });
+    window.addEventListener('popstate', function () {
+      page(true);
+    });
   }
 
   // Handle prerendered/hidden pages (Plausible pattern)

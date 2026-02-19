@@ -3,7 +3,7 @@
 
 /*
  * Pulsebeam Design System
- * Lavender primary theme — analytics dashboard aesthetic
+ * Lavender primary theme - analytics dashboard aesthetic
  */
 
 :root {
@@ -165,7 +165,7 @@
   border-radius: 9999px;
 }
 
-/* Selection — lavender tint */
+/* Selection - lavender tint */
 ::selection {
   background: rgba(155, 114, 207, 0.15);
 }

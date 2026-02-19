@@ -19,7 +19,7 @@ function LoginPage(): React.ReactNode {
 
   return (
     <div className="min-h-screen flex bg-white">
-      {/* Left side — Sign in form */}
+      {/* Left side - Sign in form */}
       <div className="flex-1 flex flex-col justify-center px-6 py-12 lg:px-16">
         <div className="mx-auto w-full max-w-sm">
           {/* Back button */}
@@ -47,7 +47,7 @@ function LoginPage(): React.ReactNode {
         </div>
       </div>
 
-      {/* Right side — Decorative */}
+      {/* Right side - Decorative */}
       <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-[#f3f0f7] via-white to-[#e8f5e9]/30 relative overflow-hidden">
         {/* Dot pattern */}
         <div
@@ -62,7 +62,7 @@ function LoginPage(): React.ReactNode {
         <div className="relative z-10 flex flex-col items-center justify-center w-full p-12">
           {/* Dashboard preview cards */}
           <div className="relative w-full max-w-md h-[400px]">
-            {/* Card 1 — Stats card */}
+            {/* Card 1 - Stats card */}
             <div className="absolute left-0 top-8 transform -rotate-3 hover:rotate-0 hover:scale-105 transition-all duration-500 cursor-pointer group">
               <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-14 h-6 bg-[#9b72cf]/20 rounded-sm transform -rotate-1" />
               <div className="bg-white p-4 rounded-lg shadow-[0_10px_40px_-10px_rgba(0,0,0,0.15)] group-hover:shadow-[0_20px_50px_-10px_rgba(0,0,0,0.2)] transition-shadow">
@@ -77,7 +77,7 @@ function LoginPage(): React.ReactNode {
               </div>
             </div>
 
-            {/* Card 2 — Mini chart */}
+            {/* Card 2 - Mini chart */}
             <div className="absolute right-0 top-0 transform rotate-2 hover:rotate-0 hover:scale-105 transition-all duration-500 cursor-pointer group">
               <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-12 h-6 bg-[#5b9a6f]/20 rounded-sm transform rotate-2" />
               <div className="bg-white p-4 rounded-lg shadow-[0_10px_40px_-10px_rgba(0,0,0,0.12)] group-hover:shadow-[0_20px_50px_-10px_rgba(0,0,0,0.18)] transition-shadow">
@@ -107,7 +107,7 @@ function LoginPage(): React.ReactNode {
               </div>
             </div>
 
-            {/* Card 3 — Top pages */}
+            {/* Card 3 - Top pages */}
             <div className="absolute left-16 bottom-0 transform -rotate-1 hover:rotate-0 hover:scale-105 transition-all duration-500 cursor-pointer group">
               <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 w-10 h-5 bg-[#e07a5f]/20 rounded-sm transform rotate-1" />
               <div className="bg-white p-3 rounded-lg shadow-[0_8px_30px_-8px_rgba(0,0,0,0.1)] group-hover:shadow-[0_15px_40px_-8px_rgba(0,0,0,0.15)] transition-shadow">

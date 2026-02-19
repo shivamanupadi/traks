@@ -62,8 +62,7 @@ export async function queryArchivedTimeseries(
   period: ArchivedPeriod
 ) {
   // For 'all' with >365 days, roll up to weekly
-  const daysDiff =
-    (new Date(to).getTime() - new Date(from).getTime()) / (1000 * 60 * 60 * 24);
+  const daysDiff = (new Date(to).getTime() - new Date(from).getTime()) / (1000 * 60 * 60 * 24);
   const useWeekly = period === 'all' && daysDiff > 365;
 
   if (useWeekly) {
@@ -99,9 +98,7 @@ export async function queryArchivedTimeseries(
       sessions: dailyStats.sessions,
     })
     .from(dailyStats)
-    .where(
-      and(eq(dailyStats.siteId, siteId), gte(dailyStats.date, from), lte(dailyStats.date, to))
-    )
+    .where(and(eq(dailyStats.siteId, siteId), gte(dailyStats.date, from), lte(dailyStats.date, to)))
     .orderBy(dailyStats.date);
 
   return rows.map(r => ({
@@ -126,9 +123,7 @@ export async function queryArchivedPages(
       pageviews: sum(dailyPages.pageviews).mapWith(Number),
     })
     .from(dailyPages)
-    .where(
-      and(eq(dailyPages.siteId, siteId), gte(dailyPages.date, from), lte(dailyPages.date, to))
-    )
+    .where(and(eq(dailyPages.siteId, siteId), gte(dailyPages.date, from), lte(dailyPages.date, to)))
     .groupBy(dailyPages.pathname)
     .orderBy(desc(sum(dailyPages.visitors)))
     .limit(limit);
@@ -289,11 +284,7 @@ export async function queryArchivedEvents(
     })
     .from(dailyEvents)
     .where(
-      and(
-        eq(dailyEvents.siteId, siteId),
-        gte(dailyEvents.date, from),
-        lte(dailyEvents.date, to)
-      )
+      and(eq(dailyEvents.siteId, siteId), gte(dailyEvents.date, from), lte(dailyEvents.date, to))
     )
     .groupBy(dailyEvents.name)
     .orderBy(desc(sum(dailyEvents.count)))

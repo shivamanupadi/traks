@@ -55,19 +55,13 @@ export const sitesRoute = app
     const siteId = c.req.param('id');
     const db = c.get('db')!;
 
-    const [site] = await db
-      .select()
-      .from(sites)
-      .where(eq(sites.id, siteId));
+    const [site] = await db.select().from(sites).where(eq(sites.id, siteId));
 
     if (!site || site.userId !== userId) {
       return c.json({ error: 'Not found' }, 404);
     }
 
-    const keys = await db
-      .select()
-      .from(apiKeys)
-      .where(eq(apiKeys.siteId, siteId));
+    const keys = await db.select().from(apiKeys).where(eq(apiKeys.siteId, siteId));
 
     return c.json({ data: { ...site, apiKeys: keys } });
   })
@@ -79,10 +73,7 @@ export const sitesRoute = app
     const body = c.req.valid('json');
     const db = c.get('db')!;
 
-    const [site] = await db
-      .select()
-      .from(sites)
-      .where(eq(sites.id, siteId));
+    const [site] = await db.select().from(sites).where(eq(sites.id, siteId));
 
     if (!site || site.userId !== userId) {
       return c.json({ error: 'Not found' }, 404);
@@ -115,10 +106,7 @@ export const sitesRoute = app
     const siteId = c.req.param('id');
     const db = c.get('db')!;
 
-    const [site] = await db
-      .select()
-      .from(sites)
-      .where(eq(sites.id, siteId));
+    const [site] = await db.select().from(sites).where(eq(sites.id, siteId));
 
     if (!site || site.userId !== userId) {
       return c.json({ error: 'Not found' }, 404);

@@ -73,4 +73,3 @@ export const apiKeys = sqliteTable(
     index('api_keys_user_id_idx').on(table.userId),
   ]
 );
-

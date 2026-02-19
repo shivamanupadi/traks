@@ -25,14 +25,19 @@ const COLLECT_URL = import.meta.env.VITE_COLLECT_URL || 'https://collect.traks.d
 
 const REFETCH_INTERVAL = 30_000;
 
-// staleTime per period — longer periods change less frequently
+// staleTime per period - longer periods change less frequently
 function getStaleTime(period: Period): number {
   switch (period) {
-    case 'today': return 15_000;
-    case '7d':    return 60_000;
-    case '30d':   return 120_000;
-    case '90d':   return 300_000;
-    default:      return 300_000;
+    case 'today':
+      return 15_000;
+    case '7d':
+      return 60_000;
+    case '30d':
+      return 120_000;
+    case '90d':
+      return 300_000;
+    default:
+      return 300_000;
   }
 }
 
@@ -44,7 +49,12 @@ function useLazyVisible(): [ref: React.RefObject<HTMLDivElement | null>, visible
     const el = ref.current;
     if (!el) return;
     const observer = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting) { setVisible(true); observer.disconnect(); } },
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisible(true);
+          observer.disconnect();
+        }
+      },
       { rootMargin: '200px' }
     );
     observer.observe(el);
@@ -89,7 +99,9 @@ function InstallModal({
           <DialogTitle>Installation</DialogTitle>
           <DialogDescription>
             Add this snippet to the{' '}
-            <code className="text-[12px] bg-[#f3f0f7] px-1.5 py-0.5 rounded font-medium">&lt;head&gt;</code>{' '}
+            <code className="text-[12px] bg-[#f3f0f7] px-1.5 py-0.5 rounded font-medium">
+              &lt;head&gt;
+            </code>{' '}
             of <span className="font-semibold text-[#2D3436]">{site?.domain}</span>
           </DialogDescription>
         </DialogHeader>
@@ -99,7 +111,9 @@ function InstallModal({
             {/* Snippet card */}
             <div className="relative rounded-xl border border-[#e8e3ed] bg-[#fdfbf8] overflow-hidden">
               <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#e8e3ed]/60">
-                <span className="text-[11px] font-medium text-[#B5B0AA] uppercase tracking-wider">HTML Snippet</span>
+                <span className="text-[11px] font-medium text-[#B5B0AA] uppercase tracking-wider">
+                  HTML Snippet
+                </span>
                 <button
                   onClick={handleCopy}
                   className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium text-[#9B9590] hover:text-[#9b72cf] transition-colors cursor-pointer"
@@ -126,14 +140,19 @@ function InstallModal({
             <div className="flex gap-3 rounded-xl bg-[#5b9a6f]/5 border border-[#5b9a6f]/10 px-4 py-3.5">
               <Zap className="w-4 h-4 text-[#5b9a6f] shrink-0 mt-0.5" strokeWidth={1.7} />
               <p className="text-[12px] text-[#5b9a6f]/80 leading-relaxed">
-                Under 1KB, loads async — zero impact on page speed. Data appears within seconds of the first visit.
+                Under 1KB, loads async - zero impact on page speed. Data appears within seconds of
+                the first visit.
               </p>
             </div>
           </div>
         </DialogBody>
 
         <DialogFooter className="border-t border-[#e8e3ed]/50 mx-6 px-0 pb-5 pt-4">
-          <Button variant="ghost" onClick={handleCopy} className="rounded-xl text-[13px] cursor-pointer">
+          <Button
+            variant="ghost"
+            onClick={handleCopy}
+            className="rounded-xl text-[13px] cursor-pointer"
+          >
             <Copy className="w-3.5 h-3.5" />
             {copied ? 'Copied!' : 'Copy snippet'}
           </Button>
@@ -205,50 +224,50 @@ function EditSiteModal({
             <Settings className="w-5 h-5 text-[#9b72cf]" strokeWidth={1.7} />
           </div>
           <DialogTitle>Edit site</DialogTitle>
-          <DialogDescription>
-            Update your site name and domain.
-          </DialogDescription>
+          <DialogDescription>Update your site name and domain.</DialogDescription>
         </DialogHeader>
 
         <DialogBody>
           <div className="space-y-5">
             <div>
-              <label className="mb-2 block text-[13px] font-medium text-[#2D3436]">
-                Site Name
-              </label>
+              <label className="mb-2 block text-[13px] font-medium text-[#2D3436]">Site Name</label>
               <Input
                 placeholder="My SaaS"
                 value={name}
-                onChange={(e) => { setName(e.target.value); setError(''); }}
+                onChange={e => {
+                  setName(e.target.value);
+                  setError('');
+                }}
                 className="rounded-xl h-11 border-[#e8e3ed] focus:border-[#9b72cf]/40 px-4 text-[14px]"
                 autoFocus
               />
             </div>
             <div>
-              <label className="mb-2 block text-[13px] font-medium text-[#2D3436]">
-                Domain
-              </label>
+              <label className="mb-2 block text-[13px] font-medium text-[#2D3436]">Domain</label>
               <Input
                 placeholder="example.com"
                 value={domain}
-                onChange={(e) => { setDomain(e.target.value); setError(''); }}
+                onChange={e => {
+                  setDomain(e.target.value);
+                  setError('');
+                }}
                 className="rounded-xl h-11 border-[#e8e3ed] focus:border-[#9b72cf]/40 px-4 text-[14px]"
-                onKeyDown={(e) => {
+                onKeyDown={e => {
                   if (e.key === 'Enter' && canSave) updateSite.mutate();
                 }}
               />
-              <p className="mt-2 text-[12px] text-[#B5B0AA]">
-                Without http:// or https://
-              </p>
+              <p className="mt-2 text-[12px] text-[#B5B0AA]">Without http:// or https://</p>
             </div>
-            {error && (
-              <p className="text-[13px] text-[#e07a5f]">{error}</p>
-            )}
+            {error && <p className="text-[13px] text-[#e07a5f]">{error}</p>}
           </div>
         </DialogBody>
 
         <DialogFooter className="border-t border-[#e8e3ed]/50 mx-6 px-0 pb-5 pt-4">
-          <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-xl text-[13px]">
+          <Button
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
+            className="rounded-xl text-[13px]"
+          >
             Cancel
           </Button>
           <Button
@@ -307,8 +326,12 @@ function SiteAnalyticsPage(): ReactElement {
     staleTime: 300_000,
   });
 
-  // Single combined query — 1 HTTP request instead of 7
-  const { data: allData, isLoading: allLoading, isError: allError } = useQuery({
+  // Single combined query - 1 HTTP request instead of 7
+  const {
+    data: allData,
+    isLoading: allLoading,
+    isError: allError,
+  } = useQuery({
     queryKey: ['site-analytics', siteId, 'all', period],
     queryFn: async () => {
       const token = await getToken();
@@ -339,9 +362,7 @@ function SiteAnalyticsPage(): ReactElement {
               <h1 className="text-[20px] font-bold text-[#2D3436] tracking-[-0.01em]">
                 {site?.name || 'Analytics'}
               </h1>
-              {site?.domain && (
-                <p className="text-[13px] text-[#9B9590]">{site.domain}</p>
-              )}
+              {site?.domain && <p className="text-[13px] text-[#9B9590]">{site.domain}</p>}
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -364,7 +385,9 @@ function SiteAnalyticsPage(): ReactElement {
               className="flex items-center justify-center w-9 h-9 rounded-xl bg-[#f3f0f7]/60 hover:bg-[#f3f0f7] transition-colors cursor-pointer"
               title="Refresh data"
             >
-              <RefreshCw className={`w-3.5 h-3.5 text-[#9B9590] ${refreshing ? 'animate-spin' : ''}`} />
+              <RefreshCw
+                className={`w-3.5 h-3.5 text-[#9B9590] ${refreshing ? 'animate-spin' : ''}`}
+              />
             </button>
             <PeriodPicker value={period} onChange={setPeriod} />
           </div>
@@ -433,11 +456,7 @@ function SiteAnalyticsPage(): ReactElement {
         siteId={siteId}
       />
 
-      <InstallModal
-        open={installOpen}
-        onOpenChange={setInstallOpen}
-        site={site}
-      />
+      <InstallModal open={installOpen} onOpenChange={setInstallOpen} site={site} />
     </main>
   );
 }

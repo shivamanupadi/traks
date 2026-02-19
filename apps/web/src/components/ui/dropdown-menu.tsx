@@ -130,7 +130,10 @@ const DropdownMenuItem = React.forwardRef<
 
   if (asChild && React.isValidElement(children)) {
     return React.cloneElement(
-      children as React.ReactElement<{ className?: string; onClick?: (e: React.MouseEvent) => void }>,
+      children as React.ReactElement<{
+        className?: string;
+        onClick?: (e: React.MouseEvent) => void;
+      }>,
       {
         className: cn(
           'flex cursor-pointer select-none items-center gap-2 rounded-lg px-2 py-1.5 text-sm outline-none transition-colors hover:bg-muted focus:bg-muted',
@@ -139,7 +142,9 @@ const DropdownMenuItem = React.forwardRef<
           (children as React.ReactElement<{ className?: string }>).props.className
         ),
         onClick: (e: React.MouseEvent) => {
-          (children as React.ReactElement<{ onClick?: (e: React.MouseEvent) => void }>).props.onClick?.(e);
+          (
+            children as React.ReactElement<{ onClick?: (e: React.MouseEvent) => void }>
+          ).props.onClick?.(e);
           setOpen(false);
         },
       }

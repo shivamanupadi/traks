@@ -23,7 +23,11 @@ export function SiteTile({
     <motion.div
       initial={isNew ? { opacity: 0, y: 16, scale: 0.97 } : false}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={isNew ? { duration: 0.35, ease: [0.25, 0.1, 0.25, 1], delay: batchIndex * 0.05 } : { duration: 0 }}
+      transition={
+        isNew
+          ? { duration: 0.35, ease: [0.25, 0.1, 0.25, 1], delay: batchIndex * 0.05 }
+          : { duration: 0 }
+      }
     >
       <Link
         to="/portal/site/$siteId"
@@ -48,24 +52,29 @@ export function SiteTile({
             <h3 className="text-[15px] font-semibold text-[#2D3436] leading-tight truncate">
               {site.name}
             </h3>
-            <span className="text-[12px] text-[#B5B0AA] mt-0.5 truncate block">
-              {site.domain}
-            </span>
+            <span className="text-[12px] text-[#B5B0AA] mt-0.5 truncate block">{site.domain}</span>
           </div>
         </div>
 
-        {/* Stats — today */}
+        {/* Stats - today */}
         <div className="mt-4">
           <div className="flex items-center justify-between mb-2.5">
-            <span className="text-[10px] font-semibold text-[#B5B0AA] uppercase tracking-wider">Today</span>
+            <span className="text-[10px] font-semibold text-[#B5B0AA] uppercase tracking-wider">
+              Today
+            </span>
           </div>
           <SiteTileStats stats={stats} isLoading={isStatsLoading} />
         </div>
 
         {/* View analytics button */}
         <div className="mt-4 flex items-center justify-between pt-3 border-t border-[#e8e3ed]/50">
-          <span className="text-[12px] font-medium text-[#9B9590] group-hover:text-[#2D3436] transition-colors">View Analytics</span>
-          <ArrowRight className="w-4 h-4 text-[#d5cfe0] group-hover:translate-x-0.5 transition-all duration-200" style={{ color }} />
+          <span className="text-[12px] font-medium text-[#9B9590] group-hover:text-[#2D3436] transition-colors">
+            View Analytics
+          </span>
+          <ArrowRight
+            className="w-4 h-4 text-[#d5cfe0] group-hover:translate-x-0.5 transition-all duration-200"
+            style={{ color }}
+          />
         </div>
       </Link>
     </motion.div>

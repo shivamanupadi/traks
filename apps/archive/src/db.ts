@@ -15,7 +15,7 @@ import {
 export { archiveState };
 
 // Minimal declarations for the join in getAllActiveSites().
-// Only the columns needed — full definitions live in apps/api/src/db/schema.ts.
+// Only the columns needed - full definitions live in apps/api/src/db/schema.ts.
 const sites = sqliteTable('sites', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull(),
@@ -69,7 +69,11 @@ export async function upsertDailyStats(
     .values({ siteId, date, ...data })
     .onConflictDoUpdate({
       target: [dailyStats.siteId, dailyStats.date],
-      set: { visitors: sql`excluded.visitors`, pageviews: sql`excluded.pageviews`, sessions: sql`excluded.sessions` },
+      set: {
+        visitors: sql`excluded.visitors`,
+        pageviews: sql`excluded.pageviews`,
+        sessions: sql`excluded.sessions`,
+      },
     });
 }
 
@@ -94,7 +98,9 @@ export async function upsertDailyReferrers(
 ): Promise<void> {
   if (rows.length === 0) return;
   await db.batch([
-    db.delete(dailyReferrers).where(and(eq(dailyReferrers.siteId, siteId), eq(dailyReferrers.date, date))),
+    db
+      .delete(dailyReferrers)
+      .where(and(eq(dailyReferrers.siteId, siteId), eq(dailyReferrers.date, date))),
     db.insert(dailyReferrers).values(rows.map(r => ({ siteId, date, ...r }))),
   ]);
 }
@@ -107,7 +113,9 @@ export async function upsertDailyLocations(
 ): Promise<void> {
   if (rows.length === 0) return;
   await db.batch([
-    db.delete(dailyLocations).where(and(eq(dailyLocations.siteId, siteId), eq(dailyLocations.date, date))),
+    db
+      .delete(dailyLocations)
+      .where(and(eq(dailyLocations.siteId, siteId), eq(dailyLocations.date, date))),
     db.insert(dailyLocations).values(rows.map(r => ({ siteId, date, ...r }))),
   ]);
 }
@@ -120,7 +128,9 @@ export async function upsertDailyDevices(
 ): Promise<void> {
   if (rows.length === 0) return;
   await db.batch([
-    db.delete(dailyDevices).where(and(eq(dailyDevices.siteId, siteId), eq(dailyDevices.date, date))),
+    db
+      .delete(dailyDevices)
+      .where(and(eq(dailyDevices.siteId, siteId), eq(dailyDevices.date, date))),
     db.insert(dailyDevices).values(rows.map(r => ({ siteId, date, ...r }))),
   ]);
 }

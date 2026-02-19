@@ -28,7 +28,14 @@ export default {
 
     const sites = await getAllActiveSites(db);
     if (sites.length === 0) {
-      console.log(JSON.stringify({ event: 'cron_complete', sites: 0, enqueued: 0, duration_ms: Date.now() - cronStart }));
+      console.log(
+        JSON.stringify({
+          event: 'cron_complete',
+          sites: 0,
+          enqueued: 0,
+          duration_ms: Date.now() - cronStart,
+        })
+      );
       return;
     }
 
@@ -41,7 +48,14 @@ export default {
       for (let i = 0; i < messages.length; i += 25) {
         await env.ARCHIVE_QUEUE.sendBatch(messages.slice(i, i + 25));
       }
-      console.log(JSON.stringify({ event: 'cron_complete', sites: sites.length, enqueued: messages.length, duration_ms: Date.now() - cronStart }));
+      console.log(
+        JSON.stringify({
+          event: 'cron_complete',
+          sites: sites.length,
+          enqueued: messages.length,
+          duration_ms: Date.now() - cronStart,
+        })
+      );
     } else {
       // Local dev fallback: process directly
       const config: QueryConfig = {
@@ -52,14 +66,27 @@ export default {
       for (const msg of messages) {
         const { siteId, siteKey, domain, date } = msg.body;
         try {
-          const result = await archiveSiteDay(db, env.ARCHIVE_BUCKET, config, { id: siteId, domain, key: siteKey }, date);
+          const result = await archiveSiteDay(
+            db,
+            env.ARCHIVE_BUCKET,
+            config,
+            { id: siteId, domain, key: siteKey },
+            date
+          );
           console.log(JSON.stringify({ event: 'archive_complete', ...result }));
         } catch (error) {
           const errMsg = error instanceof Error ? error.message : String(error);
           console.error(JSON.stringify({ event: 'archive_error', siteId, date, error: errMsg }));
         }
       }
-      console.log(JSON.stringify({ event: 'cron_complete', sites: sites.length, enqueued: messages.length, duration_ms: Date.now() - cronStart }));
+      console.log(
+        JSON.stringify({
+          event: 'cron_complete',
+          sites: sites.length,
+          enqueued: messages.length,
+          duration_ms: Date.now() - cronStart,
+        })
+      );
     }
   },
 

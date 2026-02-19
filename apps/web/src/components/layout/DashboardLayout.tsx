@@ -1,13 +1,7 @@
 import type { ReactElement, ReactNode } from 'react';
 import { Link, useParams } from '@tanstack/react-router';
 import { useAuth, UserButton } from '@clerk/clerk-react';
-import {
-  BarChart3,
-  Globe,
-  Settings,
-  Zap,
-  ChevronDown,
-} from 'lucide-react';
+import { BarChart3, Globe, Settings, Zap, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';

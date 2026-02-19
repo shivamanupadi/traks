@@ -80,10 +80,7 @@ async function verifyJWTSignature(token: string, publicKey: CryptoKey): Promise<
   }
 }
 
-async function verifyClerkToken(
-  token: string,
-  secretKey: string
-): Promise<ClerkJWTPayload | null> {
+async function verifyClerkToken(token: string, secretKey: string): Promise<ClerkJWTPayload | null> {
   try {
     const parts = token.split('.');
     if (parts.length !== 3) return null;

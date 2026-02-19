@@ -49,7 +49,9 @@ export function TimeseriesChart({
       <div className="flex h-[300px] flex-col items-center justify-center rounded-2xl border border-[#e8e3ed]/80 bg-white">
         <TrendingUp className="w-5 h-5 text-[#B5B0AA] mb-2" strokeWidth={1.5} />
         <p className="text-[13px] font-medium text-[#9B9590]">No data yet</p>
-        <p className="text-[12px] text-[#B5B0AA] mt-1">Embed the tracking script to start collecting data</p>
+        <p className="text-[12px] text-[#B5B0AA] mt-1">
+          Embed the tracking script to start collecting data
+        </p>
       </div>
     );
   }
@@ -76,13 +78,7 @@ export function TimeseriesChart({
             tickLine={false}
             axisLine={false}
           />
-          <YAxis
-            stroke="#6b6560"
-            fontSize={12}
-            tickLine={false}
-            axisLine={false}
-            width={40}
-          />
+          <YAxis stroke="#6b6560" fontSize={12} tickLine={false} axisLine={false} width={40} />
           <Tooltip
             contentStyle={{
               backgroundColor: '#fff',

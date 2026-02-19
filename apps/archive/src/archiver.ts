@@ -29,7 +29,14 @@ export interface ArchiveResult {
   date: string;
   duration_ms: number;
   phases: { query_ms: number; d1_ms: number; r2_ms: number };
-  rows: { pages: number; referrers: number; locations: number; devices: number; utm: number; events: number };
+  rows: {
+    pages: number;
+    referrers: number;
+    locations: number;
+    devices: number;
+    utm: number;
+    events: number;
+  };
 }
 
 export async function archiveSiteDay(
@@ -187,8 +194,8 @@ export async function archiveSiteDay(
       events: eventsRows,
     };
 
-    const jsonlLines = Object.entries(allResults).map(
-      ([key, value]) => JSON.stringify({ type: key, date: dateStr, siteId: site.id, data: value })
+    const jsonlLines = Object.entries(allResults).map(([key, value]) =>
+      JSON.stringify({ type: key, date: dateStr, siteId: site.id, data: value })
     );
     await bucket.put(r2Key, jsonlLines.join('\n'));
     const r2_ms = Date.now() - r2Start;
@@ -214,14 +221,16 @@ export async function archiveSiteDay(
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error(`[archive] Error archiving site ${site.id}: ${message}`);
-    // Don't update lastArchivedDate on error — only log the error status
+    // Don't update lastArchivedDate on error - only log the error status
     // The queue will retry, and we don't want to roll back a successful date
     try {
       await db
         .update(archiveState)
         .set({ status: 'error', lastError: message, updatedAt: new Date() })
         .where(eq(archiveState.siteId, site.id));
-    } catch { /* best-effort */ }
+    } catch {
+      /* best-effort */
+    }
     throw error;
   }
 }

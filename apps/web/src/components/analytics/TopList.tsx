@@ -63,13 +63,18 @@ export function TopList({
 
           {/* Items */}
           {items.map((item, i) => (
-            <div key={i} className="relative flex items-center justify-between rounded-lg px-2 py-1.5">
+            <div
+              key={i}
+              className="relative flex items-center justify-between rounded-lg px-2 py-1.5"
+            >
               {/* Background bar */}
               <div
                 className="absolute inset-y-0 left-0 rounded-lg bg-[#9b72cf]/[0.06]"
                 style={{ width: `${(item.visitors / maxVisitors) * 100}%` }}
               />
-              <span className="relative z-10 truncate text-[13px] text-[#2D3436]">{item.name || '(direct)'}</span>
+              <span className="relative z-10 truncate text-[13px] text-[#2D3436]">
+                {item.name || '(direct)'}
+              </span>
               <div className="relative z-10 flex gap-6 text-[13px] font-medium tabular-nums text-[#2D3436]">
                 <span>{formatNumber(item.visitors)}</span>
                 {showPageviews && <span>{formatNumber(item.pageviews || 0)}</span>}

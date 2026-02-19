@@ -1,13 +1,7 @@
 import { createFileRoute, useNavigate, useLocation, Link, Outlet } from '@tanstack/react-router';
 import { useAuth, useUser, useClerk } from '@clerk/clerk-react';
 import { useEffect } from 'react';
-import {
-  LayoutGrid,
-  Settings,
-  User,
-  ChevronDown,
-  LogOut,
-} from 'lucide-react';
+import { LayoutGrid, Settings, User, ChevronDown, LogOut } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -108,7 +102,8 @@ function NavLink({
   children: React.ReactNode;
 }): React.ReactNode {
   const location = useLocation();
-  const isActive = location.pathname.startsWith(to) ||
+  const isActive =
+    location.pathname.startsWith(to) ||
     (alsoMatchPaths?.some(p => location.pathname.startsWith(p)) ?? false);
 
   return (
@@ -136,7 +131,8 @@ function MobileNavLink({
   alsoMatchPaths?: string[];
 }): React.ReactNode {
   const location = useLocation();
-  const isActive = location.pathname.startsWith(to) ||
+  const isActive =
+    location.pathname.startsWith(to) ||
     (alsoMatchPaths?.some(p => location.pathname.startsWith(p)) ?? false);
 
   return (
@@ -202,7 +198,10 @@ function UserMenu(): React.ReactNode {
         </DropdownMenuItem>
 
         <DropdownMenuItem asChild>
-          <Link to="/portal/settings" className="flex items-center gap-3 px-4 py-2.5 cursor-pointer">
+          <Link
+            to="/portal/settings"
+            className="flex items-center gap-3 px-4 py-2.5 cursor-pointer"
+          >
             <Settings className="w-4 h-4" />
             Settings
           </Link>

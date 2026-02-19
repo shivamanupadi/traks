@@ -25,22 +25,26 @@ export const api = {
     return res.json();
   },
 
-  async createSite(data: { name: string; domain: string; timezone?: string }, token: string): Promise<any> {
+  async createSite(
+    data: { name: string; domain: string; timezone?: string },
+    token: string
+  ): Promise<any> {
     const res = await client.api.sites.$post({ json: data }, authHeaders(token));
     await assertOk(res);
     return res.json();
   },
 
   async getSite(siteId: string, token: string): Promise<any> {
-    const res = await client.api.sites[':id'].$get(
-      { param: { id: siteId } },
-      authHeaders(token)
-    );
+    const res = await client.api.sites[':id'].$get({ param: { id: siteId } }, authHeaders(token));
     await assertOk(res);
     return res.json();
   },
 
-  async updateSite(siteId: string, data: { name: string; domain: string }, token: string): Promise<any> {
+  async updateSite(
+    siteId: string,
+    data: { name: string; domain: string },
+    token: string
+  ): Promise<any> {
     const res = await client.api.sites[':id'].$patch(
       { param: { id: siteId }, json: data },
       authHeaders(token)
@@ -55,10 +59,7 @@ export const api = {
     if (siteIds && siteIds.length > 0) {
       query.siteIds = siteIds.join(',');
     }
-    const res = await client.api.analytics.batch.stats.$get(
-      { query },
-      authHeaders(token)
-    );
+    const res = await client.api.analytics.batch.stats.$get({ query }, authHeaders(token));
     await assertOk(res);
     return res.json();
   },
@@ -108,7 +109,12 @@ export const api = {
     return res.json();
   },
 
-  async getLocations(siteId: string, period: Period, type: 'country' | 'city', token: string): Promise<any> {
+  async getLocations(
+    siteId: string,
+    period: Period,
+    type: 'country' | 'city',
+    token: string
+  ): Promise<any> {
     const res = await client.api.analytics[':siteId'].stats.locations.$get(
       { param: { siteId }, query: { period, type } },
       authHeaders(token)
@@ -117,7 +123,12 @@ export const api = {
     return res.json();
   },
 
-  async getDevices(siteId: string, period: Period, type: 'browser' | 'os' | 'device', token: string): Promise<any> {
+  async getDevices(
+    siteId: string,
+    period: Period,
+    type: 'browser' | 'os' | 'device',
+    token: string
+  ): Promise<any> {
     const res = await client.api.analytics[':siteId'].stats.devices.$get(
       { param: { siteId }, query: { period, type } },
       authHeaders(token)

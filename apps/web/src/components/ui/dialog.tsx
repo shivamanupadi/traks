@@ -39,9 +39,7 @@ function Dialog({ open, onOpenChange, children }: DialogProps): React.ReactNode 
             onClick={() => onOpenChange(false)}
           />
           {/* Content wrapper */}
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            {children}
-          </div>
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">{children}</div>
         </>
       )}
     </AnimatePresence>

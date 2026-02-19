@@ -34,9 +34,13 @@ export function SiteTileStats({
         <div key={item.label} className="rounded-lg bg-[#fdfbf8] px-2.5 py-2">
           <div className="flex items-center gap-1.5 mb-1.5">
             <item.icon className="w-3.5 h-3.5" style={{ color: item.color }} strokeWidth={1.8} />
-            <span className="text-[11px] font-medium text-[#B5B0AA] leading-none">{item.label}</span>
+            <span className="text-[11px] font-medium text-[#B5B0AA] leading-none">
+              {item.label}
+            </span>
           </div>
-          <span className="text-[15px] font-bold text-[#2D3436] leading-none pl-0.5">{formatNumber(item.value)}</span>
+          <span className="text-[15px] font-bold text-[#2D3436] leading-none pl-0.5">
+            {formatNumber(item.value)}
+          </span>
         </div>
       ))}
     </div>

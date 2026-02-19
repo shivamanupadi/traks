@@ -130,7 +130,7 @@ function LandingPage(): ReactElement {
         </nav>
       </header>
 
-      {/* Hero — 2-column */}
+      {/* Hero - 2-column */}
       <main className="relative z-10 flex-1 flex flex-col">
         <div className="max-w-5xl w-full mx-auto flex-1 grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-16 items-center px-6 py-12 sm:py-16 lg:py-24">
           {/* Left: Hero text */}
@@ -221,7 +221,7 @@ function LandingPage(): ReactElement {
             }}
             className="hidden lg:flex flex-col gap-3"
           >
-            {/* Top row — 3 cards */}
+            {/* Top row - 3 cards */}
             <div className="grid grid-cols-3 gap-3">
               {features.slice(0, 3).map(f => (
                 <motion.div
@@ -252,13 +252,15 @@ function LandingPage(): ReactElement {
                       strokeWidth={1.7}
                     />
                   </div>
-                  <p className="text-[13px] font-semibold text-[#2D3436] leading-tight">{f.label}</p>
+                  <p className="text-[13px] font-semibold text-[#2D3436] leading-tight">
+                    {f.label}
+                  </p>
                   <p className="text-[11px] text-[#9B9590] leading-snug mt-1">{f.desc}</p>
                 </motion.div>
               ))}
             </div>
 
-            {/* Bottom row — 3 cards */}
+            {/* Bottom row - 3 cards */}
             <div className="grid grid-cols-3 gap-3">
               {features.slice(3, 6).map(f => (
                 <motion.div
@@ -289,7 +291,9 @@ function LandingPage(): ReactElement {
                       strokeWidth={1.7}
                     />
                   </div>
-                  <p className="text-[13px] font-semibold text-[#2D3436] leading-tight">{f.label}</p>
+                  <p className="text-[13px] font-semibold text-[#2D3436] leading-tight">
+                    {f.label}
+                  </p>
                   <p className="text-[11px] text-[#9B9590] leading-snug mt-1">{f.desc}</p>
                 </motion.div>
               ))}
@@ -316,13 +320,14 @@ function LandingPage(): ReactElement {
                   </div>
                   <span className="text-[11px] text-[#B5B0AA] font-medium ml-1">index.html</span>
                 </div>
-                <span className="text-[10px] text-[#9b72cf]/70 font-medium tracking-wide uppercase">Add to any site</span>
+                <span className="text-[10px] text-[#9b72cf]/70 font-medium tracking-wide uppercase">
+                  Add to any site
+                </span>
               </div>
               <pre className="text-[12px] font-mono leading-[1.7] overflow-x-auto">
                 <code>
                   <span className="text-[#6b8ead]">{'<'}</span>
-                  <span className="text-[#9b72cf]">script</span>
-                  {' '}
+                  <span className="text-[#9b72cf]">script</span>{' '}
                   <span className="text-[#d4a574]">defer</span>
                   {'\n'}
                   {'  '}
@@ -390,7 +395,9 @@ function LandingPage(): ReactElement {
                     </div>
                     <div>
                       <h3 className="text-[15px] font-semibold text-[#2D3436]">{item.title}</h3>
-                      <p className="text-[13px] text-[#9B9590] leading-relaxed mt-1.5">{item.desc}</p>
+                      <p className="text-[13px] text-[#9B9590] leading-relaxed mt-1.5">
+                        {item.desc}
+                      </p>
                     </div>
                   </div>
                 </motion.div>
@@ -419,12 +426,42 @@ function LandingPage(): ReactElement {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
               {[
-                { icon: Eye, title: 'Real-time Dashboard', desc: 'See who is on your site right now. Live visitor count, active pages, and current traffic sources.', color: '#9b72cf' },
-                { icon: Globe, title: 'Top Pages', desc: 'Know which pages drive the most traffic. Pageviews and unique visitors for every URL.', color: '#5b9a6f' },
-                { icon: MousePointer, title: 'Traffic Sources', desc: 'See where your visitors come from. Referrers, UTM campaigns, and direct traffic breakdown.', color: '#e07a5f' },
-                { icon: MapPin, title: 'Geo Analytics', desc: 'Country and city-level visitor breakdown. Know your audience geography at a glance.', color: '#d4a574' },
-                { icon: Smartphone, title: 'Device Insights', desc: 'Browser, OS, and device type breakdown. Understand how visitors access your site.', color: '#6b8ead' },
-                { icon: Zap, title: 'Custom Events', desc: 'Track button clicks, form submissions, and conversions with window.traks() API.', color: '#9b72cf' },
+                {
+                  icon: Eye,
+                  title: 'Real-time Dashboard',
+                  desc: 'See who is on your site right now. Live visitor count, active pages, and current traffic sources.',
+                  color: '#9b72cf',
+                },
+                {
+                  icon: Globe,
+                  title: 'Top Pages',
+                  desc: 'Know which pages drive the most traffic. Pageviews and unique visitors for every URL.',
+                  color: '#5b9a6f',
+                },
+                {
+                  icon: MousePointer,
+                  title: 'Traffic Sources',
+                  desc: 'See where your visitors come from. Referrers, UTM campaigns, and direct traffic breakdown.',
+                  color: '#e07a5f',
+                },
+                {
+                  icon: MapPin,
+                  title: 'Geo Analytics',
+                  desc: 'Country and city-level visitor breakdown. Know your audience geography at a glance.',
+                  color: '#d4a574',
+                },
+                {
+                  icon: Smartphone,
+                  title: 'Device Insights',
+                  desc: 'Browser, OS, and device type breakdown. Understand how visitors access your site.',
+                  color: '#6b8ead',
+                },
+                {
+                  icon: Zap,
+                  title: 'Custom Events',
+                  desc: 'Track button clicks, form submissions, and conversions with window.traks() API.',
+                  color: '#9b72cf',
+                },
               ].map((item, i) => (
                 <motion.div
                   key={item.title}
@@ -442,7 +479,11 @@ function LandingPage(): ReactElement {
                     className="w-11 h-11 rounded-xl flex items-center justify-center mb-4 transition-transform duration-300 group-hover:scale-110"
                     style={{ backgroundColor: `${item.color}12` }}
                   >
-                    <item.icon className="w-5 h-5" style={{ color: item.color }} strokeWidth={1.7} />
+                    <item.icon
+                      className="w-5 h-5"
+                      style={{ color: item.color }}
+                      strokeWidth={1.7}
+                    />
                   </div>
                   <h3 className="text-[15px] font-semibold text-[#2D3436]">{item.title}</h3>
                   <p className="text-[13px] text-[#9B9590] leading-relaxed mt-1.5">{item.desc}</p>

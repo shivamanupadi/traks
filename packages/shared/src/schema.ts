@@ -14,9 +14,7 @@ export const dailyStats = sqliteTable(
     pageviews: integer('pageviews').notNull().default(0),
     sessions: integer('sessions').notNull().default(0),
   },
-  table => [
-    uniqueIndex('daily_stats_site_date_idx').on(table.siteId, table.date),
-  ]
+  table => [uniqueIndex('daily_stats_site_date_idx').on(table.siteId, table.date)]
 );
 
 export const dailyPages = sqliteTable(
@@ -29,9 +27,7 @@ export const dailyPages = sqliteTable(
     visitors: integer('visitors').notNull().default(0),
     pageviews: integer('pageviews').notNull().default(0),
   },
-  table => [
-    index('daily_pages_site_date_idx').on(table.siteId, table.date),
-  ]
+  table => [index('daily_pages_site_date_idx').on(table.siteId, table.date)]
 );
 
 export const dailyReferrers = sqliteTable(
@@ -43,9 +39,7 @@ export const dailyReferrers = sqliteTable(
     source: text('source').notNull(),
     visitors: integer('visitors').notNull().default(0),
   },
-  table => [
-    index('daily_referrers_site_date_idx').on(table.siteId, table.date),
-  ]
+  table => [index('daily_referrers_site_date_idx').on(table.siteId, table.date)]
 );
 
 export const dailyLocations = sqliteTable(
@@ -107,9 +101,7 @@ export const dailyEvents = sqliteTable(
     count: integer('count').notNull().default(0),
     totalValue: real('total_value').notNull().default(0),
   },
-  table => [
-    index('daily_events_site_date_idx').on(table.siteId, table.date),
-  ]
+  table => [index('daily_events_site_date_idx').on(table.siteId, table.date)]
 );
 
 export const archiveState = sqliteTable('archive_state', {

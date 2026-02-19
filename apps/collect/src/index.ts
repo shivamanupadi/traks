@@ -50,7 +50,7 @@ async function isSiteValid(db: D1Database, siteKey: string): Promise<boolean> {
   return false;
 }
 
-// Cache the HMAC CryptoKey per day — avoids crypto.subtle.importKey() on every request
+// Cache the HMAC CryptoKey per day - avoids crypto.subtle.importKey() on every request
 const encoder = new TextEncoder();
 let cachedKeyDate = '';
 let cachedCryptoKey: CryptoKey | null = null;
@@ -79,7 +79,7 @@ async function getDailyCryptoKey(secret: string): Promise<CryptoKey> {
  *
  * - Same visitor on same day = same hash (accurate daily uniques)
  * - Same visitor on different days = different hash (privacy: no cross-day linking)
- * - Raw IP is never stored — only the hash
+ * - Raw IP is never stored - only the hash
  */
 async function generateVisitorId(
   secret: string,
@@ -92,7 +92,7 @@ async function generateVisitorId(
   const signature = await crypto.subtle.sign('HMAC', cryptoKey, msgData);
   const hashArray = new Uint8Array(signature);
 
-  // Convert first 8 bytes to hex string (64-bit hash — plenty for COUNT DISTINCT)
+  // Convert first 8 bytes to hex string (64-bit hash - plenty for COUNT DISTINCT)
   const hex = Array.from(hashArray.slice(0, 8), b => b.toString(16).padStart(2, '0')).join('');
   return hex;
 }
@@ -114,7 +114,7 @@ app.post('/api/event', async c => {
     return c.json({ error: 'unknown site' }, 403);
   }
 
-  // Bot filtering — silently accept but don't write
+  // Bot filtering - silently accept but don't write
   const ua = c.req.header('user-agent') || '';
   if (isBot(ua)) return c.json({ ok: true });
 
@@ -158,19 +158,31 @@ app.post('/api/event', async c => {
         os, // blob15: os
         deviceType, // blob16: device_type
         event.sid || '', // blob17: session_id (random token from client)
-        visitorId, // blob18: visitor_id (HMAC hash — computed server-side)
+        visitorId, // blob18: visitor_id (HMAC hash - computed server-side)
         event.en || '', // blob19: event_name
         event.ep || '', // blob20: event_meta
       ],
       doubles: [
-        0, // double1: reserved (was is_unique — now using COUNT DISTINCT)
+        0, // double1: reserved (was is_unique - now using COUNT DISTINCT)
         0, // double2: reserved (was is_session_start)
         0, // double3: reserved (bounce)
         0, // double4: reserved (scroll_depth)
         0, // double5: reserved (time_on_page)
         event.ev || 0, // double6: event_value
         event.sw || 0, // double7: screen_width
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // double8-20: reserved
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0, // double8-20: reserved
       ],
     });
   } catch (err) {

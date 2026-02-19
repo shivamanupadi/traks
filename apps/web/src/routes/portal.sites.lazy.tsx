@@ -38,8 +38,7 @@ function SitesPage(): ReactElement {
     if (!search.trim()) return allSites;
     const q = search.toLowerCase();
     return allSites.filter(
-      (site: any) =>
-        site.name.toLowerCase().includes(q) || site.domain.toLowerCase().includes(q)
+      (site: any) => site.name.toLowerCase().includes(q) || site.domain.toLowerCase().includes(q)
     );
   }, [allSites, search]);
 
@@ -47,10 +46,13 @@ function SitesPage(): ReactElement {
   const visibleSites = filteredSites.slice(0, visibleCount);
   const hasMore = filteredSites.length > visibleCount;
 
-  // Stable string key for visible site IDs — prevents unnecessary refetches
+  // Stable string key for visible site IDs - prevents unnecessary refetches
   const idsJoined = visibleSites.map((s: any) => s.id).join(',');
   const visibleSiteIdsKey = useMemo(() => idsJoined, [idsJoined]);
-  const visibleSiteIds = useMemo(() => visibleSiteIdsKey ? visibleSiteIdsKey.split(',') : [], [visibleSiteIdsKey]);
+  const visibleSiteIds = useMemo(
+    () => (visibleSiteIdsKey ? visibleSiteIdsKey.split(',') : []),
+    [visibleSiteIdsKey]
+  );
 
   // Batch stats scoped to visible sites only
   const { data: batchStatsData, isLoading: batchStatsLoading } = useQuery({
@@ -83,18 +85,19 @@ function SitesPage(): ReactElement {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-[24px] font-bold text-[#2D3436] tracking-[-0.02em]">Your Sites</h1>
-          <p className="mt-1 text-[14px] text-[#9B9590]">
-            Select a site to view its analytics
-          </p>
+          <p className="mt-1 text-[14px] text-[#9B9590]">Select a site to view its analytics</p>
         </div>
         <div className="flex items-center gap-3">
           {!isLoading && allSites.length > 0 && (
             <div className="relative">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#B5B0AA]" strokeWidth={1.8} />
+              <Search
+                className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#B5B0AA]"
+                strokeWidth={1.8}
+              />
               <Input
                 placeholder="Search sites..."
                 value={search}
-                onChange={(e) => handleSearchChange(e.target.value)}
+                onChange={e => handleSearchChange(e.target.value)}
                 className="pl-10 pr-9 rounded-xl h-10 w-56 border-[#e8e3ed] focus:border-[#9b72cf]/40 text-[14px]"
               />
               {search && (
@@ -150,7 +153,9 @@ function SitesPage(): ReactElement {
       ) : filteredSites.length === 0 ? (
         <div className="rounded-2xl border border-[#e8e3ed] bg-white px-8 py-12 text-center">
           <Search className="mx-auto h-8 w-8 text-[#B5B0AA] mb-3" strokeWidth={1.5} />
-          <p className="text-[15px] font-medium text-[#2D3436]">No sites match &ldquo;{search}&rdquo;</p>
+          <p className="text-[15px] font-medium text-[#2D3436]">
+            No sites match &quot;{search}&quot;
+          </p>
           <p className="mt-1 text-[13px] text-[#9B9590]">Try a different search term</p>
         </div>
       ) : (

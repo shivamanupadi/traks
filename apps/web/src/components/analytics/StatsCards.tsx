@@ -1,5 +1,13 @@
 import type { ReactElement } from 'react';
-import { Users, Eye, MousePointerClick, ArrowUpRight, ArrowDownRight, AlertCircle, type LucideIcon } from 'lucide-react';
+import {
+  Users,
+  Eye,
+  MousePointerClick,
+  ArrowUpRight,
+  ArrowDownRight,
+  AlertCircle,
+  type LucideIcon,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatNumber, formatPercentChange } from '@/lib/utils';
 import type { MainStats } from '@traks/shared';
@@ -24,7 +32,10 @@ function StatCard({ title, value, change, icon: Icon, color }: StatCardProps): R
   return (
     <div className="rounded-2xl border border-[#e8e3ed]/80 bg-white p-5 overflow-hidden relative group">
       {/* Top accent */}
-      <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ backgroundColor: `${color}30` }} />
+      <div
+        className="absolute top-0 left-0 right-0 h-[2px]"
+        style={{ backgroundColor: `${color}30` }}
+      />
 
       <div className="flex items-center gap-2.5 mb-4">
         <div
@@ -36,7 +47,9 @@ function StatCard({ title, value, change, icon: Icon, color }: StatCardProps): R
         <p className="text-[13px] font-medium text-[#9B9590]">{title}</p>
       </div>
 
-      <p className="text-[26px] font-bold text-[#2D3436] tracking-tight leading-none">{formatNumber(value)}</p>
+      <p className="text-[26px] font-bold text-[#2D3436] tracking-tight leading-none">
+        {formatNumber(value)}
+      </p>
 
       <div className="mt-2.5 flex items-center gap-1.5">
         <div
@@ -72,7 +85,10 @@ export function StatsCards({ stats, isLoading, isError }: StatsCardsProps): Reac
     return (
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[...Array(4)].map((_, i) => (
-          <div key={i} className="h-[140px] animate-pulse rounded-2xl border border-[#e8e3ed]/80 bg-white" />
+          <div
+            key={i}
+            className="h-[140px] animate-pulse rounded-2xl border border-[#e8e3ed]/80 bg-white"
+          />
         ))}
       </div>
     );

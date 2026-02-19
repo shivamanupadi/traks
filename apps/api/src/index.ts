@@ -15,20 +15,21 @@ app.use('/api/*', async (c, next) => {
 });
 
 // CORS
-app.use('/*', cors({
-  origin: '*',
-  allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization'],
-}));
+app.use(
+  '/*',
+  cors({
+    origin: '*',
+    allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowHeaders: ['Content-Type', 'Authorization'],
+  })
+);
 
 // Health
 app.get('/', c => c.json({ name: 'traks-api', status: 'ok' }));
 app.get('/health', c => c.json({ status: 'ok', timestamp: new Date().toISOString() }));
 
-// Routes — chained for Hono RPC type inference
-const routes = app
-  .route('/api/sites', sitesRoute)
-  .route('/api/analytics', analyticsRoute);
+// Routes - chained for Hono RPC type inference
+const routes = app.route('/api/sites', sitesRoute).route('/api/analytics', analyticsRoute);
 
 app.notFound(c => c.json({ error: 'Not found' }, 404));
 app.onError((err, c) => {

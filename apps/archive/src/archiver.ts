@@ -24,17 +24,26 @@ import {
 } from './db';
 import type { SiteWithKey } from './db';
 
+export interface ArchiveResult {
+  siteId: string;
+  date: string;
+  duration_ms: number;
+  phases: { query_ms: number; d1_ms: number; r2_ms: number };
+  rows: { pages: number; referrers: number; locations: number; devices: number; utm: number; events: number };
+}
+
 export async function archiveSiteDay(
   db: DrizzleD1Database,
   bucket: R2Bucket,
   config: QueryConfig,
   site: SiteWithKey,
   dateStr: string
-): Promise<void> {
-  console.log(`[archive] Archiving site ${site.id} (${site.domain}) for ${dateStr}`);
+): Promise<ArchiveResult> {
+  const totalStart = Date.now();
 
   try {
-    // Fire all 12 queries in parallel
+    // Phase 1: Fire all 12 AE queries in parallel
+    const queryStart = Date.now();
     const [
       statsRows,
       pagesRows,
@@ -62,8 +71,10 @@ export async function archiveSiteDay(
       queryAnalyticsEngine(config, buildDailyUtmQuery(site.key, dateStr, 'campaign')),
       queryAnalyticsEngine(config, buildDailyEventsQuery(site.key, dateStr)),
     ]);
+    const query_ms = Date.now() - queryStart;
 
-    // Write aggregated summaries to D1
+    // Phase 2: Write aggregated summaries to D1
+    const d1Start = Date.now();
     const stats = statsRows[0] || { visitors: 0, pageviews: 0, sessions: 0 };
     await upsertDailyStats(db, site.id, dateStr, {
       visitors: Number(stats.visitors || 0),
@@ -160,8 +171,10 @@ export async function archiveSiteDay(
         totalValue: Number(r.total_value || 0),
       }))
     );
+    const d1_ms = Date.now() - d1Start;
 
-    // Write raw JSONL to R2
+    // Phase 3: Write raw JSONL to R2
+    const r2Start = Date.now();
     const [year, month, day] = dateStr.split('-');
     const r2Key = `raw/${site.id}/${year}/${month}/${day}/events.jsonl`;
     const allResults = {
@@ -178,11 +191,26 @@ export async function archiveSiteDay(
       ([key, value]) => JSON.stringify({ type: key, date: dateStr, siteId: site.id, data: value })
     );
     await bucket.put(r2Key, jsonlLines.join('\n'));
+    const r2_ms = Date.now() - r2Start;
 
     // Update archive state
     await updateArchiveState(db, site.id, dateStr, dateStr, 'idle');
 
-    console.log(`[archive] Completed site ${site.id} for ${dateStr}`);
+    const result: ArchiveResult = {
+      siteId: site.id,
+      date: dateStr,
+      duration_ms: Date.now() - totalStart,
+      phases: { query_ms, d1_ms, r2_ms },
+      rows: {
+        pages: pagesRows.length,
+        referrers: referrersRows.length,
+        locations: locationRows.length,
+        devices: deviceRows.length,
+        utm: utmRows.length,
+        events: eventsRows.length,
+      },
+    };
+    return result;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error(`[archive] Error archiving site ${site.id}: ${message}`);

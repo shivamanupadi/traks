@@ -13,8 +13,7 @@ migrations_dir = "src/db/migrations"
 
 [[kv_namespaces]]
 binding = "CACHE"
-id = "310dd4538d8b4b0fbf8babacb86e6ac0"
-preview_id = "310dd4538d8b4b0fbf8babacb86e6ac0"
+id = "310dd4538d8b4b0fbf8babacb86e6ac0" # traks-cache-dev
 
 [vars]
 ENVIRONMENT = "development"
@@ -33,7 +32,7 @@ migrations_dir = "src/db/migrations"
 
 [[env.production.kv_namespaces]]
 binding = "CACHE"
-id = "<prod-namespace-id>"
+id = "<prod-namespace-id>" # traks-cache
 
 [env.production.vars]
 ENVIRONMENT = "production"
@@ -45,6 +44,11 @@ ALLOWED_ORIGINS = "https://traks.dev,https://www.traks.dev"
 # custom_domain = true
 
 # Secrets (set per environment):
-# wrangler secret put CLERK_SECRET_KEY --env production
-# wrangler secret put CF_ACCOUNT_ID --env production
-# wrangler secret put CF_API_TOKEN --env production
+# Dev:
+#   wrangler secret put CLERK_SECRET_KEY
+#   wrangler secret put CF_ACCOUNT_ID
+#   wrangler secret put CF_API_TOKEN
+# Production:
+#   wrangler secret put CLERK_SECRET_KEY --env production
+#   wrangler secret put CF_ACCOUNT_ID --env production
+#   wrangler secret put CF_API_TOKEN --env production

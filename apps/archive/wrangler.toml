@@ -16,7 +16,6 @@ database_id = "d890dbfe-f384-4711-b921-32fd5c91e20c"
 [[r2_buckets]]
 binding = "ARCHIVE_BUCKET"
 bucket_name = "traks-archive-dev"
-preview_bucket_name = "traks-archive-dev"
 
 [[queues.producers]]
 binding = "ARCHIVE_QUEUE"

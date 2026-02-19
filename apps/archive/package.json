@@ -10,6 +10,8 @@
     "deploy:dev": "wrangler deploy",
     "trigger-dev": "curl http://localhost:5013/__scheduled?cron=0+3+*+*+*",
     "type-check": "tsc --noEmit",
+    "lint": "eslint src --ext .ts --fix",
+    "format": "prettier --write src",
     "clean": "rimraf .turbo .wrangler"
   },
   "dependencies": {
@@ -18,6 +20,8 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241218.0",
+    "@traks/eslint-config": "*",
+    "eslint": "^8.57.0",
     "typescript": "^5.7.0",
     "wrangler": "^3.99.0"
   },

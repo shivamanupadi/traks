@@ -15,8 +15,6 @@ export interface TrackingEvent {
   us?: string; // utm_source
   um?: string; // utm_medium
   uc?: string; // utm_campaign
-  ut?: string; // utm_term
-  ux?: string; // utm_content
   en?: string; // event_name (custom events)
   ep?: string; // event_props JSON (custom events)
   ev?: number; // event_value (custom events)

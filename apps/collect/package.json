@@ -23,7 +23,7 @@
     "@traks/eslint-config": "*",
     "eslint": "^8.57.0",
     "typescript": "^5.7.0",
-    "wrangler": "^3.99.0"
+    "wrangler": "^4.0.0"
   },
   "engines": {
     "node": ">=20"

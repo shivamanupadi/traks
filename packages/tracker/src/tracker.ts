@@ -1,33 +1,33 @@
 (function () {
   // Prevent double initialization (HMR, duplicate script tags)
-  var w = window as any;
+  const w = window as any;
   if (w.__pb) return;
   w.__pb = true;
 
-  var scriptEl = document.currentScript as HTMLScriptElement | null;
+  const scriptEl = document.currentScript as HTMLScriptElement | null;
   if (!scriptEl) return;
 
-  var siteKey = scriptEl.getAttribute('data-site');
+  const siteKey = scriptEl.getAttribute('data-site');
   if (!siteKey) return;
 
-  var endpoint = new URL(scriptEl.src).origin + '/api/event';
-  var lastPage: string;
+  const endpoint = new URL(scriptEl.src).origin + '/api/event';
+  let lastPage: string;
 
   // Random session ID via sessionStorage (not a fingerprint — just a random token)
   function getSessionId(): string {
-    var key = '_pb_s';
-    var now = Date.now();
-    var stored = sessionStorage.getItem(key);
+    const key = '_pb_s';
+    const now = Date.now();
+    const stored = sessionStorage.getItem(key);
     if (stored) {
-      var sep = stored.lastIndexOf(':');
-      var id = stored.slice(0, sep);
-      var ts = parseInt(stored.slice(sep + 1));
+      const sep = stored.lastIndexOf(':');
+      const existingId = stored.slice(0, sep);
+      const ts = parseInt(stored.slice(sep + 1));
       if (now - ts < 30 * 60 * 1000) {
-        sessionStorage.setItem(key, id + ':' + now);
-        return id;
+        sessionStorage.setItem(key, existingId + ':' + now);
+        return existingId;
       }
     }
-    var id = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+    const id = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
     sessionStorage.setItem(key, id + ':' + now);
     return id;
   }
@@ -49,7 +49,7 @@
     lastPage = location.pathname;
 
     // Parse UTM params
-    var params = new URLSearchParams(location.search);
+    const params = new URLSearchParams(location.search);
 
     sendRequest({
       t: 'pageview',
@@ -63,8 +63,6 @@
       us: params.get('utm_source') || '',
       um: params.get('utm_medium') || '',
       uc: params.get('utm_campaign') || '',
-      ut: params.get('utm_term') || '',
-      ux: params.get('utm_content') || '',
     });
   }
 
@@ -90,11 +88,11 @@
   // - Intercept pushState only (NOT replaceState)
   // - Listen to popstate
   // - Pass isSPANavigation=true for dedup
-  var his = history;
+  const his = history;
   if (his.pushState) {
-    var originalPushState = his.pushState;
-    his.pushState = function () {
-      originalPushState.apply(this, arguments as any);
+    const originalPushState = his.pushState;
+    his.pushState = function (...args: Parameters<typeof originalPushState>) {
+      originalPushState.apply(this, args);
       page(true);
     };
     window.addEventListener('popstate', function () { page(true); });

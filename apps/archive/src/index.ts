@@ -1,7 +1,6 @@
 import { drizzle } from 'drizzle-orm/d1';
 import { getAllActiveSites } from './db';
 import { archiveSiteDay } from './archiver';
-import type { ArchiveResult } from './archiver';
 import type { QueryConfig } from '@traks/shared';
 import type { ArchiveMessage } from './types';
 
@@ -22,7 +21,7 @@ function getYesterday(): string {
 
 export default {
   // Producer: enqueue yesterday's archive for all active sites
-  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+  async scheduled(_event: ScheduledEvent, env: Env, _ctx: ExecutionContext): Promise<void> {
     const cronStart = Date.now();
     const yesterday = getYesterday();
     const db = drizzle(env.DB);

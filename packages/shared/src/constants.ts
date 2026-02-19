@@ -12,8 +12,8 @@
  *   blob6  = utm_source        ("twitter", "newsletter")
  *   blob7  = utm_medium        ("social", "email", "cpc")
  *   blob8  = utm_campaign      ("launch-2025")
- *   blob9  = utm_term
- *   blob10 = utm_content
+ *   blob9  = free (was utm_term)
+ *   blob10 = free (was utm_content)
  *   blob11 = country           (from cf.country, "US", "IN")
  *   blob12 = city              (from cf.city)
  *   blob13 = region            (from cf.region)
@@ -44,8 +44,8 @@ export const BLOB = {
   UTM_SOURCE: 'blob6',
   UTM_MEDIUM: 'blob7',
   UTM_CAMPAIGN: 'blob8',
-  UTM_TERM: 'blob9',
-  UTM_CONTENT: 'blob10',
+  // blob9: free (was utm_term)
+  // blob10: free (was utm_content)
   COUNTRY: 'blob11',
   CITY: 'blob12',
   REGION: 'blob13',

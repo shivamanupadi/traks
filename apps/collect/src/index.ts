@@ -109,7 +109,10 @@ app.post('/api/event', async c => {
 
   // Validate site key
   const valid = await isSiteValid(c.env.DB, event.s);
-  if (!valid) return c.json({ error: 'unknown site' }, 403);
+  if (!valid) {
+    console.warn(`[collect] Unknown site key: ${event.s}`);
+    return c.json({ error: 'unknown site' }, 403);
+  }
 
   // Bot filtering — silently accept but don't write
   const ua = c.req.header('user-agent') || '';
@@ -146,8 +149,8 @@ app.post('/api/event', async c => {
         event.us || '', // blob6: utm_source
         event.um || '', // blob7: utm_medium
         event.uc || '', // blob8: utm_campaign
-        event.ut || '', // blob9: utm_term
-        event.ux || '', // blob10: utm_content
+        '', // blob9: free (was utm_term)
+        '', // blob10: free (was utm_content)
         country, // blob11: country
         city, // blob12: city
         region, // blob13: region

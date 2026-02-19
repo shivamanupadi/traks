@@ -8,11 +8,16 @@ compatibility_flags = ["nodejs_compat"]
 [[d1_databases]]
 binding = "DB"
 database_name = "traks-db-dev"
-database_id = "d890dbfe-f384-4711-b921-32fd5c91e20c"
+database_id = "cd0ff4bb-5cc4-4002-a259-be02b3234e29"
+migrations_dir = "../api/src/db/migrations"
 
 [[analytics_engine_datasets]]
 binding = "ANALYTICS"
 dataset = "traks-dev"
+
+[[routes]]
+pattern = "collect-dev.traks.dev"
+custom_domain = true
 
 [vars]
 ENVIRONMENT = "development"
@@ -24,12 +29,16 @@ name = "traks-collect"
 
 [[env.production.d1_databases]]
 binding = "DB"
-database_name = "traks-db"
-database_id = "TODO_CREATE_WHEN_READY"
+database_name = "traks-db-prod"
+database_id = "7a19029a-d3a0-4ebf-b7f7-3a0237cf4c1e"
 
 [[env.production.analytics_engine_datasets]]
 binding = "ANALYTICS"
-dataset = "traks"
+dataset = "traks-prod"
+
+[[env.production.routes]]
+pattern = "collect.traks.dev"
+custom_domain = true
 
 [env.production.vars]
 ENVIRONMENT = "production"

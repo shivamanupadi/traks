@@ -328,12 +328,12 @@ function LandingPage(): ReactElement {
                   {'  '}
                   <span className="text-[#5b9a6f]">data-site</span>
                   <span className="text-[#B5B0AA]">=</span>
-                  <span className="text-[#e07a5f]">"YOUR_KEY"</span>
+                  <span className="text-[#e07a5f]">{'"YOUR_KEY"'}</span>
                   {'\n'}
                   {'  '}
                   <span className="text-[#5b9a6f]">src</span>
                   <span className="text-[#B5B0AA]">=</span>
-                  <span className="text-[#e07a5f]">"https://collect.traks.dev/t.js"</span>
+                  <span className="text-[#e07a5f]">{'"https://collect.traks.dev/t.js"'}</span>
                   <span className="text-[#6b8ead]">{'>'}</span>
                   {'\n'}
                   <span className="text-[#6b8ead]">{'</'}</span>

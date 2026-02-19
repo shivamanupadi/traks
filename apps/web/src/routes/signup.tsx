@@ -81,12 +81,12 @@ function SignupPage(): React.ReactNode {
                   <div className="pl-4">
                     <span className="text-[#d4a574]">data-site</span>
                     <span className="text-[#9B9590]">=</span>
-                    <span className="text-[#5b9a6f]">"YOUR_KEY"</span>
+                    <span className="text-[#5b9a6f]">{'"YOUR_KEY"'}</span>
                   </div>
                   <div className="pl-4">
                     <span className="text-[#d4a574]">src</span>
                     <span className="text-[#9B9590]">=</span>
-                    <span className="text-[#5b9a6f]">"https://collect.traks.dev/t.js"</span>
+                    <span className="text-[#5b9a6f]">{'"https://collect.traks.dev/t.js"'}</span>
                   </div>
                   <div>
                     <span className="text-[#e07a5f]">{'></script>'}</span>

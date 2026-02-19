@@ -1,7 +1,8 @@
 import { Hono } from 'hono';
+import { z } from 'zod';
+import { zValidator } from '@hono/zod-validator';
 import { eq, and, isNull, inArray } from 'drizzle-orm';
-import { statsQuerySchema, isArchivedPeriod } from '@traks/shared';
-import type { Period, ArchivedPeriod } from '@traks/shared';
+import { isArchivedPeriod, PERIODS, type Period } from '@traks/shared';
 import { requireAuth } from '../middleware/auth';
 import { sites, apiKeys } from '../db/schema';
 import {
@@ -80,11 +81,26 @@ function getQueryConfig(c: any): { accountId: string; apiToken: string; dataset:
   };
 }
 
-function parsePeriod(c: any): Period {
-  const period = c.req.query('period') || '7d';
-  const result = statsQuerySchema.safeParse({ period });
-  return result.success ? result.data.period : '7d';
-}
+// Query schemas for zValidator — enables Hono RPC type inference
+const periodQuery = z.object({
+  period: z.enum(PERIODS).default('7d'),
+});
+const batchQuery = z.object({
+  period: z.enum(PERIODS).default('7d'),
+  siteIds: z.string().optional(),
+});
+const locationQuery = z.object({
+  period: z.enum(PERIODS).default('7d'),
+  type: z.enum(['country', 'city']).default('country'),
+});
+const deviceQuery = z.object({
+  period: z.enum(PERIODS).default('7d'),
+  type: z.enum(['browser', 'os', 'device']).default('browser'),
+});
+const utmQuery = z.object({
+  period: z.enum(PERIODS).default('7d'),
+  type: z.enum(['source', 'medium', 'campaign']).default('source'),
+});
 
 // Cache durations by period
 function getCacheMaxAge(period: Period): number {
@@ -131,11 +147,10 @@ async function kvPut(kv: KVNamespace, key: string, value: unknown, period: Perio
 
 export const analyticsRoute = app
   // Batch stats for all user's sites (used on sites list page)
-  .get('/batch/stats', requireAuth, async c => {
+  .get('/batch/stats', requireAuth, zValidator('query', batchQuery), async c => {
     const userId = c.get('userId')!;
-    const period = parsePeriod(c);
+    const { period, siteIds: siteIdsParam } = c.req.valid('query');
     const db = c.get('db')!;
-    const siteIdsParam = c.req.query('siteIds');
     const siteIdList = siteIdsParam ? siteIdsParam.split(',').filter(Boolean) : null;
 
     // Get user's sites with their active API keys, optionally filtered by siteIds
@@ -189,10 +204,10 @@ export const analyticsRoute = app
   })
 
   // All stats in a single request (used on site analytics page)
-  .get('/:siteId/stats/all', requireAuth, async c => {
+  .get('/:siteId/stats/all', requireAuth, zValidator('query', periodQuery), async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('siteId');
-    const period = parsePeriod(c);
+    const { period } = c.req.valid('query');
 
     if (isArchivedPeriod(period)) {
       if (!(await verifySiteOwnership(c, siteId, userId)))
@@ -327,10 +342,10 @@ export const analyticsRoute = app
   })
 
   // Main stats (visitors, pageviews, sessions + comparison)
-  .get('/:siteId/stats/main', requireAuth, async c => {
+  .get('/:siteId/stats/main', requireAuth, zValidator('query', periodQuery), async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('siteId');
-    const period = parsePeriod(c);
+    const { period } = c.req.valid('query');
 
     if (isArchivedPeriod(period)) {
       if (!(await verifySiteOwnership(c, siteId, userId)))
@@ -390,10 +405,10 @@ export const analyticsRoute = app
   })
 
   // Timeseries data for charts
-  .get('/:siteId/stats/timeseries', requireAuth, async c => {
+  .get('/:siteId/stats/timeseries', requireAuth, zValidator('query', periodQuery), async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('siteId');
-    const period = parsePeriod(c);
+    const { period } = c.req.valid('query');
 
     if (isArchivedPeriod(period)) {
       if (!(await verifySiteOwnership(c, siteId, userId)))
@@ -425,10 +440,10 @@ export const analyticsRoute = app
   })
 
   // Top pages
-  .get('/:siteId/stats/pages', requireAuth, async c => {
+  .get('/:siteId/stats/pages', requireAuth, zValidator('query', periodQuery), async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('siteId');
-    const period = parsePeriod(c);
+    const { period } = c.req.valid('query');
 
     if (isArchivedPeriod(period)) {
       if (!(await verifySiteOwnership(c, siteId, userId)))
@@ -459,10 +474,10 @@ export const analyticsRoute = app
   })
 
   // Top referrers
-  .get('/:siteId/stats/referrers', requireAuth, async c => {
+  .get('/:siteId/stats/referrers', requireAuth, zValidator('query', periodQuery), async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('siteId');
-    const period = parsePeriod(c);
+    const { period } = c.req.valid('query');
 
     if (isArchivedPeriod(period)) {
       if (!(await verifySiteOwnership(c, siteId, userId)))
@@ -492,11 +507,10 @@ export const analyticsRoute = app
   })
 
   // UTM breakdown
-  .get('/:siteId/stats/utm', requireAuth, async c => {
+  .get('/:siteId/stats/utm', requireAuth, zValidator('query', utmQuery), async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('siteId');
-    const period = parsePeriod(c);
-    const type = (c.req.query('type') || 'source') as 'source' | 'medium' | 'campaign';
+    const { period, type } = c.req.valid('query');
 
     if (isArchivedPeriod(period)) {
       if (!(await verifySiteOwnership(c, siteId, userId)))
@@ -527,11 +541,10 @@ export const analyticsRoute = app
   })
 
   // Locations
-  .get('/:siteId/stats/locations', requireAuth, async c => {
+  .get('/:siteId/stats/locations', requireAuth, zValidator('query', locationQuery), async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('siteId');
-    const period = parsePeriod(c);
-    const type = (c.req.query('type') || 'country') as 'country' | 'city';
+    const { period, type } = c.req.valid('query');
 
     if (isArchivedPeriod(period)) {
       if (!(await verifySiteOwnership(c, siteId, userId)))
@@ -562,11 +575,10 @@ export const analyticsRoute = app
   })
 
   // Devices / Browser / OS
-  .get('/:siteId/stats/devices', requireAuth, async c => {
+  .get('/:siteId/stats/devices', requireAuth, zValidator('query', deviceQuery), async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('siteId');
-    const period = parsePeriod(c);
-    const type = (c.req.query('type') || 'browser') as 'browser' | 'os' | 'device';
+    const { period, type } = c.req.valid('query');
 
     if (isArchivedPeriod(period)) {
       if (!(await verifySiteOwnership(c, siteId, userId)))
@@ -622,10 +634,10 @@ export const analyticsRoute = app
   })
 
   // Custom events
-  .get('/:siteId/stats/events', requireAuth, async c => {
+  .get('/:siteId/stats/events', requireAuth, zValidator('query', periodQuery), async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('siteId');
-    const period = parsePeriod(c);
+    const { period } = c.req.valid('query');
 
     if (isArchivedPeriod(period)) {
       if (!(await verifySiteOwnership(c, siteId, userId)))

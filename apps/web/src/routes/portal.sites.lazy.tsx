@@ -150,7 +150,7 @@ function SitesPage(): ReactElement {
       ) : filteredSites.length === 0 ? (
         <div className="rounded-2xl border border-[#e8e3ed] bg-white px-8 py-12 text-center">
           <Search className="mx-auto h-8 w-8 text-[#B5B0AA] mb-3" strokeWidth={1.5} />
-          <p className="text-[15px] font-medium text-[#2D3436]">No sites match "{search}"</p>
+          <p className="text-[15px] font-medium text-[#2D3436]">No sites match &ldquo;{search}&rdquo;</p>
           <p className="mt-1 text-[13px] text-[#9B9590]">Try a different search term</p>
         </div>
       ) : (

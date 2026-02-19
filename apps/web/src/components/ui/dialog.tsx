@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -62,8 +62,8 @@ const DialogContent = React.forwardRef<
       'relative w-full max-w-lg rounded-2xl border border-[#e8e3ed] bg-white shadow-xl',
       className
     )}
-    onClick={(e) => e.stopPropagation()}
-    {...props}
+    onClick={(e: React.MouseEvent) => e.stopPropagation()}
+    {...(props as any)}
   >
     {onClose && (
       <button

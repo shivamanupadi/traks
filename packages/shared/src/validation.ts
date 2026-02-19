@@ -11,8 +11,6 @@ export const trackingEventSchema = z.object({
   us: z.string().max(256).optional(),
   um: z.string().max(256).optional(),
   uc: z.string().max(256).optional(),
-  ut: z.string().max(256).optional(),
-  ux: z.string().max(256).optional(),
   en: z.string().max(256).optional(),
   ep: z.string().max(1024).optional(),
   ev: z.number().optional(),

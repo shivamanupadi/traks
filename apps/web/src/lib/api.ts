@@ -1,5 +1,6 @@
 import { hc } from 'hono/client';
 import type { AppType } from '@traks/api';
+import type { Period } from '@traks/shared';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5011';
 
@@ -18,19 +19,19 @@ async function assertOk(res: Response): Promise<void> {
 
 export const api = {
   // Sites
-  async getSites(token: string) {
+  async getSites(token: string): Promise<any> {
     const res = await client.api.sites.$get({}, authHeaders(token));
     await assertOk(res);
     return res.json();
   },
 
-  async createSite(data: { name: string; domain: string; timezone?: string }, token: string) {
+  async createSite(data: { name: string; domain: string; timezone?: string }, token: string): Promise<any> {
     const res = await client.api.sites.$post({ json: data }, authHeaders(token));
     await assertOk(res);
     return res.json();
   },
 
-  async getSite(siteId: string, token: string) {
+  async getSite(siteId: string, token: string): Promise<any> {
     const res = await client.api.sites[':id'].$get(
       { param: { id: siteId } },
       authHeaders(token)
@@ -39,7 +40,7 @@ export const api = {
     return res.json();
   },
 
-  async updateSite(siteId: string, data: { name: string; domain: string }, token: string) {
+  async updateSite(siteId: string, data: { name: string; domain: string }, token: string): Promise<any> {
     const res = await client.api.sites[':id'].$patch(
       { param: { id: siteId }, json: data },
       authHeaders(token)
@@ -49,8 +50,8 @@ export const api = {
   },
 
   // Analytics
-  async getBatchStats(period: string, token: string, siteIds?: string[]) {
-    const query: Record<string, string> = { period };
+  async getBatchStats(period: Period, token: string, siteIds?: string[]): Promise<any> {
+    const query: { period: Period; siteIds?: string } = { period };
     if (siteIds && siteIds.length > 0) {
       query.siteIds = siteIds.join(',');
     }
@@ -62,7 +63,7 @@ export const api = {
     return res.json();
   },
 
-  async getAllStats(siteId: string, period: string, token: string) {
+  async getAllStats(siteId: string, period: Period, token: string): Promise<any> {
     const res = await client.api.analytics[':siteId'].stats.all.$get(
       { param: { siteId }, query: { period } },
       authHeaders(token)
@@ -71,7 +72,7 @@ export const api = {
     return res.json();
   },
 
-  async getMainStats(siteId: string, period: string, token: string) {
+  async getMainStats(siteId: string, period: Period, token: string): Promise<any> {
     const res = await client.api.analytics[':siteId'].stats.main.$get(
       { param: { siteId }, query: { period } },
       authHeaders(token)
@@ -80,7 +81,7 @@ export const api = {
     return res.json();
   },
 
-  async getTimeseries(siteId: string, period: string, token: string) {
+  async getTimeseries(siteId: string, period: Period, token: string): Promise<any> {
     const res = await client.api.analytics[':siteId'].stats.timeseries.$get(
       { param: { siteId }, query: { period } },
       authHeaders(token)
@@ -89,7 +90,7 @@ export const api = {
     return res.json();
   },
 
-  async getTopPages(siteId: string, period: string, token: string) {
+  async getTopPages(siteId: string, period: Period, token: string): Promise<any> {
     const res = await client.api.analytics[':siteId'].stats.pages.$get(
       { param: { siteId }, query: { period } },
       authHeaders(token)
@@ -98,7 +99,7 @@ export const api = {
     return res.json();
   },
 
-  async getTopReferrers(siteId: string, period: string, token: string) {
+  async getTopReferrers(siteId: string, period: Period, token: string): Promise<any> {
     const res = await client.api.analytics[':siteId'].stats.referrers.$get(
       { param: { siteId }, query: { period } },
       authHeaders(token)
@@ -107,7 +108,7 @@ export const api = {
     return res.json();
   },
 
-  async getLocations(siteId: string, period: string, type: string, token: string) {
+  async getLocations(siteId: string, period: Period, type: 'country' | 'city', token: string): Promise<any> {
     const res = await client.api.analytics[':siteId'].stats.locations.$get(
       { param: { siteId }, query: { period, type } },
       authHeaders(token)
@@ -116,7 +117,7 @@ export const api = {
     return res.json();
   },
 
-  async getDevices(siteId: string, period: string, type: string, token: string) {
+  async getDevices(siteId: string, period: Period, type: 'browser' | 'os' | 'device', token: string): Promise<any> {
     const res = await client.api.analytics[':siteId'].stats.devices.$get(
       { param: { siteId }, query: { period, type } },
       authHeaders(token)
@@ -125,7 +126,7 @@ export const api = {
     return res.json();
   },
 
-  async getRealtime(siteId: string, token: string) {
+  async getRealtime(siteId: string, token: string): Promise<any> {
     const res = await client.api.analytics[':siteId'].stats.realtime.$get(
       { param: { siteId } },
       authHeaders(token)
@@ -134,7 +135,7 @@ export const api = {
     return res.json();
   },
 
-  async getEvents(siteId: string, period: string, token: string) {
+  async getEvents(siteId: string, period: Period, token: string): Promise<any> {
     const res = await client.api.analytics[':siteId'].stats.events.$get(
       { param: { siteId }, query: { period } },
       authHeaders(token)

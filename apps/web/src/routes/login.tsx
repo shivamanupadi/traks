@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, Link } from '@tanstack/react-router';
-import { ArrowLeft, BarChart3 } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { SignIn, useAuth } from '@clerk/clerk-react';
 import { useEffect } from 'react';
 

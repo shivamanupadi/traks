@@ -7,7 +7,6 @@ type SiteSearch = {
 };
 
 export const Route = createFileRoute('/portal/site/$siteId')({
-  component: () => null,
   validateSearch: (search: Record<string, unknown>): SiteSearch => {
     const p = search.period as string;
     return {

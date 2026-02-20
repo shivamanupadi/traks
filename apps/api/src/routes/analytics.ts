@@ -73,7 +73,7 @@ function getQueryConfig(c: any): { accountId: string; apiToken: string; dataset:
   return {
     accountId: c.env.CF_ACCOUNT_ID,
     apiToken: c.env.CF_API_TOKEN,
-    dataset: c.env.ENVIRONMENT === 'production' ? '"traks"' : '"traks-dev"',
+    dataset: c.env.ENVIRONMENT === 'production' ? '"traks-prod"' : '"traks-dev"',
   };
 }
 

@@ -61,7 +61,7 @@ export default {
       const config: QueryConfig = {
         accountId: env.CF_ACCOUNT_ID,
         apiToken: env.CF_API_TOKEN,
-        dataset: env.ENVIRONMENT === 'production' ? '"traks"' : '"traks-dev"',
+        dataset: env.ENVIRONMENT === 'production' ? '"traks-prod"' : '"traks-dev"',
       };
       for (const msg of messages) {
         const { siteId, siteKey, domain, date } = msg.body;
@@ -96,7 +96,7 @@ export default {
     const config: QueryConfig = {
       accountId: env.CF_ACCOUNT_ID,
       apiToken: env.CF_API_TOKEN,
-      dataset: env.ENVIRONMENT === 'production' ? '"traks"' : '"traks-dev"',
+      dataset: env.ENVIRONMENT === 'production' ? '"traks-prod"' : '"traks-dev"',
     };
 
     for (const msg of batch.messages) {

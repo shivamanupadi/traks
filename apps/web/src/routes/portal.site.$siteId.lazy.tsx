@@ -290,7 +290,7 @@ function SiteAnalyticsPage(): ReactElement {
   const navigate = useNavigate();
   const { getToken } = useAuth();
   const queryClient = useQueryClient();
-  const period: Period = searchPeriod || '7d';
+  const period: Period = searchPeriod || 'today';
   const setPeriod = useCallback(
     (p: Period) => {
       navigate({

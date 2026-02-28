@@ -17,9 +17,21 @@ import {
   buildDevicesQuery,
   buildRealtimeQuery,
   buildEventsQuery,
+  buildDailyStatsQuery,
+  buildDailyPagesQuery,
+  buildDailyReferrersQuery,
+  buildDailyLocationsQuery,
+  buildDailyDevicesQuery,
+  buildDailyUtmQuery,
+  buildDailyEventsQuery,
+  buildDailyTimeseriesQuery,
 } from '../lib/queries';
 import {
   getDateRange,
+  getLastArchivedDate,
+  nextDay,
+  mergeStats,
+  mergeBreakdown,
   queryArchivedStats,
   queryArchivedTimeseries,
   queryArchivedPages,
@@ -77,24 +89,36 @@ function getQueryConfig(c: any): { accountId: string; apiToken: string; dataset:
   };
 }
 
+// Helper: get AE gap range (day after last archived date → today) if there's unarchived data
+async function getAeGapRange(
+  db: any,
+  siteId: string
+): Promise<{ gapFrom: string; gapTo: string } | null> {
+  const lastArchived = await getLastArchivedDate(db, siteId);
+  if (!lastArchived) return null;
+  const today = new Date().toISOString().slice(0, 10);
+  if (lastArchived >= today) return null;
+  return { gapFrom: nextDay(lastArchived), gapTo: today };
+}
+
 // Query schemas for zValidator - enables Hono RPC type inference
 const periodQuery = z.object({
-  period: z.enum(PERIODS).default('7d'),
+  period: z.enum(PERIODS).default('today'),
 });
 const batchQuery = z.object({
-  period: z.enum(PERIODS).default('7d'),
+  period: z.enum(PERIODS).default('today'),
   siteIds: z.string().optional(),
 });
 const locationQuery = z.object({
-  period: z.enum(PERIODS).default('7d'),
+  period: z.enum(PERIODS).default('today'),
   type: z.enum(['country', 'city']).default('country'),
 });
 const deviceQuery = z.object({
-  period: z.enum(PERIODS).default('7d'),
+  period: z.enum(PERIODS).default('today'),
   type: z.enum(['browser', 'os', 'device']).default('browser'),
 });
 const utmQuery = z.object({
-  period: z.enum(PERIODS).default('7d'),
+  period: z.enum(PERIODS).default('today'),
   type: z.enum(['source', 'medium', 'campaign']).default('source'),
 });
 
@@ -182,9 +206,25 @@ export const analyticsRoute = app
 
     if (isArchivedPeriod(period)) {
       const { from, to } = getDateRange(period);
+      const config = getQueryConfig(c);
       await Promise.all(
-        siteKeys.map(async ({ siteId }) => {
-          results[siteId] = await queryArchivedStats(db, siteId, from, to);
+        siteKeys.map(async ({ siteId, key }) => {
+          const gap = await getAeGapRange(db, siteId);
+          const d1Stats = await queryArchivedStats(db, siteId, from, to);
+          if (gap) {
+            const [aeRow] = await queryAnalyticsEngine(
+              config,
+              buildDailyStatsQuery(key, gap.gapFrom, gap.gapTo)
+            );
+            const aeStats = {
+              visitors: Number(aeRow?.visitors || 0),
+              pageviews: Number(aeRow?.pageviews || 0),
+              sessions: Number(aeRow?.sessions || 0),
+            };
+            results[siteId] = mergeStats(d1Stats, aeStats);
+          } else {
+            results[siteId] = d1Stats;
+          }
         })
       );
     } else {
@@ -230,15 +270,133 @@ export const analyticsRoute = app
       const db = c.get('db')!;
       const { from, to } = getDateRange(period);
 
-      const [stats, timeseries, pages, referrers, locations, browsers, os] = await Promise.all([
-        queryArchivedStats(db, siteId, from, to),
-        queryArchivedTimeseries(db, siteId, from, to, period),
-        queryArchivedPages(db, siteId, from, to),
-        queryArchivedReferrers(db, siteId, from, to),
-        queryArchivedLocations(db, siteId, from, to, 'country'),
-        queryArchivedDevices(db, siteId, from, to, 'browser'),
-        queryArchivedDevices(db, siteId, from, to, 'os'),
-      ]);
+      const [d1Stats, d1Timeseries, d1Pages, d1Referrers, d1Locations, d1Browsers, d1Os] =
+        await Promise.all([
+          queryArchivedStats(db, siteId, from, to),
+          queryArchivedTimeseries(db, siteId, from, to, period),
+          queryArchivedPages(db, siteId, from, to),
+          queryArchivedReferrers(db, siteId, from, to),
+          queryArchivedLocations(db, siteId, from, to, 'country'),
+          queryArchivedDevices(db, siteId, from, to, 'browser'),
+          queryArchivedDevices(db, siteId, from, to, 'os'),
+        ]);
+
+      const gap = await getAeGapRange(db, siteId);
+      let stats = d1Stats;
+      let timeseries = d1Timeseries;
+      let pages = d1Pages;
+      let referrers = d1Referrers;
+      let locations = d1Locations;
+      let browsers = d1Browsers;
+      let os = d1Os;
+
+      if (gap) {
+        const siteKey = await getCachedSiteKey(c, siteId, userId);
+        if (siteKey) {
+          const config = getQueryConfig(c);
+          const [
+            aeStatsRows,
+            aeTimeseriesRows,
+            aePagesRows,
+            aeReferrersRows,
+            aeLocationsRows,
+            aeBrowsersRows,
+            aeOsRows,
+          ] = await Promise.all([
+            queryAnalyticsEngine(config, buildDailyStatsQuery(siteKey, gap.gapFrom, gap.gapTo)),
+            queryAnalyticsEngine(
+              config,
+              buildDailyTimeseriesQuery(siteKey, gap.gapFrom, gap.gapTo)
+            ),
+            queryAnalyticsEngine(config, buildDailyPagesQuery(siteKey, gap.gapFrom, gap.gapTo)),
+            queryAnalyticsEngine(config, buildDailyReferrersQuery(siteKey, gap.gapFrom, gap.gapTo)),
+            queryAnalyticsEngine(
+              config,
+              buildDailyLocationsQuery(siteKey, gap.gapFrom, 'country', gap.gapTo)
+            ),
+            queryAnalyticsEngine(
+              config,
+              buildDailyDevicesQuery(siteKey, gap.gapFrom, 'browser', gap.gapTo)
+            ),
+            queryAnalyticsEngine(
+              config,
+              buildDailyDevicesQuery(siteKey, gap.gapFrom, 'os', gap.gapTo)
+            ),
+          ]);
+
+          const aeStats = {
+            visitors: Number(aeStatsRows[0]?.visitors || 0),
+            pageviews: Number(aeStatsRows[0]?.pageviews || 0),
+            sessions: Number(aeStatsRows[0]?.sessions || 0),
+          };
+          stats = mergeStats(d1Stats, aeStats);
+
+          const aeTimeseries = aeTimeseriesRows.map((r: any) => ({
+            date: r.t,
+            visitors: Number(r.visitors || 0),
+            pageviews: Number(r.pageviews || 0),
+            sessions: Number(r.sessions || 0),
+          }));
+          timeseries = [...d1Timeseries, ...aeTimeseries];
+
+          const aePages = aePagesRows.map((r: any) => ({
+            name: r.pathname,
+            visitors: Number(r.visitors || 0),
+            pageviews: Number(r.pageviews || 0),
+          }));
+          pages = mergeBreakdown(d1Pages, aePages, 'name', ['visitors', 'pageviews'], 10);
+
+          const aeReferrers = aeReferrersRows.map((r: any) => ({
+            name: r.source,
+            visitors: Number(r.visitors || 0),
+          }));
+          referrers = mergeBreakdown(d1Referrers, aeReferrers, 'name', ['visitors'], 10);
+
+          const aeLocations = aeLocationsRows.map((r: any) => ({
+            name: r.name,
+            code: r.name,
+            visitors: Number(r.visitors || 0),
+          }));
+          locations = mergeBreakdown(d1Locations, aeLocations, 'name', ['visitors'], 10);
+
+          const aeBrowsers = aeBrowsersRows.map((r: any) => ({
+            name: r.name,
+            visitors: Number(r.visitors || 0),
+            percentage: 0,
+          }));
+          const mergedBrowsers = mergeBreakdown(
+            d1Browsers.map(b => ({ ...b, percentage: 0 })),
+            aeBrowsers,
+            'name',
+            ['visitors'],
+            10
+          );
+          const totalBrowserVisitors = mergedBrowsers.reduce((s, r) => s + r.visitors, 0);
+          browsers = mergedBrowsers.map(r => ({
+            ...r,
+            percentage:
+              totalBrowserVisitors > 0 ? Math.round((r.visitors / totalBrowserVisitors) * 100) : 0,
+          }));
+
+          const aeOs = aeOsRows.map((r: any) => ({
+            name: r.name,
+            visitors: Number(r.visitors || 0),
+            percentage: 0,
+          }));
+          const mergedOs = mergeBreakdown(
+            d1Os.map(o => ({ ...o, percentage: 0 })),
+            aeOs,
+            'name',
+            ['visitors'],
+            10
+          );
+          const totalOsVisitors = mergedOs.reduce((s, r) => s + r.visitors, 0);
+          os = mergedOs.map(r => ({
+            ...r,
+            percentage: totalOsVisitors > 0 ? Math.round((r.visitors / totalOsVisitors) * 100) : 0,
+          }));
+        }
+      }
 
       setCacheHeaders(c, period);
       return c.json({
@@ -373,7 +531,24 @@ export const analyticsRoute = app
 
       const db = c.get('db')!;
       const { from, to } = getDateRange(period);
-      const stats = await queryArchivedStats(db, siteId, from, to);
+      let stats = await queryArchivedStats(db, siteId, from, to);
+
+      const gap = await getAeGapRange(db, siteId);
+      if (gap) {
+        const siteKey = await getCachedSiteKey(c, siteId, userId);
+        if (siteKey) {
+          const config = getQueryConfig(c);
+          const [aeRow] = await queryAnalyticsEngine(
+            config,
+            buildDailyStatsQuery(siteKey, gap.gapFrom, gap.gapTo)
+          );
+          stats = mergeStats(stats, {
+            visitors: Number(aeRow?.visitors || 0),
+            pageviews: Number(aeRow?.pageviews || 0),
+            sessions: Number(aeRow?.sessions || 0),
+          });
+        }
+      }
 
       setCacheHeaders(c, period);
       return c.json({
@@ -436,7 +611,26 @@ export const analyticsRoute = app
 
       const db = c.get('db')!;
       const { from, to } = getDateRange(period);
-      const data = await queryArchivedTimeseries(db, siteId, from, to, period);
+      let data = await queryArchivedTimeseries(db, siteId, from, to, period);
+
+      const gap = await getAeGapRange(db, siteId);
+      if (gap) {
+        const siteKey = await getCachedSiteKey(c, siteId, userId);
+        if (siteKey) {
+          const config = getQueryConfig(c);
+          const aeRows = await queryAnalyticsEngine(
+            config,
+            buildDailyTimeseriesQuery(siteKey, gap.gapFrom, gap.gapTo)
+          );
+          const aeTimeseries = aeRows.map((r: any) => ({
+            date: r.t,
+            visitors: Number(r.visitors || 0),
+            pageviews: Number(r.pageviews || 0),
+            sessions: Number(r.sessions || 0),
+          }));
+          data = [...data, ...aeTimeseries];
+        }
+      }
 
       setCacheHeaders(c, period);
       return c.json({ data });
@@ -471,7 +665,25 @@ export const analyticsRoute = app
 
       const db = c.get('db')!;
       const { from, to } = getDateRange(period);
-      const data = await queryArchivedPages(db, siteId, from, to);
+      let data = await queryArchivedPages(db, siteId, from, to);
+
+      const gap = await getAeGapRange(db, siteId);
+      if (gap) {
+        const siteKey = await getCachedSiteKey(c, siteId, userId);
+        if (siteKey) {
+          const config = getQueryConfig(c);
+          const aeRows = await queryAnalyticsEngine(
+            config,
+            buildDailyPagesQuery(siteKey, gap.gapFrom, gap.gapTo)
+          );
+          const aePages = aeRows.map((r: any) => ({
+            name: r.pathname,
+            visitors: Number(r.visitors || 0),
+            pageviews: Number(r.pageviews || 0),
+          }));
+          data = mergeBreakdown(data, aePages, 'name', ['visitors', 'pageviews'], 10);
+        }
+      }
 
       setCacheHeaders(c, period);
       return c.json({ data });
@@ -505,7 +717,24 @@ export const analyticsRoute = app
 
       const db = c.get('db')!;
       const { from, to } = getDateRange(period);
-      const data = await queryArchivedReferrers(db, siteId, from, to);
+      let data = await queryArchivedReferrers(db, siteId, from, to);
+
+      const gap = await getAeGapRange(db, siteId);
+      if (gap) {
+        const siteKey = await getCachedSiteKey(c, siteId, userId);
+        if (siteKey) {
+          const config = getQueryConfig(c);
+          const aeRows = await queryAnalyticsEngine(
+            config,
+            buildDailyReferrersQuery(siteKey, gap.gapFrom, gap.gapTo)
+          );
+          const aeReferrers = aeRows.map((r: any) => ({
+            name: r.source,
+            visitors: Number(r.visitors || 0),
+          }));
+          data = mergeBreakdown(data, aeReferrers, 'name', ['visitors'], 10);
+        }
+      }
 
       setCacheHeaders(c, period);
       return c.json({ data });
@@ -538,7 +767,25 @@ export const analyticsRoute = app
 
       const db = c.get('db')!;
       const { from, to } = getDateRange(period);
-      const data = await queryArchivedUtm(db, siteId, from, to, type);
+      let data = await queryArchivedUtm(db, siteId, from, to, type);
+
+      const gap = await getAeGapRange(db, siteId);
+      if (gap) {
+        const siteKey = await getCachedSiteKey(c, siteId, userId);
+        if (siteKey) {
+          const config = getQueryConfig(c);
+          const aeRows = await queryAnalyticsEngine(
+            config,
+            buildDailyUtmQuery(siteKey, gap.gapFrom, type, gap.gapTo)
+          );
+          const aeUtm = aeRows.map((r: any) => ({
+            name: r.value,
+            visitors: Number(r.visitors || 0),
+            sessions: Number(r.sessions || 0),
+          }));
+          data = mergeBreakdown(data, aeUtm, 'name', ['visitors', 'sessions'], 10);
+        }
+      }
 
       setCacheHeaders(c, period);
       return c.json({ data });
@@ -572,7 +819,25 @@ export const analyticsRoute = app
 
       const db = c.get('db')!;
       const { from, to } = getDateRange(period);
-      const data = await queryArchivedLocations(db, siteId, from, to, type);
+      let data = await queryArchivedLocations(db, siteId, from, to, type);
+
+      const gap = await getAeGapRange(db, siteId);
+      if (gap) {
+        const siteKey = await getCachedSiteKey(c, siteId, userId);
+        if (siteKey) {
+          const config = getQueryConfig(c);
+          const aeRows = await queryAnalyticsEngine(
+            config,
+            buildDailyLocationsQuery(siteKey, gap.gapFrom, type as 'country' | 'city', gap.gapTo)
+          );
+          const aeLocations = aeRows.map((r: any) => ({
+            name: r.name,
+            code: r.name,
+            visitors: Number(r.visitors || 0),
+          }));
+          data = mergeBreakdown(data, aeLocations, 'name', ['visitors'], 10);
+        }
+      }
 
       setCacheHeaders(c, period);
       return c.json({ data });
@@ -606,7 +871,41 @@ export const analyticsRoute = app
 
       const db = c.get('db')!;
       const { from, to } = getDateRange(period);
-      const data = await queryArchivedDevices(db, siteId, from, to, type);
+      let data = await queryArchivedDevices(db, siteId, from, to, type);
+
+      const gap = await getAeGapRange(db, siteId);
+      if (gap) {
+        const siteKey = await getCachedSiteKey(c, siteId, userId);
+        if (siteKey) {
+          const config = getQueryConfig(c);
+          const aeRows = await queryAnalyticsEngine(
+            config,
+            buildDailyDevicesQuery(
+              siteKey,
+              gap.gapFrom,
+              type as 'browser' | 'os' | 'device',
+              gap.gapTo
+            )
+          );
+          const aeDevices = aeRows.map((r: any) => ({
+            name: r.name,
+            visitors: Number(r.visitors || 0),
+            percentage: 0,
+          }));
+          const merged = mergeBreakdown(
+            data.map(d => ({ ...d, percentage: 0 })),
+            aeDevices,
+            'name',
+            ['visitors'],
+            10
+          );
+          const totalVisitors = merged.reduce((s, r) => s + r.visitors, 0);
+          data = merged.map(r => ({
+            ...r,
+            percentage: totalVisitors > 0 ? Math.round((r.visitors / totalVisitors) * 100) : 0,
+          }));
+        }
+      }
 
       setCacheHeaders(c, period);
       return c.json({ data });
@@ -665,7 +964,25 @@ export const analyticsRoute = app
 
       const db = c.get('db')!;
       const { from, to } = getDateRange(period);
-      const data = await queryArchivedEvents(db, siteId, from, to);
+      let data = await queryArchivedEvents(db, siteId, from, to);
+
+      const gap = await getAeGapRange(db, siteId);
+      if (gap) {
+        const siteKey = await getCachedSiteKey(c, siteId, userId);
+        if (siteKey) {
+          const config = getQueryConfig(c);
+          const aeRows = await queryAnalyticsEngine(
+            config,
+            buildDailyEventsQuery(siteKey, gap.gapFrom, gap.gapTo)
+          );
+          const aeEvents = aeRows.map((r: any) => ({
+            name: r.name,
+            count: Number(r.count || 0),
+            totalValue: Number(r.total_value || 0),
+          }));
+          data = mergeBreakdown(data, aeEvents, 'name', ['count', 'totalValue'], 20);
+        }
+      }
 
       setCacheHeaders(c, period);
       return c.json({ data });

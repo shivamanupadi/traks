@@ -30,7 +30,7 @@ export const updateSiteSchema = z.object({
 });
 
 export const statsQuerySchema = z.object({
-  period: z.enum(['today', '7d', '30d', '90d', '6m', '1y', 'all']).default('7d'),
+  period: z.enum(['today', '7d', '30d', '90d', '6m', '1y', 'all']).default('today'),
   from: z.string().optional(),
   to: z.string().optional(),
   siteIds: z.string().optional(),

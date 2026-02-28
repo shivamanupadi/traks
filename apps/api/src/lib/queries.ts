@@ -17,5 +17,6 @@ export {
   buildDailyDevicesQuery,
   buildDailyUtmQuery,
   buildDailyEventsQuery,
+  buildDailyTimeseriesQuery,
 } from '@traks/shared';
 export type { QueryConfig } from '@traks/shared';

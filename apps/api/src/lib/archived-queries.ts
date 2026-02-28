@@ -9,6 +9,7 @@ import {
   dailyDevices,
   dailyUtm,
   dailyEvents,
+  archiveState,
 } from '@traks/shared';
 
 function formatDate(d: Date): string {
@@ -28,6 +29,61 @@ export function getDateRange(period: ArchivedPeriod): { from: string; to: string
     case 'all':
       return { from: '2000-01-01', to };
   }
+}
+
+export async function getLastArchivedDate(
+  db: DrizzleD1Database,
+  siteId: string
+): Promise<string | null> {
+  const [row] = await db
+    .select({ lastArchivedDate: archiveState.lastArchivedDate })
+    .from(archiveState)
+    .where(eq(archiveState.siteId, siteId))
+    .limit(1);
+  return row?.lastArchivedDate || null;
+}
+
+export function nextDay(dateStr: string): string {
+  const d = new Date(dateStr + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+export function mergeStats(
+  a: { visitors: number; pageviews: number; sessions: number },
+  b: { visitors: number; pageviews: number; sessions: number }
+) {
+  return {
+    visitors: a.visitors + b.visitors,
+    pageviews: a.pageviews + b.pageviews,
+    sessions: a.sessions + b.sessions,
+  };
+}
+
+export function mergeBreakdown<T extends Record<string, any>>(
+  d1Rows: T[],
+  aeRows: T[],
+  nameKey: string,
+  numericKeys: string[],
+  limit = 10
+): T[] {
+  const map = new Map<string, T>();
+  for (const row of d1Rows) {
+    map.set(row[nameKey], { ...row });
+  }
+  for (const row of aeRows) {
+    const existing = map.get(row[nameKey]);
+    if (existing) {
+      for (const k of numericKeys) {
+        (existing as any)[k] = (existing[k] || 0) + (row[k] || 0);
+      }
+    } else {
+      map.set(row[nameKey], { ...row });
+    }
+  }
+  const merged = Array.from(map.values());
+  merged.sort((a, b) => (b[numericKeys[0]] || 0) - (a[numericKeys[0]] || 0));
+  return merged.slice(0, limit);
 }
 
 export async function queryArchivedStats(

@@ -273,9 +273,12 @@ export function buildEventsQuery(siteKey: string, period: Period, limit = 20) {
 // ============ Daily archive query builders ============
 // These use toDate(timestamp) = 'YYYY-MM-DD' for exact day filtering
 
-export function buildDailyStatsQuery(siteKey: string, date: string) {
+export function buildDailyStatsQuery(siteKey: string, date: string, toDate?: string) {
   const key = esc(siteKey);
   const d = esc(date);
+  const dateFilter = toDate
+    ? `toDate(timestamp) >= '${d}' AND toDate(timestamp) <= '${esc(toDate)}'`
+    : `toDate(timestamp) = '${d}'`;
   return (dataset: string) => `
     SELECT
       SUM(_sample_interval) AS pageviews,
@@ -285,13 +288,16 @@ export function buildDailyStatsQuery(siteKey: string, date: string) {
     WHERE
       index1 = '${key}'
       AND ${BLOB.EVENT_TYPE} = 'pageview'
-      AND toDate(timestamp) = '${d}'
+      AND ${dateFilter}
   `;
 }
 
-export function buildDailyPagesQuery(siteKey: string, date: string, limit = 500) {
+export function buildDailyPagesQuery(siteKey: string, date: string, toDate?: string, limit = 500) {
   const key = esc(siteKey);
   const d = esc(date);
+  const dateFilter = toDate
+    ? `toDate(timestamp) >= '${d}' AND toDate(timestamp) <= '${esc(toDate)}'`
+    : `toDate(timestamp) = '${d}'`;
   return (dataset: string) => `
     SELECT
       ${BLOB.PATHNAME} AS pathname,
@@ -301,16 +307,24 @@ export function buildDailyPagesQuery(siteKey: string, date: string, limit = 500)
     WHERE
       index1 = '${key}'
       AND ${BLOB.EVENT_TYPE} = 'pageview'
-      AND toDate(timestamp) = '${d}'
+      AND ${dateFilter}
     GROUP BY pathname
     ORDER BY pageviews DESC
     LIMIT ${limit}
   `;
 }
 
-export function buildDailyReferrersQuery(siteKey: string, date: string, limit = 500) {
+export function buildDailyReferrersQuery(
+  siteKey: string,
+  date: string,
+  toDate?: string,
+  limit = 500
+) {
   const key = esc(siteKey);
   const d = esc(date);
+  const dateFilter = toDate
+    ? `toDate(timestamp) >= '${d}' AND toDate(timestamp) <= '${esc(toDate)}'`
+    : `toDate(timestamp) = '${d}'`;
   return (dataset: string) => `
     SELECT
       ${BLOB.REFERRER_HOSTNAME} AS source,
@@ -320,7 +334,7 @@ export function buildDailyReferrersQuery(siteKey: string, date: string, limit = 
       index1 = '${key}'
       AND ${BLOB.EVENT_TYPE} = 'pageview'
       AND ${BLOB.REFERRER_HOSTNAME} != ''
-      AND toDate(timestamp) = '${d}'
+      AND ${dateFilter}
     GROUP BY source
     ORDER BY visitors DESC
     LIMIT ${limit}
@@ -331,11 +345,15 @@ export function buildDailyLocationsQuery(
   siteKey: string,
   date: string,
   type: 'country' | 'city',
+  toDate?: string,
   limit = 500
 ) {
   const key = esc(siteKey);
   const d = esc(date);
   const blobCol = type === 'country' ? BLOB.COUNTRY : BLOB.CITY;
+  const dateFilter = toDate
+    ? `toDate(timestamp) >= '${d}' AND toDate(timestamp) <= '${esc(toDate)}'`
+    : `toDate(timestamp) = '${d}'`;
   return (dataset: string) => `
     SELECT
       ${blobCol} AS name,
@@ -345,7 +363,7 @@ export function buildDailyLocationsQuery(
       index1 = '${key}'
       AND ${BLOB.EVENT_TYPE} = 'pageview'
       AND ${blobCol} != ''
-      AND toDate(timestamp) = '${d}'
+      AND ${dateFilter}
     GROUP BY name
     ORDER BY visitors DESC
     LIMIT ${limit}
@@ -356,11 +374,15 @@ export function buildDailyDevicesQuery(
   siteKey: string,
   date: string,
   type: 'browser' | 'os' | 'device',
+  toDate?: string,
   limit = 500
 ) {
   const key = esc(siteKey);
   const d = esc(date);
   const blobCol = type === 'browser' ? BLOB.BROWSER : type === 'os' ? BLOB.OS : BLOB.DEVICE_TYPE;
+  const dateFilter = toDate
+    ? `toDate(timestamp) >= '${d}' AND toDate(timestamp) <= '${esc(toDate)}'`
+    : `toDate(timestamp) = '${d}'`;
   return (dataset: string) => `
     SELECT
       ${blobCol} AS name,
@@ -370,7 +392,7 @@ export function buildDailyDevicesQuery(
       index1 = '${key}'
       AND ${BLOB.EVENT_TYPE} = 'pageview'
       AND ${blobCol} != ''
-      AND toDate(timestamp) = '${d}'
+      AND ${dateFilter}
     GROUP BY name
     ORDER BY visitors DESC
     LIMIT ${limit}
@@ -381,12 +403,16 @@ export function buildDailyUtmQuery(
   siteKey: string,
   date: string,
   type: 'source' | 'medium' | 'campaign',
+  toDate?: string,
   limit = 500
 ) {
   const key = esc(siteKey);
   const d = esc(date);
   const blobCol =
     type === 'source' ? BLOB.UTM_SOURCE : type === 'medium' ? BLOB.UTM_MEDIUM : BLOB.UTM_CAMPAIGN;
+  const dateFilter = toDate
+    ? `toDate(timestamp) >= '${d}' AND toDate(timestamp) <= '${esc(toDate)}'`
+    : `toDate(timestamp) = '${d}'`;
   return (dataset: string) => `
     SELECT
       ${blobCol} AS value,
@@ -397,16 +423,19 @@ export function buildDailyUtmQuery(
       index1 = '${key}'
       AND ${BLOB.EVENT_TYPE} = 'pageview'
       AND ${blobCol} != ''
-      AND toDate(timestamp) = '${d}'
+      AND ${dateFilter}
     GROUP BY value
     ORDER BY visitors DESC
     LIMIT ${limit}
   `;
 }
 
-export function buildDailyEventsQuery(siteKey: string, date: string, limit = 500) {
+export function buildDailyEventsQuery(siteKey: string, date: string, toDate?: string, limit = 500) {
   const key = esc(siteKey);
   const d = esc(date);
+  const dateFilter = toDate
+    ? `toDate(timestamp) >= '${d}' AND toDate(timestamp) <= '${esc(toDate)}'`
+    : `toDate(timestamp) = '${d}'`;
   return (dataset: string) => `
     SELECT
       ${BLOB.EVENT_NAME} AS name,
@@ -417,9 +446,31 @@ export function buildDailyEventsQuery(siteKey: string, date: string, limit = 500
       index1 = '${key}'
       AND ${BLOB.EVENT_TYPE} = 'event'
       AND ${BLOB.EVENT_NAME} != ''
-      AND toDate(timestamp) = '${d}'
+      AND ${dateFilter}
     GROUP BY name
     ORDER BY count DESC
     LIMIT ${limit}
+  `;
+}
+
+export function buildDailyTimeseriesQuery(siteKey: string, date: string, toDate?: string) {
+  const key = esc(siteKey);
+  const d = esc(date);
+  const dateFilter = toDate
+    ? `toDate(timestamp) >= '${d}' AND toDate(timestamp) <= '${esc(toDate)}'`
+    : `toDate(timestamp) = '${d}'`;
+  return (dataset: string) => `
+    SELECT
+      toStartOfDay(timestamp) AS t,
+      SUM(_sample_interval) AS pageviews,
+      COUNT(DISTINCT ${BLOB.VISITOR_ID}) AS visitors,
+      COUNT(DISTINCT ${BLOB.SESSION_ID}) AS sessions
+    FROM ${dataset}
+    WHERE
+      index1 = '${key}'
+      AND ${BLOB.EVENT_TYPE} = 'pageview'
+      AND ${dateFilter}
+    GROUP BY t
+    ORDER BY t ASC
   `;
 }

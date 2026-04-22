@@ -1,18 +1,6 @@
 import { sqliteTable, text, integer, uniqueIndex, index } from 'drizzle-orm/sqlite-core';
 import { createId } from '@paralleldrive/cuid2';
 
-// Re-export shared archive tables so Drizzle Kit migrations still see them
-export {
-  dailyStats,
-  dailyPages,
-  dailyReferrers,
-  dailyLocations,
-  dailyDevices,
-  dailyUtm,
-  dailyEvents,
-  archiveState,
-} from '@traks/shared';
-
 // ============ Users (synced from Clerk) ============
 export const users = sqliteTable('users', {
   id: text('id').primaryKey(), // Clerk user ID

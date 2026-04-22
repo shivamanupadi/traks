@@ -1,5 +1,8 @@
 export {
-  queryAnalyticsEngine,
+  queryR2Sql,
+  R2SqlError,
+  resolvePeriod,
+  previousRange,
   buildMainStatsQuery,
   buildPreviousPeriodQuery,
   buildTimeseriesQuery,
@@ -10,13 +13,5 @@ export {
   buildDevicesQuery,
   buildRealtimeQuery,
   buildEventsQuery,
-  buildDailyStatsQuery,
-  buildDailyPagesQuery,
-  buildDailyReferrersQuery,
-  buildDailyLocationsQuery,
-  buildDailyDevicesQuery,
-  buildDailyUtmQuery,
-  buildDailyEventsQuery,
-  buildDailyTimeseriesQuery,
 } from '@traks/shared';
-export type { QueryConfig } from '@traks/shared';
+export type { QueryConfig, PeriodRange } from '@traks/shared';

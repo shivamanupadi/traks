@@ -11,10 +11,6 @@ database_name = "traks-db-dev"
 database_id = "cd0ff4bb-5cc4-4002-a259-be02b3234e29"
 migrations_dir = "src/db/migrations"
 
-[[kv_namespaces]]
-binding = "CACHE"
-id = "440948707e6d4cd4b6ea5708abc70d82" # traks-cache-dev
-
 [[routes]]
 pattern = "api-dev.traks.dev"
 custom_domain = true
@@ -22,6 +18,7 @@ custom_domain = true
 [vars]
 ENVIRONMENT = "development"
 ALLOWED_ORIGINS = "*"
+R2_BUCKET_NAME = "traks-events-dev"
 
 # --- Production: wrangler deploy --env production ---
 
@@ -34,24 +31,16 @@ database_name = "traks-db-prod"
 database_id = "7a19029a-d3a0-4ebf-b7f7-3a0237cf4c1e"
 migrations_dir = "src/db/migrations"
 
-[[env.production.kv_namespaces]]
-binding = "CACHE"
-id = "d390d0e68dde4f7d805744bbb7975fb7" # traks-cache-prod
-
 [env.production.vars]
 ENVIRONMENT = "production"
 ALLOWED_ORIGINS = "https://traks.dev,https://www.traks.dev"
+R2_BUCKET_NAME = "traks-events"
 
 [[env.production.routes]]
 pattern = "api.traks.dev"
 custom_domain = true
 
-# Secrets (set per environment):
-# Dev:
-#   wrangler secret put CLERK_SECRET_KEY
-#   wrangler secret put CF_ACCOUNT_ID
-#   wrangler secret put CF_API_TOKEN
-# Production:
-#   wrangler secret put CLERK_SECRET_KEY --env production
-#   wrangler secret put CF_ACCOUNT_ID --env production
-#   wrangler secret put CF_API_TOKEN --env production
+# Secrets managed via Doppler (project: traks-api, configs: dev / prd).
+# Dev:     `yarn dev` pulls Doppler dev config into .dev.vars.doppler.
+# Prod:    `yarn release:prod` runs `doppler secrets --json -c prd | wrangler secret bulk --env production`.
+# Required keys: CLERK_SECRET_KEY, R2_ACCOUNT_ID, R2_SQL_TOKEN.

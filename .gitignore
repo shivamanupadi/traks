@@ -8,4 +8,7 @@ dist
 .env.*
 !.env.example
 .dev.vars
+.dev.vars.doppler
+.dev.vars.bak
+.doppler.yaml
 .DS_Store

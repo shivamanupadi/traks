@@ -1,156 +1,312 @@
-import { BLOB, DOUBLE } from './constants';
 import type { Period } from './constants';
 
 export interface QueryConfig {
   accountId: string;
+  bucketName: string;
   apiToken: string;
-  dataset: string;
+  table: string;
 }
 
-export async function queryAnalyticsEngine<T = any>(
+/**
+ * A period resolved against a caller-supplied `now` and IANA timezone.
+ * Routes compute this once per request and pass into every builder so that
+ * all queries for a single dashboard render operate over the *same* window.
+ */
+export interface PeriodRange {
+  from: string; // UTC RFC3339 timestamp literal for R2 SQL
+  to: string;
+  granularity: 'hour' | 'day' | 'week';
+  /** Ordered list of bucket keys (YYYY-MM-DD, YYYY-MM-DDTHH, or YYYY-Www) for gap-filling timeseries. */
+  buckets: string[];
+}
+
+interface R2SqlResponse {
+  result?: { rows?: Record<string, unknown>[] };
+  errors?: { message: string }[];
+  success?: boolean;
+}
+
+export class R2SqlError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'R2SqlError';
+  }
+}
+
+export async function queryR2Sql<T = Record<string, unknown>>(
   config: QueryConfig,
-  buildQuery: (dataset: string) => string
+  buildQuery: (table: string) => string
 ): Promise<T[]> {
-  const sql = buildQuery(config.dataset);
+  const sql = buildQuery(config.table);
   const response = await fetch(
-    `https://api.cloudflare.com/client/v4/accounts/${config.accountId}/analytics_engine/sql`,
+    `https://api.sql.cloudflarestorage.com/api/v1/accounts/${config.accountId}/r2-sql/query/${config.bucketName}`,
     {
       method: 'POST',
-      headers: { Authorization: `Bearer ${config.apiToken}` },
-      body: sql,
+      headers: {
+        Authorization: `Bearer ${config.apiToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ query: sql }),
     }
   );
 
   if (!response.ok) {
     const text = await response.text();
-    console.error(`Analytics Engine query failed: ${response.status} ${text}`);
-    return [];
+    throw new R2SqlError(`HTTP ${response.status}: ${text.slice(0, 500)}`);
   }
 
-  const result: any = await response.json();
-  return result.data || [];
-}
-
-function periodToInterval(period: Period): string {
-  switch (period) {
-    case 'today':
-      return "'1' DAY";
-    case '7d':
-      return "'7' DAY";
-    case '30d':
-      return "'30' DAY";
-    case '90d':
-      return "'90' DAY";
-    default:
-      return "'7' DAY";
+  const body = (await response.json()) as R2SqlResponse;
+  if (body.errors?.length) {
+    throw new R2SqlError(body.errors.map(e => e.message).join('; '));
   }
-}
-
-function periodToGranularity(period: Period): string {
-  switch (period) {
-    case 'today':
-      return 'toStartOfHour';
-    case '7d':
-      return 'toStartOfDay';
-    case '30d':
-      return 'toStartOfDay';
-    case '90d':
-      return 'toStartOfDay';
-    default:
-      return 'toStartOfDay';
-  }
+  return (body.result?.rows ?? []) as T[];
 }
 
 function esc(value: string): string {
   return value.replace(/'/g, "''");
 }
 
-export function buildMainStatsQuery(siteKey: string, period: Period) {
-  const interval = periodToInterval(period);
-  const key = esc(siteKey);
-  return (dataset: string) => `
+// ============ Timezone-aware period math ============
+
+/**
+ * Convert a UTC moment to its wall-clock parts in a given IANA timezone.
+ * Uses the 'en-CA' locale (YYYY-MM-DD) for stable ordering.
+ */
+function partsInTz(date: Date, tz: string) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).formatToParts(date);
+  const get = (t: string) => Number(parts.find(p => p.type === t)!.value);
+  return {
+    year: get('year'),
+    month: get('month'),
+    day: get('day'),
+    hour: get('hour') % 24, // Intl sometimes emits '24' at midnight
+    minute: get('minute'),
+    second: get('second'),
+  };
+}
+
+/** Returns the UTC Date corresponding to midnight of `date`'s day in `tz`. */
+function startOfDayInTz(date: Date, tz: string): Date {
+  const p = partsInTz(date, tz);
+  // Naive UTC midnight of the same Y-M-D
+  const utcMidnight = new Date(Date.UTC(p.year, p.month - 1, p.day, 0, 0, 0));
+  // Figure out how far utcMidnight is from actual tz-midnight by rendering it back in tz
+  const rendered = partsInTz(utcMidnight, tz);
+  const renderedMs = Date.UTC(
+    rendered.year,
+    rendered.month - 1,
+    rendered.day,
+    rendered.hour,
+    rendered.minute,
+    rendered.second
+  );
+  const targetMs = Date.UTC(p.year, p.month - 1, p.day, 0, 0, 0);
+  return new Date(utcMidnight.getTime() + (targetMs - renderedMs));
+}
+
+function addUTCDays(d: Date, n: number): Date {
+  const out = new Date(d);
+  out.setUTCDate(out.getUTCDate() + n);
+  return out;
+}
+
+function pad2(n: number): string {
+  return String(n).padStart(2, '0');
+}
+
+/** ISO week key (YYYY-Www) matching the collect worker's week_key. */
+function isoWeekKey(d: Date): string {
+  const date = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  const day = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil(((date.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+  return `${date.getUTCFullYear()}-W${pad2(weekNo)}`;
+}
+
+/**
+ * Resolve a period to a PeriodRange. All boundaries are aligned to the *site's* timezone —
+ * "today" means 00:00 local time in that zone, not UTC midnight.
+ *
+ * The `buckets` array lets routes zero-fill timeseries gaps.
+ */
+export function resolvePeriod(period: Period, now: Date, tz: string): PeriodRange {
+  const to = now;
+  let from: Date;
+  let granularity: PeriodRange['granularity'];
+
+  switch (period) {
+    case 'today':
+      from = startOfDayInTz(now, tz);
+      granularity = 'hour';
+      break;
+    case '7d':
+      from = addUTCDays(startOfDayInTz(now, tz), -6);
+      granularity = 'day';
+      break;
+    case '30d':
+      from = addUTCDays(startOfDayInTz(now, tz), -29);
+      granularity = 'day';
+      break;
+    case '90d':
+      from = addUTCDays(startOfDayInTz(now, tz), -89);
+      granularity = 'day';
+      break;
+    case '6m':
+      from = addUTCDays(startOfDayInTz(now, tz), -179);
+      granularity = 'day';
+      break;
+    case '1y':
+      from = addUTCDays(startOfDayInTz(now, tz), -364);
+      granularity = 'week';
+      break;
+    case 'all':
+      from = new Date(Date.UTC(2000, 0, 1));
+      granularity = 'week';
+      break;
+  }
+
+  return {
+    from: from.toISOString(),
+    to: to.toISOString(),
+    granularity,
+    buckets: granularity === 'week' ? [] : generateBuckets(from, to, granularity, tz),
+  };
+}
+
+/** Previous equal-length window immediately before `range`, used for % comparisons. */
+export function previousRange(range: PeriodRange): { from: string; to: string } {
+  const curFrom = new Date(range.from).getTime();
+  const curTo = new Date(range.to).getTime();
+  const span = curTo - curFrom;
+  return {
+    from: new Date(curFrom - span).toISOString(),
+    to: new Date(curFrom).toISOString(),
+  };
+}
+
+/** Generate the ordered list of bucket keys from `from` (inclusive) to `to` (inclusive). */
+function generateBuckets(
+  from: Date,
+  to: Date,
+  granularity: 'hour' | 'day' | 'week',
+  tz: string
+): string[] {
+  const keys: string[] = [];
+  if (granularity === 'hour') {
+    // Iterate UTC hours, render each as YYYY-MM-DDTHH in the site's timezone
+    const startMs = from.getTime();
+    const endMs = to.getTime();
+    for (let ms = startMs; ms <= endMs; ms += 3600_000) {
+      const p = partsInTz(new Date(ms), tz);
+      keys.push(`${p.year}-${pad2(p.month)}-${pad2(p.day)}T${pad2(p.hour)}`);
+    }
+    // Deduplicate in case of DST transitions producing the same hour twice
+    return Array.from(new Set(keys));
+  }
+  if (granularity === 'day') {
+    let cursor = startOfDayInTz(from, tz);
+    const endDay = startOfDayInTz(to, tz);
+    while (cursor.getTime() <= endDay.getTime()) {
+      const p = partsInTz(cursor, tz);
+      keys.push(`${p.year}-${pad2(p.month)}-${pad2(p.day)}`);
+      cursor = addUTCDays(cursor, 1);
+    }
+  }
+  return keys;
+}
+
+export function granularityColumn(granularity: 'hour' | 'day' | 'week'): string {
+  if (granularity === 'hour') return 'hour_key';
+  if (granularity === 'week') return 'week_key';
+  return 'date_key';
+}
+
+// ============ Query builders ============
+
+function whereSiteAndRange(
+  siteKey: string,
+  range: { from: string; to: string },
+  eventType = 'pageview'
+) {
+  return (
+    `site_id = '${esc(siteKey)}'` +
+    ` AND event_type = '${esc(eventType)}'` +
+    ` AND ts >= TIMESTAMP '${esc(range.from)}'` +
+    ` AND ts < TIMESTAMP '${esc(range.to)}'`
+  );
+}
+
+export function buildMainStatsQuery(siteKey: string, range: PeriodRange) {
+  return (table: string) => `
     SELECT
-      SUM(_sample_interval) AS pageviews,
-      COUNT(DISTINCT ${BLOB.VISITOR_ID}) AS visitors,
-      COUNT(DISTINCT ${BLOB.SESSION_ID}) AS sessions
-    FROM ${dataset}
-    WHERE
-      index1 = '${key}'
-      AND ${BLOB.EVENT_TYPE} = 'pageview'
-      AND timestamp >= NOW() - INTERVAL ${interval}
+      COUNT(*) AS pageviews,
+      approx_distinct(visitor_id) AS visitors,
+      approx_distinct(session_id) AS sessions
+    FROM ${table}
+    WHERE ${whereSiteAndRange(siteKey, range)}
   `;
 }
 
-export function buildPreviousPeriodQuery(siteKey: string, period: Period) {
-  const interval = periodToInterval(period);
-  const key = esc(siteKey);
-  return (dataset: string) => `
+export function buildPreviousPeriodQuery(siteKey: string, range: PeriodRange) {
+  const prev = previousRange(range);
+  return (table: string) => `
     SELECT
-      SUM(_sample_interval) AS pageviews,
-      COUNT(DISTINCT ${BLOB.VISITOR_ID}) AS visitors,
-      COUNT(DISTINCT ${BLOB.SESSION_ID}) AS sessions
-    FROM ${dataset}
-    WHERE
-      index1 = '${key}'
-      AND ${BLOB.EVENT_TYPE} = 'pageview'
-      AND timestamp >= NOW() - INTERVAL ${interval} - INTERVAL ${interval}
-      AND timestamp < NOW() - INTERVAL ${interval}
+      COUNT(*) AS pageviews,
+      approx_distinct(visitor_id) AS visitors,
+      approx_distinct(session_id) AS sessions
+    FROM ${table}
+    WHERE ${whereSiteAndRange(siteKey, prev)}
   `;
 }
 
-export function buildTimeseriesQuery(siteKey: string, period: Period) {
-  const interval = periodToInterval(period);
-  const granularity = periodToGranularity(period);
-  const key = esc(siteKey);
-  return (dataset: string) => `
+export function buildTimeseriesQuery(siteKey: string, range: PeriodRange) {
+  const col = granularityColumn(range.granularity);
+  return (table: string) => `
     SELECT
-      ${granularity}(timestamp) AS t,
-      SUM(_sample_interval) AS pageviews,
-      COUNT(DISTINCT ${BLOB.VISITOR_ID}) AS visitors,
-      COUNT(DISTINCT ${BLOB.SESSION_ID}) AS sessions
-    FROM ${dataset}
-    WHERE
-      index1 = '${key}'
-      AND ${BLOB.EVENT_TYPE} = 'pageview'
-      AND timestamp >= NOW() - INTERVAL ${interval}
-    GROUP BY t
+      ${col} AS t,
+      COUNT(*) AS pageviews,
+      approx_distinct(visitor_id) AS visitors,
+      approx_distinct(session_id) AS sessions
+    FROM ${table}
+    WHERE ${whereSiteAndRange(siteKey, range)}
+    GROUP BY ${col}
     ORDER BY t ASC
   `;
 }
 
-export function buildTopPagesQuery(siteKey: string, period: Period, limit = 10) {
-  const interval = periodToInterval(period);
-  const key = esc(siteKey);
-  return (dataset: string) => `
+export function buildTopPagesQuery(siteKey: string, range: PeriodRange, limit = 10) {
+  return (table: string) => `
     SELECT
-      ${BLOB.PATHNAME} AS pathname,
-      SUM(_sample_interval) AS pageviews,
-      COUNT(DISTINCT ${BLOB.VISITOR_ID}) AS visitors
-    FROM ${dataset}
-    WHERE
-      index1 = '${key}'
-      AND ${BLOB.EVENT_TYPE} = 'pageview'
-      AND timestamp >= NOW() - INTERVAL ${interval}
+      pathname,
+      COUNT(*) AS pageviews,
+      approx_distinct(visitor_id) AS visitors
+    FROM ${table}
+    WHERE ${whereSiteAndRange(siteKey, range)}
     GROUP BY pathname
     ORDER BY pageviews DESC
     LIMIT ${limit}
   `;
 }
 
-export function buildTopReferrersQuery(siteKey: string, period: Period, limit = 10) {
-  const interval = periodToInterval(period);
-  const key = esc(siteKey);
-  return (dataset: string) => `
+export function buildTopReferrersQuery(siteKey: string, range: PeriodRange, limit = 10) {
+  return (table: string) => `
     SELECT
-      ${BLOB.REFERRER_HOSTNAME} AS source,
-      COUNT(DISTINCT ${BLOB.VISITOR_ID}) AS visitors
-    FROM ${dataset}
-    WHERE
-      index1 = '${key}'
-      AND ${BLOB.EVENT_TYPE} = 'pageview'
-      AND ${BLOB.REFERRER_HOSTNAME} != ''
-      AND timestamp >= NOW() - INTERVAL ${interval}
-    GROUP BY source
+      referrer_hostname AS source,
+      approx_distinct(visitor_id) AS visitors
+    FROM ${table}
+    WHERE ${whereSiteAndRange(siteKey, range)}
+      AND referrer_hostname != ''
+    GROUP BY referrer_hostname
     ORDER BY visitors DESC
     LIMIT ${limit}
   `;
@@ -158,26 +314,20 @@ export function buildTopReferrersQuery(siteKey: string, period: Period, limit = 
 
 export function buildUtmQuery(
   siteKey: string,
-  period: Period,
+  range: PeriodRange,
   type: 'source' | 'medium' | 'campaign',
   limit = 10
 ) {
-  const interval = periodToInterval(period);
-  const key = esc(siteKey);
-  const blobCol =
-    type === 'source' ? BLOB.UTM_SOURCE : type === 'medium' ? BLOB.UTM_MEDIUM : BLOB.UTM_CAMPAIGN;
-  return (dataset: string) => `
+  const col = type === 'source' ? 'utm_source' : type === 'medium' ? 'utm_medium' : 'utm_campaign';
+  return (table: string) => `
     SELECT
-      ${blobCol} AS value,
-      COUNT(DISTINCT ${BLOB.VISITOR_ID}) AS visitors,
-      COUNT(DISTINCT ${BLOB.SESSION_ID}) AS sessions
-    FROM ${dataset}
-    WHERE
-      index1 = '${key}'
-      AND ${BLOB.EVENT_TYPE} = 'pageview'
-      AND ${blobCol} != ''
-      AND timestamp >= NOW() - INTERVAL ${interval}
-    GROUP BY value
+      ${col} AS value,
+      approx_distinct(visitor_id) AS visitors,
+      approx_distinct(session_id) AS sessions
+    FROM ${table}
+    WHERE ${whereSiteAndRange(siteKey, range)}
+      AND ${col} != ''
+    GROUP BY ${col}
     ORDER BY visitors DESC
     LIMIT ${limit}
   `;
@@ -185,24 +335,19 @@ export function buildUtmQuery(
 
 export function buildLocationsQuery(
   siteKey: string,
-  period: Period,
+  range: PeriodRange,
   type: 'country' | 'city',
   limit = 10
 ) {
-  const interval = periodToInterval(period);
-  const key = esc(siteKey);
-  const blobCol = type === 'country' ? BLOB.COUNTRY : BLOB.CITY;
-  return (dataset: string) => `
+  const col = type === 'country' ? 'country' : 'city';
+  return (table: string) => `
     SELECT
-      ${blobCol} AS name,
-      COUNT(DISTINCT ${BLOB.VISITOR_ID}) AS visitors
-    FROM ${dataset}
-    WHERE
-      index1 = '${key}'
-      AND ${BLOB.EVENT_TYPE} = 'pageview'
-      AND ${blobCol} != ''
-      AND timestamp >= NOW() - INTERVAL ${interval}
-    GROUP BY name
+      ${col} AS name,
+      approx_distinct(visitor_id) AS visitors
+    FROM ${table}
+    WHERE ${whereSiteAndRange(siteKey, range)}
+      AND ${col} != ''
+    GROUP BY ${col}
     ORDER BY visitors DESC
     LIMIT ${limit}
   `;
@@ -210,267 +355,59 @@ export function buildLocationsQuery(
 
 export function buildDevicesQuery(
   siteKey: string,
-  period: Period,
+  range: PeriodRange,
   type: 'browser' | 'os' | 'device',
   limit = 10
 ) {
-  const interval = periodToInterval(period);
-  const key = esc(siteKey);
-  const blobCol = type === 'browser' ? BLOB.BROWSER : type === 'os' ? BLOB.OS : BLOB.DEVICE_TYPE;
-  return (dataset: string) => `
+  const col = type === 'browser' ? 'browser' : type === 'os' ? 'os' : 'device_type';
+  return (table: string) => `
     SELECT
-      ${blobCol} AS name,
-      COUNT(DISTINCT ${BLOB.VISITOR_ID}) AS visitors
-    FROM ${dataset}
-    WHERE
-      index1 = '${key}'
-      AND ${BLOB.EVENT_TYPE} = 'pageview'
-      AND ${blobCol} != ''
-      AND timestamp >= NOW() - INTERVAL ${interval}
-    GROUP BY name
+      ${col} AS name,
+      approx_distinct(visitor_id) AS visitors
+    FROM ${table}
+    WHERE ${whereSiteAndRange(siteKey, range)}
+      AND ${col} != ''
+    GROUP BY ${col}
     ORDER BY visitors DESC
     LIMIT ${limit}
   `;
 }
 
-export function buildRealtimeQuery(siteKey: string) {
-  const key = esc(siteKey);
-  return (dataset: string) => `
+/**
+ * Realtime = last 5 minutes. Freshness is bounded by Pipelines commit cadence (~30s-5min
+ * depending on sink `roll-interval`), not this query.
+ */
+export function buildRealtimeQuery(siteKey: string, now: Date) {
+  const range = {
+    from: new Date(now.getTime() - 5 * 60 * 1000).toISOString(),
+    to: now.toISOString(),
+  };
+  return (table: string) => `
     SELECT
-      COUNT(DISTINCT ${BLOB.VISITOR_ID}) AS visitors,
-      ${BLOB.PATHNAME} AS pathname
-    FROM ${dataset}
-    WHERE
-      index1 = '${key}'
-      AND ${BLOB.EVENT_TYPE} = 'pageview'
-      AND timestamp >= NOW() - INTERVAL '5' MINUTE
+      approx_distinct(visitor_id) AS visitors,
+      pathname
+    FROM ${table}
+    WHERE ${whereSiteAndRange(siteKey, range)}
     GROUP BY pathname
     ORDER BY visitors DESC
     LIMIT 10
   `;
 }
 
-export function buildEventsQuery(siteKey: string, period: Period, limit = 20) {
-  const interval = periodToInterval(period);
-  const key = esc(siteKey);
-  return (dataset: string) => `
+export function buildEventsQuery(siteKey: string, range: PeriodRange, limit = 20) {
+  return (table: string) => `
     SELECT
-      ${BLOB.EVENT_NAME} AS name,
-      SUM(_sample_interval) AS count,
-      SUM(${DOUBLE.EVENT_VALUE} * _sample_interval) AS total_value
-    FROM ${dataset}
-    WHERE
-      index1 = '${key}'
-      AND ${BLOB.EVENT_TYPE} = 'event'
-      AND ${BLOB.EVENT_NAME} != ''
-      AND timestamp >= NOW() - INTERVAL ${interval}
-    GROUP BY name
+      event_name AS name,
+      COUNT(*) AS count,
+      SUM(event_value) AS total_value
+    FROM ${table}
+    WHERE ${whereSiteAndRange(siteKey, range, 'event')}
+      AND event_name != ''
+    GROUP BY event_name
     ORDER BY count DESC
     LIMIT ${limit}
   `;
 }
 
-// ============ Daily archive query builders ============
-// These use toDate(timestamp) = 'YYYY-MM-DD' for exact day filtering
-
-export function buildDailyStatsQuery(siteKey: string, date: string, toDate?: string) {
-  const key = esc(siteKey);
-  const d = esc(date);
-  const dateFilter = toDate
-    ? `toDate(timestamp) >= '${d}' AND toDate(timestamp) <= '${esc(toDate)}'`
-    : `toDate(timestamp) = '${d}'`;
-  return (dataset: string) => `
-    SELECT
-      SUM(_sample_interval) AS pageviews,
-      COUNT(DISTINCT ${BLOB.VISITOR_ID}) AS visitors,
-      COUNT(DISTINCT ${BLOB.SESSION_ID}) AS sessions
-    FROM ${dataset}
-    WHERE
-      index1 = '${key}'
-      AND ${BLOB.EVENT_TYPE} = 'pageview'
-      AND ${dateFilter}
-  `;
-}
-
-export function buildDailyPagesQuery(siteKey: string, date: string, toDate?: string, limit = 500) {
-  const key = esc(siteKey);
-  const d = esc(date);
-  const dateFilter = toDate
-    ? `toDate(timestamp) >= '${d}' AND toDate(timestamp) <= '${esc(toDate)}'`
-    : `toDate(timestamp) = '${d}'`;
-  return (dataset: string) => `
-    SELECT
-      ${BLOB.PATHNAME} AS pathname,
-      SUM(_sample_interval) AS pageviews,
-      COUNT(DISTINCT ${BLOB.VISITOR_ID}) AS visitors
-    FROM ${dataset}
-    WHERE
-      index1 = '${key}'
-      AND ${BLOB.EVENT_TYPE} = 'pageview'
-      AND ${dateFilter}
-    GROUP BY pathname
-    ORDER BY pageviews DESC
-    LIMIT ${limit}
-  `;
-}
-
-export function buildDailyReferrersQuery(
-  siteKey: string,
-  date: string,
-  toDate?: string,
-  limit = 500
-) {
-  const key = esc(siteKey);
-  const d = esc(date);
-  const dateFilter = toDate
-    ? `toDate(timestamp) >= '${d}' AND toDate(timestamp) <= '${esc(toDate)}'`
-    : `toDate(timestamp) = '${d}'`;
-  return (dataset: string) => `
-    SELECT
-      ${BLOB.REFERRER_HOSTNAME} AS source,
-      COUNT(DISTINCT ${BLOB.VISITOR_ID}) AS visitors
-    FROM ${dataset}
-    WHERE
-      index1 = '${key}'
-      AND ${BLOB.EVENT_TYPE} = 'pageview'
-      AND ${BLOB.REFERRER_HOSTNAME} != ''
-      AND ${dateFilter}
-    GROUP BY source
-    ORDER BY visitors DESC
-    LIMIT ${limit}
-  `;
-}
-
-export function buildDailyLocationsQuery(
-  siteKey: string,
-  date: string,
-  type: 'country' | 'city',
-  toDate?: string,
-  limit = 500
-) {
-  const key = esc(siteKey);
-  const d = esc(date);
-  const blobCol = type === 'country' ? BLOB.COUNTRY : BLOB.CITY;
-  const dateFilter = toDate
-    ? `toDate(timestamp) >= '${d}' AND toDate(timestamp) <= '${esc(toDate)}'`
-    : `toDate(timestamp) = '${d}'`;
-  return (dataset: string) => `
-    SELECT
-      ${blobCol} AS name,
-      COUNT(DISTINCT ${BLOB.VISITOR_ID}) AS visitors
-    FROM ${dataset}
-    WHERE
-      index1 = '${key}'
-      AND ${BLOB.EVENT_TYPE} = 'pageview'
-      AND ${blobCol} != ''
-      AND ${dateFilter}
-    GROUP BY name
-    ORDER BY visitors DESC
-    LIMIT ${limit}
-  `;
-}
-
-export function buildDailyDevicesQuery(
-  siteKey: string,
-  date: string,
-  type: 'browser' | 'os' | 'device',
-  toDate?: string,
-  limit = 500
-) {
-  const key = esc(siteKey);
-  const d = esc(date);
-  const blobCol = type === 'browser' ? BLOB.BROWSER : type === 'os' ? BLOB.OS : BLOB.DEVICE_TYPE;
-  const dateFilter = toDate
-    ? `toDate(timestamp) >= '${d}' AND toDate(timestamp) <= '${esc(toDate)}'`
-    : `toDate(timestamp) = '${d}'`;
-  return (dataset: string) => `
-    SELECT
-      ${blobCol} AS name,
-      COUNT(DISTINCT ${BLOB.VISITOR_ID}) AS visitors
-    FROM ${dataset}
-    WHERE
-      index1 = '${key}'
-      AND ${BLOB.EVENT_TYPE} = 'pageview'
-      AND ${blobCol} != ''
-      AND ${dateFilter}
-    GROUP BY name
-    ORDER BY visitors DESC
-    LIMIT ${limit}
-  `;
-}
-
-export function buildDailyUtmQuery(
-  siteKey: string,
-  date: string,
-  type: 'source' | 'medium' | 'campaign',
-  toDate?: string,
-  limit = 500
-) {
-  const key = esc(siteKey);
-  const d = esc(date);
-  const blobCol =
-    type === 'source' ? BLOB.UTM_SOURCE : type === 'medium' ? BLOB.UTM_MEDIUM : BLOB.UTM_CAMPAIGN;
-  const dateFilter = toDate
-    ? `toDate(timestamp) >= '${d}' AND toDate(timestamp) <= '${esc(toDate)}'`
-    : `toDate(timestamp) = '${d}'`;
-  return (dataset: string) => `
-    SELECT
-      ${blobCol} AS value,
-      COUNT(DISTINCT ${BLOB.VISITOR_ID}) AS visitors,
-      COUNT(DISTINCT ${BLOB.SESSION_ID}) AS sessions
-    FROM ${dataset}
-    WHERE
-      index1 = '${key}'
-      AND ${BLOB.EVENT_TYPE} = 'pageview'
-      AND ${blobCol} != ''
-      AND ${dateFilter}
-    GROUP BY value
-    ORDER BY visitors DESC
-    LIMIT ${limit}
-  `;
-}
-
-export function buildDailyEventsQuery(siteKey: string, date: string, toDate?: string, limit = 500) {
-  const key = esc(siteKey);
-  const d = esc(date);
-  const dateFilter = toDate
-    ? `toDate(timestamp) >= '${d}' AND toDate(timestamp) <= '${esc(toDate)}'`
-    : `toDate(timestamp) = '${d}'`;
-  return (dataset: string) => `
-    SELECT
-      ${BLOB.EVENT_NAME} AS name,
-      SUM(_sample_interval) AS count,
-      SUM(${DOUBLE.EVENT_VALUE} * _sample_interval) AS total_value
-    FROM ${dataset}
-    WHERE
-      index1 = '${key}'
-      AND ${BLOB.EVENT_TYPE} = 'event'
-      AND ${BLOB.EVENT_NAME} != ''
-      AND ${dateFilter}
-    GROUP BY name
-    ORDER BY count DESC
-    LIMIT ${limit}
-  `;
-}
-
-export function buildDailyTimeseriesQuery(siteKey: string, date: string, toDate?: string) {
-  const key = esc(siteKey);
-  const d = esc(date);
-  const dateFilter = toDate
-    ? `toDate(timestamp) >= '${d}' AND toDate(timestamp) <= '${esc(toDate)}'`
-    : `toDate(timestamp) = '${d}'`;
-  return (dataset: string) => `
-    SELECT
-      toStartOfDay(timestamp) AS t,
-      SUM(_sample_interval) AS pageviews,
-      COUNT(DISTINCT ${BLOB.VISITOR_ID}) AS visitors,
-      COUNT(DISTINCT ${BLOB.SESSION_ID}) AS sessions
-    FROM ${dataset}
-    WHERE
-      index1 = '${key}'
-      AND ${BLOB.EVENT_TYPE} = 'pageview'
-      AND ${dateFilter}
-    GROUP BY t
-    ORDER BY t ASC
-  `;
-}
+// Re-exported so the collect worker and api route stay consistent.
+export { isoWeekKey };

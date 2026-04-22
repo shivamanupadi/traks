@@ -1,0 +1,29 @@
+{
+  "fields": [
+    { "name": "site_id", "type": "string", "required": true },
+    { "name": "ts", "type": "timestamp", "required": true },
+    { "name": "date_key", "type": "string", "required": true },
+    { "name": "hour_key", "type": "string", "required": true },
+    { "name": "week_key", "type": "string", "required": true },
+    { "name": "event_type", "type": "string", "required": true },
+    { "name": "pathname", "type": "string", "required": false },
+    { "name": "hostname", "type": "string", "required": false },
+    { "name": "referrer_hostname", "type": "string", "required": false },
+    { "name": "referrer_pathname", "type": "string", "required": false },
+    { "name": "utm_source", "type": "string", "required": false },
+    { "name": "utm_medium", "type": "string", "required": false },
+    { "name": "utm_campaign", "type": "string", "required": false },
+    { "name": "country", "type": "string", "required": false },
+    { "name": "city", "type": "string", "required": false },
+    { "name": "region", "type": "string", "required": false },
+    { "name": "browser", "type": "string", "required": false },
+    { "name": "os", "type": "string", "required": false },
+    { "name": "device_type", "type": "string", "required": false },
+    { "name": "session_id", "type": "string", "required": false },
+    { "name": "visitor_id", "type": "string", "required": false },
+    { "name": "event_name", "type": "string", "required": false },
+    { "name": "event_meta", "type": "string", "required": false },
+    { "name": "event_value", "type": "float64", "required": false },
+    { "name": "screen_width", "type": "int32", "required": false }
+  ]
+}

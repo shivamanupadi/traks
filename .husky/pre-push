@@ -1,0 +1,45 @@
+#!/usr/bin/env sh
+#
+# Pre-push hook — runs the same checks CI will run so failures surface locally.
+#
+# Checks, in order:
+#   1. prettier --check      (formatting)
+#   2. yarn check:push       (lint + build across all workspaces)
+#   3. yarn db:check         (drizzle schema-drift detection)
+#
+# Skip with:  git push --no-verify
+
+set -e
+
+echo "🔍 Running pre-push checks..."
+echo ""
+
+if [ -t 1 ]; then
+  RED="$(printf '\033[0;31m')"
+  GREEN="$(printf '\033[0;32m')"
+  CYAN="$(printf '\033[0;36m')"
+  RESET="$(printf '\033[0m')"
+else
+  RED=""; GREEN=""; CYAN=""; RESET=""
+fi
+
+step() { echo "${CYAN}▸ $1${RESET}"; }
+fail() { echo "${RED}✗ $1${RESET}"; exit 1; }
+ok()   { echo "${GREEN}✓ $1${RESET}"; }
+
+step "1/3  Checking formatting (prettier)"
+yarn format:check || fail "Formatting issues. Run: yarn format"
+ok "Formatting clean"
+echo ""
+
+step "2/3  Lint + build (yarn check:push)"
+yarn check:push || fail "Lint or build failed"
+ok "Lint + build passed"
+echo ""
+
+step "3/3  Schema drift (yarn db:check)"
+yarn db:check || fail "Schema drift detected. Run: yarn workspace @traks/api db:generate --name <descriptive_name>"
+ok "No schema drift"
+echo ""
+
+echo "${GREEN}All pre-push checks passed — pushing.${RESET}"

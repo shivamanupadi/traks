@@ -10,16 +10,21 @@
   ],
   "scripts": {
     "dev": "yarn kill-ports && turbo run dev",
-    "kill-ports": "kill -9 $(lsof -ti :5010,:5011,:5012,:5013) 2>/dev/null; echo 'Ports 5010-5013 cleared'",
+    "kill-ports": "kill -9 $(lsof -ti :5010,:5011,:5012) 2>/dev/null; echo 'Ports 5010-5012 cleared'",
     "build": "turbo run build",
     "lint": "turbo lint",
     "type-check": "turbo run type-check",
     "clean": "turbo clean && rimraf node_modules .turbo dist yarn.lock '**/node_modules' '**/dist' '**/.turbo' '**/.vite' '**/.wrangler'",
     "format": "turbo run format",
+    "format:check": "prettier --check \"apps/api/src/**/*.ts\" \"apps/collect/src/**/*.ts\" \"apps/web/src/**/*.{ts,tsx}\" \"packages/shared/src/**/*.ts\" \"packages/tracker/src/**/*.ts\"",
+    "db:check": "yarn workspace @traks/api db:check",
     "reset": "yarn clean && yarn install",
-    "check:push": "yarn lint && yarn build"
+    "check:push": "yarn lint && yarn build",
+    "check:ci": "yarn format:check && yarn check:push && yarn db:check",
+    "prepare": "husky"
   },
   "devDependencies": {
+    "husky": "^9.1.7",
     "prettier": "^3.2.5",
     "rimraf": "^5.0.5",
     "turbo": "^2.5.4",

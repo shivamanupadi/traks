@@ -7,10 +7,8 @@ import { analyticsRoute } from './routes/analytics';
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
-// Create Drizzle instance once per request and cache site keys
 app.use('/api/*', async (c, next) => {
   c.set('db', drizzle(c.env.DB));
-  c.set('siteKeyCache', new Map());
   await next();
 });
 

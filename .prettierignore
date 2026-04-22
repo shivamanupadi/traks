@@ -1,0 +1,19 @@
+# Generated files
+**/routeTree.gen.ts
+**/*.gen.ts
+
+# Build output
+dist/
+.turbo/
+.wrangler/
+.vite/
+
+# Dependencies
+node_modules/
+
+# Doppler-generated env
+.dev.vars
+.dev.vars.doppler
+
+# Migration artifacts
+apps/api/src/db/migrations/

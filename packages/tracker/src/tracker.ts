@@ -42,22 +42,18 @@
     }).catch(function () {});
   }
 
-  // Track a pageview - mirrors Plausible's autocapture.js logic
   function page(isSPANavigation?: boolean): void {
-    // SPA dedup: skip if same pathname on SPA navigation
     if (isSPANavigation && lastPage === location.pathname) return;
     lastPage = location.pathname;
 
-    // Parse UTM params
     const params = new URLSearchParams(location.search);
 
     sendRequest({
       t: 'pageview',
       s: siteKey,
-      u: location.href,
       p: location.pathname,
       h: location.hostname,
-      r: document.referrer || null,
+      r: document.referrer || '',
       sw: screen.width,
       sid: getSessionId(),
       us: params.get('utm_source') || '',
@@ -96,9 +92,10 @@
     });
   }
 
-  // Handle prerendered/hidden pages (Plausible pattern)
-  // Wait until page is visible before tracking
-  if (document.visibilityState === 'hidden' || document.visibilityState === 'prerender') {
+  // Prerender and hidden tabs: defer the initial pageview until the page is actually visible.
+  // `prerender` is valid at runtime but not in every @types/dom version; cast narrowly.
+  const initialVis = document.visibilityState as 'visible' | 'hidden' | 'prerender';
+  if (initialVis === 'hidden' || initialVis === 'prerender') {
     document.addEventListener('visibilitychange', function handler() {
       if (document.visibilityState === 'visible') {
         page();

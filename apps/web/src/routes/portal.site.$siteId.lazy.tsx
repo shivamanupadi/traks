@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, type ReactElement } from 'react';
 import { createLazyFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useAuth } from '@clerk/clerk-react';
-import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, RefreshCw, Settings, Code2, Copy, Check, Zap } from 'lucide-react';
 import type { Period } from '@traks/shared';
 import { Button } from '@/components/ui/button';
@@ -326,24 +326,38 @@ function SiteAnalyticsPage(): ReactElement {
     staleTime: 300_000,
   });
 
-  // Single combined query - 1 HTTP request instead of 7
-  const {
-    data: allData,
-    isLoading: allLoading,
-    isError: allError,
-  } = useQuery({
-    queryKey: ['site-analytics', siteId, 'all', period],
+  // Per-tile parallel queries — each tile renders as its own request resolves.
+  // Trades one HTTP call for 7 parallel calls; progressive render beats
+  // waiting for the slowest to finish before showing anything.
+  //
+  // `tileOpts` is a plain helper returning a query-options object — useQuery
+  // is still called at the component top level, which keeps React's rules-of-hooks happy.
+  const tileOpts = (
+    key: readonly unknown[],
+    call: (token: string) => Promise<unknown>
+  ): Parameters<typeof useQuery>[0] => ({
+    queryKey: ['site-analytics', siteId, ...key, period],
     queryFn: async () => {
       const token = await getToken();
       if (!token) throw new Error('Not authenticated');
-      return api.getAllStats(siteId, period, token);
+      return call(token);
     },
     refetchInterval: REFETCH_INTERVAL,
     staleTime: getStaleTime(period),
-    placeholderData: keepPreviousData,
   });
 
-  const analytics = (allData as any)?.data;
+  const mainQ = useQuery(tileOpts(['main'], t => api.getMainStats(siteId, period, t)));
+  const timeseriesQ = useQuery(tileOpts(['timeseries'], t => api.getTimeseries(siteId, period, t)));
+  const pagesQ = useQuery(tileOpts(['pages'], t => api.getTopPages(siteId, period, t)));
+  const referrersQ = useQuery(tileOpts(['referrers'], t => api.getTopReferrers(siteId, period, t)));
+  const locationsQ = useQuery(
+    tileOpts(['locations', 'country'], t => api.getLocations(siteId, period, 'country', t))
+  );
+  const browsersQ = useQuery(
+    tileOpts(['devices', 'browser'], t => api.getDevices(siteId, period, 'browser', t))
+  );
+  const osQ = useQuery(tileOpts(['devices', 'os'], t => api.getDevices(siteId, period, 'os', t)));
+
   const site = (siteData as any)?.data;
 
   return (
@@ -394,25 +408,33 @@ function SiteAnalyticsPage(): ReactElement {
         </div>
 
         {/* Stats cards */}
-        <StatsCards stats={analytics?.main} isLoading={allLoading} isError={allError} />
+        <StatsCards
+          stats={(mainQ.data as any)?.data}
+          isLoading={mainQ.isLoading}
+          isError={mainQ.isError}
+        />
 
         {/* Timeseries chart */}
-        <TimeseriesChart data={analytics?.timeseries} isLoading={allLoading} isError={allError} />
+        <TimeseriesChart
+          data={(timeseriesQ.data as any)?.data}
+          isLoading={timeseriesQ.isLoading}
+          isError={timeseriesQ.isError}
+        />
 
         {/* Two-column: Pages + Referrers */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <TopList
             title="Top Pages"
-            items={analytics?.pages}
-            isLoading={allLoading}
-            isError={allError}
+            items={(pagesQ.data as any)?.data}
+            isLoading={pagesQ.isLoading}
+            isError={pagesQ.isError}
             showPageviews
           />
           <TopList
             title="Top Referrers"
-            items={analytics?.referrers}
-            isLoading={allLoading}
-            isError={allError}
+            items={(referrersQ.data as any)?.data}
+            isLoading={referrersQ.isLoading}
+            isError={referrersQ.isError}
           />
         </div>
 
@@ -424,15 +446,15 @@ function SiteAnalyticsPage(): ReactElement {
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
               <TopList
                 title="Countries"
-                items={analytics?.locations}
-                isLoading={allLoading}
-                isError={allError}
+                items={(locationsQ.data as any)?.data}
+                isLoading={locationsQ.isLoading}
+                isError={locationsQ.isError}
               />
               <TopList
                 title="Browsers"
-                items={analytics?.browsers}
-                isLoading={allLoading}
-                isError={allError}
+                items={(browsersQ.data as any)?.data}
+                isLoading={browsersQ.isLoading}
+                isError={browsersQ.isError}
               />
             </div>
 
@@ -440,9 +462,9 @@ function SiteAnalyticsPage(): ReactElement {
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
               <TopList
                 title="Operating Systems"
-                items={analytics?.os}
-                isLoading={allLoading}
-                isError={allError}
+                items={(osQ.data as any)?.data}
+                isLoading={osQ.isLoading}
+                isError={osQ.isError}
               />
             </div>
           </>

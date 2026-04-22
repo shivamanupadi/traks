@@ -19,7 +19,7 @@ export const EVENT_TYPES = {
 export const PERIODS = ['today', '7d', '30d', '90d', '6m', '1y', 'all'] as const;
 export type Period = (typeof PERIODS)[number];
 
+// Both envs use `traks.events` — physical isolation is per-bucket (R2_BUCKET_NAME env),
+// so the namespace/table pair can match without collision. Keeps naming symmetric.
 export const TABLE_PROD = 'traks.events';
-// Bumped from 'events' because Pipelines doesn't support writing to an existing
-// Iceberg table. Increment suffix whenever the dev sink must be recreated.
-export const TABLE_DEV = 'traks_dev.events_v2';
+export const TABLE_DEV = 'traks.events';

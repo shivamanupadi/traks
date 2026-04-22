@@ -123,14 +123,34 @@ function pad2(n: number): string {
   return String(n).padStart(2, '0');
 }
 
-/** ISO week key (YYYY-Www) matching the collect worker's week_key. */
-function isoWeekKey(d: Date): string {
-  const date = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-  const day = date.getUTCDay() || 7;
-  date.setUTCDate(date.getUTCDate() + 4 - day);
-  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
-  const weekNo = Math.ceil(((date.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
-  return `${date.getUTCFullYear()}-W${pad2(weekNo)}`;
+/**
+ * ISO-8601 week key (YYYY-Www) computed from plain date components.
+ * Tz-agnostic — callers pass Y/M/D already rendered in whatever zone they care about.
+ */
+function isoWeekKeyFromParts(year: number, month: number, day: number): string {
+  // ISO week: the Thursday of a week determines its year/week.
+  const d = new Date(Date.UTC(year, month - 1, day));
+  const isoDay = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - isoDay);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+  return `${d.getUTCFullYear()}-W${pad2(weekNo)}`;
+}
+
+/**
+ * Compute the three bucket keys (date_key, hour_key, week_key) for an instant,
+ * rendered in the site's IANA timezone. Produced by collect at ingest and
+ * grouped on at query time.
+ */
+export function computeBucketKeys(
+  now: Date,
+  tz: string
+): { dateKey: string; hourKey: string; weekKey: string } {
+  const p = partsInTz(now, tz);
+  const dateKey = `${p.year}-${pad2(p.month)}-${pad2(p.day)}`;
+  const hourKey = `${dateKey}T${pad2(p.hour)}`;
+  const weekKey = isoWeekKeyFromParts(p.year, p.month, p.day);
+  return { dateKey, hourKey, weekKey };
 }
 
 /**
@@ -408,6 +428,3 @@ export function buildEventsQuery(siteKey: string, range: PeriodRange, limit = 20
     LIMIT ${limit}
   `;
 }
-
-// Re-exported so the collect worker and api route stay consistent.
-export { isoWeekKey };

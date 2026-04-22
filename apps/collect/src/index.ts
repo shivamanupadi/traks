@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { trackingEventSchema, isoWeekKey } from '@traks/shared';
+import { trackingEventSchema, computeBucketKeys } from '@traks/shared';
 import { isBot } from './lib/bots';
 import { parseUA } from './lib/ua';
 import { parseReferrer } from './lib/referrer';
@@ -30,12 +30,30 @@ app.get('/t.js', c => {
   });
 });
 
-async function isSiteValid(db: D1Database, siteKey: string): Promise<boolean> {
-  const result = await db
-    .prepare('SELECT 1 FROM api_keys WHERE key = ? AND revoked_at IS NULL LIMIT 1')
+interface SiteAuth {
+  valid: boolean;
+  timezone: string;
+}
+
+/**
+ * Validate the site key AND fetch the site's IANA timezone in one D1 hit.
+ * Timezone drives how hour/date/week bucket keys are computed so dashboard
+ * aggregations align with the user's local clock (e.g. IST hour boundaries),
+ * not UTC.
+ */
+async function authenticateSite(db: D1Database, siteKey: string): Promise<SiteAuth> {
+  const row = await db
+    .prepare(
+      `SELECT sites.timezone AS tz
+       FROM api_keys
+       INNER JOIN sites ON sites.id = api_keys.site_id
+       WHERE api_keys.key = ? AND api_keys.revoked_at IS NULL
+       LIMIT 1`
+    )
     .bind(siteKey)
-    .first();
-  return !!result;
+    .first<{ tz: string | null }>();
+  if (!row) return { valid: false, timezone: 'UTC' };
+  return { valid: true, timezone: row.tz || 'UTC' };
 }
 
 // Cache the HMAC CryptoKey per day - avoids crypto.subtle.importKey() on every request
@@ -98,9 +116,9 @@ app.post('/api/event', async c => {
   const ua = c.req.header('user-agent') || '';
   if (isBot(ua)) return c.json({ ok: true });
 
-  // Site key validation — only for traffic we'd actually record.
-  const valid = await isSiteValid(c.env.DB, event.s);
-  if (!valid) {
+  // Site key validation + timezone fetch in a single D1 query.
+  const site = await authenticateSite(c.env.DB, event.s);
+  if (!site.valid) {
     console.warn(`[collect] Unknown site key: ${event.s}`);
     return c.json({ error: 'unknown site' }, 403);
   }
@@ -123,10 +141,9 @@ app.post('/api/event', async c => {
   const { browser, os, deviceType } = parseUA(ua);
 
   const now = new Date();
-  const iso = now.toISOString();
-  const dateKey = iso.slice(0, 10);
-  const hourKey = iso.slice(0, 13);
-  const weekKey = isoWeekKey(now);
+  // Bucket keys are computed in the site's timezone so "today" hourly buckets
+  // align with IST (or whatever the site runs on) rather than UTC.
+  const { dateKey, hourKey, weekKey } = computeBucketKeys(now, site.timezone);
 
   const record = {
     site_id: event.s,

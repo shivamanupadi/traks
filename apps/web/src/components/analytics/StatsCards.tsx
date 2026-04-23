@@ -87,8 +87,15 @@ export function StatsCards({ stats, isLoading, isError }: StatsCardsProps): Reac
         {[...Array(4)].map((_, i) => (
           <div
             key={i}
-            className="h-[140px] animate-pulse rounded-2xl border border-[#e8e3ed]/80 bg-white"
-          />
+            className="h-[140px] rounded-2xl border border-[#e8e3ed]/80 bg-white p-5 overflow-hidden"
+          >
+            <div className="flex items-center gap-2.5 mb-4">
+              <div className="w-8 h-8 rounded-lg bg-[#f3f0f7] animate-pulse" />
+              <div className="h-3 w-24 rounded bg-[#f3f0f7] animate-pulse" />
+            </div>
+            <div className="h-7 w-20 rounded bg-[#f3f0f7] animate-pulse" />
+            <div className="mt-3 h-4 w-28 rounded-full bg-[#f3f0f7] animate-pulse" />
+          </div>
         ))}
       </div>
     );

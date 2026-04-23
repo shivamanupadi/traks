@@ -128,7 +128,18 @@ export function TimeseriesChart({
 
   if (isLoading || !data) {
     return (
-      <div className="h-[300px] animate-pulse rounded-2xl border border-[#e8e3ed]/80 bg-white" />
+      <div className="h-[300px] rounded-2xl border border-[#e8e3ed]/80 bg-white p-5">
+        <div className="h-4 w-24 rounded bg-[#f3f0f7] animate-pulse" />
+        <div className="mt-5 flex h-[210px] items-end gap-2">
+          {[40, 65, 50, 80, 55, 90, 70, 60, 85, 45, 75, 95].map((h, i) => (
+            <div
+              key={i}
+              className="flex-1 rounded-t bg-[#f3f0f7] animate-pulse"
+              style={{ height: `${h}%` }}
+            />
+          ))}
+        </div>
+      </div>
     );
   }
 

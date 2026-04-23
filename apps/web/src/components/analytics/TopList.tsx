@@ -34,7 +34,17 @@ export function TopList({
 
   if (isLoading || !items) {
     return (
-      <div className="h-[300px] animate-pulse rounded-2xl border border-[#e8e3ed]/80 bg-white" />
+      <div className="h-[300px] rounded-2xl border border-[#e8e3ed]/80 bg-white p-5">
+        <div className="h-4 w-28 rounded bg-[#f3f0f7] animate-pulse" />
+        <div className="mt-5 space-y-2.5">
+          {[95, 78, 62, 48, 36, 28, 20].map((w, i) => (
+            <div key={i} className="flex items-center justify-between gap-4">
+              <div className="h-5 rounded bg-[#f3f0f7] animate-pulse" style={{ width: `${w}%` }} />
+              <div className="h-5 w-10 shrink-0 rounded bg-[#f3f0f7] animate-pulse" />
+            </div>
+          ))}
+        </div>
+      </div>
     );
   }
 

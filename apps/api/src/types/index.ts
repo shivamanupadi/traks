@@ -4,9 +4,28 @@ export type Bindings = {
   LIVE: DurableObjectNamespace;
   /** Bucket holding nightly per-site raw-data exports (NDJSON). */
   EXPORTS: R2Bucket;
+  /** Transactional email (Cloudflare Email Service, open beta). */
+  EMAIL: {
+    send: (msg: {
+      to: string | { email: string; name?: string };
+      from: string | { email: string; name?: string };
+      subject: string;
+      html?: string;
+      text?: string;
+    }) => Promise<{ messageId?: string }>;
+  };
   ENVIRONMENT: string;
   ALLOWED_ORIGINS: string;
+  APP_URL: string;
+  EMAIL_FROM: string;
+  ADMIN_EMAIL: string;
+  DODO_API_BASE: string;
+  DODO_PRODUCT_PRO: string;
+  DODO_PRODUCT_BUSINESS: string;
   CLERK_SECRET_KEY: string;
+  CLERK_WEBHOOK_SECRET: string;
+  DODO_API_KEY: string;
+  DODO_WEBHOOK_SECRET: string;
   R2_ACCOUNT_ID: string;
   R2_SQL_TOKEN: string;
   R2_BUCKET_NAME: string;

@@ -316,7 +316,7 @@ function EditSiteModal({
                 <div>
                   <p className="text-[13px] font-medium text-[#2D3436]">Public dashboard</p>
                   <p className="mt-0.5 text-[12px] text-[#9B9590]">
-                    Anyone with the link can view this site's stats.
+                    Anyone with the link can view this site&apos;s stats.
                   </p>
                 </div>
                 <button

@@ -23,8 +23,17 @@ script_name = "traks-collect-dev"
 binding = "EXPORTS"
 bucket_name = "traks-exports-dev"
 
+# Transactional email (Cloudflare Email Service, open beta - Workers Paid).
+# The EMAIL_FROM domain must be onboarded for Email Sending in the dashboard.
+[[send_email]]
+name = "EMAIL"
+
 [triggers]
-crons = ["30 3 * * *"] # nightly export run
+crons = [
+  "30 3 * * *",   # nightly raw-data exports
+  "0 8 * * 1",    # Monday weekly email digest
+  "*/30 * * * *", # pipeline freshness healthcheck
+]
 
 [[routes]]
 pattern = "api-dev.traks.dev"
@@ -34,6 +43,12 @@ custom_domain = true
 ENVIRONMENT = "development"
 ALLOWED_ORIGINS = "*"
 R2_BUCKET_NAME = "traks-events-dev"
+APP_URL = "http://localhost:5012"
+EMAIL_FROM = "reports@traks.dev"
+ADMIN_EMAIL = "" # set to receive ops alerts
+DODO_API_BASE = "https://test.dodopayments.com"
+DODO_PRODUCT_PRO = ""      # pdt_... (test mode)
+DODO_PRODUCT_BUSINESS = "" # pdt_... (test mode)
 
 # --- Production: wrangler deploy --env production ---
 
@@ -55,13 +70,22 @@ script_name = "traks-collect"
 binding = "EXPORTS"
 bucket_name = "traks-exports"
 
+[[env.production.send_email]]
+name = "EMAIL"
+
 [env.production.triggers]
-crons = ["30 3 * * *"]
+crons = ["30 3 * * *", "0 8 * * 1", "*/30 * * * *"]
 
 [env.production.vars]
 ENVIRONMENT = "production"
 ALLOWED_ORIGINS = "https://traks.dev,https://www.traks.dev"
 R2_BUCKET_NAME = "traks-events"
+APP_URL = "https://traks.dev"
+EMAIL_FROM = "reports@traks.dev"
+ADMIN_EMAIL = "" # set to receive ops alerts
+DODO_API_BASE = "https://live.dodopayments.com"
+DODO_PRODUCT_PRO = ""      # pdt_... (live mode)
+DODO_PRODUCT_BUSINESS = "" # pdt_... (live mode)
 
 [[env.production.routes]]
 pattern = "api.traks.dev"
@@ -75,3 +99,7 @@ custom_domain = true
 # R2_SQL_TOKEN must carry all three permission groups (per R2 SQL docs):
 #   Workers R2 SQL Read + Workers R2 Data Catalog Write + Workers R2 Storage Write
 # (or use an R2 "Admin Read & Write" account token).
+#
+# Also required: DODO_API_KEY, DODO_WEBHOOK_SECRET (Dodo dashboard ->
+# Developer -> Webhooks endpoint secret), CLERK_WEBHOOK_SECRET (Clerk
+# dashboard -> Webhooks, point at /api/webhooks/clerk).

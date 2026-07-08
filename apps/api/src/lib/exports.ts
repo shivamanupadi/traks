@@ -74,12 +74,24 @@ export async function runNightlyExports(env: Bindings): Promise<void> {
     .innerJoin(apiKeys, eq(sites.id, apiKeys.siteId))
     .where(and(eq(sites.exportEnabled, true), isNull(apiKeys.revokedAt)));
 
+  const failures: string[] = [];
   for (const site of exportSites) {
     try {
       const count = await exportSiteDay(env, site);
       console.log(`[exports] site ${site.siteId}: ${count} events exported`);
     } catch (err) {
       console.error(`[exports] site ${site.siteId} failed:`, err);
+      failures.push(site.siteId);
     }
+  }
+
+  if (failures.length > 0) {
+    const { alertAdmin } = await import('./ops');
+    await alertAdmin(
+      env,
+      `Nightly export failed for ${failures.length} site(s)`,
+      `<p>Failed site IDs: ${failures.join(', ')}. See Worker logs for details; ` +
+        `the affected day can be backfilled from the site DO while it is within retention (~50h).</p>`
+    );
   }
 }

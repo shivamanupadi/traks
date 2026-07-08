@@ -155,6 +155,34 @@ export const api = {
     return res.json();
   },
 
+  // Billing
+  async getBilling(token: string): Promise<any> {
+    const res = await client.api.billing.me.$get({}, authHeaders(token));
+    await assertOk(res);
+    return res.json();
+  },
+
+  async createCheckout(plan: 'pro' | 'business', token: string): Promise<any> {
+    const res = await client.api.billing.checkout.$post({ json: { plan } }, authHeaders(token));
+    await assertOk(res);
+    return res.json();
+  },
+
+  async openBillingPortal(token: string): Promise<any> {
+    const res = await client.api.billing.portal.$post({}, authHeaders(token));
+    await assertOk(res);
+    return res.json();
+  },
+
+  async setBillingPrefs(weeklyReport: boolean, token: string): Promise<any> {
+    const res = await client.api.billing.preferences.$post(
+      { json: { weeklyReport } },
+      authHeaders(token)
+    );
+    await assertOk(res);
+    return res.json();
+  },
+
   async getRealtime(siteId: string, token: string): Promise<any> {
     const res = await client.api.analytics[':siteId'].stats.realtime.$get(
       { param: { siteId } },

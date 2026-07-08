@@ -9,6 +9,11 @@ export const users = sqliteTable('users', {
   imageUrl: text('image_url'),
   plan: text('plan').$type<'free' | 'pro' | 'business'>().default('free').notNull(),
   siteLimit: integer('site_limit').default(5).notNull(),
+  // Dodo Payments linkage
+  dodoCustomerId: text('dodo_customer_id'),
+  dodoSubscriptionId: text('dodo_subscription_id'),
+  // Weekly email digest opt-in (paid plans only; see PLANS)
+  weeklyReport: integer('weekly_report', { mode: 'boolean' }).default(true).notNull(),
   createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
 });
@@ -65,3 +70,10 @@ export const apiKeys = sqliteTable(
     index('api_keys_user_id_idx').on(table.userId),
   ]
 );
+
+// ============ Ops state (healthchecks, cron bookkeeping) ============
+export const opsState = sqliteTable('ops_state', {
+  key: text('key').primaryKey(),
+  value: text('value').notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+});

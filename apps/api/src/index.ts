@@ -6,7 +6,10 @@ import { sitesRoute } from './routes/sites';
 import { analyticsRoute } from './routes/analytics';
 import { exportsRoute } from './routes/exports';
 import { publicRoute } from './routes/public';
+import { billingRoute, dodoWebhookRoute } from './routes/billing';
+import { clerkWebhookRoute } from './routes/webhooks';
 import { runNightlyExports } from './lib/exports';
+import { runWeeklyDigest, runFreshnessCheck } from './lib/ops';
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -34,7 +37,12 @@ const routes = app
   .route('/api/sites', sitesRoute)
   .route('/api/analytics', analyticsRoute)
   .route('/api/exports', exportsRoute)
-  .route('/api/public', publicRoute);
+  .route('/api/public', publicRoute)
+  .route('/api/billing', billingRoute);
+
+// Webhooks live outside the RPC chain (external callers, not the web app).
+app.route('/api/webhooks/dodo', dodoWebhookRoute);
+app.route('/api/webhooks/clerk', clerkWebhookRoute);
 
 app.notFound(c => c.json({ error: 'Not found' }, 404));
 app.onError((err, c) => {
@@ -45,8 +53,19 @@ app.onError((err, c) => {
 export type AppType = typeof routes;
 export default {
   fetch: app.fetch,
-  // Nightly raw-data export for export-enabled sites (see lib/exports.ts)
-  scheduled(_event: ScheduledEvent, env: Bindings, ctx: ExecutionContext): void {
-    ctx.waitUntil(runNightlyExports(env));
+  scheduled(event: ScheduledEvent, env: Bindings, ctx: ExecutionContext): void {
+    switch (event.cron) {
+      case '30 3 * * *': // nightly raw-data exports
+        ctx.waitUntil(runNightlyExports(env));
+        break;
+      case '0 8 * * 1': // Monday weekly email digest
+        ctx.waitUntil(runWeeklyDigest(env));
+        break;
+      case '*/30 * * * *': // pipeline freshness healthcheck
+        ctx.waitUntil(runFreshnessCheck(env));
+        break;
+      default:
+        console.warn(`[cron] unknown schedule: ${event.cron}`);
+    }
   },
 };

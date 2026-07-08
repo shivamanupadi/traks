@@ -25,10 +25,13 @@ export interface MainStats {
   visitors: number;
   pageviews: number;
   sessions: number;
+  /** Percentage of sessions with exactly one pageview (0-100). */
   bounceRate: number;
   visitorsChange: number;
   pageviewsChange: number;
   sessionsChange: number;
+  /** Percentage-point change vs the previous period (positive = bounce rate went up). */
+  bounceRateChange: number;
 }
 
 export interface TimeseriesPoint {

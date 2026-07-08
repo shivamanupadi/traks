@@ -14,8 +14,9 @@ import { requireAuth } from '../middleware/auth';
 import { sites, apiKeys } from '../db/schema';
 import {
   queryR2Sql,
-  buildMainStatsQuery,
-  buildPreviousPeriodQuery,
+  buildStatsWithComparisonQuery,
+  buildSessionStatsQuery,
+  buildBatchStatsQuery,
   buildTimeseriesQuery,
   buildTopPagesQuery,
   buildTopReferrersQuery,
@@ -87,6 +88,54 @@ const pctChange = (cur: number, prev: number): number =>
   prev === 0 ? (cur > 0 ? 100 : 0) : Math.round(((cur - prev) / prev) * 100);
 
 const toNumber = (v: unknown): number => Number(v ?? 0) || 0;
+
+interface PeriodStatsRow {
+  period: string;
+  pageviews: unknown;
+  visitors: unknown;
+  sessions: unknown;
+}
+
+interface SessionStatsRow {
+  period: string;
+  sessions: unknown;
+  bounces: unknown;
+}
+
+/**
+ * Assemble MainStats from the two single-scan comparison queries.
+ * Each query returns up to two rows labeled 'current' / 'previous';
+ * a window with no events simply has no row.
+ */
+function assembleMainStats(statRows: PeriodStatsRow[], sessionRows: SessionStatsRow[]) {
+  const pick = <T extends { period: string }>(rows: T[], period: string) =>
+    rows.find(r => r.period === period);
+
+  const cur = pick(statRows, 'current');
+  const prev = pick(statRows, 'previous');
+  const curSessions = pick(sessionRows, 'current');
+  const prevSessions = pick(sessionRows, 'previous');
+
+  const bounceRate = (row?: SessionStatsRow): number => {
+    const total = toNumber(row?.sessions);
+    return total > 0 ? Math.round((toNumber(row?.bounces) / total) * 100) : 0;
+  };
+
+  const curBounce = bounceRate(curSessions);
+  const prevBounce = bounceRate(prevSessions);
+
+  return {
+    visitors: toNumber(cur?.visitors),
+    pageviews: toNumber(cur?.pageviews),
+    sessions: toNumber(cur?.sessions),
+    bounceRate: curBounce,
+    visitorsChange: pctChange(toNumber(cur?.visitors), toNumber(prev?.visitors)),
+    pageviewsChange: pctChange(toNumber(cur?.pageviews), toNumber(prev?.pageviews)),
+    sessionsChange: pctChange(toNumber(cur?.sessions), toNumber(prev?.sessions)),
+    // Percentage-point delta, not relative change - conventional for bounce rate.
+    bounceRateChange: curBounce - prevBounce,
+  };
+}
 
 function formatDevices(rows: { name: string; visitors: number }[]) {
   const total = rows.reduce((s, r) => s + r.visitors, 0);
@@ -162,22 +211,48 @@ export const analyticsRoute = app
 
     const config = getQueryConfig(c);
     const now = new Date();
+
+    // Sites with no events still need an entry so tiles render zeros.
     const results: Record<string, { visitors: number; pageviews: number; sessions: number }> = {};
+    for (const { siteId } of siteRecords) {
+      results[siteId] = { visitors: 0, pageviews: 0, sessions: 0 };
+    }
+
+    // One GROUP BY site_id query per distinct timezone (sites in the same zone
+    // share a period window) instead of one query per site.
+    const byTimezone = new Map<string, typeof siteRecords>();
+    for (const record of siteRecords) {
+      const group = byTimezone.get(record.timezone);
+      if (group) group.push(record);
+      else byTimezone.set(record.timezone, [record]);
+    }
 
     const outcome = await runQueries(c, async () => {
       await Promise.all(
-        siteRecords.map(async ({ siteId, key, timezone }) => {
+        Array.from(byTimezone.entries()).map(async ([timezone, group]) => {
           const range = resolvePeriod(period, now, timezone);
-          const [current] = await queryR2Sql<{
-            visitors: number;
-            pageviews: number;
-            sessions: number;
-          }>(config, buildMainStatsQuery(key, range));
-          results[siteId] = {
-            visitors: toNumber(current?.visitors),
-            pageviews: toNumber(current?.pageviews),
-            sessions: toNumber(current?.sessions),
-          };
+          const rows = await queryR2Sql<{
+            site_id: string;
+            visitors: unknown;
+            pageviews: unknown;
+            sessions: unknown;
+          }>(
+            config,
+            buildBatchStatsQuery(
+              group.map(g => g.key),
+              range
+            )
+          );
+          const keyToSiteId = new Map(group.map(g => [g.key, g.siteId]));
+          for (const row of rows) {
+            const siteId = keyToSiteId.get(row.site_id);
+            if (!siteId) continue;
+            results[siteId] = {
+              visitors: toNumber(row.visitors),
+              pageviews: toNumber(row.pageviews),
+              sessions: toNumber(row.sessions),
+            };
+          }
         })
       );
       return results;
@@ -202,14 +277,8 @@ export const analyticsRoute = app
 
     const outcome = await runQueries(c, () =>
       Promise.all([
-        queryR2Sql<{ visitors: unknown; pageviews: unknown; sessions: unknown }>(
-          config,
-          buildMainStatsQuery(site.key, range)
-        ),
-        queryR2Sql<{ visitors: unknown; pageviews: unknown; sessions: unknown }>(
-          config,
-          buildPreviousPeriodQuery(site.key, range)
-        ),
+        queryR2Sql<PeriodStatsRow>(config, buildStatsWithComparisonQuery(site.key, range)),
+        queryR2Sql<SessionStatsRow>(config, buildSessionStatsQuery(site.key, range)),
         queryR2Sql<{ t: string; visitors: unknown; pageviews: unknown; sessions: unknown }>(
           config,
           buildTimeseriesQuery(site.key, range)
@@ -239,8 +308,8 @@ export const analyticsRoute = app
     if (outcome instanceof Response) return outcome;
 
     const [
-      mainRows,
-      prevRows,
+      statRows,
+      sessionRows,
       timeseriesRows,
       pagesRows,
       referrersRows,
@@ -249,26 +318,9 @@ export const analyticsRoute = app
       osRows,
     ] = outcome;
 
-    const cur = {
-      visitors: toNumber(mainRows[0]?.visitors),
-      pageviews: toNumber(mainRows[0]?.pageviews),
-      sessions: toNumber(mainRows[0]?.sessions),
-    };
-    const prev = {
-      visitors: toNumber(prevRows[0]?.visitors),
-      pageviews: toNumber(prevRows[0]?.pageviews),
-      sessions: toNumber(prevRows[0]?.sessions),
-    };
-
     return c.json({
       data: {
-        main: {
-          ...cur,
-          bounceRate: 0,
-          visitorsChange: pctChange(cur.visitors, prev.visitors),
-          pageviewsChange: pctChange(cur.pageviews, prev.pageviews),
-          sessionsChange: pctChange(cur.sessions, prev.sessions),
-        },
+        main: assembleMainStats(statRows, sessionRows),
         timeseries: fillTimeseries(
           timeseriesRows.map(r => ({
             t: r.t,
@@ -313,39 +365,14 @@ export const analyticsRoute = app
 
     const outcome = await runQueries(c, () =>
       Promise.all([
-        queryR2Sql<{ visitors: unknown; pageviews: unknown; sessions: unknown }>(
-          config,
-          buildMainStatsQuery(site.key, range)
-        ),
-        queryR2Sql<{ visitors: unknown; pageviews: unknown; sessions: unknown }>(
-          config,
-          buildPreviousPeriodQuery(site.key, range)
-        ),
+        queryR2Sql<PeriodStatsRow>(config, buildStatsWithComparisonQuery(site.key, range)),
+        queryR2Sql<SessionStatsRow>(config, buildSessionStatsQuery(site.key, range)),
       ])
     );
     if (outcome instanceof Response) return outcome;
 
-    const [currentRows, prevRows] = outcome;
-    const cur = {
-      visitors: toNumber(currentRows[0]?.visitors),
-      pageviews: toNumber(currentRows[0]?.pageviews),
-      sessions: toNumber(currentRows[0]?.sessions),
-    };
-    const prev = {
-      visitors: toNumber(prevRows[0]?.visitors),
-      pageviews: toNumber(prevRows[0]?.pageviews),
-      sessions: toNumber(prevRows[0]?.sessions),
-    };
-
-    return c.json({
-      data: {
-        ...cur,
-        bounceRate: 0,
-        visitorsChange: pctChange(cur.visitors, prev.visitors),
-        pageviewsChange: pctChange(cur.pageviews, prev.pageviews),
-        sessionsChange: pctChange(cur.sessions, prev.sessions),
-      },
-    });
+    const [statRows, sessionRows] = outcome;
+    return c.json({ data: assembleMainStats(statRows, sessionRows) });
   })
 
   .get('/:siteId/stats/timeseries', requireAuth, zValidator('query', periodQuery), async c => {

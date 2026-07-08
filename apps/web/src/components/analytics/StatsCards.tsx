@@ -24,10 +24,23 @@ interface StatCardProps {
   change: number;
   icon: LucideIcon;
   color: string;
+  /** Render the value as a percentage (e.g. bounce rate) instead of a count. */
+  isPercent?: boolean;
+  /** Set when an increase is bad (e.g. bounce rate) so colors flip. */
+  higherIsWorse?: boolean;
 }
 
-function StatCard({ title, value, change, icon: Icon, color }: StatCardProps): ReactElement {
+function StatCard({
+  title,
+  value,
+  change,
+  icon: Icon,
+  color,
+  isPercent,
+  higherIsWorse,
+}: StatCardProps): ReactElement {
   const { text, isPositive } = formatPercentChange(change);
+  const isGood = higherIsWorse ? !isPositive : isPositive;
 
   return (
     <div className="rounded-2xl border border-[#e8e3ed]/80 bg-white p-5 overflow-hidden relative group">
@@ -48,14 +61,14 @@ function StatCard({ title, value, change, icon: Icon, color }: StatCardProps): R
       </div>
 
       <p className="text-[26px] font-bold text-[#2D3436] tracking-tight leading-none">
-        {formatNumber(value)}
+        {isPercent ? `${value}%` : formatNumber(value)}
       </p>
 
       <div className="mt-2.5 flex items-center gap-1.5">
         <div
           className={cn(
             'flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] font-semibold',
-            isPositive ? 'bg-[#5b9a6f]/8 text-[#5b9a6f]' : 'bg-[#e07a5f]/8 text-[#e07a5f]'
+            isGood ? 'bg-[#5b9a6f]/8 text-[#5b9a6f]' : 'bg-[#e07a5f]/8 text-[#e07a5f]'
           )}
         >
           {isPositive ? (
@@ -127,9 +140,11 @@ export function StatsCards({ stats, isLoading, isError }: StatsCardsProps): Reac
       <StatCard
         title="Bounce Rate"
         value={stats.bounceRate}
-        change={0}
+        change={stats.bounceRateChange}
         icon={MousePointerClick}
         color="#9b72cf"
+        isPercent
+        higherIsWorse
       />
     </div>
   );

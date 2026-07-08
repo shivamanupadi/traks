@@ -266,26 +266,81 @@ function whereSiteAndRange(
   );
 }
 
-export function buildMainStatsQuery(siteKey: string, range: PeriodRange) {
+/**
+ * Current + previous period stats in a single scan.
+ *
+ * previousRange() is contiguous with the current range (prev.to === range.from),
+ * so one query over [prev.from, range.to) split with a CASE on the boundary
+ * replaces the old two-query pair. R2 SQL bills a 10 MB minimum per query, so
+ * fewer round-trips is both faster and cheaper.
+ *
+ * Rows come back labeled period = 'current' | 'previous'; a window with no
+ * events produces no row.
+ */
+export function buildStatsWithComparisonQuery(siteKey: string, range: PeriodRange) {
+  const prev = previousRange(range);
+  const periodExpr = `CASE WHEN ts >= TIMESTAMP '${esc(range.from)}' THEN 'current' ELSE 'previous' END`;
   return (table: string) => `
     SELECT
+      ${periodExpr} AS period,
       COUNT(*) AS pageviews,
       approx_distinct(visitor_id) AS visitors,
       approx_distinct(session_id) AS sessions
     FROM ${table}
-    WHERE ${whereSiteAndRange(siteKey, range)}
+    WHERE ${whereSiteAndRange(siteKey, { from: prev.from, to: range.to })}
+    GROUP BY ${periodExpr}
   `;
 }
 
-export function buildPreviousPeriodQuery(siteKey: string, range: PeriodRange) {
+/**
+ * Per-session rollup for bounce rate, current + previous period in one scan.
+ *
+ * A bounce is a session with exactly one pageview. Sessions are attributed to
+ * the period containing their first pageview. Requires CTE + CASE support,
+ * which R2 SQL gained in the 2026 feature waves.
+ */
+export function buildSessionStatsQuery(siteKey: string, range: PeriodRange) {
   const prev = previousRange(range);
+  const periodExpr = `CASE WHEN first_hit >= TIMESTAMP '${esc(range.from)}' THEN 'current' ELSE 'previous' END`;
+  return (table: string) => `
+    WITH session_hits AS (
+      SELECT
+        session_id,
+        MIN(ts) AS first_hit,
+        COUNT(*) AS hits
+      FROM ${table}
+      WHERE ${whereSiteAndRange(siteKey, { from: prev.from, to: range.to })}
+        AND session_id != ''
+      GROUP BY session_id
+    )
+    SELECT
+      ${periodExpr} AS period,
+      COUNT(*) AS sessions,
+      SUM(CASE WHEN hits = 1 THEN 1 ELSE 0 END) AS bounces
+    FROM session_hits
+    GROUP BY ${periodExpr}
+  `;
+}
+
+/**
+ * Main stats for many sites at once (sites-list page). One GROUP BY site_id
+ * query replaces a query per site; the API groups sites by timezone so every
+ * site in a call shares the same resolved period window.
+ */
+export function buildBatchStatsQuery(siteKeys: string[], range: PeriodRange) {
+  const keys = siteKeys.map(k => `'${esc(k)}'`).join(', ');
   return (table: string) => `
     SELECT
+      site_id,
       COUNT(*) AS pageviews,
       approx_distinct(visitor_id) AS visitors,
       approx_distinct(session_id) AS sessions
     FROM ${table}
-    WHERE ${whereSiteAndRange(siteKey, prev)}
+    WHERE site_id IN (${keys})
+      AND event_type = 'pageview'
+      AND ts >= TIMESTAMP '${esc(range.from)}'
+      AND ts < TIMESTAMP '${esc(range.to)}'
+    GROUP BY site_id
   `;
 }
 
@@ -394,8 +449,9 @@ export function buildDevicesQuery(
 }
 
 /**
- * Realtime = last 5 minutes. Freshness is bounded by Pipelines commit cadence (~30s-5min
- * depending on sink `roll-interval`), not this query.
+ * Realtime = last 5 minutes. Freshness is bounded by the sink's `roll-interval`
+ * (60s in our setup script — the documented minimum, safe alongside automatic
+ * compaction), not this query.
  */
 export function buildRealtimeQuery(siteKey: string, now: Date) {
   const range = {

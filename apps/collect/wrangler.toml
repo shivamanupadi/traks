@@ -1,6 +1,6 @@
 name = "traks-collect-dev"
 main = "src/index.ts"
-compatibility_date = "2024-12-01"
+compatibility_date = "2026-06-01"
 compatibility_flags = ["nodejs_compat"]
 
 # --- Dev (default: wrangler dev --remote) ---
@@ -11,9 +11,12 @@ database_name = "traks-db-dev"
 database_id = "cd0ff4bb-5cc4-4002-a259-be02b3234e29"
 migrations_dir = "../api/src/db/migrations"
 
+# Pipelines *stream* binding — events are sent to the stream, the pipeline
+# moves them into the Iceberg sink. (`stream` replaced the deprecated
+# `pipeline` key in June 2026.)
 [[pipelines]]
 binding = "EVENTS"
-pipeline = "f0ee6ab42aa7462094f374857e996b47" # traks_events_dev_stream (dev)
+stream = "f0ee6ab42aa7462094f374857e996b47" # traks_events_dev_stream (dev)
 
 [[routes]]
 pattern = "collect-dev.traks.dev"
@@ -34,7 +37,7 @@ database_id = "7a19029a-d3a0-4ebf-b7f7-3a0237cf4c1e"
 
 [[env.production.pipelines]]
 binding = "EVENTS"
-pipeline = "5e05e573671949848561ed0d31397743" # traks_events_stream (prod)
+stream = "5e05e573671949848561ed0d31397743" # traks_events_stream (prod)
 
 [[env.production.routes]]
 pattern = "collect.traks.dev"

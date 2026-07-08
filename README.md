@@ -72,6 +72,11 @@ API minimizes query count:
 - bounce rate: one per-session CTE scan (also both periods)
 - sites-list batch stats: **one** `GROUP BY site_id` query per distinct site
   timezone, not one per site
+- every R2 SQL result is cached at the edge (Workers Cache API) keyed by the
+  SQL text, with `now` quantized to the minute so repeat loads hit the cache:
+  60s TTL for `today`, 5–15 min for historical periods. Table freshness is
+  bounded by the sink roll interval anyway, so the cache hides no data — it
+  turns repeat dashboard loads from ~1–3s per tile into cache hits.
 
 Pipelines will bill $0.04/GB transformed + $0.06/GB delivered (Parquet);
 catalog compaction $0.005/GB + $2/million objects. Egress is $0.

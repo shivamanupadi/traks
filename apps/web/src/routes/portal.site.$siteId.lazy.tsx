@@ -23,7 +23,12 @@ import { api } from '@/lib/api';
 
 const COLLECT_URL = import.meta.env.VITE_COLLECT_URL || 'https://collect.traks.dev';
 
-const REFETCH_INTERVAL = 30_000;
+// Auto-poll only 'today' - historical periods barely change and the manual
+// refresh button covers them. 60s matches the API's cache TTL and the sink
+// roll interval, so polling faster returns identical data anyway.
+function getRefetchInterval(period: Period): number | false {
+  return period === 'today' ? 60_000 : false;
+}
 
 // staleTime per period - longer periods change less frequently
 function getStaleTime(period: Period): number {
@@ -342,7 +347,7 @@ function SiteAnalyticsPage(): ReactElement {
       if (!token) throw new Error('Not authenticated');
       return call(token);
     },
-    refetchInterval: REFETCH_INTERVAL,
+    refetchInterval: getRefetchInterval(period),
     staleTime: getStaleTime(period),
   });
 

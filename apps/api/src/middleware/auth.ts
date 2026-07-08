@@ -14,6 +14,9 @@ interface ClerkJWTPayload {
 let jwksCache: { keys: Map<string, CryptoKey>; fetchedAt: number } | null = null;
 const JWKS_CACHE_TTL = 3600000; // 1 hour
 
+// User IDs already confirmed to exist in D1 (isolate lifetime).
+const knownUsers = new Set<string>();
+
 function base64UrlDecode(input: string): Uint8Array {
   const base64 = input.replace(/-/g, '+').replace(/_/g, '/');
   const padding = '='.repeat((4 - (base64.length % 4)) % 4);
@@ -133,15 +136,24 @@ export async function requireAuth(
 
   c.set('userId', payload.sub);
 
-  // Ensure user record exists in D1
-  const db = c.get('db') || drizzle(c.env.DB);
-  const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.id, payload.sub));
-  if (!existing) {
-    await db.insert(users).values({
-      id: payload.sub,
-      email: (payload as any).email || `${payload.sub}@clerk.user`,
-      name: (payload as any).name || null,
-    });
+  // Ensure user record exists in D1 - checked at most once per user per
+  // isolate; the dashboard fires 7 parallel requests and this SELECT was
+  // running on every one of them.
+  if (!knownUsers.has(payload.sub)) {
+    const db = c.get('db') || drizzle(c.env.DB);
+    const [existing] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.id, payload.sub));
+    if (!existing) {
+      await db.insert(users).values({
+        id: payload.sub,
+        email: (payload as any).email || `${payload.sub}@clerk.user`,
+        name: (payload as any).name || null,
+      });
+    }
+    if (knownUsers.size > 10_000) knownUsers.clear();
+    knownUsers.add(payload.sub);
   }
 
   await next();

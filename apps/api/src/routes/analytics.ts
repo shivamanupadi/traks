@@ -8,8 +8,11 @@ import {
   TABLE_DEV,
   R2SqlError,
   resolvePeriod,
+  previousRange,
   type Period,
   type PeriodRange,
+  type LiveStoreApi,
+  type LiveTotals,
 } from '@traks/shared';
 import { requireAuth } from '../middleware/auth';
 import { sites, apiKeys } from '../db/schema';
@@ -184,39 +187,61 @@ interface SessionStatsRow {
   bounces: unknown;
 }
 
+/** Build the MainStats payload from current/previous totals (either path). */
+function mainStatsPayload(cur: LiveTotals, prev: LiveTotals) {
+  const rate = (t: LiveTotals): number =>
+    t.sessions > 0 ? Math.round((t.bounces / t.sessions) * 100) : 0;
+  const curBounce = rate(cur);
+  const prevBounce = rate(prev);
+
+  return {
+    visitors: cur.visitors,
+    pageviews: cur.pageviews,
+    sessions: cur.sessions,
+    bounceRate: curBounce,
+    visitorsChange: pctChange(cur.visitors, prev.visitors),
+    pageviewsChange: pctChange(cur.pageviews, prev.pageviews),
+    sessionsChange: pctChange(cur.sessions, prev.sessions),
+    // Percentage-point delta, not relative change - conventional for bounce rate.
+    bounceRateChange: curBounce - prevBounce,
+  };
+}
+
 /**
- * Assemble MainStats from the two single-scan comparison queries.
+ * Assemble MainStats from the two single-scan R2 SQL comparison queries.
  * Each query returns up to two rows labeled 'current' / 'previous';
  * a window with no events simply has no row.
  */
 function assembleMainStats(statRows: PeriodStatsRow[], sessionRows: SessionStatsRow[]) {
-  const pick = <T extends { period: string }>(rows: T[], period: string) =>
-    rows.find(r => r.period === period);
-
-  const cur = pick(statRows, 'current');
-  const prev = pick(statRows, 'previous');
-  const curSessions = pick(sessionRows, 'current');
-  const prevSessions = pick(sessionRows, 'previous');
-
-  const bounceRate = (row?: SessionStatsRow): number => {
-    const total = toNumber(row?.sessions);
-    return total > 0 ? Math.round((toNumber(row?.bounces) / total) * 100) : 0;
+  const totals = (period: string): LiveTotals => {
+    const stat = statRows.find(r => r.period === period);
+    const session = sessionRows.find(r => r.period === period);
+    return {
+      pageviews: toNumber(stat?.pageviews),
+      visitors: toNumber(stat?.visitors),
+      sessions: toNumber(stat?.sessions),
+      bounces: toNumber(session?.bounces),
+    };
   };
+  return mainStatsPayload(totals('current'), totals('previous'));
+}
 
-  const curBounce = bounceRate(curSessions);
-  const prevBounce = bounceRate(prevSessions);
+// ============ Hot path: live stats Durable Object ============
+//
+// For "today" and realtime, the collect worker's per-site Durable Object
+// answers from local SQLite in milliseconds with zero ingest delay. Every
+// today-branch is wrapped in try/catch: on any failure the route falls
+// through to the Iceberg/R2 SQL cold path below it.
 
-  return {
-    visitors: toNumber(cur?.visitors),
-    pageviews: toNumber(cur?.pageviews),
-    sessions: toNumber(cur?.sessions),
-    bounceRate: curBounce,
-    visitorsChange: pctChange(toNumber(cur?.visitors), toNumber(prev?.visitors)),
-    pageviewsChange: pctChange(toNumber(cur?.pageviews), toNumber(prev?.pageviews)),
-    sessionsChange: pctChange(toNumber(cur?.sessions), toNumber(prev?.sessions)),
-    // Percentage-point delta, not relative change - conventional for bounce rate.
-    bounceRateChange: curBounce - prevBounce,
-  };
+function liveStore(c: AppContext, siteKey: string): LiveStoreApi {
+  const ns = c.env.LIVE;
+  return ns.get(ns.idFromName(siteKey)) as unknown as LiveStoreApi;
+}
+
+const ms = (iso: string): number => Date.parse(iso);
+
+function logLiveFallback(err: unknown): void {
+  console.error('[analytics] live store failed, falling back to R2 SQL:', err);
 }
 
 function formatDevices(rows: { name: string; visitors: number }[]) {
@@ -300,6 +325,27 @@ export const analyticsRoute = app
       results[siteId] = { visitors: 0, pageviews: 0, sessions: 0 };
     }
 
+    // Hot path: today comes straight from each site's live DO.
+    if (period === 'today') {
+      try {
+        const liveNow = new Date();
+        await Promise.all(
+          siteRecords.map(async ({ siteId, key, timezone }) => {
+            const range = resolvePeriod('today', liveNow, timezone);
+            const t = await liveStore(c, key).totals(ms(range.from), ms(range.to));
+            results[siteId] = {
+              visitors: t.visitors,
+              pageviews: t.pageviews,
+              sessions: t.sessions,
+            };
+          })
+        );
+        return c.json({ data: results });
+      } catch (err) {
+        logLiveFallback(err);
+      }
+    }
+
     // One GROUP BY site_id query per distinct timezone (sites in the same zone
     // share a period window) instead of one query per site.
     const byTimezone = new Map<string, typeof siteRecords>();
@@ -353,6 +399,44 @@ export const analyticsRoute = app
 
     const site = await getSite(c, siteId, userId);
     if (!site) return c.json({ error: 'Not found' }, 404);
+
+    // Hot path: the whole today-dashboard from the site's live DO.
+    if (period === 'today') {
+      try {
+        const range = resolvePeriod('today', new Date(), site.timezone);
+        const prev = previousRange(range);
+        const live = liveStore(c, site.key);
+        const from = ms(range.from);
+        const to = ms(range.to);
+        const [main, timeseriesRows, pages, referrers, locations, browsers, osList] =
+          await Promise.all([
+            live.mainStats(ms(prev.from), from, to),
+            live.timeseries(from, to),
+            live.topList('pathname', from, to, 10),
+            live.topList('referrer_hostname', from, to, 10),
+            live.topList('country', from, to, 10),
+            live.topList('browser', from, to, 10),
+            live.topList('os', from, to, 10),
+          ]);
+        return c.json({
+          data: {
+            main: mainStatsPayload(main.current, main.previous),
+            timeseries: fillTimeseries(timeseriesRows, range),
+            pages: pages.map(r => ({
+              name: r.name,
+              visitors: r.visitors,
+              pageviews: r.pageviews,
+            })),
+            referrers: referrers.map(r => ({ name: r.name, visitors: r.visitors })),
+            locations: locations.map(r => ({ name: r.name, code: r.name, visitors: r.visitors })),
+            browsers: formatDevices(browsers.map(r => ({ name: r.name, visitors: r.visitors }))),
+            os: formatDevices(osList.map(r => ({ name: r.name, visitors: r.visitors }))),
+          },
+        });
+      } catch (err) {
+        logLiveFallback(err);
+      }
+    }
 
     const range = resolvePeriod(period, queryTime(), site.timezone);
     const ttl = cacheTtlSeconds(period);
@@ -448,6 +532,21 @@ export const analyticsRoute = app
     const site = await getSite(c, siteId, userId);
     if (!site) return c.json({ error: 'Not found' }, 404);
 
+    if (period === 'today') {
+      try {
+        const range = resolvePeriod('today', new Date(), site.timezone);
+        const prev = previousRange(range);
+        const { current, previous } = await liveStore(c, site.key).mainStats(
+          ms(prev.from),
+          ms(range.from),
+          ms(range.to)
+        );
+        return c.json({ data: mainStatsPayload(current, previous) });
+      } catch (err) {
+        logLiveFallback(err);
+      }
+    }
+
     const range = resolvePeriod(period, queryTime(), site.timezone);
     const ttl = cacheTtlSeconds(period);
 
@@ -470,6 +569,16 @@ export const analyticsRoute = app
 
     const site = await getSite(c, siteId, userId);
     if (!site) return c.json({ error: 'Not found' }, 404);
+
+    if (period === 'today') {
+      try {
+        const range = resolvePeriod('today', new Date(), site.timezone);
+        const rows = await liveStore(c, site.key).timeseries(ms(range.from), ms(range.to));
+        return c.json({ data: fillTimeseries(rows, range) });
+      } catch (err) {
+        logLiveFallback(err);
+      }
+    }
 
     const range = resolvePeriod(period, queryTime(), site.timezone);
     const ttl = cacheTtlSeconds(period);
@@ -504,6 +613,23 @@ export const analyticsRoute = app
     const site = await getSite(c, siteId, userId);
     if (!site) return c.json({ error: 'Not found' }, 404);
 
+    if (period === 'today') {
+      try {
+        const range = resolvePeriod('today', new Date(), site.timezone);
+        const rows = await liveStore(c, site.key).topList(
+          'pathname',
+          ms(range.from),
+          ms(range.to),
+          10
+        );
+        return c.json({
+          data: rows.map(r => ({ name: r.name, visitors: r.visitors, pageviews: r.pageviews })),
+        });
+      } catch (err) {
+        logLiveFallback(err);
+      }
+    }
+
     const range = resolvePeriod(period, queryTime(), site.timezone);
     const ttl = cacheTtlSeconds(period);
 
@@ -533,6 +659,21 @@ export const analyticsRoute = app
     const site = await getSite(c, siteId, userId);
     if (!site) return c.json({ error: 'Not found' }, 404);
 
+    if (period === 'today') {
+      try {
+        const range = resolvePeriod('today', new Date(), site.timezone);
+        const rows = await liveStore(c, site.key).topList(
+          'referrer_hostname',
+          ms(range.from),
+          ms(range.to),
+          10
+        );
+        return c.json({ data: rows.map(r => ({ name: r.name, visitors: r.visitors })) });
+      } catch (err) {
+        logLiveFallback(err);
+      }
+    }
+
     const range = resolvePeriod(period, queryTime(), site.timezone);
     const ttl = cacheTtlSeconds(period);
 
@@ -557,6 +698,25 @@ export const analyticsRoute = app
 
     const site = await getSite(c, siteId, userId);
     if (!site) return c.json({ error: 'Not found' }, 404);
+
+    if (period === 'today') {
+      try {
+        const range = resolvePeriod('today', new Date(), site.timezone);
+        const dimension =
+          type === 'source' ? 'utm_source' : type === 'medium' ? 'utm_medium' : 'utm_campaign';
+        const rows = await liveStore(c, site.key).topList(
+          dimension,
+          ms(range.from),
+          ms(range.to),
+          10
+        );
+        return c.json({
+          data: rows.map(r => ({ name: r.name, visitors: r.visitors, sessions: r.sessions })),
+        });
+      } catch (err) {
+        logLiveFallback(err);
+      }
+    }
 
     const range = resolvePeriod(period, queryTime(), site.timezone);
     const ttl = cacheTtlSeconds(period);
@@ -587,6 +747,18 @@ export const analyticsRoute = app
     const site = await getSite(c, siteId, userId);
     if (!site) return c.json({ error: 'Not found' }, 404);
 
+    if (period === 'today') {
+      try {
+        const range = resolvePeriod('today', new Date(), site.timezone);
+        const rows = await liveStore(c, site.key).topList(type, ms(range.from), ms(range.to), 10);
+        return c.json({
+          data: rows.map(r => ({ name: r.name, code: r.name, visitors: r.visitors })),
+        });
+      } catch (err) {
+        logLiveFallback(err);
+      }
+    }
+
     const range = resolvePeriod(period, queryTime(), site.timezone);
     const ttl = cacheTtlSeconds(period);
 
@@ -612,6 +784,24 @@ export const analyticsRoute = app
     const site = await getSite(c, siteId, userId);
     if (!site) return c.json({ error: 'Not found' }, 404);
 
+    if (period === 'today') {
+      try {
+        const range = resolvePeriod('today', new Date(), site.timezone);
+        const dimension = type === 'browser' ? 'browser' : type === 'os' ? 'os' : 'device_type';
+        const rows = await liveStore(c, site.key).topList(
+          dimension,
+          ms(range.from),
+          ms(range.to),
+          10
+        );
+        return c.json({
+          data: formatDevices(rows.map(r => ({ name: r.name, visitors: r.visitors }))),
+        });
+      } catch (err) {
+        logLiveFallback(err);
+      }
+    }
+
     const range = resolvePeriod(period, queryTime(), site.timezone);
     const ttl = cacheTtlSeconds(period);
 
@@ -635,6 +825,20 @@ export const analyticsRoute = app
 
     const site = await getSite(c, siteId, userId);
     if (!site) return c.json({ error: 'Not found' }, 404);
+
+    // Realtime is the DO's home turf: events are queryable the moment they
+    // arrive, vs waiting out the Iceberg sink roll on the fallback path.
+    try {
+      const rows = await liveStore(c, site.key).realtime(Date.now());
+      return c.json({
+        data: {
+          currentVisitors: rows.reduce((s, r) => s + r.visitors, 0),
+          topPages: rows.map(r => ({ path: r.pathname, visitors: r.visitors })),
+        },
+      });
+    } catch (err) {
+      logLiveFallback(err);
+    }
 
     const outcome = await runQueries(c, () =>
       cachedR2Sql<{ visitors: unknown; pathname: string }>(
@@ -661,6 +865,18 @@ export const analyticsRoute = app
 
     const site = await getSite(c, siteId, userId);
     if (!site) return c.json({ error: 'Not found' }, 404);
+
+    if (period === 'today') {
+      try {
+        const range = resolvePeriod('today', new Date(), site.timezone);
+        const rows = await liveStore(c, site.key).customEvents(ms(range.from), ms(range.to), 20);
+        return c.json({
+          data: rows.map(r => ({ name: r.name, count: r.count, totalValue: r.totalValue })),
+        });
+      } catch (err) {
+        logLiveFallback(err);
+      }
+    }
 
     const range = resolvePeriod(period, queryTime(), site.timezone);
     const ttl = cacheTtlSeconds(period);

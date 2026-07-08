@@ -11,6 +11,16 @@ database_name = "traks-db-dev"
 database_id = "cd0ff4bb-5cc4-4002-a259-be02b3234e29"
 migrations_dir = "../api/src/db/migrations"
 
+# Hot-path live stats: one SQLite-backed Durable Object per site, written at
+# ingest, read by the api worker for "today"/realtime dashboards.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["SiteLiveStore"]
+
+[[durable_objects.bindings]]
+name = "LIVE"
+class_name = "SiteLiveStore"
+
 # Pipelines *stream* binding — events are sent to the stream, the pipeline
 # moves them into the Iceberg sink. (`stream` replaced the deprecated
 # `pipeline` key in June 2026.)
@@ -34,6 +44,10 @@ name = "traks-collect"
 binding = "DB"
 database_name = "traks-db-prod"
 database_id = "7a19029a-d3a0-4ebf-b7f7-3a0237cf4c1e"
+
+[[env.production.durable_objects.bindings]]
+name = "LIVE"
+class_name = "SiteLiveStore"
 
 [[env.production.pipelines]]
 binding = "EVENTS"

@@ -5,11 +5,15 @@ import { isBot } from './lib/bots';
 import { parseUA } from './lib/ua';
 import { parseReferrer } from './lib/referrer';
 import { TRACKER_SCRIPT } from './lib/tracker-script';
+import { SiteLiveStore } from './live-store';
+
+export { SiteLiveStore };
 
 type Bindings = {
   EVENTS: {
     send: (records: Record<string, unknown>[]) => Promise<void>;
   };
+  LIVE: DurableObjectNamespace<SiteLiveStore>;
   DB: D1Database;
   ENVIRONMENT: string;
   VISITOR_HASH_SECRET: string;
@@ -173,10 +177,39 @@ app.post('/api/event', async c => {
     screen_width: event.sw || 0,
   };
 
+  // Dual write: the Pipelines stream feeds the durable Iceberg table (system
+  // of record, historical queries); the site's Durable Object serves "today"
+  // and realtime dashboards instantly. Each leg fails independently.
+  const liveStub = c.env.LIVE.get(c.env.LIVE.idFromName(event.s));
   c.executionCtx.waitUntil(
-    c.env.EVENTS.send([record]).catch(err => {
-      console.error('Pipeline send failed:', err);
-    })
+    Promise.all([
+      c.env.EVENTS.send([record]).catch(err => {
+        console.error('Pipeline send failed:', err);
+      }),
+      liveStub
+        .record({
+          ts: record.ts,
+          hourKey: hourKey,
+          eventType: event.t,
+          pathname: event.p,
+          referrerHostname: refHostname,
+          utmSource: event.us || '',
+          utmMedium: event.um || '',
+          utmCampaign: event.uc || '',
+          country,
+          city,
+          browser,
+          os,
+          deviceType,
+          sessionId: event.sid || '',
+          visitorId: visitorId,
+          eventName: event.en || '',
+          eventValue: event.ev || 0,
+        })
+        .catch(err => {
+          console.error('Live store write failed:', err);
+        }),
+    ])
   );
 
   return c.json({ ok: true });

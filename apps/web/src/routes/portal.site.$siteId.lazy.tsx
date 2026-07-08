@@ -23,11 +23,12 @@ import { api } from '@/lib/api';
 
 const COLLECT_URL = import.meta.env.VITE_COLLECT_URL || 'https://collect.traks.dev';
 
-// Auto-poll only 'today' - historical periods barely change and the manual
-// refresh button covers them. 60s matches the API's cache TTL and the sink
-// roll interval, so polling faster returns identical data anyway.
+// Auto-poll only 'today' - it's served live from the site's Durable Object
+// (millisecond queries, zero ingest delay), so a 15s poll gives a live feel
+// at negligible cost. Historical periods barely change and are covered by
+// staleTime + the manual refresh button.
 function getRefetchInterval(period: Period): number | false {
-  return period === 'today' ? 60_000 : false;
+  return period === 'today' ? 15_000 : false;
 }
 
 // staleTime per period - longer periods change less frequently

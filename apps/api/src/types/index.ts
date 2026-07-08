@@ -1,5 +1,7 @@
 export type Bindings = {
   DB: D1Database;
+  /** Cross-script binding to the collect worker's SiteLiveStore DO (hot path). */
+  LIVE: DurableObjectNamespace;
   ENVIRONMENT: string;
   ALLOWED_ORIGINS: string;
   CLERK_SECRET_KEY: string;

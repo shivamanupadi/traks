@@ -11,6 +11,13 @@ database_name = "traks-db-dev"
 database_id = "cd0ff4bb-5cc4-4002-a259-be02b3234e29"
 migrations_dir = "src/db/migrations"
 
+# Cross-script binding to the collect worker's live-stats Durable Object
+# (hot path for "today"/realtime queries). The collect worker owns the class.
+[[durable_objects.bindings]]
+name = "LIVE"
+class_name = "SiteLiveStore"
+script_name = "traks-collect-dev"
+
 [[routes]]
 pattern = "api-dev.traks.dev"
 custom_domain = true
@@ -30,6 +37,11 @@ binding = "DB"
 database_name = "traks-db-prod"
 database_id = "7a19029a-d3a0-4ebf-b7f7-3a0237cf4c1e"
 migrations_dir = "src/db/migrations"
+
+[[env.production.durable_objects.bindings]]
+name = "LIVE"
+class_name = "SiteLiveStore"
+script_name = "traks-collect"
 
 [env.production.vars]
 ENVIRONMENT = "production"

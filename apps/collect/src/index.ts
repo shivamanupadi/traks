@@ -15,7 +15,8 @@ type Bindings = {
   };
   LIVE: DurableObjectNamespace<SiteLiveStore>;
   DB: D1Database;
-  RATE_LIMITER: { limit: (opts: { key: string }) => Promise<{ success: boolean }> };
+  RATE_LIMIT_FREE: { limit: (opts: { key: string }) => Promise<{ success: boolean }> };
+  RATE_LIMIT_PAID: { limit: (opts: { key: string }) => Promise<{ success: boolean }> };
   ENVIRONMENT: string;
   VISITOR_HASH_SECRET: string;
 };
@@ -40,6 +41,8 @@ interface SiteAuth {
   timezone: string;
   /** Monthly per-site event quota from the owner's plan. */
   monthlyQuota: number;
+  /** Paid plans get the higher burst rate limit. */
+  paid: boolean;
 }
 
 // Isolate-level auth cache: without it every event costs a D1 read (50M
@@ -69,9 +72,15 @@ async function authenticateSite(db: D1Database, siteKey: string): Promise<SiteAu
     .bind(siteKey)
     .first<{ tz: string | null; plan: string | null }>();
 
+  const plan = planOf(row?.plan);
   const auth: SiteAuth = row
-    ? { valid: true, timezone: row.tz || 'UTC', monthlyQuota: planOf(row.plan).monthlyEvents }
-    : { valid: false, timezone: 'UTC', monthlyQuota: 0 };
+    ? {
+        valid: true,
+        timezone: row.tz || 'UTC',
+        monthlyQuota: plan.monthlyEvents,
+        paid: plan.priceUsd > 0,
+      }
+    : { valid: false, timezone: 'UTC', monthlyQuota: 0, paid: false };
 
   if (authCache.size > 10_000) authCache.clear();
   authCache.set(siteKey, { auth, expires: Date.now() + AUTH_CACHE_TTL_MS });
@@ -143,16 +152,19 @@ app.post('/api/event', async c => {
   const ua = c.req.header('user-agent') || '';
   if (isBot(ua)) return c.json({ ok: true });
 
-  // Per-site-key rate limit (abuse guard for leaked/guessed keys).
-  const { success } = await c.env.RATE_LIMITER.limit({ key: event.s });
-  if (!success) return c.json({ error: 'rate limited' }, 429);
-
   // Site key validation + timezone/plan fetch (isolate-cached, one D1 query/min).
   const site = await authenticateSite(c.env.DB, event.s);
   if (!site.valid) {
     console.warn(`[collect] Unknown site key: ${event.s}`);
     return c.json({ error: 'unknown site' }, 403);
   }
+
+  // Plan-aware burst guard (per colo): floods get cut here; sustained
+  // volume is the monthly quota's job. Paid sites get 100/s per colo so
+  // legitimate traffic spikes pass untouched.
+  const limiter = site.paid ? c.env.RATE_LIMIT_PAID : c.env.RATE_LIMIT_FREE;
+  const { success } = await limiter.limit({ key: event.s });
+  if (!success) return c.json({ error: 'rate limited' }, 429);
 
   // Monthly quota: flagged sites drop events (200 so trackers stay quiet);
   // the flag expires periodically so upgrades/month rollover recover alone.

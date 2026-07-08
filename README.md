@@ -213,8 +213,10 @@ npx wrangler pipelines sinks list
 - **Email** (Cloudflare Email Service, open beta — requires Workers Paid and
   an onboarded sending domain): Monday weekly digests for paid users, admin
   ops alerts. 3k emails/mo included, then $0.35/1k.
-- **Abuse guards**: per-site-key rate limit (600 events/min) + isolate-cached
-  key auth in collect (no per-event D1 reads).
+- **Abuse guards**: plan-aware per-site-key burst limits counted per colo
+  (paid: 6,000 events/min ≈ 100/s; free: 1,200/min) — floods get cut while
+  legitimate traffic spikes pass; sustained volume is the monthly quota's
+  job. Plus isolate-cached key auth in collect (no per-event D1 reads).
 - **Ops**: 30-min pipeline freshness healthcheck (admin email on stale/
   recovery transitions, state in D1 `ops_state`); nightly-export failure
   alerts; Clerk webhook keeps real user emails in D1.

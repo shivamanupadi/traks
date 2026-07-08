@@ -3,9 +3,9 @@ import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { eq } from 'drizzle-orm';
 import { createId } from '@paralleldrive/cuid2';
-import { createSiteSchema, updateSiteSchema } from '@traks/shared';
+import { createSiteSchema, updateSiteSchema, planOf } from '@traks/shared';
 import { requireAuth } from '../middleware/auth';
-import { sites, apiKeys } from '../db/schema';
+import { sites, apiKeys, users } from '../db/schema';
 import type { Bindings, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
@@ -34,6 +34,20 @@ export const sitesRoute = app
     const userId = c.get('userId')!;
     const body = c.req.valid('json');
     const db = c.get('db')!;
+
+    // Plan site limit
+    const [user] = await db.select({ plan: users.plan }).from(users).where(eq(users.id, userId));
+    const plan = planOf(user?.plan);
+    const existing = await db
+      .select({ id: sites.id })
+      .from(sites)
+      .where(eq(sites.userId, userId));
+    if (existing.length >= plan.siteLimit) {
+      return c.json(
+        { error: `The ${plan.name} plan allows ${plan.siteLimit} site(s). Upgrade to add more.` },
+        403
+      );
+    }
 
     const siteId = createId();
     const siteKey = `pb_live_${createId()}`;
@@ -121,6 +135,14 @@ export const sitesRoute = app
       return c.json({ error: 'Not found' }, 404);
     }
 
+    // Exports are a paid-plan feature (disable is always allowed).
+    if (enabled) {
+      const [user] = await db.select({ plan: users.plan }).from(users).where(eq(users.id, userId));
+      if (!planOf(user?.plan).exports) {
+        return c.json({ error: 'Data export requires a paid plan.' }, 403);
+      }
+    }
+
     const exportToken = site.exportToken ?? generateExportToken();
     await db
       .update(sites)
@@ -130,7 +152,7 @@ export const sitesRoute = app
     return c.json({ data: { enabled, token: exportToken } });
   })
 
-  // Delete a site
+  // Delete a site (also purges its live DO and export files)
   .delete('/:id', requireAuth, async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('id');
@@ -142,7 +164,34 @@ export const sitesRoute = app
       return c.json({ error: 'Not found' }, 404);
     }
 
+    // Grab keys before the cascade delete removes them.
+    const keys = await db
+      .select({ key: apiKeys.key })
+      .from(apiKeys)
+      .where(eq(apiKeys.siteId, siteId));
+
     await db.delete(sites).where(eq(sites.id, siteId));
+
+    c.executionCtx.waitUntil(
+      (async () => {
+        // Wipe the site's live DO storage (one DO per key).
+        for (const { key } of keys) {
+          const stub = c.env.LIVE.get(c.env.LIVE.idFromName(key)) as unknown as {
+            purge: () => Promise<void>;
+          };
+          await stub.purge().catch(err => console.error('[sites] DO purge failed:', err));
+        }
+        // Remove export files.
+        let cursor: string | undefined;
+        do {
+          const listed = await c.env.EXPORTS.list({ prefix: `${siteId}/`, cursor });
+          if (listed.objects.length > 0) {
+            await c.env.EXPORTS.delete(listed.objects.map(o => o.key));
+          }
+          cursor = listed.truncated ? listed.cursor : undefined;
+        } while (cursor);
+      })().catch(err => console.error('[sites] cleanup failed:', err))
+    );
 
     return c.json({ ok: true });
   });

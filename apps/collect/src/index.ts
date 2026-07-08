@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { trackingEventSchema, computeBucketKeys } from '@traks/shared';
+import { trackingEventSchema, computeBucketKeys, planOf } from '@traks/shared';
 import { isBot } from './lib/bots';
 import { parseUA } from './lib/ua';
 import { parseReferrer } from './lib/referrer';
@@ -15,6 +15,7 @@ type Bindings = {
   };
   LIVE: DurableObjectNamespace<SiteLiveStore>;
   DB: D1Database;
+  RATE_LIMITER: { limit: (opts: { key: string }) => Promise<{ success: boolean }> };
   ENVIRONMENT: string;
   VISITOR_HASH_SECRET: string;
 };
@@ -37,28 +38,50 @@ app.get('/t.js', c => {
 interface SiteAuth {
   valid: boolean;
   timezone: string;
+  /** Monthly per-site event quota from the owner's plan. */
+  monthlyQuota: number;
 }
 
+// Isolate-level auth cache: without it every event costs a D1 read (50M
+// events/mo = 50M row reads). 60s TTL bounds revocation/plan-change lag.
+// Invalid keys are cached too, so key-guessing doesn't hammer D1.
+const AUTH_CACHE_TTL_MS = 60_000;
+const authCache = new Map<string, { auth: SiteAuth; expires: number }>();
+
 /**
- * Validate the site key AND fetch the site's IANA timezone in one D1 hit.
- * Timezone drives how hour/date/week bucket keys are computed so dashboard
- * aggregations align with the user's local clock (e.g. IST hour boundaries),
- * not UTC.
+ * Validate the site key AND fetch the site's IANA timezone + owner plan in
+ * one D1 hit. Timezone drives how hour/date/week bucket keys are computed so
+ * dashboard aggregations align with the user's local clock, not UTC.
  */
 async function authenticateSite(db: D1Database, siteKey: string): Promise<SiteAuth> {
+  const cached = authCache.get(siteKey);
+  if (cached && cached.expires > Date.now()) return cached.auth;
+
   const row = await db
     .prepare(
-      `SELECT sites.timezone AS tz
+      `SELECT sites.timezone AS tz, users.plan AS plan
        FROM api_keys
        INNER JOIN sites ON sites.id = api_keys.site_id
+       INNER JOIN users ON users.id = sites.user_id
        WHERE api_keys.key = ? AND api_keys.revoked_at IS NULL
        LIMIT 1`
     )
     .bind(siteKey)
-    .first<{ tz: string | null }>();
-  if (!row) return { valid: false, timezone: 'UTC' };
-  return { valid: true, timezone: row.tz || 'UTC' };
+    .first<{ tz: string | null; plan: string | null }>();
+
+  const auth: SiteAuth = row
+    ? { valid: true, timezone: row.tz || 'UTC', monthlyQuota: planOf(row.plan).monthlyEvents }
+    : { valid: false, timezone: 'UTC', monthlyQuota: 0 };
+
+  if (authCache.size > 10_000) authCache.clear();
+  authCache.set(siteKey, { auth, expires: Date.now() + AUTH_CACHE_TTL_MS });
+  return auth;
 }
+
+// Sites that exhausted their monthly quota; re-checked every 10 minutes so a
+// plan upgrade (or month rollover) resumes ingest without a deploy.
+const OVER_QUOTA_RECHECK_MS = 10 * 60_000;
+const overQuota = new Map<string, number>(); // siteKey -> recheck-at epoch ms
 
 // Cache the HMAC CryptoKey per day - avoids crypto.subtle.importKey() on every request
 const encoder = new TextEncoder();
@@ -120,11 +143,23 @@ app.post('/api/event', async c => {
   const ua = c.req.header('user-agent') || '';
   if (isBot(ua)) return c.json({ ok: true });
 
-  // Site key validation + timezone fetch in a single D1 query.
+  // Per-site-key rate limit (abuse guard for leaked/guessed keys).
+  const { success } = await c.env.RATE_LIMITER.limit({ key: event.s });
+  if (!success) return c.json({ error: 'rate limited' }, 429);
+
+  // Site key validation + timezone/plan fetch (isolate-cached, one D1 query/min).
   const site = await authenticateSite(c.env.DB, event.s);
   if (!site.valid) {
     console.warn(`[collect] Unknown site key: ${event.s}`);
     return c.json({ error: 'unknown site' }, 403);
+  }
+
+  // Monthly quota: flagged sites drop events (200 so trackers stay quiet);
+  // the flag expires periodically so upgrades/month rollover recover alone.
+  const recheckAt = overQuota.get(event.s);
+  if (recheckAt !== undefined) {
+    if (Date.now() < recheckAt) return c.json({ ok: true });
+    overQuota.delete(event.s);
   }
 
   const ip = c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for') || '0.0.0.0';
@@ -205,6 +240,13 @@ app.post('/api/event', async c => {
           visitorId: visitorId,
           eventName: event.en || '',
           eventValue: event.ev || 0,
+        })
+        .then(monthEvents => {
+          // Quota enforcement is soft: the event that crosses the line is
+          // kept, subsequent ones are dropped until the next re-check.
+          if (monthEvents > site.monthlyQuota) {
+            overQuota.set(event.s, Date.now() + OVER_QUOTA_RECHECK_MS);
+          }
         })
         .catch(err => {
           console.error('Live store write failed:', err);

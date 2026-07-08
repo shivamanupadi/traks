@@ -71,10 +71,14 @@ export class SiteLiveStore extends DurableObject<unknown> {
         event_value REAL NOT NULL DEFAULT 0
       );
       CREATE INDEX IF NOT EXISTS idx_events_ts ON events (ts);
+      CREATE TABLE IF NOT EXISTS usage (
+        month TEXT PRIMARY KEY,
+        events INTEGER NOT NULL DEFAULT 0
+      );
     `);
   }
 
-  async record(e: LiveEvent): Promise<void> {
+  async record(e: LiveEvent): Promise<number> {
     this.sql.exec(
       `INSERT INTO events (
         ts, hour_key, event_type, pathname, referrer_hostname,
@@ -100,9 +104,28 @@ export class SiteLiveStore extends DurableObject<unknown> {
       e.eventName,
       e.eventValue
     );
+
+    // Monthly usage counter (calendar month in the site's tz, from hour_key).
+    // Survives event pruning, so quota enforcement sees the full month.
+    const month = e.hourKey.slice(0, 7);
+    const usage = this.sql
+      .exec(
+        `INSERT INTO usage (month, events) VALUES (?, 1)
+         ON CONFLICT(month) DO UPDATE SET events = events + 1
+         RETURNING events`,
+        month
+      )
+      .one();
+
     if ((await this.ctx.storage.getAlarm()) === null) {
       await this.ctx.storage.setAlarm(Date.now() + PRUNE_INTERVAL_MS);
     }
+    return n(usage.events);
+  }
+
+  async purge(): Promise<void> {
+    await this.ctx.storage.deleteAlarm();
+    await this.ctx.storage.deleteAll();
   }
 
   async alarm(): Promise<void> {

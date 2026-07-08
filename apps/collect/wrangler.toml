@@ -11,6 +11,14 @@ database_name = "traks-db-dev"
 database_id = "cd0ff4bb-5cc4-4002-a259-be02b3234e29"
 migrations_dir = "../api/src/db/migrations"
 
+# Per-site-key rate limit: 600 events/min (~10/s sustained). Legit bursts
+# stay well under this; leaked keys can't flood the pipeline.
+[[unsafe.bindings]]
+name = "RATE_LIMITER"
+type = "ratelimit"
+namespace_id = "1001"
+simple = { limit = 600, period = 60 }
+
 # Hot-path live stats: one SQLite-backed Durable Object per site, written at
 # ingest, read by the api worker for "today"/realtime dashboards.
 [[migrations]]
@@ -44,6 +52,12 @@ name = "traks-collect"
 binding = "DB"
 database_name = "traks-db-prod"
 database_id = "7a19029a-d3a0-4ebf-b7f7-3a0237cf4c1e"
+
+[[env.production.unsafe.bindings]]
+name = "RATE_LIMITER"
+type = "ratelimit"
+namespace_id = "1002"
+simple = { limit = 600, period = 60 }
 
 [[env.production.durable_objects.bindings]]
 name = "LIVE"

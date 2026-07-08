@@ -99,7 +99,10 @@ export interface LiveExportRow {
 
 /** RPC surface of SiteLiveStore. All ranges are [fromMs, toMs) epoch ms. */
 export interface LiveStoreApi {
-  record(event: LiveEvent): Promise<void>;
+  /** Stores the event and returns the site's event count for its calendar month (site tz) — used for quota enforcement. */
+  record(event: LiveEvent): Promise<number>;
+  /** Wipes all stored data for this site (site deletion). */
+  purge(): Promise<void>;
   totals(fromMs: number, toMs: number): Promise<LiveCounts>;
   mainStats(
     prevFromMs: number,

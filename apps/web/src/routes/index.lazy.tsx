@@ -18,7 +18,9 @@ import {
   LogIn,
   type LucideIcon,
 } from 'lucide-react';
+import { PLANS, type PlanConfig } from '@traks/shared';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 export const Route = createLazyFileRoute('/')({
   component: LandingPage,
@@ -488,6 +490,80 @@ function LandingPage(): ReactElement {
                   <h3 className="text-[15px] font-semibold text-[#2D3436]">{item.title}</h3>
                   <p className="text-[13px] text-[#9B9590] leading-relaxed mt-1.5">{item.desc}</p>
                 </motion.div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Pricing section */}
+        <section id="pricing" className="relative z-10 py-20 sm:py-28">
+          <div className="max-w-5xl mx-auto px-6">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: '-100px' }}
+              transition={{ duration: 0.5 }}
+              className="text-center mb-12"
+            >
+              <h2 className="text-[32px] sm:text-[40px] font-bold text-[#2D3436] tracking-[-0.02em] mb-3">
+                Simple pricing
+              </h2>
+              <p className="text-[16px] text-[#8A8580] max-w-md mx-auto">
+                Start free. Every paid plan includes raw data export and weekly reports.
+              </p>
+            </motion.div>
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
+              {(Object.values(PLANS) as PlanConfig[]).map(plan => (
+                <div
+                  key={plan.id}
+                  className={cn(
+                    'rounded-2xl border bg-white p-6 flex flex-col',
+                    plan.id === 'pro'
+                      ? 'border-[#9b72cf] shadow-lg shadow-[#9b72cf]/10'
+                      : 'border-[#e8e3ed]/80'
+                  )}
+                >
+                  <p className="text-[15px] font-semibold text-[#2D3436]">{plan.name}</p>
+                  <p className="mt-2 text-[32px] font-bold text-[#2D3436]">
+                    ${plan.priceUsd}
+                    <span className="text-[13px] font-normal text-[#9B9590]">/mo</span>
+                  </p>
+                  <ul className="mt-5 space-y-2.5 text-[13px] text-[#2D3436] flex-1">
+                    <li>
+                      {new Intl.NumberFormat('en-US', { notation: 'compact' }).format(
+                        plan.monthlyEvents
+                      )}{' '}
+                      events/mo per site
+                    </li>
+                    <li>
+                      {plan.siteLimit} site{plan.siteLimit > 1 ? 's' : ''}
+                    </li>
+                    <li>Realtime + historical dashboards</li>
+                    {plan.exports && <li>Raw data export (query with DuckDB)</li>}
+                    {plan.weeklyReports && <li>Weekly email reports</li>}
+                  </ul>
+                  <SignedOut>
+                    <Link to="/signup" className="mt-6">
+                      <Button
+                        className={cn(
+                          'w-full h-[42px] rounded-xl text-[13px] font-semibold',
+                          plan.id === 'pro'
+                            ? 'bg-[#9b72cf] hover:bg-[#8a63bf] text-white'
+                            : 'bg-[#f3f0f7] hover:bg-[#e8e3ed] text-[#2D3436]'
+                        )}
+                      >
+                        {plan.priceUsd === 0 ? 'Start free' : `Choose ${plan.name}`}
+                      </Button>
+                    </Link>
+                  </SignedOut>
+                  <SignedIn>
+                    <Link to="/portal/settings" className="mt-6">
+                      <Button className="w-full h-[42px] rounded-xl text-[13px] font-semibold bg-[#f3f0f7] hover:bg-[#e8e3ed] text-[#2D3436]">
+                        Manage plan
+                      </Button>
+                    </Link>
+                  </SignedIn>
+                </div>
               ))}
             </div>
           </div>

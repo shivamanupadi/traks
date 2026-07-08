@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as PortalRouteImport } from './routes/portal'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as DocsRouteImport } from './routes/docs'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ShareSiteIdRouteImport } from './routes/share.$siteId'
 import { Route as PortalSitesRouteImport } from './routes/portal.sites'
@@ -31,6 +32,11 @@ const PortalRoute = PortalRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DocsRoute = DocsRouteImport.update({
+  id: '/docs',
+  path: '/docs',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -63,6 +69,7 @@ const PortalSiteSiteIdRoute = PortalSiteSiteIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/docs': typeof DocsRoute
   '/login': typeof LoginRoute
   '/portal': typeof PortalRouteWithChildren
   '/signup': typeof SignupRoute
@@ -73,6 +80,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/docs': typeof DocsRoute
   '/login': typeof LoginRoute
   '/portal': typeof PortalRouteWithChildren
   '/signup': typeof SignupRoute
@@ -84,6 +92,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/docs': typeof DocsRoute
   '/login': typeof LoginRoute
   '/portal': typeof PortalRouteWithChildren
   '/signup': typeof SignupRoute
@@ -96,6 +105,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/docs'
     | '/login'
     | '/portal'
     | '/signup'
@@ -106,6 +116,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/docs'
     | '/login'
     | '/portal'
     | '/signup'
@@ -116,6 +127,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/docs'
     | '/login'
     | '/portal'
     | '/signup'
@@ -127,6 +139,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  DocsRoute: typeof DocsRoute
   LoginRoute: typeof LoginRoute
   PortalRoute: typeof PortalRouteWithChildren
   SignupRoute: typeof SignupRoute
@@ -154,6 +167,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/docs': {
+      id: '/docs'
+      path: '/docs'
+      fullPath: '/docs'
+      preLoaderRoute: typeof DocsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -211,6 +231,7 @@ const PortalRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  DocsRoute: DocsRoute,
   LoginRoute: LoginRoute,
   PortalRoute: PortalRouteWithChildren,
   SignupRoute: SignupRoute,

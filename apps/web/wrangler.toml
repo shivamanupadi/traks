@@ -1,0 +1,19 @@
+# Dashboard + landing page, served as static assets from Workers.
+# Deploy: yarn build && npx wrangler deploy [--env production]
+name = "traks-web-dev"
+compatibility_date = "2026-06-01"
+
+[assets]
+directory = "./dist"
+not_found_handling = "single-page-application"
+
+[env.production]
+name = "traks-web"
+
+[env.production.assets]
+directory = "./dist"
+not_found_handling = "single-page-application"
+
+[[env.production.routes]]
+pattern = "traks.dev"
+custom_domain = true

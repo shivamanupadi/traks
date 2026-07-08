@@ -193,6 +193,7 @@ function EditSiteModal({
   site: {
     name: string;
     domain: string;
+    public?: boolean;
     exportEnabled?: boolean;
     exportToken?: string | null;
   } | null;
@@ -205,6 +206,7 @@ function EditSiteModal({
   const [error, setError] = useState('');
   const [exportEnabled, setExportEnabled] = useState(false);
   const [exportToken, setExportToken] = useState<string | null>(null);
+  const [publicEnabled, setPublicEnabled] = useState(false);
 
   useEffect(() => {
     if (open && site) {
@@ -212,9 +214,23 @@ function EditSiteModal({
       setDomain(site.domain);
       setExportEnabled(site.exportEnabled ?? false);
       setExportToken(site.exportToken ?? null);
+      setPublicEnabled(site.public ?? false);
       setError('');
     }
   }, [open, site]);
+
+  const togglePublic = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      const token = await getToken();
+      if (!token) throw new Error('Not authenticated');
+      return api.togglePublic(siteId, enabled, token);
+    },
+    onSuccess: (res: { data: { enabled: boolean } }) => {
+      setPublicEnabled(res.data.enabled);
+      queryClient.invalidateQueries({ queryKey: ['site', siteId] });
+    },
+    onError: (err: Error) => setError(err.message),
+  });
 
   const toggleExport = useMutation({
     mutationFn: async (enabled: boolean) => {
@@ -294,6 +310,36 @@ function EditSiteModal({
               />
               <p className="mt-2 text-[12px] text-[#B5B0AA]">Without http:// or https://</p>
             </div>
+            {/* Public dashboard */}
+            <div className="border-t border-[#e8e3ed]/60 pt-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[13px] font-medium text-[#2D3436]">Public dashboard</p>
+                  <p className="mt-0.5 text-[12px] text-[#9B9590]">
+                    Anyone with the link can view this site's stats.
+                  </p>
+                </div>
+                <button
+                  onClick={() => togglePublic.mutate(!publicEnabled)}
+                  disabled={togglePublic.isPending}
+                  className={cnToggle(publicEnabled)}
+                  role="switch"
+                  aria-checked={publicEnabled}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      publicEnabled ? 'translate-x-5' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+              {publicEnabled && (
+                <pre className="mt-3 rounded-lg border border-[#e8e3ed] bg-[#fdfbf8] px-3 py-2.5 text-[11px] leading-relaxed text-[#2D3436] whitespace-pre-wrap break-all select-all">
+                  {`${window.location.origin}/share/${siteId}`}
+                </pre>
+              )}
+            </div>
+
             {/* Data export */}
             <div className="border-t border-[#e8e3ed]/60 pt-5">
               <div className="flex items-center justify-between">
@@ -545,6 +591,7 @@ function SiteAnalyticsPage(): ReactElement {
             ? {
                 name: site.name,
                 domain: site.domain,
+                public: site.public,
                 exportEnabled: site.exportEnabled,
                 exportToken: site.exportToken,
               }

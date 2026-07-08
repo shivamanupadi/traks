@@ -5,6 +5,7 @@ import type { Bindings, Variables } from './types';
 import { sitesRoute } from './routes/sites';
 import { analyticsRoute } from './routes/analytics';
 import { exportsRoute } from './routes/exports';
+import { publicRoute } from './routes/public';
 import { runNightlyExports } from './lib/exports';
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
@@ -32,7 +33,8 @@ app.get('/health', c => c.json({ status: 'ok', timestamp: new Date().toISOString
 const routes = app
   .route('/api/sites', sitesRoute)
   .route('/api/analytics', analyticsRoute)
-  .route('/api/exports', exportsRoute);
+  .route('/api/exports', exportsRoute)
+  .route('/api/public', publicRoute);
 
 app.notFound(c => c.json({ error: 'Not found' }, 404));
 app.onError((err, c) => {

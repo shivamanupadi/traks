@@ -53,6 +53,15 @@ export const api = {
     return res.json();
   },
 
+  async togglePublic(siteId: string, enabled: boolean, token: string): Promise<any> {
+    const res = await client.api.sites[':id'].public.$post(
+      { param: { id: siteId }, json: { enabled } },
+      authHeaders(token)
+    );
+    await assertOk(res);
+    return res.json();
+  },
+
   async toggleExport(siteId: string, enabled: boolean, token: string): Promise<any> {
     const res = await client.api.sites[':id'].export.$post(
       { param: { id: siteId }, json: { enabled } },

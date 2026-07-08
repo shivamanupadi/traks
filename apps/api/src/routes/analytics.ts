@@ -295,7 +295,7 @@ async function runQueries<T>(c: AppContext, fn: () => Promise<T>): Promise<T | R
   }
 }
 
-export const analyticsRoute = app
+const appWithBatch = app
   // Batch stats for all user's sites (used on sites list page)
   .get('/batch/stats', requireAuth, zValidator('query', batchQuery), async c => {
     const userId = c.get('userId')!;
@@ -389,8 +389,140 @@ export const analyticsRoute = app
 
     if (outcome instanceof Response) return outcome;
     return c.json({ data: outcome });
-  })
+  });
 
+/**
+ * Full dashboard payload for a site — DO hot path for 'today', cached R2 SQL
+ * cold path otherwise. Shared by the authed /stats/all route and the public
+ * share-page route. Returns a Response only on query failure (502).
+ */
+export async function fetchDashboard(
+  c: AppContext,
+  site: SiteRecord,
+  period: Period
+): Promise<Response | Record<string, unknown>> {
+  // Hot path: the whole today-dashboard from the site's live DO.
+  if (period === 'today') {
+    try {
+      const range = resolvePeriod('today', new Date(), site.timezone);
+      const prev = previousRange(range);
+      const live = liveStore(c, site.key);
+      const from = ms(range.from);
+      const to = ms(range.to);
+      const [main, timeseriesRows, pages, referrers, locations, browsers, osList] =
+        await Promise.all([
+          live.mainStats(ms(prev.from), from, to),
+          live.timeseries(from, to),
+          live.topList('pathname', from, to, 10),
+          live.topList('referrer_hostname', from, to, 10),
+          live.topList('country', from, to, 10),
+          live.topList('browser', from, to, 10),
+          live.topList('os', from, to, 10),
+        ]);
+      return {
+        main: mainStatsPayload(main.current, main.previous),
+        timeseries: fillTimeseries(timeseriesRows, range),
+        pages: pages.map(r => ({
+          name: r.name,
+          visitors: r.visitors,
+          pageviews: r.pageviews,
+        })),
+        referrers: referrers.map(r => ({ name: r.name, visitors: r.visitors })),
+        locations: locations.map(r => ({ name: r.name, code: r.name, visitors: r.visitors })),
+        browsers: formatDevices(browsers.map(r => ({ name: r.name, visitors: r.visitors }))),
+        os: formatDevices(osList.map(r => ({ name: r.name, visitors: r.visitors }))),
+      };
+    } catch (err) {
+      logLiveFallback(err);
+    }
+  }
+
+  const range = resolvePeriod(period, queryTime(), site.timezone);
+  const ttl = cacheTtlSeconds(period);
+
+  const outcome = await runQueries(c, () =>
+    Promise.all([
+      cachedR2Sql<PeriodStatsRow>(c, ttl, buildStatsWithComparisonQuery(site.key, range)),
+      cachedR2Sql<SessionStatsRow>(c, ttl, buildSessionStatsQuery(site.key, range)),
+      cachedR2Sql<{ t: string; visitors: unknown; pageviews: unknown; sessions: unknown }>(
+        c,
+        ttl,
+        buildTimeseriesQuery(site.key, range)
+      ),
+      cachedR2Sql<{ pathname: string; visitors: unknown; pageviews: unknown }>(
+        c,
+        ttl,
+        buildTopPagesQuery(site.key, range)
+      ),
+      cachedR2Sql<{ source: string; visitors: unknown }>(
+        c,
+        ttl,
+        buildTopReferrersQuery(site.key, range)
+      ),
+      cachedR2Sql<{ name: string; visitors: unknown }>(
+        c,
+        ttl,
+        buildLocationsQuery(site.key, range, 'country')
+      ),
+      cachedR2Sql<{ name: string; visitors: unknown }>(
+        c,
+        ttl,
+        buildDevicesQuery(site.key, range, 'browser')
+      ),
+      cachedR2Sql<{ name: string; visitors: unknown }>(
+        c,
+        ttl,
+        buildDevicesQuery(site.key, range, 'os')
+      ),
+    ])
+  );
+  if (outcome instanceof Response) return outcome;
+
+  const [
+    statRows,
+    sessionRows,
+    timeseriesRows,
+    pagesRows,
+    referrersRows,
+    locationsRows,
+    browsersRows,
+    osRows,
+  ] = outcome;
+
+  return {
+    main: assembleMainStats(statRows, sessionRows),
+    timeseries: fillTimeseries(
+      timeseriesRows.map(r => ({
+        t: r.t,
+        visitors: toNumber(r.visitors),
+        pageviews: toNumber(r.pageviews),
+        sessions: toNumber(r.sessions),
+      })),
+      range
+    ),
+    pages: pagesRows.map(r => ({
+      name: r.pathname,
+      visitors: toNumber(r.visitors),
+      pageviews: toNumber(r.pageviews),
+    })),
+    referrers: referrersRows.map(r => ({
+      name: r.source,
+      visitors: toNumber(r.visitors),
+    })),
+    locations: locationsRows.map(r => ({
+      name: r.name,
+      code: r.name,
+      visitors: toNumber(r.visitors),
+    })),
+    browsers: formatDevices(
+      browsersRows.map(r => ({ name: r.name, visitors: toNumber(r.visitors) }))
+    ),
+    os: formatDevices(osRows.map(r => ({ name: r.name, visitors: toNumber(r.visitors) }))),
+  };
+}
+
+// Chain continues from appWithBatch so the Hono RPC AppType keeps every route.
+export const analyticsRoute = appWithBatch
   // All stats in a single request (used on site analytics page)
   .get('/:siteId/stats/all', requireAuth, zValidator('query', periodQuery), async c => {
     const userId = c.get('userId')!;
@@ -400,128 +532,9 @@ export const analyticsRoute = app
     const site = await getSite(c, siteId, userId);
     if (!site) return c.json({ error: 'Not found' }, 404);
 
-    // Hot path: the whole today-dashboard from the site's live DO.
-    if (period === 'today') {
-      try {
-        const range = resolvePeriod('today', new Date(), site.timezone);
-        const prev = previousRange(range);
-        const live = liveStore(c, site.key);
-        const from = ms(range.from);
-        const to = ms(range.to);
-        const [main, timeseriesRows, pages, referrers, locations, browsers, osList] =
-          await Promise.all([
-            live.mainStats(ms(prev.from), from, to),
-            live.timeseries(from, to),
-            live.topList('pathname', from, to, 10),
-            live.topList('referrer_hostname', from, to, 10),
-            live.topList('country', from, to, 10),
-            live.topList('browser', from, to, 10),
-            live.topList('os', from, to, 10),
-          ]);
-        return c.json({
-          data: {
-            main: mainStatsPayload(main.current, main.previous),
-            timeseries: fillTimeseries(timeseriesRows, range),
-            pages: pages.map(r => ({
-              name: r.name,
-              visitors: r.visitors,
-              pageviews: r.pageviews,
-            })),
-            referrers: referrers.map(r => ({ name: r.name, visitors: r.visitors })),
-            locations: locations.map(r => ({ name: r.name, code: r.name, visitors: r.visitors })),
-            browsers: formatDevices(browsers.map(r => ({ name: r.name, visitors: r.visitors }))),
-            os: formatDevices(osList.map(r => ({ name: r.name, visitors: r.visitors }))),
-          },
-        });
-      } catch (err) {
-        logLiveFallback(err);
-      }
-    }
-
-    const range = resolvePeriod(period, queryTime(), site.timezone);
-    const ttl = cacheTtlSeconds(period);
-
-    const outcome = await runQueries(c, () =>
-      Promise.all([
-        cachedR2Sql<PeriodStatsRow>(c, ttl, buildStatsWithComparisonQuery(site.key, range)),
-        cachedR2Sql<SessionStatsRow>(c, ttl, buildSessionStatsQuery(site.key, range)),
-        cachedR2Sql<{ t: string; visitors: unknown; pageviews: unknown; sessions: unknown }>(
-          c,
-          ttl,
-          buildTimeseriesQuery(site.key, range)
-        ),
-        cachedR2Sql<{ pathname: string; visitors: unknown; pageviews: unknown }>(
-          c,
-          ttl,
-          buildTopPagesQuery(site.key, range)
-        ),
-        cachedR2Sql<{ source: string; visitors: unknown }>(
-          c,
-          ttl,
-          buildTopReferrersQuery(site.key, range)
-        ),
-        cachedR2Sql<{ name: string; visitors: unknown }>(
-          c,
-          ttl,
-          buildLocationsQuery(site.key, range, 'country')
-        ),
-        cachedR2Sql<{ name: string; visitors: unknown }>(
-          c,
-          ttl,
-          buildDevicesQuery(site.key, range, 'browser')
-        ),
-        cachedR2Sql<{ name: string; visitors: unknown }>(
-          c,
-          ttl,
-          buildDevicesQuery(site.key, range, 'os')
-        ),
-      ])
-    );
-    if (outcome instanceof Response) return outcome;
-
-    const [
-      statRows,
-      sessionRows,
-      timeseriesRows,
-      pagesRows,
-      referrersRows,
-      locationsRows,
-      browsersRows,
-      osRows,
-    ] = outcome;
-
-    return c.json({
-      data: {
-        main: assembleMainStats(statRows, sessionRows),
-        timeseries: fillTimeseries(
-          timeseriesRows.map(r => ({
-            t: r.t,
-            visitors: toNumber(r.visitors),
-            pageviews: toNumber(r.pageviews),
-            sessions: toNumber(r.sessions),
-          })),
-          range
-        ),
-        pages: pagesRows.map(r => ({
-          name: r.pathname,
-          visitors: toNumber(r.visitors),
-          pageviews: toNumber(r.pageviews),
-        })),
-        referrers: referrersRows.map(r => ({
-          name: r.source,
-          visitors: toNumber(r.visitors),
-        })),
-        locations: locationsRows.map(r => ({
-          name: r.name,
-          code: r.name,
-          visitors: toNumber(r.visitors),
-        })),
-        browsers: formatDevices(
-          browsersRows.map(r => ({ name: r.name, visitors: toNumber(r.visitors) }))
-        ),
-        os: formatDevices(osRows.map(r => ({ name: r.name, visitors: toNumber(r.visitors) }))),
-      },
-    });
+    const result = await fetchDashboard(c, site, period);
+    if (result instanceof Response) return result;
+    return c.json({ data: result });
   })
 
   .get('/:siteId/stats/main', requireAuth, zValidator('query', periodQuery), async c => {

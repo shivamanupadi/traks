@@ -38,10 +38,7 @@ export const sitesRoute = app
     // Plan site limit
     const [user] = await db.select({ plan: users.plan }).from(users).where(eq(users.id, userId));
     const plan = planOf(user?.plan);
-    const existing = await db
-      .select({ id: sites.id })
-      .from(sites)
-      .where(eq(sites.userId, userId));
+    const existing = await db.select({ id: sites.id }).from(sites).where(eq(sites.userId, userId));
     if (existing.length >= plan.siteLimit) {
       return c.json(
         { error: `The ${plan.name} plan allows ${plan.siteLimit} site(s). Upgrade to add more.` },
@@ -121,6 +118,26 @@ export const sitesRoute = app
     const [updated] = await db.select().from(sites).where(eq(sites.id, siteId));
 
     return c.json({ data: updated });
+  })
+
+  // Toggle public share dashboard
+  .post('/:id/public', requireAuth, zValidator('json', exportToggleSchema), async c => {
+    const userId = c.get('userId')!;
+    const siteId = c.req.param('id');
+    const { enabled } = c.req.valid('json');
+    const db = c.get('db')!;
+
+    const [site] = await db.select().from(sites).where(eq(sites.id, siteId));
+    if (!site || site.userId !== userId) {
+      return c.json({ error: 'Not found' }, 404);
+    }
+
+    await db
+      .update(sites)
+      .set({ public: enabled, updatedAt: new Date() })
+      .where(eq(sites.id, siteId));
+
+    return c.json({ data: { enabled } });
   })
 
   // Toggle nightly raw-data export; generates the access token on first enable

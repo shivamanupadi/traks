@@ -76,6 +76,27 @@ export interface LiveCustomEventRow {
   totalValue: number;
 }
 
+/** Raw stored row, as returned by exportEvents (snake_case = file/DB shape). */
+export interface LiveExportRow {
+  ts: number;
+  hour_key: string;
+  event_type: string;
+  pathname: string;
+  referrer_hostname: string;
+  utm_source: string;
+  utm_medium: string;
+  utm_campaign: string;
+  country: string;
+  city: string;
+  browser: string;
+  os: string;
+  device_type: string;
+  session_id: string;
+  visitor_id: string;
+  event_name: string;
+  event_value: number;
+}
+
 /** RPC surface of SiteLiveStore. All ranges are [fromMs, toMs) epoch ms. */
 export interface LiveStoreApi {
   record(event: LiveEvent): Promise<void>;
@@ -94,4 +115,11 @@ export interface LiveStoreApi {
   ): Promise<LiveTopListRow[]>;
   realtime(nowMs: number): Promise<LiveRealtimeRow[]>;
   customEvents(fromMs: number, toMs: number, limit: number): Promise<LiveCustomEventRow[]>;
+  /** Paginated raw dump for the nightly export job (ordered by ts). */
+  exportEvents(
+    fromMs: number,
+    toMs: number,
+    offset: number,
+    limit: number
+  ): Promise<LiveExportRow[]>;
 }

@@ -2,6 +2,8 @@ export type Bindings = {
   DB: D1Database;
   /** Cross-script binding to the collect worker's SiteLiveStore DO (hot path). */
   LIVE: DurableObjectNamespace;
+  /** Bucket holding nightly per-site raw-data exports (NDJSON). */
+  EXPORTS: R2Bucket;
   ENVIRONMENT: string;
   ALLOWED_ORIGINS: string;
   CLERK_SECRET_KEY: string;

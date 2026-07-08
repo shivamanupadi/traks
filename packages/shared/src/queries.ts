@@ -154,6 +154,25 @@ export function computeBucketKeys(
 }
 
 /**
+ * The full previous calendar day in `tz`: [local midnight yesterday, local
+ * midnight today), plus its date_key. Used by the nightly export job.
+ */
+export function previousDayRange(
+  now: Date,
+  tz: string
+): { fromMs: number; toMs: number; dateKey: string } {
+  const todayStart = startOfDayInTz(now, tz);
+  // A moment safely inside yesterday (12h before today's start dodges DST edges)
+  const yesterdayStart = startOfDayInTz(new Date(todayStart.getTime() - 12 * 3600_000), tz);
+  const p = partsInTz(yesterdayStart, tz);
+  return {
+    fromMs: yesterdayStart.getTime(),
+    toMs: todayStart.getTime(),
+    dateKey: `${p.year}-${pad2(p.month)}-${pad2(p.day)}`,
+  };
+}
+
+/**
  * Resolve a period to a PeriodRange. All boundaries are aligned to the *site's* timezone —
  * "today" means 00:00 local time in that zone, not UTC midnight.
  *

@@ -197,3 +197,34 @@ npx wrangler pipelines sinks list
 
 > **Warning:** never delete objects manually in the catalog-enabled bucket —
 > data/metadata files under the warehouse prefix are Iceberg table state.
+
+## Customer data export (DuckDB access)
+
+Paid feature-flag per site (`Data export` toggle in site settings; included
+free in paid tiers — it costs ~nothing to serve and egress is $0). When
+enabled:
+
+- A nightly cron in the api worker (03:30 UTC) pulls the previous day's raw
+  events **from the site's live DO** (no R2 SQL scan cost, still within the
+  DO's ~50h retention) and writes gzipped NDJSON to the `traks-exports`
+  bucket as `<siteId>/<YYYY-MM-DD>.ndjson.gz` (`.1`, `.2`… suffixes past 50k
+  events per file).
+- Enabling generates a long random read-only token. Customers query their
+  data directly:
+
+```sql
+-- DuckDB
+INSTALL httpfs; LOAD httpfs;
+SELECT country, COUNT(*) AS pageviews
+FROM read_ndjson_auto(
+  'https://api.traks.dev/api/exports/<TOKEN>/2026-07-07.ndjson.gz')
+GROUP BY country ORDER BY pageviews DESC;
+```
+
+- `GET /api/exports/<TOKEN>` lists available files (JSON) for scripting.
+- The token grants read access to that site's files only; multi-tenant
+  isolation is enforced by the api worker, not by bucket ACLs. Rotating =
+  disable + re-enable exports.
+
+Ops note: create the export buckets once per environment:
+`npx wrangler r2 bucket create traks-exports-dev` / `traks-exports`.

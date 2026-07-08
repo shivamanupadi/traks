@@ -4,6 +4,8 @@ import { drizzle } from 'drizzle-orm/d1';
 import type { Bindings, Variables } from './types';
 import { sitesRoute } from './routes/sites';
 import { analyticsRoute } from './routes/analytics';
+import { exportsRoute } from './routes/exports';
+import { runNightlyExports } from './lib/exports';
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -27,7 +29,10 @@ app.get('/', c => c.json({ name: 'traks-api', status: 'ok' }));
 app.get('/health', c => c.json({ status: 'ok', timestamp: new Date().toISOString() }));
 
 // Routes - chained for Hono RPC type inference
-const routes = app.route('/api/sites', sitesRoute).route('/api/analytics', analyticsRoute);
+const routes = app
+  .route('/api/sites', sitesRoute)
+  .route('/api/analytics', analyticsRoute)
+  .route('/api/exports', exportsRoute);
 
 app.notFound(c => c.json({ error: 'Not found' }, 404));
 app.onError((err, c) => {
@@ -36,4 +41,10 @@ app.onError((err, c) => {
 });
 
 export type AppType = typeof routes;
-export default app;
+export default {
+  fetch: app.fetch,
+  // Nightly raw-data export for export-enabled sites (see lib/exports.ts)
+  scheduled(_event: ScheduledEvent, env: Bindings, ctx: ExecutionContext): void {
+    ctx.waitUntil(runNightlyExports(env));
+  },
+};

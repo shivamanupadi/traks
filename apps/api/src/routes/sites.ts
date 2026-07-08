@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { eq } from 'drizzle-orm';
 import { createId } from '@paralleldrive/cuid2';
@@ -8,6 +9,14 @@ import { sites, apiKeys } from '../db/schema';
 import type { Bindings, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
+
+const exportToggleSchema = z.object({ enabled: z.boolean() });
+
+/** Long random read-only secret for the public export download URLs. */
+function generateExportToken(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(24));
+  return `exp_${Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')}`;
+}
 
 export const sitesRoute = app
   // List user's sites
@@ -98,6 +107,27 @@ export const sitesRoute = app
     const [updated] = await db.select().from(sites).where(eq(sites.id, siteId));
 
     return c.json({ data: updated });
+  })
+
+  // Toggle nightly raw-data export; generates the access token on first enable
+  .post('/:id/export', requireAuth, zValidator('json', exportToggleSchema), async c => {
+    const userId = c.get('userId')!;
+    const siteId = c.req.param('id');
+    const { enabled } = c.req.valid('json');
+    const db = c.get('db')!;
+
+    const [site] = await db.select().from(sites).where(eq(sites.id, siteId));
+    if (!site || site.userId !== userId) {
+      return c.json({ error: 'Not found' }, 404);
+    }
+
+    const exportToken = site.exportToken ?? generateExportToken();
+    await db
+      .update(sites)
+      .set({ exportEnabled: enabled, exportToken, updatedAt: new Date() })
+      .where(eq(sites.id, siteId));
+
+    return c.json({ data: { enabled, token: exportToken } });
   })
 
   // Delete a site

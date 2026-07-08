@@ -27,12 +27,16 @@ export const sites = sqliteTable(
     domain: text('domain').notNull(),
     timezone: text('timezone').default('UTC').notNull(),
     public: integer('public', { mode: 'boolean' }).default(false).notNull(),
+    // Nightly raw-data export (NDJSON to R2, DuckDB-readable via token URL)
+    exportEnabled: integer('export_enabled', { mode: 'boolean' }).default(false).notNull(),
+    exportToken: text('export_token'),
     createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
     updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
   },
   table => [
     index('sites_user_id_idx').on(table.userId),
     uniqueIndex('sites_domain_idx').on(table.domain),
+    uniqueIndex('sites_export_token_idx').on(table.exportToken),
   ]
 );
 

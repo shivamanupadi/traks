@@ -18,6 +18,14 @@ name = "LIVE"
 class_name = "SiteLiveStore"
 script_name = "traks-collect-dev"
 
+# Nightly per-site raw-data exports (gzipped NDJSON, DuckDB-readable)
+[[r2_buckets]]
+binding = "EXPORTS"
+bucket_name = "traks-exports-dev"
+
+[triggers]
+crons = ["30 3 * * *"] # nightly export run
+
 [[routes]]
 pattern = "api-dev.traks.dev"
 custom_domain = true
@@ -42,6 +50,13 @@ migrations_dir = "src/db/migrations"
 name = "LIVE"
 class_name = "SiteLiveStore"
 script_name = "traks-collect"
+
+[[env.production.r2_buckets]]
+binding = "EXPORTS"
+bucket_name = "traks-exports"
+
+[env.production.triggers]
+crons = ["30 3 * * *"]
 
 [env.production.vars]
 ENVIRONMENT = "production"

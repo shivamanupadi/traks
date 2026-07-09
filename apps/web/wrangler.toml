@@ -1,5 +1,9 @@
 # Dashboard + landing page, served as static assets from Workers.
-# Deploy: yarn build && npx wrangler deploy [--env production]
+#
+# Build-time env (VITE_*) comes from Doppler (project: traks-web, configs:
+# dev / prd) — the build injects them via process.env, which Vite picks up:
+#   Dev:   `yarn dev`          (doppler dev config -> vite)
+#   Prod:  `yarn release:prod` (doppler prd config -> vite build -> wrangler deploy)
 name = "traks-web-dev"
 compatibility_date = "2026-06-01"
 
@@ -16,4 +20,8 @@ not_found_handling = "single-page-application"
 
 [[env.production.routes]]
 pattern = "traks.dev"
+custom_domain = true
+
+[[env.production.routes]]
+pattern = "www.traks.dev"
 custom_domain = true

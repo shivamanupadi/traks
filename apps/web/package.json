@@ -4,8 +4,12 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "doppler run -p traks-web -c dev -- vite",
     "build": "tsc --noEmit && vite build",
+    "build:prod": "doppler run -p traks-web -c prd -- yarn build",
+    "deploy:dev": "wrangler deploy",
+    "worker:prod:deploy": "wrangler deploy --env production",
+    "release:prod": "yarn build:prod && yarn worker:prod:deploy",
     "lint": "eslint . --ext .ts,.tsx --fix",
     "format": "prettier --write .",
     "preview": "vite preview",

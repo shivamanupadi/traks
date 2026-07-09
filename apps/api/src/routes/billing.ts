@@ -13,6 +13,11 @@ const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 const checkoutSchema = z.object({ plan: z.enum(['pro', 'business']) });
 const prefsSchema = z.object({ weeklyReport: z.boolean() });
 
+/** Whole Dodo integration is behind this switch until Dodo is out of review. */
+function billingEnabled(env: Bindings): boolean {
+  return env.BILLING_ENABLED === 'true';
+}
+
 function productIdFor(env: Bindings, plan: 'pro' | 'business'): string {
   return plan === 'pro' ? env.DODO_PRODUCT_PRO : env.DODO_PRODUCT_BUSINESS;
 }
@@ -47,7 +52,8 @@ export const billingRoute = app
         plan: plan.id,
         plans: PLANS,
         weeklyReport: user?.weeklyReport ?? true,
-        hasBillingAccount: Boolean(user?.dodoCustomerId),
+        billingEnabled: billingEnabled(c.env),
+        hasBillingAccount: billingEnabled(c.env) && Boolean(user?.dodoCustomerId),
         email: user?.email ?? '',
       },
     });
@@ -63,6 +69,7 @@ export const billingRoute = app
 
   // Start a subscription checkout; responds with the hosted checkout URL
   .post('/checkout', requireAuth, zValidator('json', checkoutSchema), async c => {
+    if (!billingEnabled(c.env)) return c.json({ error: 'Billing is not available yet' }, 503);
     const userId = c.get('userId')!;
     const { plan } = c.req.valid('json');
     const db = c.get('db')!;
@@ -87,6 +94,7 @@ export const billingRoute = app
 
   // Hosted customer portal (manage/cancel subscription)
   .post('/portal', requireAuth, async c => {
+    if (!billingEnabled(c.env)) return c.json({ error: 'Billing is not available yet' }, 503);
     const userId = c.get('userId')!;
     const db = c.get('db')!;
     const [user] = await db.select().from(users).where(eq(users.id, userId));
@@ -113,6 +121,8 @@ export const billingRoute = app
 export const dodoWebhookRoute = new Hono<{ Bindings: Bindings; Variables: Variables }>().post(
   '/',
   async c => {
+    // Inert until Dodo is live: acknowledge without touching the (unset) secret.
+    if (!billingEnabled(c.env)) return c.json({ ok: true });
     const body = await c.req.text();
     const ok = await verifyStandardWebhook(
       c.env.DODO_WEBHOOK_SECRET,

@@ -19,6 +19,10 @@ export type Bindings = {
   APP_URL: string;
   EMAIL_FROM: string;
   ADMIN_EMAIL: string;
+  /** Master switch for the Dodo billing integration. "true" enables checkout,
+   *  the customer portal, and the Dodo webhook; anything else keeps them inert
+   *  (code stays, but no Dodo calls are made). Kept off until Dodo goes live. */
+  BILLING_ENABLED: string;
   DODO_API_BASE: string;
   DODO_PRODUCT_PRO: string;
   DODO_PRODUCT_BUSINESS: string;

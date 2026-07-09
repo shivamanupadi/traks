@@ -20,11 +20,13 @@ function PlanCard({
   current,
   onUpgrade,
   isPending,
+  billingEnabled,
 }: {
   plan: PlanConfig;
   current: boolean;
   onUpgrade: () => void;
   isPending: boolean;
+  billingEnabled: boolean;
 }): ReactElement {
   return (
     <div
@@ -53,15 +55,21 @@ function PlanCard({
         {plan.exports && <li>Raw data export (DuckDB)</li>}
         {plan.weeklyReports && <li>Weekly email reports</li>}
       </ul>
-      {!current && plan.id !== 'free' && (
-        <Button
-          onClick={onUpgrade}
-          isLoading={isPending}
-          className="mt-4 bg-[#9b72cf] hover:bg-[#8a63bf] text-white rounded-xl text-[13px]"
-        >
-          Upgrade
-        </Button>
-      )}
+      {!current &&
+        plan.id !== 'free' &&
+        (billingEnabled ? (
+          <Button
+            onClick={onUpgrade}
+            isLoading={isPending}
+            className="mt-4 bg-[#9b72cf] hover:bg-[#8a63bf] text-white rounded-xl text-[13px]"
+          >
+            Upgrade
+          </Button>
+        ) : (
+          <span className="mt-4 inline-flex w-fit rounded-full bg-[#e8e3ed]/60 px-2.5 py-0.5 text-[11px] font-medium text-[#9B9590]">
+            Coming soon
+          </span>
+        ))}
     </div>
   );
 }
@@ -82,6 +90,7 @@ function SettingsPage(): ReactElement {
 
   const billing = (data as any)?.data;
   const currentPlan: PlanId = billing?.plan ?? 'free';
+  const billingEnabled: boolean = billing?.billingEnabled ?? false;
 
   const checkout = useMutation({
     mutationFn: async (plan: 'pro' | 'business') => {
@@ -134,10 +143,11 @@ function SettingsPage(): ReactElement {
               current={plan.id === currentPlan}
               onUpgrade={() => checkout.mutate(plan.id as 'pro' | 'business')}
               isPending={checkout.isPending}
+              billingEnabled={billingEnabled}
             />
           ))}
         </div>
-        {billing?.hasBillingAccount && (
+        {billingEnabled && billing?.hasBillingAccount && (
           <button
             onClick={() => portal.mutate()}
             className="mt-4 flex items-center gap-2 text-[13px] text-[#9b72cf] hover:underline cursor-pointer"

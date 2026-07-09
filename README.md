@@ -209,7 +209,11 @@ npx wrangler pipelines sinks list
   customer portal via `/api/billing`; `/api/webhooks/dodo` (Standard
   Webhooks HMAC) syncs plan state. Secrets: `DODO_API_KEY`,
   `DODO_WEBHOOK_SECRET`; vars: `DODO_API_BASE`, `DODO_PRODUCT_PRO`,
-  `DODO_PRODUCT_BUSINESS`.
+  `DODO_PRODUCT_BUSINESS`. **Gated behind the `BILLING_ENABLED` var**
+  (default `"false"` while the Dodo account is in review): when off, checkout/
+  portal return 503, the Dodo webhook is inert, and the dashboard shows paid
+  plans as "Coming soon". To turn on: set `BILLING_ENABLED="true"`, fill the
+  `DODO_PRODUCT_*` vars, and add the `DODO_*` secrets to Doppler.
 - **Email** (Cloudflare Email Service, open beta — requires Workers Paid and
   an onboarded sending domain): Monday weekly digests for paid users, admin
   ops alerts. 3k emails/mo included, then $0.35/1k.

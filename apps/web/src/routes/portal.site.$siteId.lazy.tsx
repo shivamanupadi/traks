@@ -940,8 +940,16 @@ function SiteAnalyticsPage(): ReactElement {
           onMetricChange={setChartMetric}
         />
 
-        {/* Sources + Pages */}
+        {/* Pages + Sources */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <PanelCard
+            title="Top Pages"
+            labelHeader="Page"
+            items={(pagesQ.data as any)?.data}
+            isLoading={pagesQ.isLoading}
+            isError={pagesQ.isError}
+            showPageviews
+          />
           <PanelCard
             title="Top Sources"
             labelHeader="Source"
@@ -956,14 +964,6 @@ function SiteAnalyticsPage(): ReactElement {
             ]}
             activeTab={sourceTab}
             onTabChange={setSourceTab}
-          />
-          <PanelCard
-            title="Top Pages"
-            labelHeader="Page"
-            items={(pagesQ.data as any)?.data}
-            isLoading={pagesQ.isLoading}
-            isError={pagesQ.isError}
-            showPageviews
           />
         </div>
 

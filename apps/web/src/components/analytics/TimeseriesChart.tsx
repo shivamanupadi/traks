@@ -16,6 +16,10 @@ interface TimeseriesChartProps {
   isLoading: boolean;
   isError?: boolean;
   metric?: 'visitors' | 'pageviews' | 'sessions';
+  /** Render only the chart (no card frame / title) for embedding in a parent card. */
+  bare?: boolean;
+  /** Line/fill color; defaults to the visitors purple. */
+  color?: string;
 }
 
 /**
@@ -116,10 +120,14 @@ export function TimeseriesChart({
   isLoading,
   isError,
   metric = 'visitors',
+  bare = false,
+  color = '#9b72cf',
 }: TimeseriesChartProps): ReactElement {
+  const frame = bare ? '' : 'rounded-2xl border border-[#e8e3ed]/80 bg-white';
+
   if (isError) {
     return (
-      <div className="flex h-[300px] flex-col items-center justify-center rounded-2xl border border-[#e8e3ed]/80 bg-white">
+      <div className={`flex h-[300px] flex-col items-center justify-center ${frame}`}>
         <AlertCircle className="w-5 h-5 text-[#e07a5f]/60 mb-2" strokeWidth={1.5} />
         <p className="text-[13px] text-[#e07a5f]">Failed to load chart data</p>
       </div>
@@ -128,8 +136,8 @@ export function TimeseriesChart({
 
   if (isLoading || !data) {
     return (
-      <div className="h-[300px] rounded-2xl border border-[#e8e3ed]/80 bg-white p-5">
-        <div className="h-4 w-24 rounded bg-[#f3f0f7] animate-pulse" />
+      <div className={`h-[300px] p-5 ${frame}`}>
+        {!bare && <div className="h-4 w-24 rounded bg-[#f3f0f7] animate-pulse" />}
         <div className="mt-5 flex h-[210px] items-end gap-2">
           {[40, 65, 50, 80, 55, 90, 70, 60, 85, 45, 75, 95].map((h, i) => (
             <div
@@ -145,7 +153,7 @@ export function TimeseriesChart({
 
   if (data.length === 0) {
     return (
-      <div className="flex h-[300px] flex-col items-center justify-center rounded-2xl border border-[#e8e3ed]/80 bg-white">
+      <div className={`flex h-[300px] flex-col items-center justify-center ${frame}`}>
         <TrendingUp className="w-5 h-5 text-[#B5B0AA] mb-2" strokeWidth={1.5} />
         <p className="text-[13px] font-medium text-[#9B9590]">No data yet</p>
         <p className="text-[12px] text-[#B5B0AA] mt-1">
@@ -155,49 +163,57 @@ export function TimeseriesChart({
     );
   }
 
+  const gradientId = `colorMetric-${metric}`;
+
+  const chart = (
+    <ResponsiveContainer width="100%" height={260}>
+      <AreaChart data={data}>
+        <defs>
+          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor={color} stopOpacity={0.15} />
+            <stop offset="95%" stopColor={color} stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid strokeDasharray="3 3" stroke="#e8e3ed" vertical={false} />
+        <XAxis
+          dataKey="date"
+          tickFormatter={formatAxis}
+          stroke="#6b6560"
+          fontSize={12}
+          tickLine={false}
+          axisLine={false}
+        />
+        <YAxis stroke="#6b6560" fontSize={12} tickLine={false} axisLine={false} width={40} />
+        <Tooltip
+          contentStyle={{
+            backgroundColor: '#fff',
+            border: '1px solid #e8e3ed',
+            borderRadius: '8px',
+            fontSize: '13px',
+            boxShadow: '0 4px 8px rgba(0,0,0,0.06)',
+          }}
+          labelFormatter={formatTooltip}
+        />
+        <Area
+          type="monotone"
+          dataKey={metric}
+          stroke={color}
+          strokeWidth={2}
+          fillOpacity={1}
+          fill={`url(#${gradientId})`}
+        />
+      </AreaChart>
+    </ResponsiveContainer>
+  );
+
+  if (bare) return chart;
+
   return (
     <div className="rounded-2xl border border-[#e8e3ed]/80 bg-white p-5">
       <h3 className="mb-4 text-[15px] font-semibold text-[#2D3436]">
         {metric === 'visitors' ? 'Visitors' : metric === 'pageviews' ? 'Pageviews' : 'Sessions'}
       </h3>
-      <ResponsiveContainer width="100%" height={260}>
-        <AreaChart data={data}>
-          <defs>
-            <linearGradient id="colorMetric" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#9b72cf" stopOpacity={0.15} />
-              <stop offset="95%" stopColor="#9b72cf" stopOpacity={0} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e8e3ed" vertical={false} />
-          <XAxis
-            dataKey="date"
-            tickFormatter={formatAxis}
-            stroke="#6b6560"
-            fontSize={12}
-            tickLine={false}
-            axisLine={false}
-          />
-          <YAxis stroke="#6b6560" fontSize={12} tickLine={false} axisLine={false} width={40} />
-          <Tooltip
-            contentStyle={{
-              backgroundColor: '#fff',
-              border: '1px solid #e8e3ed',
-              borderRadius: '8px',
-              fontSize: '13px',
-              boxShadow: '0 4px 8px rgba(0,0,0,0.06)',
-            }}
-            labelFormatter={formatTooltip}
-          />
-          <Area
-            type="monotone"
-            dataKey={metric}
-            stroke="#9b72cf"
-            strokeWidth={2}
-            fillOpacity={1}
-            fill="url(#colorMetric)"
-          />
-        </AreaChart>
-      </ResponsiveContainer>
+      {chart}
     </div>
   );
 }

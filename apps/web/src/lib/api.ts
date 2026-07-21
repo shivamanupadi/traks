@@ -53,6 +53,15 @@ export const api = {
     return res.json();
   },
 
+  async deleteSite(siteId: string, token: string): Promise<any> {
+    const res = await client.api.sites[':id'].$delete(
+      { param: { id: siteId } },
+      authHeaders(token)
+    );
+    await assertOk(res);
+    return res.json();
+  },
+
   async togglePublic(siteId: string, enabled: boolean, token: string): Promise<any> {
     const res = await client.api.sites[':id'].public.$post(
       { param: { id: siteId }, json: { enabled } },
@@ -121,6 +130,20 @@ export const api = {
   async getTopReferrers(siteId: string, period: Period, token: string): Promise<any> {
     const res = await client.api.analytics[':siteId'].stats.referrers.$get(
       { param: { siteId }, query: { period } },
+      authHeaders(token)
+    );
+    await assertOk(res);
+    return res.json();
+  },
+
+  async getUtm(
+    siteId: string,
+    period: Period,
+    type: 'source' | 'medium' | 'campaign',
+    token: string
+  ): Promise<any> {
+    const res = await client.api.analytics[':siteId'].stats.utm.$get(
+      { param: { siteId }, query: { period, type } },
       authHeaders(token)
     );
     await assertOk(res);

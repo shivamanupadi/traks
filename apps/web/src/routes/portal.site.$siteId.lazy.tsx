@@ -2,8 +2,20 @@ import { useState, useEffect, useCallback, useRef, type ReactElement } from 'rea
 import { createLazyFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useAuth } from '@clerk/clerk-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, RefreshCw, Settings, Code2, Copy, Check, Zap } from 'lucide-react';
-import type { Period } from '@traks/shared';
+import {
+  ArrowLeft,
+  ArrowUpRight,
+  ArrowDownRight,
+  RefreshCw,
+  Settings,
+  Code2,
+  Copy,
+  Check,
+  Zap,
+  Trash2,
+} from 'lucide-react';
+import type { Period, MainStats } from '@traks/shared';
+import { cn, formatNumber, formatPercentChange } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -15,9 +27,8 @@ import {
   DialogBody,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { StatsCards } from '@/components/analytics/StatsCards';
 import { TimeseriesChart } from '@/components/analytics/TimeseriesChart';
-import { TopList } from '@/components/analytics/TopList';
+import { PanelCard } from '@/components/analytics/PanelCard';
 import { PeriodPicker } from '@/components/layout/PeriodPicker';
 import { api } from '@/lib/api';
 
@@ -200,6 +211,7 @@ function EditSiteModal({
   siteId: string;
 }): ReactElement {
   const { getToken } = useAuth();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [name, setName] = useState('');
   const [domain, setDomain] = useState('');
@@ -207,6 +219,7 @@ function EditSiteModal({
   const [exportEnabled, setExportEnabled] = useState(false);
   const [exportToken, setExportToken] = useState<string | null>(null);
   const [publicEnabled, setPublicEnabled] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
   useEffect(() => {
     if (open && site) {
@@ -216,6 +229,7 @@ function EditSiteModal({
       setExportToken(site.exportToken ?? null);
       setPublicEnabled(site.public ?? false);
       setError('');
+      setDeleteConfirm(null);
     }
   }, [open, site]);
 
@@ -266,7 +280,25 @@ function EditSiteModal({
     },
   });
 
+  const deleteSite = useMutation({
+    mutationFn: async () => {
+      const token = await getToken();
+      if (!token) throw new Error('Not authenticated');
+      return api.deleteSite(siteId, token);
+    },
+    onSuccess: () => {
+      queryClient.removeQueries({ queryKey: ['site', siteId] });
+      queryClient.removeQueries({ queryKey: ['site-analytics', siteId] });
+      queryClient.invalidateQueries({ queryKey: ['sites'] });
+      onOpenChange(false);
+      navigate({ to: '/portal/sites' });
+    },
+    onError: (err: Error) => setError(err.message),
+  });
+
   const canSave = name.trim().length > 0 && domain.trim().length > 0;
+  const deleteArmed = deleteConfirm !== null;
+  const canDelete = site !== null && deleteConfirm === site.domain;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -370,6 +402,64 @@ function EditSiteModal({
               )}
             </div>
 
+            {/* Danger zone */}
+            <div className="border-t border-[#e07a5f]/20 pt-5">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-[13px] font-medium text-[#e07a5f]">Delete this site</p>
+                  <p className="mt-0.5 text-[12px] text-[#9B9590]">
+                    Permanently removes the site, its tracking keys and all collected analytics
+                    data. This cannot be undone.
+                  </p>
+                </div>
+                {!deleteArmed && (
+                  <Button
+                    variant="ghost"
+                    onClick={() => setDeleteConfirm('')}
+                    className="shrink-0 rounded-xl text-[13px] text-[#e07a5f] hover:bg-[#e07a5f]/10 hover:text-[#e07a5f] cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Delete
+                  </Button>
+                )}
+              </div>
+              {deleteArmed && (
+                <div className="mt-3 rounded-xl border border-[#e07a5f]/25 bg-[#e07a5f]/[0.04] p-4">
+                  <p className="text-[12px] text-[#2D3436]">
+                    Type <span className="font-semibold select-all">{site?.domain}</span> to
+                    confirm:
+                  </p>
+                  <Input
+                    placeholder={site?.domain}
+                    value={deleteConfirm ?? ''}
+                    onChange={e => setDeleteConfirm(e.target.value)}
+                    className="mt-2 rounded-xl h-10 border-[#e07a5f]/30 focus:border-[#e07a5f]/60 px-4 text-[14px]"
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && canDelete) deleteSite.mutate();
+                    }}
+                  />
+                  <div className="mt-3 flex justify-end gap-2">
+                    <Button
+                      variant="ghost"
+                      onClick={() => setDeleteConfirm(null)}
+                      className="rounded-xl text-[13px] cursor-pointer"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={() => deleteSite.mutate()}
+                      disabled={!canDelete}
+                      isLoading={deleteSite.isPending}
+                      className="bg-[#e07a5f] hover:bg-[#d06a4f] text-white rounded-xl text-[13px] px-4 cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Delete forever
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {error && <p className="text-[13px] text-[#e07a5f]">{error}</p>}
           </div>
         </DialogBody>
@@ -396,6 +486,179 @@ function EditSiteModal({
   );
 }
 
+type ChartMetric = 'visitors' | 'pageviews' | 'sessions';
+
+const METRIC_COLORS: Record<ChartMetric, string> = {
+  visitors: '#9b72cf',
+  pageviews: '#e07a5f',
+  sessions: '#5b9a6f',
+};
+
+function MetricTile({
+  label,
+  value,
+  change,
+  active,
+  color,
+  onClick,
+  higherIsWorse,
+}: {
+  label: string;
+  value: string;
+  change: number | null;
+  active?: boolean;
+  color?: string;
+  onClick?: () => void;
+  higherIsWorse?: boolean;
+}): ReactElement {
+  const delta = change === null ? null : formatPercentChange(change);
+  const isGood = delta ? (higherIsWorse ? !delta.isPositive : delta.isPositive) : true;
+
+  return (
+    <button
+      onClick={onClick}
+      disabled={!onClick}
+      className={cn(
+        'group relative flex flex-col items-start gap-1 rounded-xl px-4 py-3 text-left transition-colors',
+        onClick && 'cursor-pointer hover:bg-[#f3f0f7]/60',
+        active && 'bg-[#f3f0f7]/60'
+      )}
+    >
+      <span className="text-[11px] font-semibold uppercase tracking-wider text-[#9B9590]">
+        {label}
+      </span>
+      <span className="text-[24px] font-bold leading-none tracking-tight text-[#2D3436]">
+        {value}
+      </span>
+      {delta && (
+        <span
+          className={cn(
+            'flex items-center gap-0.5 text-[11px] font-semibold',
+            isGood ? 'text-[#5b9a6f]' : 'text-[#e07a5f]'
+          )}
+        >
+          {delta.isPositive ? (
+            <ArrowUpRight className="h-3 w-3" strokeWidth={2.5} />
+          ) : (
+            <ArrowDownRight className="h-3 w-3" strokeWidth={2.5} />
+          )}
+          {delta.text}
+        </span>
+      )}
+      {/* Active underline */}
+      <span
+        className={cn(
+          'absolute inset-x-4 bottom-0 h-[3px] rounded-full transition-opacity',
+          active ? 'opacity-100' : 'opacity-0'
+        )}
+        style={{ backgroundColor: color }}
+      />
+    </button>
+  );
+}
+
+function ChartCard({
+  stats,
+  statsLoading,
+  statsError,
+  timeseries,
+  timeseriesLoading,
+  timeseriesError,
+  metric,
+  onMetricChange,
+}: {
+  stats: MainStats | undefined;
+  statsLoading: boolean;
+  statsError: boolean;
+  timeseries: any;
+  timeseriesLoading: boolean;
+  timeseriesError: boolean;
+  metric: ChartMetric;
+  onMetricChange: (m: ChartMetric) => void;
+}): ReactElement {
+  const viewsPerVisit =
+    stats && stats.sessions > 0 ? (stats.pageviews / stats.sessions).toFixed(2) : '0';
+
+  return (
+    <div className="rounded-2xl border border-[#e8e3ed]/80 bg-white p-5">
+      {/* Metric tiles row */}
+      {statsError ? (
+        <p className="px-2 pb-4 text-[13px] text-[#e07a5f]">Failed to load stats</p>
+      ) : statsLoading || !stats ? (
+        <div className="flex flex-wrap gap-4 border-b border-[#e8e3ed]/60 px-2 pb-4">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="flex flex-col gap-2 px-4 py-3">
+              <div className="h-3 w-20 animate-pulse rounded bg-[#f3f0f7]" />
+              <div className="h-6 w-14 animate-pulse rounded bg-[#f3f0f7]" />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-stretch gap-1 border-b border-[#e8e3ed]/60 pb-4">
+          <MetricTile
+            label="Unique Visitors"
+            value={formatNumber(stats.visitors)}
+            change={stats.visitorsChange}
+            active={metric === 'visitors'}
+            color={METRIC_COLORS.visitors}
+            onClick={() => onMetricChange('visitors')}
+          />
+          <MetricTile
+            label="Total Pageviews"
+            value={formatNumber(stats.pageviews)}
+            change={stats.pageviewsChange}
+            active={metric === 'pageviews'}
+            color={METRIC_COLORS.pageviews}
+            onClick={() => onMetricChange('pageviews')}
+          />
+          <MetricTile
+            label="Visits"
+            value={formatNumber(stats.sessions)}
+            change={stats.sessionsChange}
+            active={metric === 'sessions'}
+            color={METRIC_COLORS.sessions}
+            onClick={() => onMetricChange('sessions')}
+          />
+          <MetricTile label="Views / Visit" value={viewsPerVisit} change={null} />
+          <MetricTile
+            label="Bounce Rate"
+            value={`${stats.bounceRate}%`}
+            change={stats.bounceRateChange}
+            higherIsWorse
+          />
+        </div>
+      )}
+
+      {/* Chart */}
+      <div className="pt-4">
+        <TimeseriesChart
+          data={timeseries}
+          isLoading={timeseriesLoading}
+          isError={timeseriesError}
+          metric={metric}
+          color={METRIC_COLORS[metric]}
+          bare
+        />
+      </div>
+    </div>
+  );
+}
+
+function LiveVisitorsPill({ count }: { count: number | null }): ReactElement | null {
+  if (count === null) return null;
+  return (
+    <div className="flex items-center gap-2 rounded-full bg-[#5b9a6f]/8 px-3 py-1.5">
+      <span className="relative flex h-2 w-2">
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#5b9a6f] opacity-60" />
+        <span className="relative inline-flex h-2 w-2 rounded-full bg-[#5b9a6f]" />
+      </span>
+      <span className="text-[12px] font-medium text-[#5b9a6f]">
+        {count} current visitor{count === 1 ? '' : 's'}
+      </span>
+    </div>
+  );
+}
+
 function SiteAnalyticsPage(): ReactElement {
   const { siteId } = Route.useParams();
   const { period: searchPeriod } = Route.useSearch();
@@ -417,6 +680,12 @@ function SiteAnalyticsPage(): ReactElement {
   const [refreshing, setRefreshing] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [installOpen, setInstallOpen] = useState(false);
+  const [chartMetric, setChartMetric] = useState<ChartMetric>('visitors');
+
+  // Per-panel tab state
+  const [sourceTab, setSourceTab] = useState('referrers');
+  const [locationTab, setLocationTab] = useState('country');
+  const [deviceTab, setDeviceTab] = useState('browser');
 
   // Lazy-render sentinels for below-fold sections
   const [belowFoldRef, belowFoldVisible] = useLazyVisible();
@@ -439,14 +708,12 @@ function SiteAnalyticsPage(): ReactElement {
   });
 
   // Per-tile parallel queries — each tile renders as its own request resolves.
-  // Trades one HTTP call for 7 parallel calls; progressive render beats
-  // waiting for the slowest to finish before showing anything.
-  //
-  // `tileOpts` is a plain helper returning a query-options object — useQuery
-  // is still called at the component top level, which keeps React's rules-of-hooks happy.
+  // Tabbed panels pass `enabled` so only the active tab's query runs (each
+  // R2 SQL query is a paid distributed scan; don't fetch hidden tabs).
   const tileOpts = (
     key: readonly unknown[],
-    call: (token: string) => Promise<unknown>
+    call: (token: string) => Promise<unknown>,
+    enabled = true
   ): Parameters<typeof useQuery>[0] => ({
     queryKey: ['site-analytics', siteId, ...key, period],
     queryFn: async () => {
@@ -456,27 +723,119 @@ function SiteAnalyticsPage(): ReactElement {
     },
     refetchInterval: getRefetchInterval(period),
     staleTime: getStaleTime(period),
+    enabled,
   });
 
   const mainQ = useQuery(tileOpts(['main'], t => api.getMainStats(siteId, period, t)));
   const timeseriesQ = useQuery(tileOpts(['timeseries'], t => api.getTimeseries(siteId, period, t)));
   const pagesQ = useQuery(tileOpts(['pages'], t => api.getTopPages(siteId, period, t)));
-  const referrersQ = useQuery(tileOpts(['referrers'], t => api.getTopReferrers(siteId, period, t)));
-  const locationsQ = useQuery(
-    tileOpts(['locations', 'country'], t => api.getLocations(siteId, period, 'country', t))
+
+  // Sources panel: referrers or one of the UTM dimensions
+  const referrersQ = useQuery(
+    tileOpts(['referrers'], t => api.getTopReferrers(siteId, period, t), sourceTab === 'referrers')
+  );
+  const utmSourceQ = useQuery(
+    tileOpts(
+      ['utm', 'source'],
+      t => api.getUtm(siteId, period, 'source', t),
+      sourceTab === 'utm_source'
+    )
+  );
+  const utmMediumQ = useQuery(
+    tileOpts(
+      ['utm', 'medium'],
+      t => api.getUtm(siteId, period, 'medium', t),
+      sourceTab === 'utm_medium'
+    )
+  );
+  const utmCampaignQ = useQuery(
+    tileOpts(
+      ['utm', 'campaign'],
+      t => api.getUtm(siteId, period, 'campaign', t),
+      sourceTab === 'utm_campaign'
+    )
+  );
+
+  // Below-fold panels
+  const countriesQ = useQuery(
+    tileOpts(
+      ['locations', 'country'],
+      t => api.getLocations(siteId, period, 'country', t),
+      belowFoldVisible && locationTab === 'country'
+    )
+  );
+  const citiesQ = useQuery(
+    tileOpts(
+      ['locations', 'city'],
+      t => api.getLocations(siteId, period, 'city', t),
+      belowFoldVisible && locationTab === 'city'
+    )
   );
   const browsersQ = useQuery(
-    tileOpts(['devices', 'browser'], t => api.getDevices(siteId, period, 'browser', t))
+    tileOpts(
+      ['devices', 'browser'],
+      t => api.getDevices(siteId, period, 'browser', t),
+      belowFoldVisible && deviceTab === 'browser'
+    )
   );
-  const osQ = useQuery(tileOpts(['devices', 'os'], t => api.getDevices(siteId, period, 'os', t)));
+  const osQ = useQuery(
+    tileOpts(
+      ['devices', 'os'],
+      t => api.getDevices(siteId, period, 'os', t),
+      belowFoldVisible && deviceTab === 'os'
+    )
+  );
+  const deviceTypeQ = useQuery(
+    tileOpts(
+      ['devices', 'device'],
+      t => api.getDevices(siteId, period, 'device', t),
+      belowFoldVisible && deviceTab === 'device'
+    )
+  );
+  const eventsQ = useQuery(
+    tileOpts(['events'], t => api.getEvents(siteId, period, t), belowFoldVisible)
+  );
+
+  // Live visitor count (last 5 min, straight from the site's DO)
+  const realtimeQ = useQuery({
+    queryKey: ['site-analytics', siteId, 'realtime'],
+    queryFn: async () => {
+      const token = await getToken();
+      if (!token) throw new Error('Not authenticated');
+      return api.getRealtime(siteId, token);
+    },
+    refetchInterval: 30_000,
+    staleTime: 15_000,
+  });
 
   const site = (siteData as any)?.data;
+  const currentVisitors: number | null = (realtimeQ.data as any)?.data?.currentVisitors ?? null;
+
+  const sourceQueries: Record<string, typeof referrersQ> = {
+    referrers: referrersQ,
+    utm_source: utmSourceQ,
+    utm_medium: utmMediumQ,
+    utm_campaign: utmCampaignQ,
+  };
+  const sourceQ = sourceQueries[sourceTab];
+
+  const locationQ = locationTab === 'country' ? countriesQ : citiesQ;
+  const deviceQueries: Record<string, typeof browsersQ> = {
+    browser: browsersQ,
+    os: osQ,
+    device: deviceTypeQ,
+  };
+  const deviceQ = deviceQueries[deviceTab];
+
+  const events = (eventsQ.data as any)?.data as
+    | { name: string; count: number; totalValue: number }[]
+    | undefined;
 
   return (
     <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <Link
               to="/portal/sites"
@@ -490,6 +849,7 @@ function SiteAnalyticsPage(): ReactElement {
               </h1>
               {site?.domain && <p className="text-[13px] text-[#9B9590]">{site.domain}</p>}
             </div>
+            <LiveVisitorsPill count={currentVisitors} />
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -519,34 +879,42 @@ function SiteAnalyticsPage(): ReactElement {
           </div>
         </div>
 
-        {/* Stats cards */}
-        <StatsCards
+        {/* Main chart card: metric tiles + timeseries */}
+        <ChartCard
           stats={(mainQ.data as any)?.data}
-          isLoading={mainQ.isLoading}
-          isError={mainQ.isError}
+          statsLoading={mainQ.isLoading}
+          statsError={mainQ.isError}
+          timeseries={(timeseriesQ.data as any)?.data}
+          timeseriesLoading={timeseriesQ.isLoading}
+          timeseriesError={timeseriesQ.isError}
+          metric={chartMetric}
+          onMetricChange={setChartMetric}
         />
 
-        {/* Timeseries chart */}
-        <TimeseriesChart
-          data={(timeseriesQ.data as any)?.data}
-          isLoading={timeseriesQ.isLoading}
-          isError={timeseriesQ.isError}
-        />
-
-        {/* Two-column: Pages + Referrers */}
+        {/* Sources + Pages */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <TopList
+          <PanelCard
+            title="Top Sources"
+            labelHeader="Source"
+            items={(sourceQ.data as any)?.data}
+            isLoading={sourceQ.isLoading}
+            isError={sourceQ.isError}
+            tabs={[
+              { key: 'referrers', label: 'Referrers' },
+              { key: 'utm_source', label: 'UTM Source' },
+              { key: 'utm_medium', label: 'Medium' },
+              { key: 'utm_campaign', label: 'Campaign' },
+            ]}
+            activeTab={sourceTab}
+            onTabChange={setSourceTab}
+          />
+          <PanelCard
             title="Top Pages"
+            labelHeader="Page"
             items={(pagesQ.data as any)?.data}
             isLoading={pagesQ.isLoading}
             isError={pagesQ.isError}
             showPageviews
-          />
-          <TopList
-            title="Top Referrers"
-            items={(referrersQ.data as any)?.data}
-            isLoading={referrersQ.isLoading}
-            isError={referrersQ.isError}
           />
         </div>
 
@@ -554,31 +922,51 @@ function SiteAnalyticsPage(): ReactElement {
         <div ref={belowFoldRef} />
         {belowFoldVisible && (
           <>
-            {/* Locations + Browsers */}
+            {/* Locations + Devices */}
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-              <TopList
-                title="Countries"
-                items={(locationsQ.data as any)?.data}
-                isLoading={locationsQ.isLoading}
-                isError={locationsQ.isError}
+              <PanelCard
+                title="Locations"
+                labelHeader={locationTab === 'country' ? 'Country' : 'City'}
+                items={(locationQ.data as any)?.data}
+                isLoading={locationQ.isLoading}
+                isError={locationQ.isError}
+                tabs={[
+                  { key: 'country', label: 'Countries' },
+                  { key: 'city', label: 'Cities' },
+                ]}
+                activeTab={locationTab}
+                onTabChange={setLocationTab}
               />
-              <TopList
-                title="Browsers"
-                items={(browsersQ.data as any)?.data}
-                isLoading={browsersQ.isLoading}
-                isError={browsersQ.isError}
+              <PanelCard
+                title="Devices"
+                labelHeader={
+                  deviceTab === 'browser' ? 'Browser' : deviceTab === 'os' ? 'OS' : 'Device'
+                }
+                items={(deviceQ.data as any)?.data}
+                isLoading={deviceQ.isLoading}
+                isError={deviceQ.isError}
+                showPercentage
+                tabs={[
+                  { key: 'browser', label: 'Browser' },
+                  { key: 'os', label: 'OS' },
+                  { key: 'device', label: 'Device' },
+                ]}
+                activeTab={deviceTab}
+                onTabChange={setDeviceTab}
               />
             </div>
 
-            {/* OS */}
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-              <TopList
-                title="Operating Systems"
-                items={(osQ.data as any)?.data}
-                isLoading={osQ.isLoading}
-                isError={osQ.isError}
-              />
-            </div>
+            {/* Custom events */}
+            <PanelCard
+              title="Custom Events"
+              labelHeader="Event"
+              valueHeader="Count"
+              items={events?.map(e => ({ name: e.name, visitors: e.count }))}
+              isLoading={eventsQ.isLoading}
+              isError={eventsQ.isError}
+              emptyText="No custom events yet"
+              className="min-h-0"
+            />
           </>
         )}
       </div>

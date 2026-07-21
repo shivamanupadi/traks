@@ -1,0 +1,1 @@
+ALTER TABLE `users` ADD `daily_report` integer DEFAULT false NOT NULL;

@@ -39,6 +39,7 @@ name = "EMAIL"
 crons = [
   "30 3 * * *",   # nightly raw-data exports
   "0 8 * * 1",    # Monday weekly email digest
+  "0 4 * * *",    # daily email digest (yesterday's numbers)
   "*/30 * * * *", # pipeline freshness healthcheck
 ]
 
@@ -82,7 +83,7 @@ bucket_name = "traks-exports"
 name = "EMAIL"
 
 [env.production.triggers]
-crons = ["30 3 * * *", "0 8 * * 1", "*/30 * * * *"]
+crons = ["30 3 * * *", "0 8 * * 1", "0 4 * * *", "*/30 * * * *"]
 
 [env.production.vars]
 ENVIRONMENT = "production"

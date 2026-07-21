@@ -9,7 +9,7 @@ import { publicRoute } from './routes/public';
 import { accountRoute } from './routes/account';
 import { clerkWebhookRoute } from './routes/webhooks';
 import { runNightlyExports } from './lib/exports';
-import { runWeeklyDigest, runFreshnessCheck } from './lib/ops';
+import { runDigest, runFreshnessCheck } from './lib/ops';
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -58,7 +58,10 @@ export default {
         ctx.waitUntil(runNightlyExports(env));
         break;
       case '0 8 * * 1': // Monday weekly email digest
-        ctx.waitUntil(runWeeklyDigest(env));
+        ctx.waitUntil(runDigest(env, 'weekly'));
+        break;
+      case '0 4 * * *': // daily email digest (yesterday's numbers)
+        ctx.waitUntil(runDigest(env, 'daily'));
         break;
       case '*/30 * * * *': // pipeline freshness healthcheck
         ctx.waitUntil(runFreshnessCheck(env));

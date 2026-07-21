@@ -191,11 +191,11 @@ export const api = {
     return res.json();
   },
 
-  async setPreferences(weeklyReport: boolean, token: string): Promise<any> {
-    const res = await client.api.account.preferences.$post(
-      { json: { weeklyReport } },
-      authHeaders(token)
-    );
+  async setPreferences(
+    prefs: { weeklyReport?: boolean; dailyReport?: boolean },
+    token: string
+  ): Promise<any> {
+    const res = await client.api.account.preferences.$post({ json: prefs }, authHeaders(token));
     await assertOk(res);
     return res.json();
   },

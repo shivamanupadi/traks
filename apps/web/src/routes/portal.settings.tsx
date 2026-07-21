@@ -12,6 +12,51 @@ export const Route = createFileRoute('/portal/settings')({
   component: SettingsPage,
 });
 
+function NotificationToggle({
+  title,
+  description,
+  enabled,
+  pending,
+  onToggle,
+}: {
+  title: string;
+  description: string;
+  enabled: boolean;
+  pending: boolean;
+  onToggle: () => void;
+}): ReactElement {
+  return (
+    <div className="flex items-center justify-between p-5">
+      <div className="flex items-center gap-3">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#5b9a6f]/10">
+          <Mail className="h-4 w-4 text-[#5b9a6f]" strokeWidth={1.8} />
+        </div>
+        <div>
+          <p className="text-[13px] font-medium text-[#2D3436]">{title}</p>
+          <p className="text-[12px] text-[#9B9590]">{description}</p>
+        </div>
+      </div>
+      <button
+        onClick={onToggle}
+        disabled={pending}
+        className={cn(
+          'relative inline-flex h-6 w-10 shrink-0 items-center rounded-full transition-colors cursor-pointer',
+          enabled ? 'bg-[#5b9a6f]' : 'bg-[#e8e3ed]'
+        )}
+        role="switch"
+        aria-checked={enabled}
+      >
+        <span
+          className={cn(
+            'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
+            enabled ? 'translate-x-5' : 'translate-x-1'
+          )}
+        />
+      </button>
+    </div>
+  );
+}
+
 function SettingsPage(): ReactElement {
   const { getToken } = useAuth();
   const queryClient = useQueryClient();
@@ -68,12 +113,13 @@ function SettingsPage(): ReactElement {
   });
 
   const weeklyReport = (accountData as any)?.data?.weeklyReport ?? true;
+  const dailyReport = (accountData as any)?.data?.dailyReport ?? false;
 
   const setPrefs = useMutation({
-    mutationFn: async (enabled: boolean) => {
+    mutationFn: async (prefs: { weeklyReport?: boolean; dailyReport?: boolean }) => {
       const token = await getToken();
       if (!token) throw new Error('Not authenticated');
-      return api.setPreferences(enabled, token);
+      return api.setPreferences(prefs, token);
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['account'] }),
   });
@@ -138,35 +184,21 @@ function SettingsPage(): ReactElement {
       {/* Notifications */}
       <section>
         <h2 className="mb-3 text-[15px] font-semibold text-[#2D3436]">Notifications</h2>
-        <div className="flex items-center justify-between rounded-2xl border border-[#e8e3ed]/80 bg-white p-5">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#5b9a6f]/10">
-              <Mail className="h-4 w-4 text-[#5b9a6f]" strokeWidth={1.8} />
-            </div>
-            <div>
-              <p className="text-[13px] font-medium text-[#2D3436]">Weekly email report</p>
-              <p className="text-[12px] text-[#9B9590]">
-                A Monday digest of visitors and pageviews across your sites.
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={() => setPrefs.mutate(!weeklyReport)}
-            disabled={setPrefs.isPending}
-            className={cn(
-              'relative inline-flex h-6 w-10 shrink-0 items-center rounded-full transition-colors cursor-pointer',
-              weeklyReport ? 'bg-[#5b9a6f]' : 'bg-[#e8e3ed]'
-            )}
-            role="switch"
-            aria-checked={weeklyReport}
-          >
-            <span
-              className={cn(
-                'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
-                weeklyReport ? 'translate-x-5' : 'translate-x-1'
-              )}
-            />
-          </button>
+        <div className="divide-y divide-[#e8e3ed]/60 rounded-2xl border border-[#e8e3ed]/80 bg-white">
+          <NotificationToggle
+            title="Daily email report"
+            description="Yesterday's visitors and pageviews across your sites, every morning."
+            enabled={dailyReport}
+            pending={setPrefs.isPending}
+            onToggle={() => setPrefs.mutate({ dailyReport: !dailyReport })}
+          />
+          <NotificationToggle
+            title="Weekly email report"
+            description="A Monday digest of visitors and pageviews across your sites."
+            enabled={weeklyReport}
+            pending={setPrefs.isPending}
+            onToggle={() => setPrefs.mutate({ weeklyReport: !weeklyReport })}
+          />
         </div>
       </section>
     </main>

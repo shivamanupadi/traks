@@ -43,6 +43,13 @@
       "when": 1783551294773,
       "tag": "0005_billing_ops",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1784652226244,
+      "tag": "0006_daily_report",
+      "breakpoints": true
     }
   ]
 }

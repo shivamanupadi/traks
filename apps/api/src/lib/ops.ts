@@ -6,6 +6,7 @@ import {
   queryR2Sql,
   resolvePeriod,
   buildStatsWithComparisonQuery,
+  type PeriodRange,
 } from '@traks/shared';
 import { users, sites, apiKeys, opsState } from '../db/schema';
 import type { Bindings } from '../types';
@@ -94,7 +95,7 @@ export async function runFreshnessCheck(env: Bindings): Promise<void> {
   }
 }
 
-// ============ Weekly email digest (Monday 08:00 UTC cron) ============
+// ============ Email digests (daily + weekly crons) ============
 
 const fmt = (n: number): string => new Intl.NumberFormat('en-US').format(n);
 const arrow = (change: number): string =>
@@ -108,7 +109,20 @@ interface DigestRow {
   visitorsChange: number;
 }
 
-function digestHtml(rows: DigestRow[], appUrl: string): string {
+export type DigestKind = 'daily' | 'weekly';
+
+/**
+ * Yesterday as a full local day in the site's timezone. Derived from the
+ * start of "today"; the fixed 24h subtraction can be off by an hour across
+ * a DST transition, which is acceptable for an email digest.
+ */
+function yesterdayRange(now: Date, timezone: string): PeriodRange {
+  const today = resolvePeriod('today', now, timezone);
+  const from = new Date(Date.parse(today.from) - 24 * 3600 * 1000).toISOString();
+  return { from, to: today.from, granularity: 'day', buckets: [] };
+}
+
+function digestHtml(rows: DigestRow[], appUrl: string, kind: DigestKind): string {
   const items = rows
     .map(
       r => `<tr>
@@ -122,7 +136,7 @@ function digestHtml(rows: DigestRow[], appUrl: string): string {
     )
     .join('');
   return `<div style="font-family:system-ui,sans-serif;max-width:560px;margin:0 auto;">
-    <h2 style="color:#2D3436;">Your week in numbers</h2>
+    <h2 style="color:#2D3436;">${kind === 'weekly' ? 'Your week in numbers' : 'Yesterday in numbers'}</h2>
     <table style="width:100%;border-collapse:collapse;font-size:14px;color:#2D3436;">
       <tr>
         <th style="text-align:left;padding:8px 12px;color:#888;font-weight:500;">Site</th>
@@ -137,16 +151,17 @@ function digestHtml(rows: DigestRow[], appUrl: string): string {
   </div>`;
 }
 
-export async function runWeeklyDigest(env: Bindings): Promise<void> {
+export async function runDigest(env: Bindings, kind: DigestKind): Promise<void> {
   const db = drizzle(env.DB);
   const config = r2SqlConfig(env);
   const now = new Date();
 
-  // Users who opted in and have a real (Clerk-synced) email.
+  // Users who opted in (per digest kind) and have a real (Clerk-synced) email.
+  const optIn = kind === 'weekly' ? users.weeklyReport : users.dailyReport;
   const recipients = await db
     .select()
     .from(users)
-    .where(and(eq(users.weeklyReport, true), notLike(users.email, '%@clerk.user')));
+    .where(and(eq(optIn, true), notLike(users.email, '%@clerk.user')));
 
   for (const user of recipients) {
     try {
@@ -164,7 +179,10 @@ export async function runWeeklyDigest(env: Bindings): Promise<void> {
 
       const rows: DigestRow[] = [];
       for (const site of userSites) {
-        const range = resolvePeriod('7d', now, site.timezone);
+        const range =
+          kind === 'weekly'
+            ? resolvePeriod('7d', now, site.timezone)
+            : yesterdayRange(now, site.timezone);
         const stats = await queryR2Sql<{
           period: string;
           visitors: unknown;
@@ -188,7 +206,12 @@ export async function runWeeklyDigest(env: Bindings): Promise<void> {
         });
       }
 
-      await sendEmail(env, user.email, 'Your weekly Traks report', digestHtml(rows, env.APP_URL));
+      await sendEmail(
+        env,
+        user.email,
+        kind === 'weekly' ? 'Your weekly Traks report' : 'Your daily Traks report',
+        digestHtml(rows, env.APP_URL, kind)
+      );
     } catch (err) {
       console.error(`[digest] user ${user.id} failed:`, err);
     }

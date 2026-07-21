@@ -4,6 +4,8 @@ export type Bindings = {
   LIVE: DurableObjectNamespace;
   /** Bucket holding nightly per-site raw-data exports (NDJSON). */
   EXPORTS: R2Bucket;
+  /** Global (cross-colo) result cache for R2 SQL dashboard queries. */
+  R2SQL_CACHE: KVNamespace;
   /** Transactional email (Cloudflare Email Service, open beta). */
   EMAIL: {
     send: (msg: {

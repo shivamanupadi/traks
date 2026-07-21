@@ -27,6 +27,13 @@ type = "ratelimit"
 namespace_id = "1002"
 simple = { limit = 6000, period = 60 }
 
+# Ingest failure counters (live-DO write failures, pipeline send failures),
+# queryable via the Analytics Engine SQL API to spot sites outgrowing their
+# per-site Durable Object before it becomes an outage.
+[[analytics_engine_datasets]]
+binding = "METRICS"
+dataset = "traks_collect_metrics_dev"
+
 # Hot-path live stats: one SQLite-backed Durable Object per site, written at
 # ingest, read by the api worker for "today"/realtime dashboards.
 [[migrations]]
@@ -72,6 +79,10 @@ name = "RATE_LIMIT_PAID"
 type = "ratelimit"
 namespace_id = "1004"
 simple = { limit = 6000, period = 60 }
+
+[[env.production.analytics_engine_datasets]]
+binding = "METRICS"
+dataset = "traks_collect_metrics"
 
 [[env.production.durable_objects.bindings]]
 name = "LIVE"

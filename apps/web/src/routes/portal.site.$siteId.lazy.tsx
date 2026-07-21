@@ -211,7 +211,6 @@ function EditSiteModal({
   siteId: string;
 }): ReactElement {
   const { getToken } = useAuth();
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [name, setName] = useState('');
   const [domain, setDomain] = useState('');
@@ -219,7 +218,6 @@ function EditSiteModal({
   const [exportEnabled, setExportEnabled] = useState(false);
   const [exportToken, setExportToken] = useState<string | null>(null);
   const [publicEnabled, setPublicEnabled] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
   useEffect(() => {
     if (open && site) {
@@ -229,7 +227,6 @@ function EditSiteModal({
       setExportToken(site.exportToken ?? null);
       setPublicEnabled(site.public ?? false);
       setError('');
-      setDeleteConfirm(null);
     }
   }, [open, site]);
 
@@ -280,25 +277,7 @@ function EditSiteModal({
     },
   });
 
-  const deleteSite = useMutation({
-    mutationFn: async () => {
-      const token = await getToken();
-      if (!token) throw new Error('Not authenticated');
-      return api.deleteSite(siteId, token);
-    },
-    onSuccess: () => {
-      queryClient.removeQueries({ queryKey: ['site', siteId] });
-      queryClient.removeQueries({ queryKey: ['site-analytics', siteId] });
-      queryClient.invalidateQueries({ queryKey: ['sites'] });
-      onOpenChange(false);
-      navigate({ to: '/portal/sites' });
-    },
-    onError: (err: Error) => setError(err.message),
-  });
-
   const canSave = name.trim().length > 0 && domain.trim().length > 0;
-  const deleteArmed = deleteConfirm !== null;
-  const canDelete = site !== null && deleteConfirm === site.domain;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -402,64 +381,6 @@ function EditSiteModal({
               )}
             </div>
 
-            {/* Danger zone */}
-            <div className="border-t border-[#e07a5f]/20 pt-5">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-[13px] font-medium text-[#e07a5f]">Delete this site</p>
-                  <p className="mt-0.5 text-[12px] text-[#9B9590]">
-                    Permanently removes the site, its tracking keys and all collected analytics
-                    data. This cannot be undone.
-                  </p>
-                </div>
-                {!deleteArmed && (
-                  <Button
-                    variant="ghost"
-                    onClick={() => setDeleteConfirm('')}
-                    className="shrink-0 rounded-xl text-[13px] text-[#e07a5f] hover:bg-[#e07a5f]/10 hover:text-[#e07a5f] cursor-pointer"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    Delete
-                  </Button>
-                )}
-              </div>
-              {deleteArmed && (
-                <div className="mt-3 rounded-xl border border-[#e07a5f]/25 bg-[#e07a5f]/[0.04] p-4">
-                  <p className="text-[12px] text-[#2D3436]">
-                    Type <span className="font-semibold select-all">{site?.domain}</span> to
-                    confirm:
-                  </p>
-                  <Input
-                    placeholder={site?.domain}
-                    value={deleteConfirm ?? ''}
-                    onChange={e => setDeleteConfirm(e.target.value)}
-                    className="mt-2 rounded-xl h-10 border-[#e07a5f]/30 focus:border-[#e07a5f]/60 px-4 text-[14px]"
-                    onKeyDown={e => {
-                      if (e.key === 'Enter' && canDelete) deleteSite.mutate();
-                    }}
-                  />
-                  <div className="mt-3 flex justify-end gap-2">
-                    <Button
-                      variant="ghost"
-                      onClick={() => setDeleteConfirm(null)}
-                      className="rounded-xl text-[13px] cursor-pointer"
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      onClick={() => deleteSite.mutate()}
-                      disabled={!canDelete}
-                      isLoading={deleteSite.isPending}
-                      className="bg-[#e07a5f] hover:bg-[#d06a4f] text-white rounded-xl text-[13px] px-4 cursor-pointer"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      Delete forever
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-
             {error && <p className="text-[13px] text-[#e07a5f]">{error}</p>}
           </div>
         </DialogBody>
@@ -479,6 +400,107 @@ function EditSiteModal({
             className="bg-[#9b72cf] hover:bg-[#8a63bf] text-white rounded-xl text-[13px] px-5"
           >
             Save changes
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DeleteSiteModal({
+  open,
+  onOpenChange,
+  site,
+  siteId,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  site: { name: string; domain: string } | null;
+  siteId: string;
+}): ReactElement {
+  const { getToken } = useAuth();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [confirmText, setConfirmText] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (open) {
+      setConfirmText('');
+      setError('');
+    }
+  }, [open]);
+
+  const deleteSite = useMutation({
+    mutationFn: async () => {
+      const token = await getToken();
+      if (!token) throw new Error('Not authenticated');
+      return api.deleteSite(siteId, token);
+    },
+    onSuccess: () => {
+      queryClient.removeQueries({ queryKey: ['site', siteId] });
+      queryClient.removeQueries({ queryKey: ['site-analytics', siteId] });
+      queryClient.invalidateQueries({ queryKey: ['sites'] });
+      onOpenChange(false);
+      navigate({ to: '/portal/sites' });
+    },
+    onError: (err: Error) => setError(err.message),
+  });
+
+  const canDelete = site !== null && confirmText === site.domain;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent onClose={() => onOpenChange(false)} className="max-w-md">
+        <DialogHeader>
+          <div className="w-10 h-10 rounded-xl bg-[#e07a5f]/10 flex items-center justify-center mb-3">
+            <Trash2 className="w-5 h-5 text-[#e07a5f]" strokeWidth={1.7} />
+          </div>
+          <DialogTitle>Delete {site?.name || 'this site'}?</DialogTitle>
+          <DialogDescription>
+            This permanently removes the site, its tracking keys and all collected analytics data.
+            This cannot be undone.
+          </DialogDescription>
+        </DialogHeader>
+
+        <DialogBody>
+          <div className="space-y-3">
+            <p className="text-[13px] text-[#2D3436]">
+              Type <span className="font-semibold select-all">{site?.domain}</span> to confirm:
+            </p>
+            <Input
+              placeholder={site?.domain}
+              value={confirmText}
+              onChange={e => {
+                setConfirmText(e.target.value);
+                setError('');
+              }}
+              className="rounded-xl h-11 border-[#e07a5f]/30 focus:border-[#e07a5f]/60 px-4 text-[14px]"
+              autoFocus
+              onKeyDown={e => {
+                if (e.key === 'Enter' && canDelete) deleteSite.mutate();
+              }}
+            />
+            {error && <p className="text-[13px] text-[#e07a5f]">{error}</p>}
+          </div>
+        </DialogBody>
+
+        <DialogFooter className="border-t border-[#e8e3ed]/50 mx-6 px-0 pb-5 pt-4">
+          <Button
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
+            className="rounded-xl text-[13px] cursor-pointer"
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={() => deleteSite.mutate()}
+            disabled={!canDelete}
+            isLoading={deleteSite.isPending}
+            className="bg-[#e07a5f] hover:bg-[#d06a4f] text-white rounded-xl text-[13px] px-5 cursor-pointer"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Delete forever
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -680,6 +702,7 @@ function SiteAnalyticsPage(): ReactElement {
   const [refreshing, setRefreshing] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [installOpen, setInstallOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [chartMetric, setChartMetric] = useState<ChartMetric>('visitors');
 
   // Per-panel tab state
@@ -876,6 +899,13 @@ function SiteAnalyticsPage(): ReactElement {
               />
             </button>
             <PeriodPicker value={period} onChange={setPeriod} />
+            <button
+              onClick={() => setDeleteOpen(true)}
+              className="flex items-center justify-center w-9 h-9 rounded-xl bg-[#e07a5f]/[0.06] hover:bg-[#e07a5f]/15 transition-colors cursor-pointer"
+              title="Delete site"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-[#e07a5f]" />
+            </button>
           </div>
         </div>
 
@@ -989,6 +1019,13 @@ function SiteAnalyticsPage(): ReactElement {
       />
 
       <InstallModal open={installOpen} onOpenChange={setInstallOpen} site={site} />
+
+      <DeleteSiteModal
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        site={site ? { name: site.name, domain: site.domain } : null}
+        siteId={siteId}
+      />
     </main>
   );
 }

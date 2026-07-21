@@ -17,9 +17,28 @@ type Bindings = {
   DB: D1Database;
   RATE_LIMIT_FREE: { limit: (opts: { key: string }) => Promise<{ success: boolean }> };
   RATE_LIMIT_PAID: { limit: (opts: { key: string }) => Promise<{ success: boolean }> };
+  /** Ingest failure counters (Workers Analytics Engine). */
+  METRICS?: AnalyticsEngineDataset;
   ENVIRONMENT: string;
   VISITOR_HASH_SECRET: string;
 };
+
+/**
+ * Count an ingest failure per site key so capacity problems (e.g. a site
+ * outgrowing its live DO) surface as a queryable trend instead of buried
+ * console noise. Never throws - metrics must not break ingest.
+ */
+function countFailure(env: Bindings, kind: string, siteKey: string): void {
+  try {
+    env.METRICS?.writeDataPoint({
+      blobs: [kind, siteKey],
+      doubles: [1],
+      indexes: [siteKey],
+    });
+  } catch {
+    // Analytics Engine unavailable - nothing to do.
+  }
+}
 
 const app = new Hono<{ Bindings: Bindings }>();
 
@@ -232,6 +251,7 @@ app.post('/api/event', async c => {
     Promise.all([
       c.env.EVENTS.send([record]).catch(err => {
         console.error('Pipeline send failed:', err);
+        countFailure(c.env, 'pipeline_send_failed', event.s);
       }),
       liveStub
         .record({
@@ -262,6 +282,7 @@ app.post('/api/event', async c => {
         })
         .catch(err => {
           console.error('Live store write failed:', err);
+          countFailure(c.env, 'live_write_failed', event.s);
         }),
     ])
   );

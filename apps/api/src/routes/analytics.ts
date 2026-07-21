@@ -117,7 +117,12 @@ async function sha256Hex(text: string): Promise<string> {
   return Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
 }
 
-/** queryR2Sql with a read-through edge cache (per-colo, Workers Cache API). */
+/**
+ * queryR2Sql behind two cache layers: the per-colo Workers Cache API (fastest,
+ * free) and a KV namespace (global — a scan any colo already paid for is
+ * reused worldwide for the TTL). KV reads/writes are wrapped so a KV outage
+ * degrades to the old per-colo behavior instead of failing the request.
+ */
 async function cachedR2Sql<T = Record<string, unknown>>(
   c: AppContext,
   ttlSeconds: number,
@@ -134,17 +139,42 @@ async function cachedR2Sql<T = Record<string, unknown>>(
   const hit = await cache.match(cacheKey);
   if (hit) return (await hit.json()) as T[];
 
+  const kvHit = await c.env.R2SQL_CACHE.get(key, 'text').catch(() => null);
+  if (kvHit !== null) {
+    const rows = JSON.parse(kvHit) as T[];
+    // Backfill the colo cache so subsequent local hits skip KV too.
+    c.executionCtx.waitUntil(
+      cache.put(
+        cacheKey,
+        new Response(kvHit, {
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': `public, max-age=${ttlSeconds}`,
+          },
+        })
+      )
+    );
+    return rows;
+  }
+
   const rows = await queryR2Sql<T>(config, () => sql);
+  const body = JSON.stringify(rows);
   c.executionCtx.waitUntil(
-    cache.put(
-      cacheKey,
-      new Response(JSON.stringify(rows), {
-        headers: {
-          'Content-Type': 'application/json',
-          'Cache-Control': `public, max-age=${ttlSeconds}`,
-        },
-      })
-    )
+    Promise.all([
+      cache.put(
+        cacheKey,
+        new Response(body, {
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': `public, max-age=${ttlSeconds}`,
+          },
+        })
+      ),
+      // KV requires a TTL of at least 60s; every period TTL already is.
+      c.env.R2SQL_CACHE.put(key, body, { expirationTtl: Math.max(60, ttlSeconds) }).catch(err =>
+        console.error('[analytics] KV cache put failed:', err)
+      ),
+    ])
   );
   return rows;
 }

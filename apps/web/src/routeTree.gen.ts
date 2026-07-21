@@ -8,99 +8,101 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-import { Route as rootRouteImport } from './routes/__root';
-import { Route as SignupRouteImport } from './routes/signup';
-import { Route as PortalRouteImport } from './routes/portal';
-import { Route as LoginRouteImport } from './routes/login';
-import { Route as DocsRouteImport } from './routes/docs';
-import { Route as IndexRouteImport } from './routes/index';
-import { Route as ShareSiteIdRouteImport } from './routes/share.$siteId';
-import { Route as PortalSitesRouteImport } from './routes/portal.sites';
-import { Route as PortalSettingsRouteImport } from './routes/portal.settings';
-import { Route as PortalSiteSiteIdRouteImport } from './routes/portal.site.$siteId';
+import { Route as rootRouteImport } from './routes/__root'
+import { Route as SignupRouteImport } from './routes/signup'
+import { Route as PortalRouteImport } from './routes/portal'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as DocsRouteImport } from './routes/docs'
+import { Route as IndexRouteImport } from './routes/index'
+import { Route as ShareSiteIdRouteImport } from './routes/share.$siteId'
+import { Route as PortalSitesRouteImport } from './routes/portal.sites'
+import { Route as PortalSettingsRouteImport } from './routes/portal.settings'
+import { Route as PortalSiteSiteIdRouteImport } from './routes/portal.site.$siteId'
 
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
   path: '/signup',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const PortalRoute = PortalRouteImport.update({
   id: '/portal',
   path: '/portal',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const DocsRoute = DocsRouteImport.update({
   id: '/docs',
   path: '/docs',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
-} as any).lazy(() => import('./routes/index.lazy').then(d => d.Route));
+} as any).lazy(() => import('./routes/index.lazy').then((d) => d.Route))
 const ShareSiteIdRoute = ShareSiteIdRouteImport.update({
   id: '/share/$siteId',
   path: '/share/$siteId',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const PortalSitesRoute = PortalSitesRouteImport.update({
   id: '/sites',
   path: '/sites',
   getParentRoute: () => PortalRoute,
-} as any).lazy(() => import('./routes/portal.sites.lazy').then(d => d.Route));
+} as any).lazy(() => import('./routes/portal.sites.lazy').then((d) => d.Route))
 const PortalSettingsRoute = PortalSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
   getParentRoute: () => PortalRoute,
-} as any);
+} as any)
 const PortalSiteSiteIdRoute = PortalSiteSiteIdRouteImport.update({
   id: '/site/$siteId',
   path: '/site/$siteId',
   getParentRoute: () => PortalRoute,
-} as any).lazy(() => import('./routes/portal.site.$siteId.lazy').then(d => d.Route));
+} as any).lazy(() =>
+  import('./routes/portal.site.$siteId.lazy').then((d) => d.Route),
+)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute;
-  '/docs': typeof DocsRoute;
-  '/login': typeof LoginRoute;
-  '/portal': typeof PortalRouteWithChildren;
-  '/signup': typeof SignupRoute;
-  '/portal/settings': typeof PortalSettingsRoute;
-  '/portal/sites': typeof PortalSitesRoute;
-  '/share/$siteId': typeof ShareSiteIdRoute;
-  '/portal/site/$siteId': typeof PortalSiteSiteIdRoute;
+  '/': typeof IndexRoute
+  '/docs': typeof DocsRoute
+  '/login': typeof LoginRoute
+  '/portal': typeof PortalRouteWithChildren
+  '/signup': typeof SignupRoute
+  '/portal/settings': typeof PortalSettingsRoute
+  '/portal/sites': typeof PortalSitesRoute
+  '/share/$siteId': typeof ShareSiteIdRoute
+  '/portal/site/$siteId': typeof PortalSiteSiteIdRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute;
-  '/docs': typeof DocsRoute;
-  '/login': typeof LoginRoute;
-  '/portal': typeof PortalRouteWithChildren;
-  '/signup': typeof SignupRoute;
-  '/portal/settings': typeof PortalSettingsRoute;
-  '/portal/sites': typeof PortalSitesRoute;
-  '/share/$siteId': typeof ShareSiteIdRoute;
-  '/portal/site/$siteId': typeof PortalSiteSiteIdRoute;
+  '/': typeof IndexRoute
+  '/docs': typeof DocsRoute
+  '/login': typeof LoginRoute
+  '/portal': typeof PortalRouteWithChildren
+  '/signup': typeof SignupRoute
+  '/portal/settings': typeof PortalSettingsRoute
+  '/portal/sites': typeof PortalSitesRoute
+  '/share/$siteId': typeof ShareSiteIdRoute
+  '/portal/site/$siteId': typeof PortalSiteSiteIdRoute
 }
 export interface FileRoutesById {
-  __root__: typeof rootRouteImport;
-  '/': typeof IndexRoute;
-  '/docs': typeof DocsRoute;
-  '/login': typeof LoginRoute;
-  '/portal': typeof PortalRouteWithChildren;
-  '/signup': typeof SignupRoute;
-  '/portal/settings': typeof PortalSettingsRoute;
-  '/portal/sites': typeof PortalSitesRoute;
-  '/share/$siteId': typeof ShareSiteIdRoute;
-  '/portal/site/$siteId': typeof PortalSiteSiteIdRoute;
+  __root__: typeof rootRouteImport
+  '/': typeof IndexRoute
+  '/docs': typeof DocsRoute
+  '/login': typeof LoginRoute
+  '/portal': typeof PortalRouteWithChildren
+  '/signup': typeof SignupRoute
+  '/portal/settings': typeof PortalSettingsRoute
+  '/portal/sites': typeof PortalSitesRoute
+  '/share/$siteId': typeof ShareSiteIdRoute
+  '/portal/site/$siteId': typeof PortalSiteSiteIdRoute
 }
 export interface FileRouteTypes {
-  fileRoutesByFullPath: FileRoutesByFullPath;
+  fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/docs'
@@ -110,8 +112,8 @@ export interface FileRouteTypes {
     | '/portal/settings'
     | '/portal/sites'
     | '/share/$siteId'
-    | '/portal/site/$siteId';
-  fileRoutesByTo: FileRoutesByTo;
+    | '/portal/site/$siteId'
+  fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/docs'
@@ -121,7 +123,7 @@ export interface FileRouteTypes {
     | '/portal/settings'
     | '/portal/sites'
     | '/share/$siteId'
-    | '/portal/site/$siteId';
+    | '/portal/site/$siteId'
   id:
     | '__root__'
     | '/'
@@ -132,99 +134,100 @@ export interface FileRouteTypes {
     | '/portal/settings'
     | '/portal/sites'
     | '/share/$siteId'
-    | '/portal/site/$siteId';
-  fileRoutesById: FileRoutesById;
+    | '/portal/site/$siteId'
+  fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute;
-  DocsRoute: typeof DocsRoute;
-  LoginRoute: typeof LoginRoute;
-  PortalRoute: typeof PortalRouteWithChildren;
-  SignupRoute: typeof SignupRoute;
-  ShareSiteIdRoute: typeof ShareSiteIdRoute;
+  IndexRoute: typeof IndexRoute
+  DocsRoute: typeof DocsRoute
+  LoginRoute: typeof LoginRoute
+  PortalRoute: typeof PortalRouteWithChildren
+  SignupRoute: typeof SignupRoute
+  ShareSiteIdRoute: typeof ShareSiteIdRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
     '/signup': {
-      id: '/signup';
-      path: '/signup';
-      fullPath: '/signup';
-      preLoaderRoute: typeof SignupRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: '/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof SignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/portal': {
-      id: '/portal';
-      path: '/portal';
-      fullPath: '/portal';
-      preLoaderRoute: typeof PortalRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: '/portal'
+      path: '/portal'
+      fullPath: '/portal'
+      preLoaderRoute: typeof PortalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
-      id: '/login';
-      path: '/login';
-      fullPath: '/login';
-      preLoaderRoute: typeof LoginRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/docs': {
-      id: '/docs';
-      path: '/docs';
-      fullPath: '/docs';
-      preLoaderRoute: typeof DocsRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: '/docs'
+      path: '/docs'
+      fullPath: '/docs'
+      preLoaderRoute: typeof DocsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
-      id: '/';
-      path: '/';
-      fullPath: '/';
-      preLoaderRoute: typeof IndexRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/share/$siteId': {
-      id: '/share/$siteId';
-      path: '/share/$siteId';
-      fullPath: '/share/$siteId';
-      preLoaderRoute: typeof ShareSiteIdRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: '/share/$siteId'
+      path: '/share/$siteId'
+      fullPath: '/share/$siteId'
+      preLoaderRoute: typeof ShareSiteIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/portal/sites': {
-      id: '/portal/sites';
-      path: '/sites';
-      fullPath: '/portal/sites';
-      preLoaderRoute: typeof PortalSitesRouteImport;
-      parentRoute: typeof PortalRoute;
-    };
+      id: '/portal/sites'
+      path: '/sites'
+      fullPath: '/portal/sites'
+      preLoaderRoute: typeof PortalSitesRouteImport
+      parentRoute: typeof PortalRoute
+    }
     '/portal/settings': {
-      id: '/portal/settings';
-      path: '/settings';
-      fullPath: '/portal/settings';
-      preLoaderRoute: typeof PortalSettingsRouteImport;
-      parentRoute: typeof PortalRoute;
-    };
+      id: '/portal/settings'
+      path: '/settings'
+      fullPath: '/portal/settings'
+      preLoaderRoute: typeof PortalSettingsRouteImport
+      parentRoute: typeof PortalRoute
+    }
     '/portal/site/$siteId': {
-      id: '/portal/site/$siteId';
-      path: '/site/$siteId';
-      fullPath: '/portal/site/$siteId';
-      preLoaderRoute: typeof PortalSiteSiteIdRouteImport;
-      parentRoute: typeof PortalRoute;
-    };
+      id: '/portal/site/$siteId'
+      path: '/site/$siteId'
+      fullPath: '/portal/site/$siteId'
+      preLoaderRoute: typeof PortalSiteSiteIdRouteImport
+      parentRoute: typeof PortalRoute
+    }
   }
 }
 
 interface PortalRouteChildren {
-  PortalSettingsRoute: typeof PortalSettingsRoute;
-  PortalSitesRoute: typeof PortalSitesRoute;
-  PortalSiteSiteIdRoute: typeof PortalSiteSiteIdRoute;
+  PortalSettingsRoute: typeof PortalSettingsRoute
+  PortalSitesRoute: typeof PortalSitesRoute
+  PortalSiteSiteIdRoute: typeof PortalSiteSiteIdRoute
 }
 
 const PortalRouteChildren: PortalRouteChildren = {
   PortalSettingsRoute: PortalSettingsRoute,
   PortalSitesRoute: PortalSitesRoute,
   PortalSiteSiteIdRoute: PortalSiteSiteIdRoute,
-};
+}
 
-const PortalRouteWithChildren = PortalRoute._addFileChildren(PortalRouteChildren);
+const PortalRouteWithChildren =
+  PortalRoute._addFileChildren(PortalRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
@@ -233,7 +236,7 @@ const rootRouteChildren: RootRouteChildren = {
   PortalRoute: PortalRouteWithChildren,
   SignupRoute: SignupRoute,
   ShareSiteIdRoute: ShareSiteIdRoute,
-};
+}
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
-  ._addFileTypes<FileRouteTypes>();
+  ._addFileTypes<FileRouteTypes>()

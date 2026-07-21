@@ -18,6 +18,13 @@ name = "LIVE"
 class_name = "SiteLiveStore"
 script_name = "traks-collect-dev"
 
+# Global (cross-colo) result cache for R2 SQL dashboard queries. Layered
+# behind the per-colo Cache API: a scan any colo already paid for is reused
+# worldwide for the TTL.
+[[kv_namespaces]]
+binding = "R2SQL_CACHE"
+id = "fc5eb93cfb8f4cb18969af2ccd4f9ea5"
+
 # Nightly per-site raw-data exports (gzipped NDJSON, DuckDB-readable)
 [[r2_buckets]]
 binding = "EXPORTS"
@@ -69,6 +76,10 @@ name = "LIVE"
 class_name = "SiteLiveStore"
 script_name = "traks-collect"
 
+[[env.production.kv_namespaces]]
+binding = "R2SQL_CACHE"
+id = "8d350a4f547a41218336ba9b4103fe0e"
+
 [[env.production.r2_buckets]]
 binding = "EXPORTS"
 bucket_name = "traks-exports"
@@ -85,7 +96,7 @@ ALLOWED_ORIGINS = "https://traks.dev,https://www.traks.dev"
 R2_BUCKET_NAME = "traks-events"
 APP_URL = "https://traks.dev"
 EMAIL_FROM = "reports@traks.dev"
-ADMIN_EMAIL = "" # set to receive ops alerts
+ADMIN_EMAIL = "shiva.manupadi@gmail.com" # ops alerts (pipeline stuck, etc.)
 # Dodo billing is off until the account is out of review. To enable: set to
 # "true", fill DODO_PRODUCT_* below, and add the DODO_* secrets in Doppler (prd).
 BILLING_ENABLED = "false"

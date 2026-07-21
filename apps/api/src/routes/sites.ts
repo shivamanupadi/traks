@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { eq } from 'drizzle-orm';
 import { createId } from '@paralleldrive/cuid2';
-import { createSiteSchema, updateSiteSchema, planOf } from '@traks/shared';
+import { createSiteSchema, updateSiteSchema, allSitesTimezoneSchema, planOf } from '@traks/shared';
 import { requireAuth } from '../middleware/auth';
 import { sites, apiKeys, users } from '../db/schema';
 import type { Bindings, Variables } from '../types';
@@ -67,6 +67,18 @@ export const sitesRoute = app
     const [site] = await db.select().from(sites).where(eq(sites.id, siteId));
 
     return c.json({ data: site, key: siteKey }, 201);
+  })
+
+  // Set one timezone across all of the user's sites (account settings).
+  // Static path — declared before the /:id routes so it can't be shadowed.
+  .post('/timezone', requireAuth, zValidator('json', allSitesTimezoneSchema), async c => {
+    const userId = c.get('userId')!;
+    const { timezone } = c.req.valid('json');
+    const db = c.get('db')!;
+
+    await db.update(sites).set({ timezone, updatedAt: new Date() }).where(eq(sites.userId, userId));
+
+    return c.json({ data: { timezone } });
   })
 
   // Get site details + API key

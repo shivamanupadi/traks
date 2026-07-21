@@ -1,10 +1,10 @@
-import type { ReactElement } from 'react';
+import { useState, useEffect, type ReactElement } from 'react';
 import { createFileRoute } from '@tanstack/react-router';
 import { useAuth } from '@clerk/clerk-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Check, CreditCard, Mail } from 'lucide-react';
-import { PLANS, type PlanId, type PlanConfig } from '@traks/shared';
+import { Check, Mail, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { TimezoneSelect } from '@/components/ui/timezone-select';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';
 
@@ -12,73 +12,13 @@ export const Route = createFileRoute('/portal/settings')({
   component: SettingsPage,
 });
 
-const fmt = (n: number): string =>
-  new Intl.NumberFormat('en-US', { notation: 'compact' }).format(n);
-
-function PlanCard({
-  plan,
-  current,
-  onUpgrade,
-  isPending,
-  billingEnabled,
-}: {
-  plan: PlanConfig;
-  current: boolean;
-  onUpgrade: () => void;
-  isPending: boolean;
-  billingEnabled: boolean;
-}): ReactElement {
-  return (
-    <div
-      className={cn(
-        'rounded-2xl border bg-white p-5 flex flex-col',
-        current ? 'border-[#9b72cf]' : 'border-[#e8e3ed]/80'
-      )}
-    >
-      <div className="flex items-center justify-between">
-        <p className="text-[15px] font-semibold text-[#2D3436]">{plan.name}</p>
-        {current && (
-          <span className="rounded-full bg-[#9b72cf]/10 px-2.5 py-0.5 text-[11px] font-semibold text-[#9b72cf]">
-            Current plan
-          </span>
-        )}
-      </div>
-      <p className="mt-2 text-[26px] font-bold text-[#2D3436]">
-        ${plan.priceUsd}
-        <span className="text-[13px] font-normal text-[#9B9590]">/mo</span>
-      </p>
-      <ul className="mt-4 space-y-2 text-[13px] text-[#2D3436] flex-1">
-        <li>{fmt(plan.monthlyEvents)} events/mo per site</li>
-        <li>
-          {plan.siteLimit} site{plan.siteLimit > 1 ? 's' : ''}
-        </li>
-        {plan.exports && <li>Raw data export (DuckDB)</li>}
-        {plan.weeklyReports && <li>Weekly email reports</li>}
-      </ul>
-      {!current &&
-        plan.id !== 'free' &&
-        (billingEnabled ? (
-          <Button
-            onClick={onUpgrade}
-            isLoading={isPending}
-            className="mt-4 bg-[#9b72cf] hover:bg-[#8a63bf] text-white rounded-xl text-[13px]"
-          >
-            Upgrade
-          </Button>
-        ) : (
-          <span className="mt-4 inline-flex w-fit rounded-full bg-[#e8e3ed]/60 px-2.5 py-0.5 text-[11px] font-medium text-[#9B9590]">
-            Coming soon
-          </span>
-        ))}
-    </div>
-  );
-}
-
 function SettingsPage(): ReactElement {
   const { getToken } = useAuth();
   const queryClient = useQueryClient();
+  const [timezone, setTimezone] = useState('');
+  const [applied, setApplied] = useState(false);
 
-  const { data } = useQuery({
+  const { data: billingData } = useQuery({
     queryKey: ['billing'],
     queryFn: async () => {
       const token = await getToken();
@@ -88,74 +28,113 @@ function SettingsPage(): ReactElement {
     staleTime: 60_000,
   });
 
-  const billing = (data as any)?.data;
-  const currentPlan: PlanId = billing?.plan ?? 'free';
-  const billingEnabled: boolean = billing?.billingEnabled ?? false;
-
-  const checkout = useMutation({
-    mutationFn: async (plan: 'pro' | 'business') => {
+  const { data: sitesData } = useQuery({
+    queryKey: ['sites'],
+    queryFn: async () => {
       const token = await getToken();
       if (!token) throw new Error('Not authenticated');
-      return api.createCheckout(plan, token);
+      return api.getSites(token);
     },
-    onSuccess: (res: { data: { url: string } }) => {
-      window.location.href = res.data.url;
-    },
+    staleTime: 60_000,
   });
 
-  const portal = useMutation({
+  const sites = ((sitesData as any)?.data ?? []) as { timezone?: string }[];
+  const distinctZones = [...new Set(sites.map(s => s.timezone || 'UTC'))];
+  const uniformZone = distinctZones.length === 1 ? distinctZones[0] : null;
+
+  // Seed the picker once sites load: the shared zone if uniform, else the
+  // browser's zone as the suggested value to unify on.
+  useEffect(() => {
+    if (sites.length > 0 && timezone === '') {
+      setTimezone(uniformZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sitesData]);
+
+  const applyTimezone = useMutation({
     mutationFn: async () => {
       const token = await getToken();
       if (!token) throw new Error('Not authenticated');
-      return api.openBillingPortal(token);
+      return api.setAllSitesTimezone(timezone, token);
     },
-    onSuccess: (res: { data: { url: string } }) => {
-      window.location.href = res.data.url;
+    onSuccess: () => {
+      // Every bucket window depends on the zone - refetch everything.
+      queryClient.invalidateQueries({ queryKey: ['sites'] });
+      queryClient.invalidateQueries({ queryKey: ['site-analytics'] });
+      queryClient.invalidateQueries({ queryKey: ['site'] });
+      setApplied(true);
+      setTimeout(() => setApplied(false), 2500);
     },
   });
 
+  const billing = (billingData as any)?.data;
+  const currentPlan: string = billing?.plan ?? 'free';
+  const weeklyReport = billing?.weeklyReport ?? true;
+
   const setPrefs = useMutation({
-    mutationFn: async (weeklyReport: boolean) => {
+    mutationFn: async (enabled: boolean) => {
       const token = await getToken();
       if (!token) throw new Error('Not authenticated');
-      return api.setBillingPrefs(weeklyReport, token);
+      return api.setBillingPrefs(enabled, token);
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['billing'] }),
   });
 
-  const weeklyReport = billing?.weeklyReport ?? true;
+  const timezoneChanged = timezone !== '' && (uniformZone === null || timezone !== uniformZone);
 
   return (
     <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-8">
       <div>
         <h1 className="text-[24px] font-bold text-[#2D3436] tracking-[-0.02em]">Settings</h1>
-        <p className="mt-1 text-[14px] text-[#9B9590]">Plan, billing, and notifications</p>
+        <p className="mt-1 text-[14px] text-[#9B9590]">Preferences for your account and sites</p>
       </div>
 
-      {/* Plans */}
+      {/* Timezone */}
       <section>
-        <h2 className="mb-3 text-[15px] font-semibold text-[#2D3436]">Plan</h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          {(Object.values(PLANS) as PlanConfig[]).map(plan => (
-            <PlanCard
-              key={plan.id}
-              plan={plan}
-              current={plan.id === currentPlan}
-              onUpgrade={() => checkout.mutate(plan.id as 'pro' | 'business')}
-              isPending={checkout.isPending}
-              billingEnabled={billingEnabled}
-            />
-          ))}
+        <h2 className="mb-3 text-[15px] font-semibold text-[#2D3436]">Timezone</h2>
+        <div className="rounded-2xl border border-[#e8e3ed]/80 bg-white p-5">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#9b72cf]/10">
+              <Globe className="h-4 w-4 text-[#9b72cf]" strokeWidth={1.8} />
+            </div>
+            <div>
+              <p className="text-[13px] font-medium text-[#2D3436]">Reporting timezone</p>
+              <p className="text-[12px] text-[#9B9590]">
+                Dashboard days and hours are bucketed in this timezone. Applies to all your sites.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <TimezoneSelect value={timezone} onChange={setTimezone} className="sm:w-96" />
+            <Button
+              onClick={() => applyTimezone.mutate()}
+              disabled={!timezoneChanged || applyTimezone.isPending || sites.length === 0}
+              isLoading={applyTimezone.isPending}
+              className="bg-[#9b72cf] hover:bg-[#8a63bf] text-white rounded-xl text-[13px] px-5 shrink-0"
+            >
+              {applied ? (
+                <>
+                  <Check className="w-3.5 h-3.5" />
+                  Applied
+                </>
+              ) : (
+                'Apply to all sites'
+              )}
+            </Button>
+          </div>
+
+          {uniformZone === null && sites.length > 0 && (
+            <p className="mt-3 text-[12px] text-[#e07a5f]">
+              Your sites currently use different timezones ({distinctZones.join(', ')}). Applying
+              will unify them.
+            </p>
+          )}
+          <p className="mt-3 text-[12px] text-[#B5B0AA]">
+            Takes effect on new data within a minute. Events already collected keep their original
+            bucketing, so past days may look shifted until new data accumulates.
+          </p>
         </div>
-        {billingEnabled && billing?.hasBillingAccount && (
-          <button
-            onClick={() => portal.mutate()}
-            className="mt-4 flex items-center gap-2 text-[13px] text-[#9b72cf] hover:underline cursor-pointer"
-          >
-            <CreditCard className="h-3.5 w-3.5" />
-            Manage billing &amp; invoices
-          </button>
-        )}
       </section>
 
       {/* Notifications */}

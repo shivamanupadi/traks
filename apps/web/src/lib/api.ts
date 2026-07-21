@@ -53,6 +53,12 @@ export const api = {
     return res.json();
   },
 
+  async setAllSitesTimezone(timezone: string, token: string): Promise<any> {
+    const res = await client.api.sites.timezone.$post({ json: { timezone } }, authHeaders(token));
+    await assertOk(res);
+    return res.json();
+  },
+
   async deleteSite(siteId: string, token: string): Promise<any> {
     const res = await client.api.sites[':id'].$delete(
       { param: { id: siteId } },

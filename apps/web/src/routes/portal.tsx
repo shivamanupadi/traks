@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate, useLocation, Link, Outlet } from '@tanstack/react-router';
 import { useAuth, useUser, useClerk } from '@clerk/clerk-react';
 import { useEffect } from 'react';
-import { LayoutGrid, Settings, User, ChevronDown, LogOut } from 'lucide-react';
+import { LayoutGrid, Settings, CreditCard, User, ChevronDown, LogOut } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -66,6 +66,9 @@ function PortalLayout(): React.ReactNode {
             <NavLink to="/portal/sites" icon="sites" alsoMatchPaths={['/portal/site/']}>
               Sites
             </NavLink>
+            <NavLink to="/portal/billing" icon="billing">
+              Billing
+            </NavLink>
             <NavLink to="/portal/settings" icon="settings">
               Settings
             </NavLink>
@@ -76,6 +79,7 @@ function PortalLayout(): React.ReactNode {
             {/* Mobile nav */}
             <nav className="flex sm:hidden items-center gap-1">
               <MobileNavLink to="/portal/sites" icon="sites" alsoMatchPaths={['/portal/site/']} />
+              <MobileNavLink to="/portal/billing" icon="billing" />
               <MobileNavLink to="/portal/settings" icon="settings" />
             </nav>
 
@@ -97,7 +101,7 @@ function NavLink({
   children,
 }: {
   to: string;
-  icon: 'sites' | 'settings';
+  icon: 'sites' | 'settings' | 'billing';
   alsoMatchPaths?: string[];
   children: React.ReactNode;
 }): React.ReactNode {
@@ -127,7 +131,7 @@ function MobileNavLink({
   alsoMatchPaths,
 }: {
   to: string;
-  icon: 'sites' | 'settings';
+  icon: 'sites' | 'settings' | 'billing';
   alsoMatchPaths?: string[];
 }): React.ReactNode {
   const location = useLocation();
@@ -149,8 +153,9 @@ function MobileNavLink({
   );
 }
 
-function NavIcon({ type }: { type: 'sites' | 'settings' }): React.ReactNode {
+function NavIcon({ type }: { type: 'sites' | 'settings' | 'billing' }): React.ReactNode {
   if (type === 'sites') return <LayoutGrid className="w-4 h-4" />;
+  if (type === 'billing') return <CreditCard className="w-4 h-4" />;
   return <Settings className="w-4 h-4" />;
 }
 
@@ -194,6 +199,13 @@ function UserMenu(): React.ReactNode {
           <Link to="/portal/sites" className="flex items-center gap-3 px-4 py-2.5 cursor-pointer">
             <LayoutGrid className="w-4 h-4" />
             Sites
+          </Link>
+        </DropdownMenuItem>
+
+        <DropdownMenuItem asChild>
+          <Link to="/portal/billing" className="flex items-center gap-3 px-4 py-2.5 cursor-pointer">
+            <CreditCard className="w-4 h-4" />
+            Billing
           </Link>
         </DropdownMenuItem>
 

@@ -18,6 +18,7 @@ import type { Period, MainStats } from '@traks/shared';
 import { cn, formatNumber, formatPercentChange } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { TimezoneSelect } from '@/components/ui/timezone-select';
 import {
   Dialog,
   DialogContent,
@@ -193,26 +194,6 @@ function InstallModal({
   );
 }
 
-// Full IANA zone list where the browser provides it; small static fallback
-// otherwise. The current site value is merged in so it's always selectable.
-function timezoneOptions(current: string): string[] {
-  const supported = (
-    Intl as unknown as { supportedValuesOf?: (key: string) => string[] }
-  ).supportedValuesOf?.('timeZone') ?? [
-    'UTC',
-    'America/New_York',
-    'America/Chicago',
-    'America/Los_Angeles',
-    'Europe/London',
-    'Europe/Berlin',
-    'Asia/Kolkata',
-    'Asia/Singapore',
-    'Asia/Tokyo',
-    'Australia/Sydney',
-  ];
-  return supported.includes(current) ? supported : [current, ...supported];
-}
-
 function EditSiteModal({
   open,
   onOpenChange,
@@ -303,7 +284,6 @@ function EditSiteModal({
   });
 
   const canSave = name.trim().length > 0 && domain.trim().length > 0;
-  const TIMEZONES = timezoneOptions(timezone);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -349,20 +329,13 @@ function EditSiteModal({
             </div>
             <div>
               <label className="mb-2 block text-[13px] font-medium text-[#2D3436]">Timezone</label>
-              <select
+              <TimezoneSelect
                 value={timezone}
-                onChange={e => {
-                  setTimezone(e.target.value);
+                onChange={tz => {
+                  setTimezone(tz);
                   setError('');
                 }}
-                className="w-full rounded-xl h-11 border border-[#e8e3ed] focus:border-[#9b72cf]/40 focus:outline-none bg-white px-3.5 text-[14px] text-[#2D3436] cursor-pointer"
-              >
-                {TIMEZONES.map(tz => (
-                  <option key={tz} value={tz}>
-                    {tz.replaceAll('_', ' ')}
-                  </option>
-                ))}
-              </select>
+              />
               <p className="mt-2 text-[12px] text-[#B5B0AA]">
                 Dashboard days and hours are bucketed in this timezone.
               </p>

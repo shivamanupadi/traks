@@ -54,6 +54,11 @@ export const updateSiteSchema = z.object({
   timezone: timezoneSchema.optional(),
 });
 
+/** Account-level "apply this timezone to all my sites". */
+export const allSitesTimezoneSchema = z.object({
+  timezone: timezoneSchema,
+});
+
 export const statsQuerySchema = z.object({
   period: z.enum(['today', '7d', '30d', '90d', '6m', '1y', 'all']).default('today'),
   from: z.string().optional(),

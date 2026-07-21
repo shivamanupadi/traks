@@ -82,6 +82,52 @@ export const api = {
     return res.json();
   },
 
+  // Goals
+  async getGoals(siteId: string, token: string): Promise<any> {
+    const res = await client.api.sites[':id'].goals.$get(
+      { param: { id: siteId } },
+      authHeaders(token)
+    );
+    await assertOk(res);
+    return res.json();
+  },
+
+  async createGoal(
+    siteId: string,
+    data: { name: string; type: 'event' | 'page'; target: string },
+    token: string
+  ): Promise<any> {
+    const res = await client.api.sites[':id'].goals.$post(
+      { param: { id: siteId }, json: data },
+      authHeaders(token)
+    );
+    await assertOk(res);
+    return res.json();
+  },
+
+  async deleteGoal(siteId: string, goalId: string, token: string): Promise<any> {
+    const res = await client.api.sites[':id'].goals[':goalId'].$delete(
+      { param: { id: siteId, goalId } },
+      authHeaders(token)
+    );
+    await assertOk(res);
+    return res.json();
+  },
+
+  async getGoalStats(
+    siteId: string,
+    period: Period,
+    token: string,
+    filters?: AnalyticsFilters
+  ): Promise<any> {
+    const res = await client.api.analytics[':siteId'].stats.goals.$get(
+      { param: { siteId }, query: { period, ...filters } },
+      authHeaders(token)
+    );
+    await assertOk(res);
+    return res.json();
+  },
+
   async togglePublic(siteId: string, enabled: boolean, token: string): Promise<any> {
     const res = await client.api.sites[':id'].public.$post(
       { param: { id: siteId }, json: { enabled } },

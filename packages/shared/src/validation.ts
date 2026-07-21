@@ -6,7 +6,7 @@ import { z } from 'zod';
  */
 export const trackingEventSchema = z
   .object({
-    t: z.enum(['pageview', 'event']),
+    t: z.enum(['pageview', 'event', 'engagement']),
     s: z.string().min(1).max(64),
     p: z.string().max(2048).default('/'),
     h: z.string().max(256).default(''),
@@ -57,6 +57,13 @@ export const updateSiteSchema = z.object({
 /** Account-level "apply this timezone to all my sites". */
 export const allSitesTimezoneSchema = z.object({
   timezone: timezoneSchema,
+});
+
+/** Goal definition: a custom event name or a pathname that counts as a conversion. */
+export const createGoalSchema = z.object({
+  name: z.string().min(1).max(100),
+  type: z.enum(['event', 'page']),
+  target: z.string().min(1).max(2048),
 });
 
 export const statsQuerySchema = z.object({

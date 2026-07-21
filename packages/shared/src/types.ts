@@ -2,7 +2,7 @@ import type { Period } from './constants';
 
 // Event payload from the tracking script to the collect worker
 export interface TrackingEvent {
-  t: 'pageview' | 'event'; // event type
+  t: 'pageview' | 'event' | 'engagement'; // event type
   s: string; // site key
   p: string; // pathname
   h: string; // hostname
@@ -32,6 +32,22 @@ export interface MainStats {
   sessionsChange: number;
   /** Percentage-point change vs the previous period (positive = bounce rate went up). */
   bounceRateChange: number;
+  /** Average engaged seconds per session (from tracker engagement pings). */
+  avgDuration: number;
+  avgDurationChange: number;
+}
+
+export interface GoalStat {
+  id: string;
+  name: string;
+  type: 'event' | 'page';
+  target: string;
+  /** Unique visitors who completed the goal in the period. */
+  uniques: number;
+  /** Total completions. */
+  events: number;
+  /** uniques / period visitors, 0-100 with one decimal. */
+  conversionRate: number;
 }
 
 export interface TimeseriesPoint {

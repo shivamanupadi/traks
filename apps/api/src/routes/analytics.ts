@@ -16,7 +16,7 @@ import {
   type LiveFilters,
 } from '@traks/shared';
 import { requireAuth } from '../middleware/auth';
-import { sites, apiKeys } from '../db/schema';
+import { sites, apiKeys, goals } from '../db/schema';
 import {
   queryR2Sql,
   buildStatsWithComparisonQuery,
@@ -30,6 +30,9 @@ import {
   buildDevicesQuery,
   buildRealtimeQuery,
   buildEventsQuery,
+  buildEngagementStatsQuery,
+  buildGoalEventsQuery,
+  buildGoalPagesQuery,
 } from '../lib/queries';
 import type { Bindings, Variables } from '../types';
 
@@ -261,12 +264,20 @@ interface SessionStatsRow {
   bounces: unknown;
 }
 
+interface EngagementStatsRow {
+  period: string;
+  engaged: unknown;
+}
+
 /** Build the MainStats payload from current/previous totals (either path). */
 function mainStatsPayload(cur: LiveTotals, prev: LiveTotals) {
   const rate = (t: LiveTotals): number =>
     t.sessions > 0 ? Math.round((t.bounces / t.sessions) * 100) : 0;
+  const duration = (t: LiveTotals): number =>
+    t.sessions > 0 ? Math.round(t.engagedSeconds / t.sessions) : 0;
   const curBounce = rate(cur);
   const prevBounce = rate(prev);
+  const curDuration = duration(cur);
 
   return {
     visitors: cur.visitors,
@@ -278,6 +289,8 @@ function mainStatsPayload(cur: LiveTotals, prev: LiveTotals) {
     sessionsChange: pctChange(cur.sessions, prev.sessions),
     // Percentage-point delta, not relative change - conventional for bounce rate.
     bounceRateChange: curBounce - prevBounce,
+    avgDuration: curDuration,
+    avgDurationChange: pctChange(curDuration, duration(prev)),
   };
 }
 
@@ -286,15 +299,21 @@ function mainStatsPayload(cur: LiveTotals, prev: LiveTotals) {
  * Each query returns up to two rows labeled 'current' / 'previous';
  * a window with no events simply has no row.
  */
-function assembleMainStats(statRows: PeriodStatsRow[], sessionRows: SessionStatsRow[]) {
+function assembleMainStats(
+  statRows: PeriodStatsRow[],
+  sessionRows: SessionStatsRow[],
+  engagementRows: EngagementStatsRow[]
+) {
   const totals = (period: string): LiveTotals => {
     const stat = statRows.find(r => r.period === period);
     const session = sessionRows.find(r => r.period === period);
+    const engagement = engagementRows.find(r => r.period === period);
     return {
       pageviews: toNumber(stat?.pageviews),
       visitors: toNumber(stat?.visitors),
       sessions: toNumber(stat?.sessions),
       bounces: toNumber(session?.bounces),
+      engagedSeconds: toNumber(engagement?.engaged),
     };
   };
   return mainStatsPayload(totals('current'), totals('previous'));
@@ -518,6 +537,7 @@ export async function fetchDashboard(
     Promise.all([
       cachedR2Sql<PeriodStatsRow>(c, ttl, buildStatsWithComparisonQuery(site.key, range)),
       cachedR2Sql<SessionStatsRow>(c, ttl, buildSessionStatsQuery(site.key, range)),
+      cachedR2Sql<EngagementStatsRow>(c, ttl, buildEngagementStatsQuery(site.key, range)),
       cachedR2Sql<{ t: string; visitors: unknown; pageviews: unknown; sessions: unknown }>(
         c,
         ttl,
@@ -555,6 +575,7 @@ export async function fetchDashboard(
   const [
     statRows,
     sessionRows,
+    engagementRows,
     timeseriesRows,
     pagesRows,
     referrersRows,
@@ -564,7 +585,7 @@ export async function fetchDashboard(
   ] = outcome;
 
   return {
-    main: assembleMainStats(statRows, sessionRows),
+    main: assembleMainStats(statRows, sessionRows, engagementRows),
     timeseries: fillTimeseries(
       timeseriesRows.map(r => ({
         t: r.t,
@@ -648,12 +669,17 @@ export const analyticsRoute = appWithBatch
           buildStatsWithComparisonQuery(site.key, range, filters)
         ),
         cachedR2Sql<SessionStatsRow>(c, ttl, buildSessionStatsQuery(site.key, range, filters)),
+        cachedR2Sql<EngagementStatsRow>(
+          c,
+          ttl,
+          buildEngagementStatsQuery(site.key, range, filters)
+        ),
       ])
     );
     if (outcome instanceof Response) return outcome;
 
-    const [statRows, sessionRows] = outcome;
-    return c.json({ data: assembleMainStats(statRows, sessionRows) });
+    const [statRows, sessionRows, engagementRows] = outcome;
+    return c.json({ data: assembleMainStats(statRows, sessionRows, engagementRows) });
   })
 
   .get('/:siteId/stats/timeseries', requireAuth, zValidator('query', periodQuery), async c => {
@@ -933,6 +959,110 @@ export const analyticsRoute = appWithBatch
     return c.json({
       data: formatDevices(outcome.map(r => ({ name: r.name, visitors: toNumber(r.visitors) }))),
     });
+  })
+
+  .get('/:siteId/stats/goals', requireAuth, zValidator('query', periodQuery), async c => {
+    const userId = c.get('userId')!;
+    const siteId = c.req.param('siteId');
+    const query = c.req.valid('query');
+    const { period } = query;
+    const filters = parseFilters(query);
+
+    const site = await getSite(c, siteId, userId);
+    if (!site) return c.json({ error: 'Not found' }, 404);
+
+    const db = c.get('db')!;
+    const siteGoals = await db.select().from(goals).where(eq(goals.siteId, siteId));
+    if (siteGoals.length === 0) return c.json({ data: [] });
+
+    const eventNames = siteGoals.filter(g => g.type === 'event').map(g => g.target);
+    const pathnames = siteGoals.filter(g => g.type === 'page').map(g => g.target);
+
+    interface GoalCount {
+      target: string;
+      kind: 'event' | 'page';
+      events: number;
+      visitors: number;
+    }
+
+    const respond = (rows: GoalCount[], totalVisitors: number): Response => {
+      const data = siteGoals.map(goal => {
+        const row = rows.find(r => r.kind === goal.type && r.target === goal.target);
+        const uniques = row?.visitors ?? 0;
+        return {
+          id: goal.id,
+          name: goal.name,
+          type: goal.type,
+          target: goal.target,
+          uniques,
+          events: row?.events ?? 0,
+          conversionRate: totalVisitors > 0 ? Math.round((uniques / totalVisitors) * 1000) / 10 : 0,
+        };
+      });
+      data.sort((a, b) => b.uniques - a.uniques);
+      return c.json({ data });
+    };
+
+    if (period === 'today') {
+      try {
+        const range = resolvePeriod('today', new Date(), site.timezone);
+        const live = liveStore(c, site.key);
+        const [rows, totals] = await Promise.all([
+          live.goalStats(ms(range.from), ms(range.to), eventNames, pathnames, filters),
+          live.totals(ms(range.from), ms(range.to), filters),
+        ]);
+        return respond(rows, totals.visitors);
+      } catch (err) {
+        logLiveFallback(err);
+      }
+    }
+
+    const range = resolvePeriod(period, queryTime(), site.timezone);
+    const ttl = cacheTtlSeconds(period);
+
+    const outcome = await runQueries(c, () =>
+      Promise.all([
+        // Same SQL as stats/main -> shared cache entry, no extra scan.
+        cachedR2Sql<PeriodStatsRow>(
+          c,
+          ttl,
+          buildStatsWithComparisonQuery(site.key, range, filters)
+        ),
+        eventNames.length > 0
+          ? cachedR2Sql<{ target: string; events: unknown; visitors: unknown }>(
+              c,
+              ttl,
+              buildGoalEventsQuery(site.key, range, eventNames, filters)
+            )
+          : Promise.resolve([]),
+        pathnames.length > 0
+          ? cachedR2Sql<{ target: string; events: unknown; visitors: unknown }>(
+              c,
+              ttl,
+              buildGoalPagesQuery(site.key, range, pathnames, filters)
+            )
+          : Promise.resolve([]),
+      ])
+    );
+    if (outcome instanceof Response) return outcome;
+
+    const [statRows, eventRows, pageRows] = outcome;
+    const totalVisitors = toNumber(statRows.find(r => r.period === 'current')?.visitors);
+    const rows: GoalCount[] = [
+      ...eventRows.map(r => ({
+        target: r.target,
+        kind: 'event' as const,
+        events: toNumber(r.events),
+        visitors: toNumber(r.visitors),
+      })),
+      ...pageRows.map(r => ({
+        target: r.target,
+        kind: 'page' as const,
+        events: toNumber(r.events),
+        visitors: toNumber(r.visitors),
+      })),
+    ];
+    return respond(rows, totalVisitors);
   })
 
   .get('/:siteId/stats/realtime', requireAuth, async c => {

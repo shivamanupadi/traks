@@ -3,9 +3,14 @@ import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { eq } from 'drizzle-orm';
 import { createId } from '@paralleldrive/cuid2';
-import { createSiteSchema, updateSiteSchema, allSitesTimezoneSchema } from '@traks/shared';
+import {
+  createSiteSchema,
+  updateSiteSchema,
+  allSitesTimezoneSchema,
+  createGoalSchema,
+} from '@traks/shared';
 import { requireAuth } from '../middleware/auth';
-import { sites, apiKeys } from '../db/schema';
+import { sites, apiKeys, goals } from '../db/schema';
 import type { Bindings, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
@@ -120,6 +125,74 @@ export const sitesRoute = app
     const [updated] = await db.select().from(sites).where(eq(sites.id, siteId));
 
     return c.json({ data: updated });
+  })
+
+  // List goals for a site
+  .get('/:id/goals', requireAuth, async c => {
+    const userId = c.get('userId')!;
+    const siteId = c.req.param('id');
+    const db = c.get('db')!;
+
+    const [site] = await db
+      .select({ userId: sites.userId })
+      .from(sites)
+      .where(eq(sites.id, siteId));
+    if (!site || site.userId !== userId) return c.json({ error: 'Not found' }, 404);
+
+    const siteGoals = await db.select().from(goals).where(eq(goals.siteId, siteId));
+    return c.json({ data: siteGoals });
+  })
+
+  // Create a goal
+  .post('/:id/goals', requireAuth, zValidator('json', createGoalSchema), async c => {
+    const userId = c.get('userId')!;
+    const siteId = c.req.param('id');
+    const body = c.req.valid('json');
+    const db = c.get('db')!;
+
+    const [site] = await db
+      .select({ userId: sites.userId })
+      .from(sites)
+      .where(eq(sites.id, siteId));
+    if (!site || site.userId !== userId) return c.json({ error: 'Not found' }, 404);
+
+    // Bound per-site goal count (query cost scales with the IN list).
+    const existing = await db.select({ id: goals.id }).from(goals).where(eq(goals.siteId, siteId));
+    if (existing.length >= 50) return c.json({ error: 'Goal limit reached (50 per site)' }, 400);
+
+    const goalId = createId();
+    await db.insert(goals).values({
+      id: goalId,
+      siteId,
+      name: body.name,
+      type: body.type,
+      target: body.target,
+    });
+    const [goal] = await db.select().from(goals).where(eq(goals.id, goalId));
+    return c.json({ data: goal }, 201);
+  })
+
+  // Delete a goal
+  .delete('/:id/goals/:goalId', requireAuth, async c => {
+    const userId = c.get('userId')!;
+    const siteId = c.req.param('id');
+    const goalId = c.req.param('goalId');
+    const db = c.get('db')!;
+
+    const [site] = await db
+      .select({ userId: sites.userId })
+      .from(sites)
+      .where(eq(sites.id, siteId));
+    if (!site || site.userId !== userId) return c.json({ error: 'Not found' }, 404);
+
+    const [goal] = await db
+      .select({ siteId: goals.siteId })
+      .from(goals)
+      .where(eq(goals.id, goalId));
+    if (!goal || goal.siteId !== siteId) return c.json({ error: 'Not found' }, 404);
+
+    await db.delete(goals).where(eq(goals.id, goalId));
+    return c.json({ ok: true });
   })
 
   // Toggle public share dashboard

@@ -42,9 +42,53 @@
     }).catch(function () {});
   }
 
+  // ---- Engagement time ----
+  // Accumulate wall-clock time while the page is visible; flush it as an
+  // 'engagement' event (ev = engaged seconds) when the visitor hides the tab,
+  // leaves the page, or SPA-navigates away. Powers the visit-duration metric.
+  let engagedStart = 0; // epoch ms while accumulating, 0 while paused
+  let engagedMs = 0;
+
+  function pauseEngagement(): void {
+    if (engagedStart) {
+      engagedMs += Date.now() - engagedStart;
+      engagedStart = 0;
+    }
+  }
+
+  function flushEngagement(path: string): void {
+    pauseEngagement();
+    const seconds = Math.round(engagedMs / 1000);
+    engagedMs = 0;
+    // Skip sub-second blips and absurd values (suspended laptops etc.)
+    if (seconds < 1 || seconds > 4 * 3600) return;
+    sendRequest({
+      t: 'engagement',
+      s: siteKey,
+      p: path,
+      h: location.hostname,
+      sid: getSessionId(),
+      ev: seconds,
+    });
+  }
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'hidden') {
+      flushEngagement(lastPage || location.pathname);
+    } else if (lastPage) {
+      engagedStart = Date.now();
+    }
+  });
+  window.addEventListener('pagehide', function () {
+    flushEngagement(lastPage || location.pathname);
+  });
+
   function page(isSPANavigation?: boolean): void {
     if (isSPANavigation && lastPage === location.pathname) return;
+    // SPA navigation: credit accumulated time to the page being left.
+    if (isSPANavigation && lastPage) flushEngagement(lastPage);
     lastPage = location.pathname;
+    engagedStart = Date.now();
 
     const params = new URLSearchParams(location.search);
 

@@ -15,9 +15,11 @@ import {
   Trash2,
   X,
   Filter,
+  Target,
+  Plus,
 } from 'lucide-react';
 import type { Period, MainStats } from '@traks/shared';
-import { cn, formatNumber, formatPercentChange } from '@/lib/utils';
+import { cn, formatNumber, formatDuration, formatPercentChange } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { TimezoneSelect } from '@/components/ui/timezone-select';
@@ -32,6 +34,7 @@ import {
 } from '@/components/ui/dialog';
 import { TimeseriesChart } from '@/components/analytics/TimeseriesChart';
 import { PanelCard } from '@/components/analytics/PanelCard';
+import { GoalsPanel } from '@/components/analytics/GoalsPanel';
 import { PeriodPicker } from '@/components/layout/PeriodPicker';
 import { api, type AnalyticsFilters } from '@/lib/api';
 
@@ -428,6 +431,211 @@ function EditSiteModal({
   );
 }
 
+function ManageGoalsModal({
+  open,
+  onOpenChange,
+  siteId,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  siteId: string;
+}): ReactElement {
+  const { getToken } = useAuth();
+  const queryClient = useQueryClient();
+  const [name, setName] = useState('');
+  const [type, setType] = useState<'event' | 'page'>('event');
+  const [target, setTarget] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (open) {
+      setName('');
+      setType('event');
+      setTarget('');
+      setError('');
+    }
+  }, [open]);
+
+  const goalsQ = useQuery({
+    queryKey: ['site-goals', siteId],
+    queryFn: async () => {
+      const token = await getToken();
+      if (!token) throw new Error('Not authenticated');
+      return api.getGoals(siteId, token);
+    },
+    enabled: open,
+    staleTime: 60_000,
+  });
+
+  const invalidate = (): void => {
+    queryClient.invalidateQueries({ queryKey: ['site-goals', siteId] });
+    queryClient.invalidateQueries({ queryKey: ['site-analytics', siteId] });
+  };
+
+  const createGoal = useMutation({
+    mutationFn: async () => {
+      const token = await getToken();
+      if (!token) throw new Error('Not authenticated');
+      return api.createGoal(siteId, { name, type, target }, token);
+    },
+    onSuccess: () => {
+      setName('');
+      setTarget('');
+      setError('');
+      invalidate();
+    },
+    onError: (err: Error) => setError(err.message),
+  });
+
+  const deleteGoal = useMutation({
+    mutationFn: async (goalId: string) => {
+      const token = await getToken();
+      if (!token) throw new Error('Not authenticated');
+      return api.deleteGoal(siteId, goalId, token);
+    },
+    onSuccess: invalidate,
+    onError: (err: Error) => setError(err.message),
+  });
+
+  const goals = ((goalsQ.data as any)?.data ?? []) as {
+    id: string;
+    name: string;
+    type: 'event' | 'page';
+    target: string;
+  }[];
+  const canCreate = name.trim().length > 0 && target.trim().length > 0;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent onClose={() => onOpenChange(false)} className="max-w-md">
+        <DialogHeader>
+          <div className="w-10 h-10 rounded-xl bg-[#5b9a6f]/10 flex items-center justify-center mb-3">
+            <Target className="w-5 h-5 text-[#5b9a6f]" strokeWidth={1.7} />
+          </div>
+          <DialogTitle>Goals</DialogTitle>
+          <DialogDescription>
+            A goal is a custom event or a page visit that counts as a conversion.
+          </DialogDescription>
+        </DialogHeader>
+
+        <DialogBody>
+          <div className="space-y-5">
+            {/* Existing goals */}
+            {goals.length > 0 && (
+              <div className="space-y-1.5">
+                {goals.map(goal => (
+                  <div
+                    key={goal.id}
+                    className="flex items-center justify-between rounded-xl border border-[#e8e3ed]/80 px-3.5 py-2.5"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-[13px] font-medium text-[#2D3436]">{goal.name}</p>
+                      <p className="truncate text-[11px] text-[#9B9590]">
+                        {goal.type === 'event' ? `event: ${goal.target}` : `visit: ${goal.target}`}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => deleteGoal.mutate(goal.id)}
+                      disabled={deleteGoal.isPending}
+                      className="ml-3 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[#B5B0AA] hover:bg-[#e07a5f]/10 hover:text-[#e07a5f] transition-colors cursor-pointer"
+                      title="Delete goal"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Add goal */}
+            <div className={goals.length > 0 ? 'border-t border-[#e8e3ed]/60 pt-5' : ''}>
+              <p className="mb-3 text-[13px] font-medium text-[#2D3436]">Add a goal</p>
+              <div className="space-y-3">
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setType('event')}
+                    className={cn(
+                      'flex-1 rounded-xl border px-3 py-2 text-[12px] font-medium transition-colors cursor-pointer',
+                      type === 'event'
+                        ? 'border-[#5b9a6f]/40 bg-[#5b9a6f]/[0.06] text-[#2D3436]'
+                        : 'border-[#e8e3ed] text-[#9B9590] hover:border-[#d5cfe0]'
+                    )}
+                  >
+                    Custom event
+                  </button>
+                  <button
+                    onClick={() => setType('page')}
+                    className={cn(
+                      'flex-1 rounded-xl border px-3 py-2 text-[12px] font-medium transition-colors cursor-pointer',
+                      type === 'page'
+                        ? 'border-[#5b9a6f]/40 bg-[#5b9a6f]/[0.06] text-[#2D3436]'
+                        : 'border-[#e8e3ed] text-[#9B9590] hover:border-[#d5cfe0]'
+                    )}
+                  >
+                    Page visit
+                  </button>
+                </div>
+                <Input
+                  placeholder="Goal name (e.g. Signed up)"
+                  value={name}
+                  onChange={e => {
+                    setName(e.target.value);
+                    setError('');
+                  }}
+                  className="rounded-xl h-10 border-[#e8e3ed] focus:border-[#5b9a6f]/40 px-4 text-[13px]"
+                />
+                <Input
+                  placeholder={
+                    type === 'event' ? 'Event name (e.g. signup)' : 'Pathname (e.g. /thank-you)'
+                  }
+                  value={target}
+                  onChange={e => {
+                    setTarget(e.target.value);
+                    setError('');
+                  }}
+                  className="rounded-xl h-10 border-[#e8e3ed] focus:border-[#5b9a6f]/40 px-4 text-[13px]"
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && canCreate) createGoal.mutate();
+                  }}
+                />
+                {type === 'event' && (
+                  <p className="text-[11px] text-[#B5B0AA]">
+                    Fire it from your site with{' '}
+                    <code className="rounded bg-[#f3f0f7] px-1 py-0.5">
+                      traks(&apos;signup&apos;)
+                    </code>
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {error && <p className="text-[13px] text-[#e07a5f]">{error}</p>}
+          </div>
+        </DialogBody>
+
+        <DialogFooter className="border-t border-[#e8e3ed]/50 mx-6 px-0 pb-5 pt-4">
+          <Button
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
+            className="rounded-xl text-[13px] cursor-pointer"
+          >
+            Done
+          </Button>
+          <Button
+            onClick={() => createGoal.mutate()}
+            disabled={!canCreate}
+            isLoading={createGoal.isPending}
+            className="bg-[#5b9a6f] hover:bg-[#4e8a62] text-white rounded-xl text-[13px] px-5 cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Add goal
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function DeleteSiteModal({
   open,
   onOpenChange,
@@ -669,6 +877,11 @@ function ChartCard({
             change={stats.bounceRateChange}
             higherIsWorse
           />
+          <MetricTile
+            label="Visit Duration"
+            value={formatDuration(stats.avgDuration ?? 0)}
+            change={stats.avgDuration || stats.avgDurationChange ? stats.avgDurationChange : null}
+          />
         </div>
       )}
 
@@ -830,6 +1043,7 @@ function SiteAnalyticsPage(): ReactElement {
   const [editOpen, setEditOpen] = useState(false);
   const [installOpen, setInstallOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [goalsOpen, setGoalsOpen] = useState(false);
   const [chartMetric, setChartMetric] = useState<ChartMetric>('visitors');
 
   // Per-panel tab state
@@ -950,6 +1164,9 @@ function SiteAnalyticsPage(): ReactElement {
   );
   const eventsQ = useQuery(
     tileOpts(['events'], t => api.getEvents(siteId, period, t, filters), belowFoldVisible)
+  );
+  const goalStatsQ = useQuery(
+    tileOpts(['goals'], t => api.getGoalStats(siteId, period, t, filters), belowFoldVisible)
   );
 
   // Live visitor count (last 5 min, straight from the site's DO)
@@ -1143,6 +1360,14 @@ function SiteAnalyticsPage(): ReactElement {
               />
             </div>
 
+            {/* Goal conversions */}
+            <GoalsPanel
+              goals={(goalStatsQ.data as any)?.data}
+              isLoading={goalStatsQ.isLoading}
+              isError={goalStatsQ.isError}
+              onManage={() => setGoalsOpen(true)}
+            />
+
             {/* Custom events */}
             <PanelCard
               title="Custom Events"
@@ -1177,6 +1402,8 @@ function SiteAnalyticsPage(): ReactElement {
       />
 
       <InstallModal open={installOpen} onOpenChange={setInstallOpen} site={site} />
+
+      <ManageGoalsModal open={goalsOpen} onOpenChange={setGoalsOpen} siteId={siteId} />
 
       <DeleteSiteModal
         open={deleteOpen}

@@ -376,6 +376,67 @@ export function buildSessionStatsQuery(siteKey: string, range: PeriodRange, filt
 }
 
 /**
+ * Total engaged seconds (tracker 'engagement' events), current + previous
+ * period in one scan. Divided by sessions to produce avg visit duration.
+ */
+export function buildEngagementStatsQuery(
+  siteKey: string,
+  range: PeriodRange,
+  filters?: LiveFilters
+) {
+  const prev = previousRange(range);
+  const periodExpr = `CASE WHEN ts >= TIMESTAMP '${esc(range.from)}' THEN 'current' ELSE 'previous' END`;
+  return (table: string) => `
+    SELECT
+      ${periodExpr} AS period,
+      SUM(event_value) AS engaged
+    FROM ${table}
+    WHERE ${whereSiteAndRange(siteKey, { from: prev.from, to: range.to }, 'engagement', filters)}
+    GROUP BY ${periodExpr}
+  `;
+}
+
+/** Conversion counts for event-type goals (grouped by event_name). */
+export function buildGoalEventsQuery(
+  siteKey: string,
+  range: PeriodRange,
+  eventNames: string[],
+  filters?: LiveFilters
+) {
+  const names = eventNames.map(n => `'${esc(n)}'`).join(', ');
+  return (table: string) => `
+    SELECT
+      event_name AS target,
+      COUNT(*) AS events,
+      approx_distinct(visitor_id) AS visitors
+    FROM ${table}
+    WHERE ${whereSiteAndRange(siteKey, range, 'event', filters)}
+      AND event_name IN (${names})
+    GROUP BY event_name
+  `;
+}
+
+/** Conversion counts for page-visit goals (grouped by pathname). */
+export function buildGoalPagesQuery(
+  siteKey: string,
+  range: PeriodRange,
+  pathnames: string[],
+  filters?: LiveFilters
+) {
+  const paths = pathnames.map(p => `'${esc(p)}'`).join(', ');
+  return (table: string) => `
+    SELECT
+      pathname AS target,
+      COUNT(*) AS events,
+      approx_distinct(visitor_id) AS visitors
+    FROM ${table}
+    WHERE ${whereSiteAndRange(siteKey, range, 'pageview', filters)}
+      AND pathname IN (${paths})
+    GROUP BY pathname
+  `;
+}
+
+/**
  * Main stats for many sites at once (sites-list page). One GROUP BY site_id
  * query replaces a query per site; the API groups sites by timezone so every
  * site in a call shares the same resolved period window.

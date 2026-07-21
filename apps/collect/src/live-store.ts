@@ -3,6 +3,7 @@ import type {
   LiveEvent,
   LiveFilters,
   LiveCounts,
+  LiveGoalRow,
   LiveTotals,
   LiveDimension,
   LiveTimeseriesRow,
@@ -51,7 +52,13 @@ const DIMENSION_COLUMNS: Record<LiveDimension, string> = {
   utm_campaign: 'utm_campaign',
 };
 
-const EMPTY_TOTALS: LiveTotals = { pageviews: 0, visitors: 0, sessions: 0, bounces: 0 };
+const EMPTY_TOTALS: LiveTotals = {
+  pageviews: 0,
+  visitors: 0,
+  sessions: 0,
+  bounces: 0,
+  engagedSeconds: 0,
+};
 
 const n = (v: unknown): number => Number(v ?? 0) || 0;
 
@@ -344,15 +351,32 @@ export class SiteLiveStore extends DurableObject<unknown> {
           )
           .toArray();
 
+        // Engaged seconds from tracker engagement pings (visit duration).
+        const engagementRows = this.sql
+          .exec(
+            `SELECT CASE WHEN ts >= ? THEN 'current' ELSE 'previous' END AS period,
+                    SUM(event_value) AS engaged
+             FROM events
+             WHERE event_type = 'engagement' AND ts >= ? AND ts < ?${f.sql}
+             GROUP BY period`,
+            curFromMs,
+            prevFromMs,
+            toMs,
+            ...f.params
+          )
+          .toArray();
+
         const build = (period: string): LiveTotals => {
           const stat = statRows.find(r => r.period === period);
           const bounce = bounceRows.find(r => r.period === period);
+          const engagement = engagementRows.find(r => r.period === period);
           if (!stat) return { ...EMPTY_TOTALS };
           return {
             pageviews: n(stat.pageviews),
             visitors: n(stat.visitors),
             sessions: n(stat.sessions),
             bounces: n(bounce?.bounces),
+            engagedSeconds: n(engagement?.engaged),
           };
         };
 
@@ -479,6 +503,72 @@ export class SiteLiveStore extends DurableObject<unknown> {
         Math.max(0, offset)
       )
       .toArray() as unknown as LiveExportRow[];
+  }
+
+  async goalStats(
+    fromMs: number,
+    toMs: number,
+    eventNames: string[],
+    pathnames: string[],
+    filters?: LiveFilters
+  ): Promise<LiveGoalRow[]> {
+    const events = eventNames.slice(0, 50);
+    const pages = pathnames.slice(0, 50);
+    if (events.length === 0 && pages.length === 0) return [];
+    const f = SiteLiveStore.filterSql(filters);
+    const memoKey = `goals:${SiteLiveStore.q(fromMs)}:${SiteLiveStore.q(toMs)}:${events.join('\u0001')}:${pages.join('\u0001')}:${SiteLiveStore.filterKey(filters)}`;
+    return this.memoized(memoKey, MEMO_TTL_MS, () => {
+      const rows: LiveGoalRow[] = [];
+      if (events.length > 0) {
+        const marks = events.map(() => '?').join(', ');
+        for (const r of this.sql
+          .exec(
+            `SELECT event_name AS target, COUNT(*) AS events,
+                    COUNT(DISTINCT visitor_id) AS visitors
+             FROM events
+             WHERE event_type = 'event' AND ts >= ? AND ts < ?${f.sql}
+               AND event_name IN (${marks})
+             GROUP BY event_name`,
+            fromMs,
+            toMs,
+            ...f.params,
+            ...events
+          )
+          .toArray()) {
+          rows.push({
+            target: String(r.target),
+            kind: 'event',
+            events: n(r.events),
+            visitors: n(r.visitors),
+          });
+        }
+      }
+      if (pages.length > 0) {
+        const marks = pages.map(() => '?').join(', ');
+        for (const r of this.sql
+          .exec(
+            `SELECT pathname AS target, COUNT(*) AS events,
+                    COUNT(DISTINCT visitor_id) AS visitors
+             FROM events
+             WHERE event_type = 'pageview' AND ts >= ? AND ts < ?${f.sql}
+               AND pathname IN (${marks})
+             GROUP BY pathname`,
+            fromMs,
+            toMs,
+            ...f.params,
+            ...pages
+          )
+          .toArray()) {
+          rows.push({
+            target: String(r.target),
+            kind: 'page',
+            events: n(r.events),
+            visitors: n(r.visitors),
+          });
+        }
+      }
+      return rows;
+    });
   }
 
   async customEvents(

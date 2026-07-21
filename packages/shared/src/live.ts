@@ -55,6 +55,16 @@ export interface LiveCounts {
 
 export interface LiveTotals extends LiveCounts {
   bounces: number;
+  /** Total engaged seconds ('engagement' events) in the window. */
+  engagedSeconds: number;
+}
+
+export interface LiveGoalRow {
+  /** The matched event_name or pathname. */
+  target: string;
+  kind: 'event' | 'page';
+  events: number;
+  visitors: number;
 }
 
 export interface LiveTimeseriesRow {
@@ -125,6 +135,14 @@ export interface LiveStoreApi {
     filters?: LiveFilters
   ): Promise<LiveTopListRow[]>;
   realtime(nowMs: number): Promise<LiveRealtimeRow[]>;
+  /** Conversion counts for goal targets (event names + pathnames). */
+  goalStats(
+    fromMs: number,
+    toMs: number,
+    eventNames: string[],
+    pathnames: string[],
+    filters?: LiveFilters
+  ): Promise<LiveGoalRow[]>;
   customEvents(
     fromMs: number,
     toMs: number,

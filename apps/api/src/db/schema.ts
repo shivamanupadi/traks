@@ -72,6 +72,25 @@ export const apiKeys = sqliteTable(
   ]
 );
 
+// ============ Goals (conversion targets: a custom event name or a pathname) ============
+export const goals = sqliteTable(
+  'goals',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    siteId: text('site_id')
+      .notNull()
+      .references(() => sites.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    type: text('type').$type<'event' | 'page'>().notNull(),
+    /** event_name for 'event' goals, pathname for 'page' goals. */
+    target: text('target').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+  },
+  table => [index('goals_site_id_idx').on(table.siteId)]
+);
+
 // ============ Ops state (healthchecks, cron bookkeeping) ============
 export const opsState = sqliteTable('ops_state', {
   key: text('key').primaryKey(),

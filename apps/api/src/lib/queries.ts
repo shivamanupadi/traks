@@ -14,5 +14,8 @@ export {
   buildDevicesQuery,
   buildRealtimeQuery,
   buildEventsQuery,
+  buildEngagementStatsQuery,
+  buildGoalEventsQuery,
+  buildGoalPagesQuery,
 } from '@traks/shared';
 export type { QueryConfig, PeriodRange } from '@traks/shared';

@@ -42,7 +42,7 @@ export const api = {
 
   async updateSite(
     siteId: string,
-    data: { name: string; domain: string },
+    data: { name: string; domain: string; timezone?: string },
     token: string
   ): Promise<any> {
     const res = await client.api.sites[':id'].$patch(

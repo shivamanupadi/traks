@@ -24,15 +24,34 @@ export const trackingEventSchema = z
 
 export type ValidatedTrackingEvent = z.infer<typeof trackingEventSchema>;
 
+/**
+ * An invalid IANA zone would make Intl throw inside computeBucketKeys and
+ * fail every ingest request for the site - reject it at the API boundary.
+ */
+function isValidTimezone(tz: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const timezoneSchema = z
+  .string()
+  .max(64)
+  .refine(isValidTimezone, { message: 'Invalid IANA timezone' });
+
 export const createSiteSchema = z.object({
   name: z.string().min(1).max(100),
   domain: z.string().min(1).max(256),
-  timezone: z.string().max(64).default('UTC'),
+  timezone: timezoneSchema.default('UTC'),
 });
 
 export const updateSiteSchema = z.object({
   name: z.string().min(1).max(100),
   domain: z.string().min(1).max(256),
+  timezone: timezoneSchema.optional(),
 });
 
 export const statsQuerySchema = z.object({

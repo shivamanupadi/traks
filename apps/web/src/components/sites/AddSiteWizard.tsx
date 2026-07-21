@@ -46,7 +46,10 @@ export function AddSiteWizard({
     mutationFn: async () => {
       const token = await getToken();
       if (!token) throw new Error('Not authenticated');
-      return api.createSite({ name, domain }, token);
+      // Site timezone drives how dashboard buckets are computed at ingest;
+      // default it to the browser's zone instead of UTC.
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+      return api.createSite({ name, domain, timezone }, token);
     },
     onSuccess: (result: any) => {
       queryClient.invalidateQueries({ queryKey: ['sites'] });

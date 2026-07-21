@@ -105,6 +105,7 @@ export const sitesRoute = app
         .set({
           name: body.name,
           domain: body.domain,
+          ...(body.timezone ? { timezone: body.timezone } : {}),
           updatedAt: new Date(),
         })
         .where(eq(sites.id, siteId));

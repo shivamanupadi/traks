@@ -193,6 +193,26 @@ function InstallModal({
   );
 }
 
+// Full IANA zone list where the browser provides it; small static fallback
+// otherwise. The current site value is merged in so it's always selectable.
+function timezoneOptions(current: string): string[] {
+  const supported = (
+    Intl as unknown as { supportedValuesOf?: (key: string) => string[] }
+  ).supportedValuesOf?.('timeZone') ?? [
+    'UTC',
+    'America/New_York',
+    'America/Chicago',
+    'America/Los_Angeles',
+    'Europe/London',
+    'Europe/Berlin',
+    'Asia/Kolkata',
+    'Asia/Singapore',
+    'Asia/Tokyo',
+    'Australia/Sydney',
+  ];
+  return supported.includes(current) ? supported : [current, ...supported];
+}
+
 function EditSiteModal({
   open,
   onOpenChange,
@@ -204,6 +224,7 @@ function EditSiteModal({
   site: {
     name: string;
     domain: string;
+    timezone?: string;
     public?: boolean;
     exportEnabled?: boolean;
     exportToken?: string | null;
@@ -214,6 +235,7 @@ function EditSiteModal({
   const queryClient = useQueryClient();
   const [name, setName] = useState('');
   const [domain, setDomain] = useState('');
+  const [timezone, setTimezone] = useState('UTC');
   const [error, setError] = useState('');
   const [exportEnabled, setExportEnabled] = useState(false);
   const [exportToken, setExportToken] = useState<string | null>(null);
@@ -223,6 +245,7 @@ function EditSiteModal({
     if (open && site) {
       setName(site.name);
       setDomain(site.domain);
+      setTimezone(site.timezone || 'UTC');
       setExportEnabled(site.exportEnabled ?? false);
       setExportToken(site.exportToken ?? null);
       setPublicEnabled(site.public ?? false);
@@ -261,11 +284,13 @@ function EditSiteModal({
     mutationFn: async () => {
       const token = await getToken();
       if (!token) throw new Error('Not authenticated');
-      return api.updateSite(siteId, { name, domain }, token);
+      return api.updateSite(siteId, { name, domain, timezone }, token);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['site', siteId] });
       queryClient.invalidateQueries({ queryKey: ['sites'] });
+      // Bucket windows depend on the timezone - refetch everything.
+      queryClient.invalidateQueries({ queryKey: ['site-analytics', siteId] });
       onOpenChange(false);
     },
     onError: (err: Error) => {
@@ -278,6 +303,7 @@ function EditSiteModal({
   });
 
   const canSave = name.trim().length > 0 && domain.trim().length > 0;
+  const TIMEZONES = timezoneOptions(timezone);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -320,6 +346,26 @@ function EditSiteModal({
                 }}
               />
               <p className="mt-2 text-[12px] text-[#B5B0AA]">Without http:// or https://</p>
+            </div>
+            <div>
+              <label className="mb-2 block text-[13px] font-medium text-[#2D3436]">Timezone</label>
+              <select
+                value={timezone}
+                onChange={e => {
+                  setTimezone(e.target.value);
+                  setError('');
+                }}
+                className="w-full rounded-xl h-11 border border-[#e8e3ed] focus:border-[#9b72cf]/40 focus:outline-none bg-white px-3.5 text-[14px] text-[#2D3436] cursor-pointer"
+              >
+                {TIMEZONES.map(tz => (
+                  <option key={tz} value={tz}>
+                    {tz.replaceAll('_', ' ')}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-2 text-[12px] text-[#B5B0AA]">
+                Dashboard days and hours are bucketed in this timezone.
+              </p>
             </div>
             {/* Public dashboard */}
             <div className="border-t border-[#e8e3ed]/60 pt-5">
@@ -1009,6 +1055,7 @@ function SiteAnalyticsPage(): ReactElement {
             ? {
                 name: site.name,
                 domain: site.domain,
+                timezone: site.timezone,
                 public: site.public,
                 exportEnabled: site.exportEnabled,
                 exportToken: site.exportToken,

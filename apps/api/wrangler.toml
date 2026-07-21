@@ -53,12 +53,6 @@ R2_BUCKET_NAME = "traks-events-dev"
 APP_URL = "http://localhost:5012"
 EMAIL_FROM = "reports@traks.dev"
 ADMIN_EMAIL = "" # set to receive ops alerts
-# Dodo billing is off until the account is out of review. To enable: set to
-# "true", fill DODO_PRODUCT_* below, and add the DODO_* secrets in Doppler.
-BILLING_ENABLED = "false"
-DODO_API_BASE = "https://test.dodopayments.com"
-DODO_PRODUCT_PRO = ""      # pdt_... (test mode)
-DODO_PRODUCT_BUSINESS = "" # pdt_... (test mode)
 
 # --- Production: wrangler deploy --env production ---
 
@@ -97,12 +91,6 @@ R2_BUCKET_NAME = "traks-events"
 APP_URL = "https://traks.dev"
 EMAIL_FROM = "reports@traks.dev"
 ADMIN_EMAIL = "shiva.manupadi@gmail.com" # ops alerts (pipeline stuck, etc.)
-# Dodo billing is off until the account is out of review. To enable: set to
-# "true", fill DODO_PRODUCT_* below, and add the DODO_* secrets in Doppler (prd).
-BILLING_ENABLED = "false"
-DODO_API_BASE = "https://live.dodopayments.com"
-DODO_PRODUCT_PRO = ""      # pdt_... (live mode)
-DODO_PRODUCT_BUSINESS = "" # pdt_... (live mode)
 
 [[env.production.routes]]
 pattern = "api.traks.dev"
@@ -119,7 +107,4 @@ custom_domain = true
 #
 # Also required: CLERK_WEBHOOK_SECRET (Clerk dashboard -> Webhooks, point at
 # /api/webhooks/clerk).
-#
-# Only needed once BILLING_ENABLED = "true" (Dodo is currently in review, so
-# billing is gated off and these can be omitted): DODO_API_KEY,
-# DODO_WEBHOOK_SECRET (Dodo dashboard -> Developer -> Webhooks endpoint secret).
+

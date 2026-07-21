@@ -3,9 +3,9 @@ import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { eq } from 'drizzle-orm';
 import { createId } from '@paralleldrive/cuid2';
-import { createSiteSchema, updateSiteSchema, allSitesTimezoneSchema, planOf } from '@traks/shared';
+import { createSiteSchema, updateSiteSchema, allSitesTimezoneSchema } from '@traks/shared';
 import { requireAuth } from '../middleware/auth';
-import { sites, apiKeys, users } from '../db/schema';
+import { sites, apiKeys } from '../db/schema';
 import type { Bindings, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
@@ -34,17 +34,6 @@ export const sitesRoute = app
     const userId = c.get('userId')!;
     const body = c.req.valid('json');
     const db = c.get('db')!;
-
-    // Plan site limit
-    const [user] = await db.select({ plan: users.plan }).from(users).where(eq(users.id, userId));
-    const plan = planOf(user?.plan);
-    const existing = await db.select({ id: sites.id }).from(sites).where(eq(sites.userId, userId));
-    if (existing.length >= plan.siteLimit) {
-      return c.json(
-        { error: `The ${plan.name} plan allows ${plan.siteLimit} site(s). Upgrade to add more.` },
-        403
-      );
-    }
 
     const siteId = createId();
     const siteKey = `pb_live_${createId()}`;
@@ -163,14 +152,6 @@ export const sitesRoute = app
     const [site] = await db.select().from(sites).where(eq(sites.id, siteId));
     if (!site || site.userId !== userId) {
       return c.json({ error: 'Not found' }, 404);
-    }
-
-    // Exports are a paid-plan feature (disable is always allowed).
-    if (enabled) {
-      const [user] = await db.select({ plan: users.plan }).from(users).where(eq(users.id, userId));
-      if (!planOf(user?.plan).exports) {
-        return c.json({ error: 'Data export requires a paid plan.' }, 403);
-      }
     }
 
     const exportToken = site.exportToken ?? generateExportToken();

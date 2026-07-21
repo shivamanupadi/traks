@@ -57,9 +57,9 @@ function DocsPage(): ReactElement {
 
         <Section title="3. Query your raw data with DuckDB">
           <p>
-            On paid plans, enable <strong>Data export</strong> in your site settings. Every night we
-            write the previous day&apos;s raw events as gzipped NDJSON, readable straight from
-            DuckDB with your private token URL:
+            Enable <strong>Data export</strong> in your site settings. Every night we write the
+            previous day&apos;s raw events as gzipped NDJSON, readable straight from DuckDB with
+            your private token URL:
           </p>
           <Code>{`INSTALL httpfs; LOAD httpfs;\n\nSELECT country, COUNT(*) AS pageviews\nFROM read_ndjson_auto(\n  '${API_URL}/api/exports/YOUR_TOKEN/2026-07-07.ndjson.gz')\nGROUP BY country ORDER BY pageviews DESC;`}</Code>
           <p>

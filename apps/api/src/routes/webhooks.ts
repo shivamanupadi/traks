@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { eq } from 'drizzle-orm';
 import { users } from '../db/schema';
-import { verifyStandardWebhook } from '../lib/dodo';
+import { verifyStandardWebhook } from '../lib/webhooks';
 import type { Bindings, Variables } from '../types';
 
 interface ClerkUserEvent {
@@ -17,9 +17,8 @@ interface ClerkUserEvent {
 }
 
 /**
- * Clerk webhook (svix — same Standard Webhooks scheme as Dodo, different
- * header prefix). Keeps D1 user records in sync so we have real emails for
- * digests/billing instead of the ensure-user placeholder.
+ * Clerk webhook (svix / Standard Webhooks). Keeps D1 user records in sync so
+ * we have real emails for digests instead of the ensure-user placeholder.
  */
 export const clerkWebhookRoute = new Hono<{ Bindings: Bindings; Variables: Variables }>().post(
   '/',

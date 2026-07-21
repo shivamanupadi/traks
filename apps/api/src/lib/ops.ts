@@ -1,12 +1,11 @@
 import { drizzle } from 'drizzle-orm/d1';
-import { eq, and, inArray, isNull, notLike } from 'drizzle-orm';
+import { eq, and, isNull, notLike } from 'drizzle-orm';
 import {
   TABLE_PROD,
   TABLE_DEV,
   queryR2Sql,
   resolvePeriod,
   buildStatsWithComparisonQuery,
-  planOf,
 } from '@traks/shared';
 import { users, sites, apiKeys, opsState } from '../db/schema';
 import type { Bindings } from '../types';
@@ -143,20 +142,13 @@ export async function runWeeklyDigest(env: Bindings): Promise<void> {
   const config = r2SqlConfig(env);
   const now = new Date();
 
-  // Paid-plan users who opted in and have a real (Clerk-synced) email.
+  // Users who opted in and have a real (Clerk-synced) email.
   const recipients = await db
     .select()
     .from(users)
-    .where(
-      and(
-        eq(users.weeklyReport, true),
-        inArray(users.plan, ['pro', 'business']),
-        notLike(users.email, '%@clerk.user')
-      )
-    );
+    .where(and(eq(users.weeklyReport, true), notLike(users.email, '%@clerk.user')));
 
   for (const user of recipients) {
-    if (!planOf(user.plan).weeklyReports) continue;
     try {
       const userSites = await db
         .select({

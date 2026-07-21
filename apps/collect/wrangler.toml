@@ -11,20 +11,12 @@ database_name = "traks-db-dev"
 database_id = "cd0ff4bb-5cc4-4002-a259-be02b3234e29"
 migrations_dir = "../api/src/db/migrations"
 
-# Per-site-key flood guards (counted per colo). These are burst caps only —
-# sustained volume is enforced by the monthly plan quota. Paid sites get
-# 100/s per colo (a regional front-page spike stays unthrottled); free keys
-# are the abuse vector and stay tighter at 20/s.
+# Per-site-key flood guard (counted per colo). Pure abuse backstop —
+# there are no product quotas. 100/s per colo per site key.
 [[unsafe.bindings]]
-name = "RATE_LIMIT_FREE"
+name = "RATE_LIMIT"
 type = "ratelimit"
 namespace_id = "1001"
-simple = { limit = 1200, period = 60 }
-
-[[unsafe.bindings]]
-name = "RATE_LIMIT_PAID"
-type = "ratelimit"
-namespace_id = "1002"
 simple = { limit = 6000, period = 60 }
 
 # Ingest failure counters (live-DO write failures, pipeline send failures),
@@ -69,15 +61,9 @@ database_name = "traks-db-prod"
 database_id = "7a19029a-d3a0-4ebf-b7f7-3a0237cf4c1e"
 
 [[env.production.unsafe.bindings]]
-name = "RATE_LIMIT_FREE"
+name = "RATE_LIMIT"
 type = "ratelimit"
 namespace_id = "1003"
-simple = { limit = 1200, period = 60 }
-
-[[env.production.unsafe.bindings]]
-name = "RATE_LIMIT_PAID"
-type = "ratelimit"
-namespace_id = "1004"
 simple = { limit = 6000, period = 60 }
 
 [[env.production.analytics_engine_datasets]]

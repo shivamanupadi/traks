@@ -18,12 +18,12 @@ function SettingsPage(): ReactElement {
   const [timezone, setTimezone] = useState('');
   const [applied, setApplied] = useState(false);
 
-  const { data: billingData } = useQuery({
-    queryKey: ['billing'],
+  const { data: accountData } = useQuery({
+    queryKey: ['account'],
     queryFn: async () => {
       const token = await getToken();
       if (!token) throw new Error('Not authenticated');
-      return api.getBilling(token);
+      return api.getAccount(token);
     },
     staleTime: 60_000,
   });
@@ -67,17 +67,15 @@ function SettingsPage(): ReactElement {
     },
   });
 
-  const billing = (billingData as any)?.data;
-  const currentPlan: string = billing?.plan ?? 'free';
-  const weeklyReport = billing?.weeklyReport ?? true;
+  const weeklyReport = (accountData as any)?.data?.weeklyReport ?? true;
 
   const setPrefs = useMutation({
     mutationFn: async (enabled: boolean) => {
       const token = await getToken();
       if (!token) throw new Error('Not authenticated');
-      return api.setBillingPrefs(enabled, token);
+      return api.setPreferences(enabled, token);
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['billing'] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['account'] }),
   });
 
   const timezoneChanged = timezone !== '' && (uniformZone === null || timezone !== uniformZone);
@@ -148,7 +146,7 @@ function SettingsPage(): ReactElement {
             <div>
               <p className="text-[13px] font-medium text-[#2D3436]">Weekly email report</p>
               <p className="text-[12px] text-[#9B9590]">
-                A Monday digest of visitors and pageviews across your sites (paid plans).
+                A Monday digest of visitors and pageviews across your sites.
               </p>
             </div>
           </div>
@@ -170,12 +168,6 @@ function SettingsPage(): ReactElement {
             />
           </button>
         </div>
-        {currentPlan === 'free' && (
-          <p className="mt-2 flex items-center gap-1.5 text-[12px] text-[#B5B0AA]">
-            <Check className="h-3 w-3" />
-            Reports start sending once you&apos;re on a paid plan.
-          </p>
-        )}
       </section>
     </main>
   );

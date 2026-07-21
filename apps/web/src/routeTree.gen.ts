@@ -17,7 +17,6 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ShareSiteIdRouteImport } from './routes/share.$siteId'
 import { Route as PortalSitesRouteImport } from './routes/portal.sites'
 import { Route as PortalSettingsRouteImport } from './routes/portal.settings'
-import { Route as PortalBillingRouteImport } from './routes/portal.billing'
 import { Route as PortalSiteSiteIdRouteImport } from './routes/portal.site.$siteId'
 
 const SignupRoute = SignupRouteImport.update({
@@ -60,11 +59,6 @@ const PortalSettingsRoute = PortalSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => PortalRoute,
 } as any)
-const PortalBillingRoute = PortalBillingRouteImport.update({
-  id: '/billing',
-  path: '/billing',
-  getParentRoute: () => PortalRoute,
-} as any)
 const PortalSiteSiteIdRoute = PortalSiteSiteIdRouteImport.update({
   id: '/site/$siteId',
   path: '/site/$siteId',
@@ -79,7 +73,6 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/portal': typeof PortalRouteWithChildren
   '/signup': typeof SignupRoute
-  '/portal/billing': typeof PortalBillingRoute
   '/portal/settings': typeof PortalSettingsRoute
   '/portal/sites': typeof PortalSitesRoute
   '/share/$siteId': typeof ShareSiteIdRoute
@@ -91,7 +84,6 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/portal': typeof PortalRouteWithChildren
   '/signup': typeof SignupRoute
-  '/portal/billing': typeof PortalBillingRoute
   '/portal/settings': typeof PortalSettingsRoute
   '/portal/sites': typeof PortalSitesRoute
   '/share/$siteId': typeof ShareSiteIdRoute
@@ -104,7 +96,6 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/portal': typeof PortalRouteWithChildren
   '/signup': typeof SignupRoute
-  '/portal/billing': typeof PortalBillingRoute
   '/portal/settings': typeof PortalSettingsRoute
   '/portal/sites': typeof PortalSitesRoute
   '/share/$siteId': typeof ShareSiteIdRoute
@@ -118,7 +109,6 @@ export interface FileRouteTypes {
     | '/login'
     | '/portal'
     | '/signup'
-    | '/portal/billing'
     | '/portal/settings'
     | '/portal/sites'
     | '/share/$siteId'
@@ -130,7 +120,6 @@ export interface FileRouteTypes {
     | '/login'
     | '/portal'
     | '/signup'
-    | '/portal/billing'
     | '/portal/settings'
     | '/portal/sites'
     | '/share/$siteId'
@@ -142,7 +131,6 @@ export interface FileRouteTypes {
     | '/login'
     | '/portal'
     | '/signup'
-    | '/portal/billing'
     | '/portal/settings'
     | '/portal/sites'
     | '/share/$siteId'
@@ -216,13 +204,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PortalSettingsRouteImport
       parentRoute: typeof PortalRoute
     }
-    '/portal/billing': {
-      id: '/portal/billing'
-      path: '/billing'
-      fullPath: '/portal/billing'
-      preLoaderRoute: typeof PortalBillingRouteImport
-      parentRoute: typeof PortalRoute
-    }
     '/portal/site/$siteId': {
       id: '/portal/site/$siteId'
       path: '/site/$siteId'
@@ -234,14 +215,12 @@ declare module '@tanstack/react-router' {
 }
 
 interface PortalRouteChildren {
-  PortalBillingRoute: typeof PortalBillingRoute
   PortalSettingsRoute: typeof PortalSettingsRoute
   PortalSitesRoute: typeof PortalSitesRoute
   PortalSiteSiteIdRoute: typeof PortalSiteSiteIdRoute
 }
 
 const PortalRouteChildren: PortalRouteChildren = {
-  PortalBillingRoute: PortalBillingRoute,
   PortalSettingsRoute: PortalSettingsRoute,
   PortalSitesRoute: PortalSitesRoute,
   PortalSiteSiteIdRoute: PortalSiteSiteIdRoute,

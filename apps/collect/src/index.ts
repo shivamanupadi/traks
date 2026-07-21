@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { trackingEventSchema, computeBucketKeys, planOf } from '@traks/shared';
+import { trackingEventSchema, computeBucketKeys } from '@traks/shared';
 import { isBot } from './lib/bots';
 import { parseUA } from './lib/ua';
 import { parseReferrer } from './lib/referrer';
@@ -15,8 +15,7 @@ type Bindings = {
   };
   LIVE: DurableObjectNamespace<SiteLiveStore>;
   DB: D1Database;
-  RATE_LIMIT_FREE: { limit: (opts: { key: string }) => Promise<{ success: boolean }> };
-  RATE_LIMIT_PAID: { limit: (opts: { key: string }) => Promise<{ success: boolean }> };
+  RATE_LIMIT: { limit: (opts: { key: string }) => Promise<{ success: boolean }> };
   /** Ingest failure counters (Workers Analytics Engine). */
   METRICS?: AnalyticsEngineDataset;
   ENVIRONMENT: string;
@@ -58,10 +57,6 @@ app.get('/t.js', c => {
 interface SiteAuth {
   valid: boolean;
   timezone: string;
-  /** Monthly per-site event quota from the owner's plan. */
-  monthlyQuota: number;
-  /** Paid plans get the higher burst rate limit. */
-  paid: boolean;
 }
 
 // Isolate-level auth cache: without it every event costs a D1 read (50M
@@ -71,9 +66,9 @@ const AUTH_CACHE_TTL_MS = 60_000;
 const authCache = new Map<string, { auth: SiteAuth; expires: number }>();
 
 /**
- * Validate the site key AND fetch the site's IANA timezone + owner plan in
- * one D1 hit. Timezone drives how hour/date/week bucket keys are computed so
- * dashboard aggregations align with the user's local clock, not UTC.
+ * Validate the site key AND fetch the site's IANA timezone in one D1 hit.
+ * Timezone drives how hour/date/week bucket keys are computed so dashboard
+ * aggregations align with the user's local clock, not UTC.
  */
 async function authenticateSite(db: D1Database, siteKey: string): Promise<SiteAuth> {
   const cached = authCache.get(siteKey);
@@ -81,35 +76,23 @@ async function authenticateSite(db: D1Database, siteKey: string): Promise<SiteAu
 
   const row = await db
     .prepare(
-      `SELECT sites.timezone AS tz, users.plan AS plan
+      `SELECT sites.timezone AS tz
        FROM api_keys
        INNER JOIN sites ON sites.id = api_keys.site_id
-       INNER JOIN users ON users.id = sites.user_id
        WHERE api_keys.key = ? AND api_keys.revoked_at IS NULL
        LIMIT 1`
     )
     .bind(siteKey)
-    .first<{ tz: string | null; plan: string | null }>();
+    .first<{ tz: string | null }>();
 
-  const plan = planOf(row?.plan);
   const auth: SiteAuth = row
-    ? {
-        valid: true,
-        timezone: row.tz || 'UTC',
-        monthlyQuota: plan.monthlyEvents,
-        paid: plan.priceUsd > 0,
-      }
-    : { valid: false, timezone: 'UTC', monthlyQuota: 0, paid: false };
+    ? { valid: true, timezone: row.tz || 'UTC' }
+    : { valid: false, timezone: 'UTC' };
 
   if (authCache.size > 10_000) authCache.clear();
   authCache.set(siteKey, { auth, expires: Date.now() + AUTH_CACHE_TTL_MS });
   return auth;
 }
-
-// Sites that exhausted their monthly quota; re-checked every 10 minutes so a
-// plan upgrade (or month rollover) resumes ingest without a deploy.
-const OVER_QUOTA_RECHECK_MS = 10 * 60_000;
-const overQuota = new Map<string, number>(); // siteKey -> recheck-at epoch ms
 
 // Cache the HMAC CryptoKey per day - avoids crypto.subtle.importKey() on every request
 const encoder = new TextEncoder();
@@ -178,20 +161,10 @@ app.post('/api/event', async c => {
     return c.json({ error: 'unknown site' }, 403);
   }
 
-  // Plan-aware burst guard (per colo): floods get cut here; sustained
-  // volume is the monthly quota's job. Paid sites get 100/s per colo so
-  // legitimate traffic spikes pass untouched.
-  const limiter = site.paid ? c.env.RATE_LIMIT_PAID : c.env.RATE_LIMIT_FREE;
-  const { success } = await limiter.limit({ key: event.s });
+  // Burst guard (per colo, per site key): floods get cut here. No product
+  // quotas — this is purely an abuse backstop.
+  const { success } = await c.env.RATE_LIMIT.limit({ key: event.s });
   if (!success) return c.json({ error: 'rate limited' }, 429);
-
-  // Monthly quota: flagged sites drop events (200 so trackers stay quiet);
-  // the flag expires periodically so upgrades/month rollover recover alone.
-  const recheckAt = overQuota.get(event.s);
-  if (recheckAt !== undefined) {
-    if (Date.now() < recheckAt) return c.json({ ok: true });
-    overQuota.delete(event.s);
-  }
 
   const ip = c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for') || '0.0.0.0';
 
@@ -272,13 +245,6 @@ app.post('/api/event', async c => {
           visitorId: visitorId,
           eventName: event.en || '',
           eventValue: event.ev || 0,
-        })
-        .then(monthEvents => {
-          // Quota enforcement is soft: the event that crosses the line is
-          // kept, subsequent ones are dropped until the next re-check.
-          if (monthEvents > site.monthlyQuota) {
-            overQuota.set(event.s, Date.now() + OVER_QUOTA_RECHECK_MS);
-          }
         })
         .catch(err => {
           console.error('Live store write failed:', err);

@@ -6,7 +6,7 @@ import { sitesRoute } from './routes/sites';
 import { analyticsRoute } from './routes/analytics';
 import { exportsRoute } from './routes/exports';
 import { publicRoute } from './routes/public';
-import { billingRoute, dodoWebhookRoute } from './routes/billing';
+import { accountRoute } from './routes/account';
 import { clerkWebhookRoute } from './routes/webhooks';
 import { runNightlyExports } from './lib/exports';
 import { runWeeklyDigest, runFreshnessCheck } from './lib/ops';
@@ -38,10 +38,9 @@ const routes = app
   .route('/api/analytics', analyticsRoute)
   .route('/api/exports', exportsRoute)
   .route('/api/public', publicRoute)
-  .route('/api/billing', billingRoute);
+  .route('/api/account', accountRoute);
 
 // Webhooks live outside the RPC chain (external callers, not the web app).
-app.route('/api/webhooks/dodo', dodoWebhookRoute);
 app.route('/api/webhooks/clerk', clerkWebhookRoute);
 
 app.notFound(c => c.json({ error: 'Not found' }, 404));

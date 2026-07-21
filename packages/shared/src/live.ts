@@ -20,6 +20,12 @@ export type LiveDimension =
   | 'utm_medium'
   | 'utm_campaign';
 
+/**
+ * Dimension -> exact-match value filters, applied on top of every dashboard
+ * query (click-to-filter). Keys are the canonical column dimensions.
+ */
+export type LiveFilters = Partial<Record<LiveDimension, string>>;
+
 /** The subset of the ingest record the hot path needs. */
 export interface LiveEvent {
   ts: number; // epoch ms
@@ -103,21 +109,28 @@ export interface LiveStoreApi {
   record(event: LiveEvent): Promise<number>;
   /** Wipes all stored data for this site (site deletion). */
   purge(): Promise<void>;
-  totals(fromMs: number, toMs: number): Promise<LiveCounts>;
+  totals(fromMs: number, toMs: number, filters?: LiveFilters): Promise<LiveCounts>;
   mainStats(
     prevFromMs: number,
     curFromMs: number,
-    toMs: number
+    toMs: number,
+    filters?: LiveFilters
   ): Promise<{ current: LiveTotals; previous: LiveTotals }>;
-  timeseries(fromMs: number, toMs: number): Promise<LiveTimeseriesRow[]>;
+  timeseries(fromMs: number, toMs: number, filters?: LiveFilters): Promise<LiveTimeseriesRow[]>;
   topList(
     dimension: LiveDimension,
     fromMs: number,
     toMs: number,
-    limit: number
+    limit: number,
+    filters?: LiveFilters
   ): Promise<LiveTopListRow[]>;
   realtime(nowMs: number): Promise<LiveRealtimeRow[]>;
-  customEvents(fromMs: number, toMs: number, limit: number): Promise<LiveCustomEventRow[]>;
+  customEvents(
+    fromMs: number,
+    toMs: number,
+    limit: number,
+    filters?: LiveFilters
+  ): Promise<LiveCustomEventRow[]>;
   /** Paginated raw dump for the nightly export job (ordered by ts). */
   exportEvents(
     fromMs: number,

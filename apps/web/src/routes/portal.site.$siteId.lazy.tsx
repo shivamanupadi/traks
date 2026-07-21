@@ -13,6 +13,8 @@ import {
   Check,
   Zap,
   Trash2,
+  X,
+  Filter,
 } from 'lucide-react';
 import type { Period, MainStats } from '@traks/shared';
 import { cn, formatNumber, formatPercentChange } from '@/lib/utils';
@@ -31,7 +33,7 @@ import {
 import { TimeseriesChart } from '@/components/analytics/TimeseriesChart';
 import { PanelCard } from '@/components/analytics/PanelCard';
 import { PeriodPicker } from '@/components/layout/PeriodPicker';
-import { api } from '@/lib/api';
+import { api, type AnalyticsFilters } from '@/lib/api';
 
 const COLLECT_URL = import.meta.env.VITE_COLLECT_URL || 'https://collect.traks.dev';
 const API_URL = import.meta.env.VITE_API_URL || 'https://api.traks.dev';
@@ -685,6 +687,65 @@ function ChartCard({
   );
 }
 
+const FILTER_LABELS: Record<keyof AnalyticsFilters, string> = {
+  page: 'Page',
+  source: 'Source',
+  utmSource: 'UTM Source',
+  utmMedium: 'UTM Medium',
+  utmCampaign: 'UTM Campaign',
+  country: 'Country',
+  city: 'City',
+  browser: 'Browser',
+  os: 'OS',
+  device: 'Device',
+};
+
+function FilterChips({
+  filters,
+  onRemove,
+  onClear,
+}: {
+  filters: AnalyticsFilters;
+  onRemove: (key: keyof AnalyticsFilters) => void;
+  onClear: () => void;
+}): ReactElement | null {
+  const entries = Object.entries(filters).filter(([, v]) => v) as [
+    keyof AnalyticsFilters,
+    string,
+  ][];
+  if (entries.length === 0) return null;
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Filter className="h-3.5 w-3.5 text-[#9B9590]" strokeWidth={1.7} />
+      {entries.map(([key, value]) => (
+        <span
+          key={key}
+          className="flex items-center gap-1.5 rounded-full bg-[#9b72cf]/[0.08] py-1 pl-3 pr-1.5 text-[12px] text-[#2D3436]"
+        >
+          <span className="text-[#9B9590]">{FILTER_LABELS[key]}</span>
+          <span className="max-w-[180px] truncate font-medium">{value}</span>
+          <button
+            onClick={() => onRemove(key)}
+            className="flex h-4.5 w-4.5 items-center justify-center rounded-full hover:bg-[#9b72cf]/15 transition-colors cursor-pointer"
+            title="Remove filter"
+          >
+            <X className="h-3 w-3 text-[#9B9590]" />
+          </button>
+        </span>
+      ))}
+      {entries.length > 1 && (
+        <button
+          onClick={onClear}
+          className="text-[12px] text-[#9B9590] hover:text-[#2D3436] transition-colors cursor-pointer"
+        >
+          Clear all
+        </button>
+      )}
+    </div>
+  );
+}
+
 function LiveVisitorsPill({ count }: { count: number | null }): ReactElement | null {
   if (count === null) return null;
   return (
@@ -702,22 +763,69 @@ function LiveVisitorsPill({ count }: { count: number | null }): ReactElement | n
 
 function SiteAnalyticsPage(): ReactElement {
   const { siteId } = Route.useParams();
-  const { period: searchPeriod } = Route.useSearch();
+  const search = Route.useSearch();
+  const { period: searchPeriod } = search;
   const navigate = useNavigate();
   const { getToken } = useAuth();
   const queryClient = useQueryClient();
   const period: Period = searchPeriod || 'today';
+
+  const filters: AnalyticsFilters = {};
+  for (const key of Object.keys(FILTER_LABELS) as (keyof AnalyticsFilters)[]) {
+    const value = (search as Record<string, unknown>)[key];
+    if (typeof value === 'string' && value) filters[key] = value;
+  }
+  const filterKey = JSON.stringify(filters);
+  const hasFilters = Object.keys(filters).length > 0;
+
   const setPeriod = useCallback(
     (p: Period) => {
       navigate({
         to: '/portal/site/$siteId',
         params: { siteId },
-        search: { period: p },
+        search: prev => ({ ...prev, period: p }),
         replace: true,
       });
     },
     [navigate, siteId]
   );
+
+  const setFilter = useCallback(
+    (key: keyof AnalyticsFilters, value: string) => {
+      navigate({
+        to: '/portal/site/$siteId',
+        params: { siteId },
+        search: prev => ({ ...prev, [key]: value }),
+        replace: true,
+      });
+    },
+    [navigate, siteId]
+  );
+
+  const removeFilter = useCallback(
+    (key: keyof AnalyticsFilters) => {
+      navigate({
+        to: '/portal/site/$siteId',
+        params: { siteId },
+        search: prev => ({ ...prev, [key]: undefined }),
+        replace: true,
+      });
+    },
+    [navigate, siteId]
+  );
+
+  const clearFilters = useCallback(() => {
+    navigate({
+      to: '/portal/site/$siteId',
+      params: { siteId },
+      search: prev => {
+        const next = { ...prev } as Record<string, unknown>;
+        for (const key of Object.keys(FILTER_LABELS)) next[key] = undefined;
+        return next;
+      },
+      replace: true,
+    });
+  }, [navigate, siteId]);
   const [refreshing, setRefreshing] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [installOpen, setInstallOpen] = useState(false);
@@ -757,7 +865,7 @@ function SiteAnalyticsPage(): ReactElement {
     call: (token: string) => Promise<unknown>,
     enabled = true
   ): Parameters<typeof useQuery>[0] => ({
-    queryKey: ['site-analytics', siteId, ...key, period],
+    queryKey: ['site-analytics', siteId, ...key, period, filterKey],
     queryFn: async () => {
       const token = await getToken();
       if (!token) throw new Error('Not authenticated');
@@ -768,32 +876,38 @@ function SiteAnalyticsPage(): ReactElement {
     enabled,
   });
 
-  const mainQ = useQuery(tileOpts(['main'], t => api.getMainStats(siteId, period, t)));
-  const timeseriesQ = useQuery(tileOpts(['timeseries'], t => api.getTimeseries(siteId, period, t)));
-  const pagesQ = useQuery(tileOpts(['pages'], t => api.getTopPages(siteId, period, t)));
+  const mainQ = useQuery(tileOpts(['main'], t => api.getMainStats(siteId, period, t, filters)));
+  const timeseriesQ = useQuery(
+    tileOpts(['timeseries'], t => api.getTimeseries(siteId, period, t, filters))
+  );
+  const pagesQ = useQuery(tileOpts(['pages'], t => api.getTopPages(siteId, period, t, filters)));
 
   // Sources panel: referrers or one of the UTM dimensions
   const referrersQ = useQuery(
-    tileOpts(['referrers'], t => api.getTopReferrers(siteId, period, t), sourceTab === 'referrers')
+    tileOpts(
+      ['referrers'],
+      t => api.getTopReferrers(siteId, period, t, filters),
+      sourceTab === 'referrers'
+    )
   );
   const utmSourceQ = useQuery(
     tileOpts(
       ['utm', 'source'],
-      t => api.getUtm(siteId, period, 'source', t),
+      t => api.getUtm(siteId, period, 'source', t, filters),
       sourceTab === 'utm_source'
     )
   );
   const utmMediumQ = useQuery(
     tileOpts(
       ['utm', 'medium'],
-      t => api.getUtm(siteId, period, 'medium', t),
+      t => api.getUtm(siteId, period, 'medium', t, filters),
       sourceTab === 'utm_medium'
     )
   );
   const utmCampaignQ = useQuery(
     tileOpts(
       ['utm', 'campaign'],
-      t => api.getUtm(siteId, period, 'campaign', t),
+      t => api.getUtm(siteId, period, 'campaign', t, filters),
       sourceTab === 'utm_campaign'
     )
   );
@@ -802,40 +916,40 @@ function SiteAnalyticsPage(): ReactElement {
   const countriesQ = useQuery(
     tileOpts(
       ['locations', 'country'],
-      t => api.getLocations(siteId, period, 'country', t),
+      t => api.getLocations(siteId, period, 'country', t, filters),
       belowFoldVisible && locationTab === 'country'
     )
   );
   const citiesQ = useQuery(
     tileOpts(
       ['locations', 'city'],
-      t => api.getLocations(siteId, period, 'city', t),
+      t => api.getLocations(siteId, period, 'city', t, filters),
       belowFoldVisible && locationTab === 'city'
     )
   );
   const browsersQ = useQuery(
     tileOpts(
       ['devices', 'browser'],
-      t => api.getDevices(siteId, period, 'browser', t),
+      t => api.getDevices(siteId, period, 'browser', t, filters),
       belowFoldVisible && deviceTab === 'browser'
     )
   );
   const osQ = useQuery(
     tileOpts(
       ['devices', 'os'],
-      t => api.getDevices(siteId, period, 'os', t),
+      t => api.getDevices(siteId, period, 'os', t, filters),
       belowFoldVisible && deviceTab === 'os'
     )
   );
   const deviceTypeQ = useQuery(
     tileOpts(
       ['devices', 'device'],
-      t => api.getDevices(siteId, period, 'device', t),
+      t => api.getDevices(siteId, period, 'device', t, filters),
       belowFoldVisible && deviceTab === 'device'
     )
   );
   const eventsQ = useQuery(
-    tileOpts(['events'], t => api.getEvents(siteId, period, t), belowFoldVisible)
+    tileOpts(['events'], t => api.getEvents(siteId, period, t, filters), belowFoldVisible)
   );
 
   // Live visitor count (last 5 min, straight from the site's DO)
@@ -928,6 +1042,11 @@ function SiteAnalyticsPage(): ReactElement {
           </div>
         </div>
 
+        {/* Active filters */}
+        {hasFilters && (
+          <FilterChips filters={filters} onRemove={removeFilter} onClear={clearFilters} />
+        )}
+
         {/* Main chart card: metric tiles + timeseries */}
         <ChartCard
           stats={(mainQ.data as any)?.data}
@@ -949,6 +1068,7 @@ function SiteAnalyticsPage(): ReactElement {
             isLoading={pagesQ.isLoading}
             isError={pagesQ.isError}
             showPageviews
+            onItemClick={item => setFilter('page', item.name)}
           />
           <PanelCard
             title="Top Sources"
@@ -964,6 +1084,15 @@ function SiteAnalyticsPage(): ReactElement {
             ]}
             activeTab={sourceTab}
             onTabChange={setSourceTab}
+            onItemClick={item => {
+              const keyByTab: Record<string, keyof AnalyticsFilters> = {
+                referrers: 'source',
+                utm_source: 'utmSource',
+                utm_medium: 'utmMedium',
+                utm_campaign: 'utmCampaign',
+              };
+              setFilter(keyByTab[sourceTab], item.name);
+            }}
           />
         </div>
 
@@ -985,6 +1114,9 @@ function SiteAnalyticsPage(): ReactElement {
                 ]}
                 activeTab={locationTab}
                 onTabChange={setLocationTab}
+                onItemClick={item =>
+                  setFilter(locationTab === 'country' ? 'country' : 'city', item.name)
+                }
               />
               <PanelCard
                 title="Devices"
@@ -1002,6 +1134,12 @@ function SiteAnalyticsPage(): ReactElement {
                 ]}
                 activeTab={deviceTab}
                 onTabChange={setDeviceTab}
+                onItemClick={item =>
+                  setFilter(
+                    deviceTab === 'browser' ? 'browser' : deviceTab === 'os' ? 'os' : 'device',
+                    item.name
+                  )
+                }
               />
             </div>
 

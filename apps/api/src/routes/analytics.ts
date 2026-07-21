@@ -13,6 +13,7 @@ import {
   type PeriodRange,
   type LiveStoreApi,
   type LiveTotals,
+  type LiveFilters,
 } from '@traks/shared';
 import { requireAuth } from '../middleware/auth';
 import { sites, apiKeys } from '../db/schema';
@@ -179,8 +180,48 @@ async function cachedR2Sql<T = Record<string, unknown>>(
   return rows;
 }
 
+// Click-to-filter params (exact match). Flat query-string fields, mapped to
+// canonical LiveFilters dimensions by parseFilters below.
+const filterFields = {
+  page: z.string().max(2048).optional(),
+  source: z.string().max(256).optional(),
+  utmSource: z.string().max(256).optional(),
+  utmMedium: z.string().max(256).optional(),
+  utmCampaign: z.string().max(256).optional(),
+  country: z.string().max(64).optional(),
+  city: z.string().max(128).optional(),
+  browser: z.string().max(64).optional(),
+  os: z.string().max(64).optional(),
+  device: z.string().max(32).optional(),
+};
+
+type FilterParams = { [K in keyof typeof filterFields]?: string };
+
+const FILTER_PARAM_TO_DIMENSION: Record<keyof typeof filterFields, keyof LiveFilters> = {
+  page: 'pathname',
+  source: 'referrer_hostname',
+  utmSource: 'utm_source',
+  utmMedium: 'utm_medium',
+  utmCampaign: 'utm_campaign',
+  country: 'country',
+  city: 'city',
+  browser: 'browser',
+  os: 'os',
+  device: 'device_type',
+};
+
+function parseFilters(q: FilterParams): LiveFilters | undefined {
+  const filters: LiveFilters = {};
+  for (const [param, dimension] of Object.entries(FILTER_PARAM_TO_DIMENSION)) {
+    const value = q[param as keyof typeof filterFields];
+    if (value !== undefined && value !== '') filters[dimension] = value;
+  }
+  return Object.keys(filters).length > 0 ? filters : undefined;
+}
+
 const periodQuery = z.object({
   period: z.enum(PERIODS).default('today'),
+  ...filterFields,
 });
 const batchQuery = z.object({
   period: z.enum(PERIODS).default('today'),
@@ -189,14 +230,17 @@ const batchQuery = z.object({
 const locationQuery = z.object({
   period: z.enum(PERIODS).default('today'),
   type: z.enum(['country', 'city']).default('country'),
+  ...filterFields,
 });
 const deviceQuery = z.object({
   period: z.enum(PERIODS).default('today'),
   type: z.enum(['browser', 'os', 'device']).default('browser'),
+  ...filterFields,
 });
 const utmQuery = z.object({
   period: z.enum(PERIODS).default('today'),
   type: z.enum(['source', 'medium', 'campaign']).default('source'),
+  ...filterFields,
 });
 
 const pctChange = (cur: number, prev: number): number =>
@@ -570,7 +614,9 @@ export const analyticsRoute = appWithBatch
   .get('/:siteId/stats/main', requireAuth, zValidator('query', periodQuery), async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('siteId');
-    const { period } = c.req.valid('query');
+    const query = c.req.valid('query');
+    const { period } = query;
+    const filters = parseFilters(query);
 
     const site = await getSite(c, siteId, userId);
     if (!site) return c.json({ error: 'Not found' }, 404);
@@ -582,7 +628,8 @@ export const analyticsRoute = appWithBatch
         const { current, previous } = await liveStore(c, site.key).mainStats(
           ms(prev.from),
           ms(range.from),
-          ms(range.to)
+          ms(range.to),
+          filters
         );
         return c.json({ data: mainStatsPayload(current, previous) });
       } catch (err) {
@@ -595,8 +642,12 @@ export const analyticsRoute = appWithBatch
 
     const outcome = await runQueries(c, () =>
       Promise.all([
-        cachedR2Sql<PeriodStatsRow>(c, ttl, buildStatsWithComparisonQuery(site.key, range)),
-        cachedR2Sql<SessionStatsRow>(c, ttl, buildSessionStatsQuery(site.key, range)),
+        cachedR2Sql<PeriodStatsRow>(
+          c,
+          ttl,
+          buildStatsWithComparisonQuery(site.key, range, filters)
+        ),
+        cachedR2Sql<SessionStatsRow>(c, ttl, buildSessionStatsQuery(site.key, range, filters)),
       ])
     );
     if (outcome instanceof Response) return outcome;
@@ -608,7 +659,9 @@ export const analyticsRoute = appWithBatch
   .get('/:siteId/stats/timeseries', requireAuth, zValidator('query', periodQuery), async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('siteId');
-    const { period } = c.req.valid('query');
+    const query = c.req.valid('query');
+    const { period } = query;
+    const filters = parseFilters(query);
 
     const site = await getSite(c, siteId, userId);
     if (!site) return c.json({ error: 'Not found' }, 404);
@@ -616,7 +669,7 @@ export const analyticsRoute = appWithBatch
     if (period === 'today') {
       try {
         const range = resolvePeriod('today', new Date(), site.timezone);
-        const rows = await liveStore(c, site.key).timeseries(ms(range.from), ms(range.to));
+        const rows = await liveStore(c, site.key).timeseries(ms(range.from), ms(range.to), filters);
         return c.json({ data: fillTimeseries(rows, range) });
       } catch (err) {
         logLiveFallback(err);
@@ -630,7 +683,7 @@ export const analyticsRoute = appWithBatch
       cachedR2Sql<{ t: string; visitors: unknown; pageviews: unknown; sessions: unknown }>(
         c,
         ttl,
-        buildTimeseriesQuery(site.key, range)
+        buildTimeseriesQuery(site.key, range, filters)
       )
     );
     if (outcome instanceof Response) return outcome;
@@ -651,7 +704,9 @@ export const analyticsRoute = appWithBatch
   .get('/:siteId/stats/pages', requireAuth, zValidator('query', periodQuery), async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('siteId');
-    const { period } = c.req.valid('query');
+    const query = c.req.valid('query');
+    const { period } = query;
+    const filters = parseFilters(query);
 
     const site = await getSite(c, siteId, userId);
     if (!site) return c.json({ error: 'Not found' }, 404);
@@ -663,7 +718,8 @@ export const analyticsRoute = appWithBatch
           'pathname',
           ms(range.from),
           ms(range.to),
-          10
+          10,
+          filters
         );
         return c.json({
           data: rows.map(r => ({ name: r.name, visitors: r.visitors, pageviews: r.pageviews })),
@@ -680,7 +736,7 @@ export const analyticsRoute = appWithBatch
       cachedR2Sql<{ pathname: string; visitors: unknown; pageviews: unknown }>(
         c,
         ttl,
-        buildTopPagesQuery(site.key, range)
+        buildTopPagesQuery(site.key, range, filters)
       )
     );
     if (outcome instanceof Response) return outcome;
@@ -697,7 +753,9 @@ export const analyticsRoute = appWithBatch
   .get('/:siteId/stats/referrers', requireAuth, zValidator('query', periodQuery), async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('siteId');
-    const { period } = c.req.valid('query');
+    const query = c.req.valid('query');
+    const { period } = query;
+    const filters = parseFilters(query);
 
     const site = await getSite(c, siteId, userId);
     if (!site) return c.json({ error: 'Not found' }, 404);
@@ -709,7 +767,8 @@ export const analyticsRoute = appWithBatch
           'referrer_hostname',
           ms(range.from),
           ms(range.to),
-          10
+          10,
+          filters
         );
         return c.json({ data: rows.map(r => ({ name: r.name, visitors: r.visitors })) });
       } catch (err) {
@@ -724,7 +783,7 @@ export const analyticsRoute = appWithBatch
       cachedR2Sql<{ source: string; visitors: unknown }>(
         c,
         ttl,
-        buildTopReferrersQuery(site.key, range)
+        buildTopReferrersQuery(site.key, range, filters)
       )
     );
     if (outcome instanceof Response) return outcome;
@@ -737,7 +796,9 @@ export const analyticsRoute = appWithBatch
   .get('/:siteId/stats/utm', requireAuth, zValidator('query', utmQuery), async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('siteId');
-    const { period, type } = c.req.valid('query');
+    const query = c.req.valid('query');
+    const { period, type } = query;
+    const filters = parseFilters(query);
 
     const site = await getSite(c, siteId, userId);
     if (!site) return c.json({ error: 'Not found' }, 404);
@@ -751,7 +812,8 @@ export const analyticsRoute = appWithBatch
           dimension,
           ms(range.from),
           ms(range.to),
-          10
+          10,
+          filters
         );
         return c.json({
           data: rows.map(r => ({ name: r.name, visitors: r.visitors, sessions: r.sessions })),
@@ -768,7 +830,7 @@ export const analyticsRoute = appWithBatch
       cachedR2Sql<{ value: string; visitors: unknown; sessions: unknown }>(
         c,
         ttl,
-        buildUtmQuery(site.key, range, type)
+        buildUtmQuery(site.key, range, type, filters)
       )
     );
     if (outcome instanceof Response) return outcome;
@@ -785,7 +847,9 @@ export const analyticsRoute = appWithBatch
   .get('/:siteId/stats/locations', requireAuth, zValidator('query', locationQuery), async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('siteId');
-    const { period, type } = c.req.valid('query');
+    const query = c.req.valid('query');
+    const { period, type } = query;
+    const filters = parseFilters(query);
 
     const site = await getSite(c, siteId, userId);
     if (!site) return c.json({ error: 'Not found' }, 404);
@@ -793,7 +857,13 @@ export const analyticsRoute = appWithBatch
     if (period === 'today') {
       try {
         const range = resolvePeriod('today', new Date(), site.timezone);
-        const rows = await liveStore(c, site.key).topList(type, ms(range.from), ms(range.to), 10);
+        const rows = await liveStore(c, site.key).topList(
+          type,
+          ms(range.from),
+          ms(range.to),
+          10,
+          filters
+        );
         return c.json({
           data: rows.map(r => ({ name: r.name, code: r.name, visitors: r.visitors })),
         });
@@ -809,7 +879,7 @@ export const analyticsRoute = appWithBatch
       cachedR2Sql<{ name: string; visitors: unknown }>(
         c,
         ttl,
-        buildLocationsQuery(site.key, range, type)
+        buildLocationsQuery(site.key, range, type, filters)
       )
     );
     if (outcome instanceof Response) return outcome;
@@ -822,7 +892,9 @@ export const analyticsRoute = appWithBatch
   .get('/:siteId/stats/devices', requireAuth, zValidator('query', deviceQuery), async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('siteId');
-    const { period, type } = c.req.valid('query');
+    const query = c.req.valid('query');
+    const { period, type } = query;
+    const filters = parseFilters(query);
 
     const site = await getSite(c, siteId, userId);
     if (!site) return c.json({ error: 'Not found' }, 404);
@@ -835,7 +907,8 @@ export const analyticsRoute = appWithBatch
           dimension,
           ms(range.from),
           ms(range.to),
-          10
+          10,
+          filters
         );
         return c.json({
           data: formatDevices(rows.map(r => ({ name: r.name, visitors: r.visitors }))),
@@ -852,7 +925,7 @@ export const analyticsRoute = appWithBatch
       cachedR2Sql<{ name: string; visitors: unknown }>(
         c,
         ttl,
-        buildDevicesQuery(site.key, range, type)
+        buildDevicesQuery(site.key, range, type, filters)
       )
     );
     if (outcome instanceof Response) return outcome;
@@ -904,7 +977,9 @@ export const analyticsRoute = appWithBatch
   .get('/:siteId/stats/events', requireAuth, zValidator('query', periodQuery), async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('siteId');
-    const { period } = c.req.valid('query');
+    const query = c.req.valid('query');
+    const { period } = query;
+    const filters = parseFilters(query);
 
     const site = await getSite(c, siteId, userId);
     if (!site) return c.json({ error: 'Not found' }, 404);
@@ -912,7 +987,12 @@ export const analyticsRoute = appWithBatch
     if (period === 'today') {
       try {
         const range = resolvePeriod('today', new Date(), site.timezone);
-        const rows = await liveStore(c, site.key).customEvents(ms(range.from), ms(range.to), 20);
+        const rows = await liveStore(c, site.key).customEvents(
+          ms(range.from),
+          ms(range.to),
+          20,
+          filters
+        );
         return c.json({
           data: rows.map(r => ({ name: r.name, count: r.count, totalValue: r.totalValue })),
         });
@@ -928,7 +1008,7 @@ export const analyticsRoute = appWithBatch
       cachedR2Sql<{ name: string; count: unknown; total_value: unknown }>(
         c,
         ttl,
-        buildEventsQuery(site.key, range)
+        buildEventsQuery(site.key, range, filters)
       )
     );
     if (outcome instanceof Response) return outcome;

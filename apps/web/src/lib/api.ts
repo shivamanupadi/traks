@@ -4,6 +4,20 @@ import type { Period } from '@traks/shared';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5011';
 
+/** Click-to-filter params, passed through to the analytics endpoints. */
+export interface AnalyticsFilters {
+  page?: string;
+  source?: string;
+  utmSource?: string;
+  utmMedium?: string;
+  utmCampaign?: string;
+  country?: string;
+  city?: string;
+  browser?: string;
+  os?: string;
+  device?: string;
+}
+
 const client = hc<AppType>(API_URL);
 
 function authHeaders(token: string): { headers: Record<string, string> } {
@@ -106,36 +120,56 @@ export const api = {
     return res.json();
   },
 
-  async getMainStats(siteId: string, period: Period, token: string): Promise<any> {
+  async getMainStats(
+    siteId: string,
+    period: Period,
+    token: string,
+    filters?: AnalyticsFilters
+  ): Promise<any> {
     const res = await client.api.analytics[':siteId'].stats.main.$get(
-      { param: { siteId }, query: { period } },
+      { param: { siteId }, query: { period, ...filters } },
       authHeaders(token)
     );
     await assertOk(res);
     return res.json();
   },
 
-  async getTimeseries(siteId: string, period: Period, token: string): Promise<any> {
+  async getTimeseries(
+    siteId: string,
+    period: Period,
+    token: string,
+    filters?: AnalyticsFilters
+  ): Promise<any> {
     const res = await client.api.analytics[':siteId'].stats.timeseries.$get(
-      { param: { siteId }, query: { period } },
+      { param: { siteId }, query: { period, ...filters } },
       authHeaders(token)
     );
     await assertOk(res);
     return res.json();
   },
 
-  async getTopPages(siteId: string, period: Period, token: string): Promise<any> {
+  async getTopPages(
+    siteId: string,
+    period: Period,
+    token: string,
+    filters?: AnalyticsFilters
+  ): Promise<any> {
     const res = await client.api.analytics[':siteId'].stats.pages.$get(
-      { param: { siteId }, query: { period } },
+      { param: { siteId }, query: { period, ...filters } },
       authHeaders(token)
     );
     await assertOk(res);
     return res.json();
   },
 
-  async getTopReferrers(siteId: string, period: Period, token: string): Promise<any> {
+  async getTopReferrers(
+    siteId: string,
+    period: Period,
+    token: string,
+    filters?: AnalyticsFilters
+  ): Promise<any> {
     const res = await client.api.analytics[':siteId'].stats.referrers.$get(
-      { param: { siteId }, query: { period } },
+      { param: { siteId }, query: { period, ...filters } },
       authHeaders(token)
     );
     await assertOk(res);
@@ -146,10 +180,11 @@ export const api = {
     siteId: string,
     period: Period,
     type: 'source' | 'medium' | 'campaign',
-    token: string
+    token: string,
+    filters?: AnalyticsFilters
   ): Promise<any> {
     const res = await client.api.analytics[':siteId'].stats.utm.$get(
-      { param: { siteId }, query: { period, type } },
+      { param: { siteId }, query: { period, type, ...filters } },
       authHeaders(token)
     );
     await assertOk(res);
@@ -160,10 +195,11 @@ export const api = {
     siteId: string,
     period: Period,
     type: 'country' | 'city',
-    token: string
+    token: string,
+    filters?: AnalyticsFilters
   ): Promise<any> {
     const res = await client.api.analytics[':siteId'].stats.locations.$get(
-      { param: { siteId }, query: { period, type } },
+      { param: { siteId }, query: { period, type, ...filters } },
       authHeaders(token)
     );
     await assertOk(res);
@@ -174,10 +210,11 @@ export const api = {
     siteId: string,
     period: Period,
     type: 'browser' | 'os' | 'device',
-    token: string
+    token: string,
+    filters?: AnalyticsFilters
   ): Promise<any> {
     const res = await client.api.analytics[':siteId'].stats.devices.$get(
-      { param: { siteId }, query: { period, type } },
+      { param: { siteId }, query: { period, type, ...filters } },
       authHeaders(token)
     );
     await assertOk(res);
@@ -209,9 +246,14 @@ export const api = {
     return res.json();
   },
 
-  async getEvents(siteId: string, period: Period, token: string): Promise<any> {
+  async getEvents(
+    siteId: string,
+    period: Period,
+    token: string,
+    filters?: AnalyticsFilters
+  ): Promise<any> {
     const res = await client.api.analytics[':siteId'].stats.events.$get(
-      { param: { siteId }, query: { period } },
+      { param: { siteId }, query: { period, ...filters } },
       authHeaders(token)
     );
     await assertOk(res);

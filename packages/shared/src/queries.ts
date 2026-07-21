@@ -1,4 +1,5 @@
 import type { Period } from './constants';
+import type { LiveDimension, LiveFilters } from './live';
 
 export interface QueryConfig {
   accountId: string;
@@ -272,16 +273,45 @@ export function granularityColumn(granularity: 'hour' | 'day' | 'week'): string 
 
 // ============ Query builders ============
 
+// Whitelist LiveFilters key -> column. Values are escaped; only keys in this
+// map may ever reach the SQL text.
+const FILTER_COLUMNS: Record<LiveDimension, string> = {
+  pathname: 'pathname',
+  referrer_hostname: 'referrer_hostname',
+  country: 'country',
+  city: 'city',
+  browser: 'browser',
+  os: 'os',
+  device_type: 'device_type',
+  utm_source: 'utm_source',
+  utm_medium: 'utm_medium',
+  utm_campaign: 'utm_campaign',
+};
+
+/** Exact-match dashboard filters as additional AND clauses ('' if none). */
+function filterClause(filters?: LiveFilters): string {
+  if (!filters) return '';
+  let sql = '';
+  for (const [key, value] of Object.entries(filters)) {
+    const col = FILTER_COLUMNS[key as LiveDimension];
+    if (!col || typeof value !== 'string') continue;
+    sql += ` AND ${col} = '${esc(value)}'`;
+  }
+  return sql;
+}
+
 function whereSiteAndRange(
   siteKey: string,
   range: { from: string; to: string },
-  eventType = 'pageview'
+  eventType = 'pageview',
+  filters?: LiveFilters
 ) {
   return (
     `site_id = '${esc(siteKey)}'` +
     ` AND event_type = '${esc(eventType)}'` +
     ` AND ts >= TIMESTAMP '${esc(range.from)}'` +
-    ` AND ts < TIMESTAMP '${esc(range.to)}'`
+    ` AND ts < TIMESTAMP '${esc(range.to)}'` +
+    filterClause(filters)
   );
 }
 
@@ -296,7 +326,11 @@ function whereSiteAndRange(
  * Rows come back labeled period = 'current' | 'previous'; a window with no
  * events produces no row.
  */
-export function buildStatsWithComparisonQuery(siteKey: string, range: PeriodRange) {
+export function buildStatsWithComparisonQuery(
+  siteKey: string,
+  range: PeriodRange,
+  filters?: LiveFilters
+) {
   const prev = previousRange(range);
   const periodExpr = `CASE WHEN ts >= TIMESTAMP '${esc(range.from)}' THEN 'current' ELSE 'previous' END`;
   return (table: string) => `
@@ -306,7 +340,7 @@ export function buildStatsWithComparisonQuery(siteKey: string, range: PeriodRang
       approx_distinct(visitor_id) AS visitors,
       approx_distinct(session_id) AS sessions
     FROM ${table}
-    WHERE ${whereSiteAndRange(siteKey, { from: prev.from, to: range.to })}
+    WHERE ${whereSiteAndRange(siteKey, { from: prev.from, to: range.to }, 'pageview', filters)}
     GROUP BY ${periodExpr}
   `;
 }
@@ -318,7 +352,7 @@ export function buildStatsWithComparisonQuery(siteKey: string, range: PeriodRang
  * the period containing their first pageview. Requires CTE + CASE support,
  * which R2 SQL gained in the 2026 feature waves.
  */
-export function buildSessionStatsQuery(siteKey: string, range: PeriodRange) {
+export function buildSessionStatsQuery(siteKey: string, range: PeriodRange, filters?: LiveFilters) {
   const prev = previousRange(range);
   const periodExpr = `CASE WHEN first_hit >= TIMESTAMP '${esc(range.from)}' THEN 'current' ELSE 'previous' END`;
   return (table: string) => `
@@ -328,7 +362,7 @@ export function buildSessionStatsQuery(siteKey: string, range: PeriodRange) {
         MIN(ts) AS first_hit,
         COUNT(*) AS hits
       FROM ${table}
-      WHERE ${whereSiteAndRange(siteKey, { from: prev.from, to: range.to })}
+      WHERE ${whereSiteAndRange(siteKey, { from: prev.from, to: range.to }, 'pageview', filters)}
         AND session_id != ''
       GROUP BY session_id
     )
@@ -363,7 +397,7 @@ export function buildBatchStatsQuery(siteKeys: string[], range: PeriodRange) {
   `;
 }
 
-export function buildTimeseriesQuery(siteKey: string, range: PeriodRange) {
+export function buildTimeseriesQuery(siteKey: string, range: PeriodRange, filters?: LiveFilters) {
   const col = granularityColumn(range.granularity);
   return (table: string) => `
     SELECT
@@ -372,33 +406,43 @@ export function buildTimeseriesQuery(siteKey: string, range: PeriodRange) {
       approx_distinct(visitor_id) AS visitors,
       approx_distinct(session_id) AS sessions
     FROM ${table}
-    WHERE ${whereSiteAndRange(siteKey, range)}
+    WHERE ${whereSiteAndRange(siteKey, range, 'pageview', filters)}
     GROUP BY ${col}
     ORDER BY t ASC
   `;
 }
 
-export function buildTopPagesQuery(siteKey: string, range: PeriodRange, limit = 10) {
+export function buildTopPagesQuery(
+  siteKey: string,
+  range: PeriodRange,
+  filters?: LiveFilters,
+  limit = 10
+) {
   return (table: string) => `
     SELECT
       pathname,
       COUNT(*) AS pageviews,
       approx_distinct(visitor_id) AS visitors
     FROM ${table}
-    WHERE ${whereSiteAndRange(siteKey, range)}
+    WHERE ${whereSiteAndRange(siteKey, range, 'pageview', filters)}
     GROUP BY pathname
     ORDER BY pageviews DESC
     LIMIT ${limit}
   `;
 }
 
-export function buildTopReferrersQuery(siteKey: string, range: PeriodRange, limit = 10) {
+export function buildTopReferrersQuery(
+  siteKey: string,
+  range: PeriodRange,
+  filters?: LiveFilters,
+  limit = 10
+) {
   return (table: string) => `
     SELECT
       referrer_hostname AS source,
       approx_distinct(visitor_id) AS visitors
     FROM ${table}
-    WHERE ${whereSiteAndRange(siteKey, range)}
+    WHERE ${whereSiteAndRange(siteKey, range, 'pageview', filters)}
       AND referrer_hostname != ''
     GROUP BY referrer_hostname
     ORDER BY visitors DESC
@@ -410,6 +454,7 @@ export function buildUtmQuery(
   siteKey: string,
   range: PeriodRange,
   type: 'source' | 'medium' | 'campaign',
+  filters?: LiveFilters,
   limit = 10
 ) {
   const col = type === 'source' ? 'utm_source' : type === 'medium' ? 'utm_medium' : 'utm_campaign';
@@ -419,7 +464,7 @@ export function buildUtmQuery(
       approx_distinct(visitor_id) AS visitors,
       approx_distinct(session_id) AS sessions
     FROM ${table}
-    WHERE ${whereSiteAndRange(siteKey, range)}
+    WHERE ${whereSiteAndRange(siteKey, range, 'pageview', filters)}
       AND ${col} != ''
     GROUP BY ${col}
     ORDER BY visitors DESC
@@ -431,6 +476,7 @@ export function buildLocationsQuery(
   siteKey: string,
   range: PeriodRange,
   type: 'country' | 'city',
+  filters?: LiveFilters,
   limit = 10
 ) {
   const col = type === 'country' ? 'country' : 'city';
@@ -439,7 +485,7 @@ export function buildLocationsQuery(
       ${col} AS name,
       approx_distinct(visitor_id) AS visitors
     FROM ${table}
-    WHERE ${whereSiteAndRange(siteKey, range)}
+    WHERE ${whereSiteAndRange(siteKey, range, 'pageview', filters)}
       AND ${col} != ''
     GROUP BY ${col}
     ORDER BY visitors DESC
@@ -451,6 +497,7 @@ export function buildDevicesQuery(
   siteKey: string,
   range: PeriodRange,
   type: 'browser' | 'os' | 'device',
+  filters?: LiveFilters,
   limit = 10
 ) {
   const col = type === 'browser' ? 'browser' : type === 'os' ? 'os' : 'device_type';
@@ -459,7 +506,7 @@ export function buildDevicesQuery(
       ${col} AS name,
       approx_distinct(visitor_id) AS visitors
     FROM ${table}
-    WHERE ${whereSiteAndRange(siteKey, range)}
+    WHERE ${whereSiteAndRange(siteKey, range, 'pageview', filters)}
       AND ${col} != ''
     GROUP BY ${col}
     ORDER BY visitors DESC
@@ -489,14 +536,19 @@ export function buildRealtimeQuery(siteKey: string, now: Date) {
   `;
 }
 
-export function buildEventsQuery(siteKey: string, range: PeriodRange, limit = 20) {
+export function buildEventsQuery(
+  siteKey: string,
+  range: PeriodRange,
+  filters?: LiveFilters,
+  limit = 20
+) {
   return (table: string) => `
     SELECT
       event_name AS name,
       COUNT(*) AS count,
       SUM(event_value) AS total_value
     FROM ${table}
-    WHERE ${whereSiteAndRange(siteKey, range, 'event')}
+    WHERE ${whereSiteAndRange(siteKey, range, 'event', filters)}
       AND event_name != ''
     GROUP BY event_name
     ORDER BY count DESC

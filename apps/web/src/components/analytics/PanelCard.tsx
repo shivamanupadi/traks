@@ -31,6 +31,8 @@ interface PanelCardProps {
   showPercentage?: boolean;
   emptyText?: string;
   className?: string;
+  /** Makes rows clickable (click-to-filter). Rows with empty names stay inert. */
+  onItemClick?: (item: PanelItem) => void;
 }
 
 /** Plausible-style list panel: title + tab switcher, rows with proportional bars. */
@@ -48,6 +50,7 @@ export function PanelCard({
   showPercentage = false,
   emptyText = 'No data yet',
   className,
+  onItemClick,
 }: PanelCardProps): ReactElement {
   const maxVisitors = items && items.length > 0 ? Math.max(...items.map(i => i.visitors)) : 1;
   const totalVisitors = items ? items.reduce((s, i) => s + i.visitors, 0) : 0;
@@ -118,16 +121,28 @@ export function PanelCard({
             const pct =
               item.percentage ??
               (totalVisitors > 0 ? Math.round((item.visitors / totalVisitors) * 100) : 0);
+            const clickable = Boolean(onItemClick && item.name);
+            const Row = clickable ? 'button' : 'div';
             return (
-              <div
+              <Row
                 key={i}
-                className="relative flex h-[30px] items-center justify-between rounded-md px-2.5"
+                onClick={clickable ? () => onItemClick!(item) : undefined}
+                className={cn(
+                  'relative flex h-[30px] w-full items-center justify-between rounded-md px-2.5',
+                  clickable && 'cursor-pointer transition-colors hover:bg-[#9b72cf]/[0.05]'
+                )}
+                title={clickable ? `Filter by ${item.name}` : undefined}
               >
                 <div
                   className="absolute inset-y-0 left-0 rounded-md bg-[#9b72cf]/[0.08]"
                   style={{ width: `${(item.visitors / maxVisitors) * 100}%` }}
                 />
-                <span className="relative z-10 truncate pr-4 text-[13px] text-[#2D3436]">
+                <span
+                  className={cn(
+                    'relative z-10 truncate pr-4 text-[13px] text-[#2D3436]',
+                    clickable && 'group-hover:underline'
+                  )}
+                >
                   {item.name || '(none)'}
                 </span>
                 <div className="relative z-10 flex shrink-0 gap-5 text-[13px] font-medium tabular-nums text-[#2D3436]">
@@ -137,7 +152,7 @@ export function PanelCard({
                   )}
                   {showPercentage && <span className="w-10 text-right text-[#9B9590]">{pct}%</span>}
                 </div>
-              </div>
+              </Row>
             );
           })}
         </div>

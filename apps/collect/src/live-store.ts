@@ -1,6 +1,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import type {
   LiveEvent,
+  LiveFilters,
   LiveCounts,
   LiveTotals,
   LiveDimension,
@@ -182,6 +183,33 @@ export class SiteLiveStore extends DurableObject<unknown> {
     return Math.floor(ms / MEMO_QUANTUM_MS);
   }
 
+  /**
+   * Exact-match dashboard filters as parameterized AND clauses. Columns come
+   * only from the DIMENSION_COLUMNS whitelist; values are bound parameters.
+   */
+  private static filterSql(filters?: LiveFilters): { sql: string; params: string[] } {
+    if (!filters) return { sql: '', params: [] };
+    let sql = '';
+    const params: string[] = [];
+    for (const [key, value] of Object.entries(filters)) {
+      const col = DIMENSION_COLUMNS[key as LiveDimension];
+      if (!col || typeof value !== 'string') continue;
+      sql += ` AND ${col} = ?`;
+      params.push(value);
+    }
+    return { sql, params };
+  }
+
+  /** Stable memo-key fragment for a filter set. */
+  private static filterKey(filters?: LiveFilters): string {
+    if (!filters) return '';
+    return Object.entries(filters)
+      .filter(([, v]) => typeof v === 'string')
+      .sort(([a], [b]) => (a < b ? -1 : 1))
+      .map(([k, v]) => `${k}=${v}`)
+      .join('&');
+  }
+
   async record(e: LiveEvent): Promise<number> {
     this.buffer.push(e);
 
@@ -241,9 +269,10 @@ export class SiteLiveStore extends DurableObject<unknown> {
     }
   }
 
-  async totals(fromMs: number, toMs: number): Promise<LiveCounts> {
+  async totals(fromMs: number, toMs: number, filters?: LiveFilters): Promise<LiveCounts> {
+    const f = SiteLiveStore.filterSql(filters);
     return this.memoized(
-      `totals:${SiteLiveStore.q(fromMs)}:${SiteLiveStore.q(toMs)}`,
+      `totals:${SiteLiveStore.q(fromMs)}:${SiteLiveStore.q(toMs)}:${SiteLiveStore.filterKey(filters)}`,
       MEMO_TTL_MS,
       () => {
         const row = this.sql
@@ -252,9 +281,10 @@ export class SiteLiveStore extends DurableObject<unknown> {
                     COUNT(DISTINCT visitor_id) AS visitors,
                     COUNT(DISTINCT session_id) AS sessions
              FROM events
-             WHERE event_type = 'pageview' AND ts >= ? AND ts < ?`,
+             WHERE event_type = 'pageview' AND ts >= ? AND ts < ?${f.sql}`,
             fromMs,
-            toMs
+            toMs,
+            ...f.params
           )
           .one();
         return {
@@ -269,10 +299,12 @@ export class SiteLiveStore extends DurableObject<unknown> {
   async mainStats(
     prevFromMs: number,
     curFromMs: number,
-    toMs: number
+    toMs: number,
+    filters?: LiveFilters
   ): Promise<{ current: LiveTotals; previous: LiveTotals }> {
+    const f = SiteLiveStore.filterSql(filters);
     return this.memoized(
-      `mainStats:${SiteLiveStore.q(prevFromMs)}:${SiteLiveStore.q(curFromMs)}:${SiteLiveStore.q(toMs)}`,
+      `mainStats:${SiteLiveStore.q(prevFromMs)}:${SiteLiveStore.q(curFromMs)}:${SiteLiveStore.q(toMs)}:${SiteLiveStore.filterKey(filters)}`,
       MEMO_TTL_MS,
       () => {
         const statRows = this.sql
@@ -282,11 +314,12 @@ export class SiteLiveStore extends DurableObject<unknown> {
                     COUNT(DISTINCT visitor_id) AS visitors,
                     COUNT(DISTINCT session_id) AS sessions
              FROM events
-             WHERE event_type = 'pageview' AND ts >= ? AND ts < ?
+             WHERE event_type = 'pageview' AND ts >= ? AND ts < ?${f.sql}
              GROUP BY period`,
             curFromMs,
             prevFromMs,
-            toMs
+            toMs,
+            ...f.params
           )
           .toArray();
 
@@ -297,7 +330,7 @@ export class SiteLiveStore extends DurableObject<unknown> {
             `WITH s AS (
                SELECT session_id, MIN(ts) AS first_hit, COUNT(*) AS hits
                FROM events
-               WHERE event_type = 'pageview' AND session_id != '' AND ts >= ? AND ts < ?
+               WHERE event_type = 'pageview' AND session_id != '' AND ts >= ? AND ts < ?${f.sql}
                GROUP BY session_id
              )
              SELECT CASE WHEN first_hit >= ? THEN 'current' ELSE 'previous' END AS period,
@@ -306,6 +339,7 @@ export class SiteLiveStore extends DurableObject<unknown> {
              GROUP BY period`,
             prevFromMs,
             toMs,
+            ...f.params,
             curFromMs
           )
           .toArray();
@@ -327,9 +361,14 @@ export class SiteLiveStore extends DurableObject<unknown> {
     );
   }
 
-  async timeseries(fromMs: number, toMs: number): Promise<LiveTimeseriesRow[]> {
+  async timeseries(
+    fromMs: number,
+    toMs: number,
+    filters?: LiveFilters
+  ): Promise<LiveTimeseriesRow[]> {
+    const f = SiteLiveStore.filterSql(filters);
     return this.memoized(
-      `timeseries:${SiteLiveStore.q(fromMs)}:${SiteLiveStore.q(toMs)}`,
+      `timeseries:${SiteLiveStore.q(fromMs)}:${SiteLiveStore.q(toMs)}:${SiteLiveStore.filterKey(filters)}`,
       MEMO_TTL_MS,
       () =>
         this.sql
@@ -339,11 +378,12 @@ export class SiteLiveStore extends DurableObject<unknown> {
                     COUNT(DISTINCT visitor_id) AS visitors,
                     COUNT(DISTINCT session_id) AS sessions
              FROM events
-             WHERE event_type = 'pageview' AND ts >= ? AND ts < ?
+             WHERE event_type = 'pageview' AND ts >= ? AND ts < ?${f.sql}
              GROUP BY hour_key
              ORDER BY t ASC`,
             fromMs,
-            toMs
+            toMs,
+            ...f.params
           )
           .toArray()
           .map(r => ({
@@ -359,14 +399,16 @@ export class SiteLiveStore extends DurableObject<unknown> {
     dimension: LiveDimension,
     fromMs: number,
     toMs: number,
-    limit: number
+    limit: number,
+    filters?: LiveFilters
   ): Promise<LiveTopListRow[]> {
     const col = DIMENSION_COLUMNS[dimension];
     if (!col) throw new Error(`Unknown dimension: ${dimension}`);
     const orderBy = dimension === 'pathname' ? 'pageviews' : 'visitors';
     const boundedLimit = Math.max(1, Math.min(100, limit));
+    const f = SiteLiveStore.filterSql(filters);
     return this.memoized(
-      `topList:${col}:${SiteLiveStore.q(fromMs)}:${SiteLiveStore.q(toMs)}:${boundedLimit}`,
+      `topList:${col}:${SiteLiveStore.q(fromMs)}:${SiteLiveStore.q(toMs)}:${boundedLimit}:${SiteLiveStore.filterKey(filters)}`,
       MEMO_TTL_MS,
       () =>
         this.sql
@@ -376,12 +418,13 @@ export class SiteLiveStore extends DurableObject<unknown> {
                     COUNT(*) AS pageviews,
                     COUNT(DISTINCT session_id) AS sessions
              FROM events
-             WHERE event_type = 'pageview' AND ts >= ? AND ts < ? AND ${col} != ''
+             WHERE event_type = 'pageview' AND ts >= ? AND ts < ? AND ${col} != ''${f.sql}
              GROUP BY ${col}
              ORDER BY ${orderBy} DESC
              LIMIT ?`,
             fromMs,
             toMs,
+            ...f.params,
             boundedLimit
           )
           .toArray()
@@ -438,22 +481,29 @@ export class SiteLiveStore extends DurableObject<unknown> {
       .toArray() as unknown as LiveExportRow[];
   }
 
-  async customEvents(fromMs: number, toMs: number, limit: number): Promise<LiveCustomEventRow[]> {
+  async customEvents(
+    fromMs: number,
+    toMs: number,
+    limit: number,
+    filters?: LiveFilters
+  ): Promise<LiveCustomEventRow[]> {
     const boundedLimit = Math.max(1, Math.min(100, limit));
+    const f = SiteLiveStore.filterSql(filters);
     return this.memoized(
-      `customEvents:${SiteLiveStore.q(fromMs)}:${SiteLiveStore.q(toMs)}:${boundedLimit}`,
+      `customEvents:${SiteLiveStore.q(fromMs)}:${SiteLiveStore.q(toMs)}:${boundedLimit}:${SiteLiveStore.filterKey(filters)}`,
       MEMO_TTL_MS,
       () =>
         this.sql
           .exec(
             `SELECT event_name AS name, COUNT(*) AS count, SUM(event_value) AS totalValue
              FROM events
-             WHERE event_type = 'event' AND event_name != '' AND ts >= ? AND ts < ?
+             WHERE event_type = 'event' AND event_name != '' AND ts >= ? AND ts < ?${f.sql}
              GROUP BY event_name
              ORDER BY count DESC
              LIMIT ?`,
             fromMs,
             toMs,
+            ...f.params,
             boundedLimit
           )
           .toArray()

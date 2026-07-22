@@ -12,6 +12,7 @@ export interface AnalyticsFilters {
   utmMedium?: string;
   utmCampaign?: string;
   country?: string;
+  region?: string;
   city?: string;
   browser?: string;
   os?: string;
@@ -256,7 +257,7 @@ export const api = {
   async getLocations(
     siteId: string,
     period: Period,
-    type: 'country' | 'city',
+    type: 'country' | 'region' | 'city',
     token: string,
     filters?: AnalyticsFilters
   ): Promise<any> {
@@ -271,7 +272,7 @@ export const api = {
   async getDevices(
     siteId: string,
     period: Period,
-    type: 'browser' | 'os' | 'device',
+    type: 'browser' | 'os' | 'device' | 'size',
     token: string,
     filters?: AnalyticsFilters
   ): Promise<any> {
@@ -316,6 +317,21 @@ export const api = {
   ): Promise<any> {
     const res = await client.api.analytics[':siteId'].stats.events.$get(
       { param: { siteId }, query: { period, ...filters } },
+      authHeaders(token)
+    );
+    await assertOk(res);
+    return res.json();
+  },
+
+  async getEventProps(
+    siteId: string,
+    period: Period,
+    event: string,
+    token: string,
+    filters?: AnalyticsFilters
+  ): Promise<any> {
+    const res = await client.api.analytics[':siteId'].stats['event-props'].$get(
+      { param: { siteId }, query: { period, event, ...filters } },
       authHeaders(token)
     );
     await assertOk(res);

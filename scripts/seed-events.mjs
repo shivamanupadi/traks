@@ -131,7 +131,13 @@ async function run() {
         sw: pageview.sw,
         sid,
         en: pick(eventNames),
-        ep: '',
+        ep:
+          Math.random() < 0.6
+            ? JSON.stringify({
+                plan: pick(['free', 'pro', 'team']),
+                source: pick(['nav', 'footer', 'hero']),
+              })
+            : '',
         ev: Math.random() < 0.3 ? Math.round(Math.random() * 100) : 0,
       };
       const sentEvt = await send(evt, ua, ip);

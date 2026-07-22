@@ -12,8 +12,11 @@ import type {
   LiveCustomEventRow,
   LiveLinkRow,
   LiveEntryPageRow,
+  LiveScreenSizeRow,
+  LiveMetaRow,
   LiveExportRow,
 } from '@traks/shared';
+import { SCREEN_SIZE_CASE } from '@traks/shared';
 
 // "Today" plus the full previous-day comparison window needs at most 48h in
 // any timezone; prune with margin.
@@ -45,6 +48,7 @@ const DIMENSION_COLUMNS: Record<LiveDimension, string> = {
   pathname: 'pathname',
   referrer_hostname: 'referrer_hostname',
   country: 'country',
+  region: 'region',
   city: 'city',
   browser: 'browser',
   os: 'os',
@@ -105,7 +109,9 @@ export class SiteLiveStore extends DurableObject<unknown> {
         visitor_id TEXT NOT NULL DEFAULT '',
         event_name TEXT NOT NULL DEFAULT '',
         event_value REAL NOT NULL DEFAULT 0,
-        event_meta TEXT NOT NULL DEFAULT ''
+        event_meta TEXT NOT NULL DEFAULT '',
+        region TEXT NOT NULL DEFAULT '',
+        screen_width INTEGER NOT NULL DEFAULT 0
       );
       CREATE INDEX IF NOT EXISTS idx_events_ts ON events (ts);
       CREATE TABLE IF NOT EXISTS usage (
@@ -113,13 +119,23 @@ export class SiteLiveStore extends DurableObject<unknown> {
         events INTEGER NOT NULL DEFAULT 0
       );
     `);
-    // Migration for DO instances created before event_meta existed:
+    // Migrations for DO instances created before these columns existed:
     // CREATE TABLE IF NOT EXISTS leaves their old schema untouched.
-    const hasMeta = this.sql
-      .exec(`SELECT COUNT(*) AS c FROM pragma_table_info('events') WHERE name = 'event_meta'`)
-      .one().c;
-    if (!n(hasMeta)) {
-      this.sql.exec(`ALTER TABLE events ADD COLUMN event_meta TEXT NOT NULL DEFAULT ''`);
+    const existing = new Set(
+      this.sql
+        .exec(`SELECT name FROM pragma_table_info('events')`)
+        .toArray()
+        .map(r => String(r.name))
+    );
+    const added: [string, string][] = [
+      ['event_meta', `TEXT NOT NULL DEFAULT ''`],
+      ['region', `TEXT NOT NULL DEFAULT ''`],
+      ['screen_width', `INTEGER NOT NULL DEFAULT 0`],
+    ];
+    for (const [col, ddl] of added) {
+      if (!existing.has(col)) {
+        this.sql.exec(`ALTER TABLE events ADD COLUMN ${col} ${ddl}`);
+      }
     }
   }
 
@@ -143,8 +159,8 @@ export class SiteLiveStore extends DurableObject<unknown> {
           ts, hour_key, event_type, pathname, referrer_hostname,
           utm_source, utm_medium, utm_campaign, country, city,
           browser, os, device_type, session_id, visitor_id,
-          event_name, event_value, event_meta
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          event_name, event_value, event_meta, region, screen_width
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         e.ts,
         e.hourKey,
         e.eventType,
@@ -162,7 +178,9 @@ export class SiteLiveStore extends DurableObject<unknown> {
         e.visitorId,
         e.eventName,
         e.eventValue,
-        e.eventMeta
+        e.eventMeta,
+        e.region,
+        e.screenWidth
       );
     }
 
@@ -502,8 +520,8 @@ export class SiteLiveStore extends DurableObject<unknown> {
     return this.sql
       .exec(
         `SELECT ts, hour_key, event_type, pathname, referrer_hostname,
-                utm_source, utm_medium, utm_campaign, country, city,
-                browser, os, device_type, session_id, visitor_id,
+                utm_source, utm_medium, utm_campaign, country, region, city,
+                browser, os, device_type, screen_width, session_id, visitor_id,
                 event_name, event_meta, event_value
          FROM events
          WHERE ts >= ? AND ts < ?
@@ -610,6 +628,67 @@ export class SiteLiveStore extends DurableObject<unknown> {
           )
           .toArray()
           .map(r => ({ name: String(r.name), count: n(r.count), totalValue: n(r.totalValue) }))
+    );
+  }
+
+  async screenSizes(
+    fromMs: number,
+    toMs: number,
+    filters?: LiveFilters
+  ): Promise<LiveScreenSizeRow[]> {
+    const f = SiteLiveStore.filterSql(filters);
+    return this.memoized(
+      `screenSizes:${SiteLiveStore.q(fromMs)}:${SiteLiveStore.q(toMs)}:${SiteLiveStore.filterKey(filters)}`,
+      MEMO_TTL_MS,
+      () =>
+        this.sql
+          .exec(
+            `SELECT ${SCREEN_SIZE_CASE} AS name,
+                    COUNT(DISTINCT visitor_id) AS visitors
+             FROM events
+             WHERE event_type = 'pageview' AND screen_width > 0
+               AND ts >= ? AND ts < ?${f.sql}
+             GROUP BY ${SCREEN_SIZE_CASE}
+             ORDER BY visitors DESC`,
+            fromMs,
+            toMs,
+            ...f.params
+          )
+          .toArray()
+          .map(r => ({ name: String(r.name), visitors: n(r.visitors) }))
+    );
+  }
+
+  async eventMetaGroups(
+    eventName: string,
+    fromMs: number,
+    toMs: number,
+    limit: number,
+    filters?: LiveFilters
+  ): Promise<LiveMetaRow[]> {
+    const boundedLimit = Math.max(1, Math.min(500, limit));
+    const f = SiteLiveStore.filterSql(filters);
+    return this.memoized(
+      `eventMeta:${eventName}:${SiteLiveStore.q(fromMs)}:${SiteLiveStore.q(toMs)}:${boundedLimit}:${SiteLiveStore.filterKey(filters)}`,
+      MEMO_TTL_MS,
+      () =>
+        this.sql
+          .exec(
+            `SELECT event_meta AS meta, COUNT(*) AS events
+             FROM events
+             WHERE event_type = 'event' AND event_name = ? AND event_meta != ''
+               AND ts >= ? AND ts < ?${f.sql}
+             GROUP BY event_meta
+             ORDER BY events DESC
+             LIMIT ?`,
+            eventName,
+            fromMs,
+            toMs,
+            ...f.params,
+            boundedLimit
+          )
+          .toArray()
+          .map(r => ({ meta: String(r.meta), events: n(r.events) }))
     );
   }
 

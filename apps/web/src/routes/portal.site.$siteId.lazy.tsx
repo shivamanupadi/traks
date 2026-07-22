@@ -907,6 +907,7 @@ const FILTER_LABELS: Record<keyof AnalyticsFilters, string> = {
   utmMedium: 'UTM Medium',
   utmCampaign: 'UTM Campaign',
   country: 'Country',
+  region: 'Region',
   city: 'City',
   browser: 'Browser',
   os: 'OS',
@@ -1052,6 +1053,8 @@ function SiteAnalyticsPage(): ReactElement {
   const [locationTab, setLocationTab] = useState('country');
   const [deviceTab, setDeviceTab] = useState('browser');
   const [linksTab, setLinksTab] = useState('outbound');
+  // Drill-down: when set, the Custom Events panel shows this event's props
+  const [selectedEvent, setSelectedEvent] = useState<string | null>(null);
 
   // Lazy-render sentinels for below-fold sections
   const [belowFoldRef, belowFoldVisible] = useLazyVisible();
@@ -1157,6 +1160,13 @@ function SiteAnalyticsPage(): ReactElement {
       belowFoldVisible && locationTab === 'country'
     )
   );
+  const regionsQ = useQuery(
+    tileOpts(
+      ['locations', 'region'],
+      t => api.getLocations(siteId, period, 'region', t, filters),
+      belowFoldVisible && locationTab === 'region'
+    )
+  );
   const citiesQ = useQuery(
     tileOpts(
       ['locations', 'city'],
@@ -1185,6 +1195,13 @@ function SiteAnalyticsPage(): ReactElement {
       belowFoldVisible && deviceTab === 'device'
     )
   );
+  const screenSizeQ = useQuery(
+    tileOpts(
+      ['devices', 'size'],
+      t => api.getDevices(siteId, period, 'size', t, filters),
+      belowFoldVisible && deviceTab === 'size'
+    )
+  );
   const eventsQ = useQuery(
     tileOpts(['events'], t => api.getEvents(siteId, period, t, filters), belowFoldVisible)
   );
@@ -1204,6 +1221,13 @@ function SiteAnalyticsPage(): ReactElement {
   );
   const goalStatsQ = useQuery(
     tileOpts(['goals'], t => api.getGoalStats(siteId, period, t, filters), belowFoldVisible)
+  );
+  const eventPropsQ = useQuery(
+    tileOpts(
+      ['event-props', selectedEvent],
+      t => api.getEventProps(siteId, period, selectedEvent!, t, filters),
+      belowFoldVisible && selectedEvent !== null
+    )
   );
 
   // Live visitor count (last 5 min, straight from the site's DO)
@@ -1237,11 +1261,17 @@ function SiteAnalyticsPage(): ReactElement {
   const sourceQ = sourceQueries[sourceTab];
   const linkQ = linksTab === 'outbound' ? outboundQ : downloadsQ;
 
-  const locationQ = locationTab === 'country' ? countriesQ : citiesQ;
+  const locationQueries: Record<string, typeof countriesQ> = {
+    country: countriesQ,
+    region: regionsQ,
+    city: citiesQ,
+  };
+  const locationQ = locationQueries[locationTab];
   const deviceQueries: Record<string, typeof browsersQ> = {
     browser: browsersQ,
     os: osQ,
     device: deviceTypeQ,
+    size: screenSizeQ,
   };
   const deviceQ = deviceQueries[deviceTab];
 
@@ -1375,24 +1405,44 @@ function SiteAnalyticsPage(): ReactElement {
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
               <PanelCard
                 title="Locations"
-                labelHeader={locationTab === 'country' ? 'Country' : 'City'}
+                labelHeader={
+                  locationTab === 'country'
+                    ? 'Country'
+                    : locationTab === 'region'
+                      ? 'Region'
+                      : 'City'
+                }
                 items={(locationQ.data as any)?.data}
                 isLoading={locationQ.isLoading}
                 isError={locationQ.isError}
                 tabs={[
                   { key: 'country', label: 'Countries' },
+                  { key: 'region', label: 'Regions' },
                   { key: 'city', label: 'Cities' },
                 ]}
                 activeTab={locationTab}
                 onTabChange={setLocationTab}
                 onItemClick={item =>
-                  setFilter(locationTab === 'country' ? 'country' : 'city', item.name)
+                  setFilter(
+                    locationTab === 'country'
+                      ? 'country'
+                      : locationTab === 'region'
+                        ? 'region'
+                        : 'city',
+                    item.name
+                  )
                 }
               />
               <PanelCard
                 title="Devices"
                 labelHeader={
-                  deviceTab === 'browser' ? 'Browser' : deviceTab === 'os' ? 'OS' : 'Device'
+                  deviceTab === 'browser'
+                    ? 'Browser'
+                    : deviceTab === 'os'
+                      ? 'OS'
+                      : deviceTab === 'device'
+                        ? 'Device'
+                        : 'Size'
                 }
                 items={(deviceQ.data as any)?.data}
                 isLoading={deviceQ.isLoading}
@@ -1402,14 +1452,23 @@ function SiteAnalyticsPage(): ReactElement {
                   { key: 'browser', label: 'Browser' },
                   { key: 'os', label: 'OS' },
                   { key: 'device', label: 'Device' },
+                  { key: 'size', label: 'Size' },
                 ]}
                 activeTab={deviceTab}
                 onTabChange={setDeviceTab}
-                onItemClick={item =>
-                  setFilter(
-                    deviceTab === 'browser' ? 'browser' : deviceTab === 'os' ? 'os' : 'device',
-                    item.name
-                  )
+                onItemClick={
+                  // Screen-size buckets are computed, not a stored column - no filter.
+                  deviceTab === 'size'
+                    ? undefined
+                    : item =>
+                        setFilter(
+                          deviceTab === 'browser'
+                            ? 'browser'
+                            : deviceTab === 'os'
+                              ? 'os'
+                              : 'device',
+                          item.name
+                        )
                 }
               />
             </div>
@@ -1424,15 +1483,43 @@ function SiteAnalyticsPage(): ReactElement {
 
             {/* Custom events + auto-tracked links */}
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-              <PanelCard
-                title="Custom Events"
-                labelHeader="Event"
-                valueHeader="Count"
-                items={events?.map(e => ({ name: e.name, visitors: e.count }))}
-                isLoading={eventsQ.isLoading}
-                isError={eventsQ.isError}
-                emptyText="No custom events yet"
-              />
+              {selectedEvent === null ? (
+                <PanelCard
+                  title="Custom Events"
+                  labelHeader="Event"
+                  valueHeader="Count"
+                  items={events?.map(e => ({ name: e.name, visitors: e.count }))}
+                  isLoading={eventsQ.isLoading}
+                  isError={eventsQ.isError}
+                  emptyText="No custom events yet"
+                  onItemClick={item => setSelectedEvent(item.name)}
+                />
+              ) : (
+                <PanelCard
+                  title={selectedEvent}
+                  labelHeader="Property"
+                  valueHeader="Events"
+                  items={(
+                    (eventPropsQ.data as any)?.data as
+                      | { key: string; value: string; events: number }[]
+                      | undefined
+                  )?.map(p => ({
+                    name: `${p.key}: ${p.value}`,
+                    visitors: p.events,
+                  }))}
+                  isLoading={eventPropsQ.isLoading}
+                  isError={eventPropsQ.isError}
+                  emptyText="No properties on this event"
+                  headerAction={
+                    <button
+                      onClick={() => setSelectedEvent(null)}
+                      className="ml-auto shrink-0 rounded-lg bg-[#f3f0f7]/60 px-2.5 py-1 text-[11px] font-medium text-[#9B9590] hover:bg-[#f3f0f7] hover:text-[#2D3436] transition-colors cursor-pointer"
+                    >
+                      ← All events
+                    </button>
+                  }
+                />
+              )}
               <PanelCard
                 title="Links"
                 labelHeader="URL"

@@ -279,6 +279,7 @@ const FILTER_COLUMNS: Record<LiveDimension, string> = {
   pathname: 'pathname',
   referrer_hostname: 'referrer_hostname',
   country: 'country',
+  region: 'region',
   city: 'city',
   browser: 'browser',
   os: 'os',
@@ -599,11 +600,11 @@ export function buildUtmQuery(
 export function buildLocationsQuery(
   siteKey: string,
   range: PeriodRange,
-  type: 'country' | 'city',
+  type: 'country' | 'region' | 'city',
   filters?: LiveFilters,
   limit = 10
 ) {
-  const col = type === 'country' ? 'country' : 'city';
+  const col = type;
   return (table: string) => `
     SELECT
       ${col} AS name,
@@ -634,6 +635,52 @@ export function buildDevicesQuery(
       AND ${col} != ''
     GROUP BY ${col}
     ORDER BY visitors DESC
+    LIMIT ${limit}
+  `;
+}
+
+/**
+ * Screen-width buckets (Plausible-style breakpoints). The CASE expression is
+ * repeated in GROUP BY - R2 SQL supports expression GROUP BY but aliases in
+ * GROUP BY are not guaranteed.
+ */
+export const SCREEN_SIZE_CASE = `CASE WHEN screen_width < 576 THEN 'Mobile' WHEN screen_width < 992 THEN 'Tablet' WHEN screen_width < 1440 THEN 'Laptop' ELSE 'Desktop' END`;
+
+export function buildScreenSizesQuery(siteKey: string, range: PeriodRange, filters?: LiveFilters) {
+  return (table: string) => `
+    SELECT
+      ${SCREEN_SIZE_CASE} AS name,
+      approx_distinct(visitor_id) AS visitors
+    FROM ${table}
+    WHERE ${whereSiteAndRange(siteKey, range, 'pageview', filters)}
+      AND screen_width > 0
+    GROUP BY ${SCREEN_SIZE_CASE}
+    ORDER BY visitors DESC
+  `;
+}
+
+/**
+ * Distinct event_meta groups for one custom event. Props are arbitrary user
+ * JSON, so per-key aggregation happens in the API worker after parsing - this
+ * query only collapses identical prop-sets (bounded by `limit` groups).
+ */
+export function buildEventMetaQuery(
+  siteKey: string,
+  range: PeriodRange,
+  eventName: string,
+  filters?: LiveFilters,
+  limit = 500
+) {
+  return (table: string) => `
+    SELECT
+      event_meta AS meta,
+      COUNT(*) AS events
+    FROM ${table}
+    WHERE ${whereSiteAndRange(siteKey, range, 'event', filters)}
+      AND event_name = '${esc(eventName)}'
+      AND event_meta != ''
+    GROUP BY event_meta
+    ORDER BY events DESC
     LIMIT ${limit}
   `;
 }

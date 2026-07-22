@@ -31,6 +31,8 @@ import {
   buildUtmQuery,
   buildLocationsQuery,
   buildDevicesQuery,
+  buildScreenSizesQuery,
+  buildEventMetaQuery,
   buildRealtimeQuery,
   buildEventsQuery,
   buildEngagementStatsQuery,
@@ -195,6 +197,7 @@ const filterFields = {
   utmMedium: z.string().max(256).optional(),
   utmCampaign: z.string().max(256).optional(),
   country: z.string().max(64).optional(),
+  region: z.string().max(128).optional(),
   city: z.string().max(128).optional(),
   browser: z.string().max(64).optional(),
   os: z.string().max(64).optional(),
@@ -210,6 +213,7 @@ const FILTER_PARAM_TO_DIMENSION: Record<keyof typeof filterFields, keyof LiveFil
   utmMedium: 'utm_medium',
   utmCampaign: 'utm_campaign',
   country: 'country',
+  region: 'region',
   city: 'city',
   browser: 'browser',
   os: 'os',
@@ -235,12 +239,17 @@ const batchQuery = z.object({
 });
 const locationQuery = z.object({
   period: z.enum(PERIODS).default('today'),
-  type: z.enum(['country', 'city']).default('country'),
+  type: z.enum(['country', 'region', 'city']).default('country'),
   ...filterFields,
 });
 const deviceQuery = z.object({
   period: z.enum(PERIODS).default('today'),
-  type: z.enum(['browser', 'os', 'device']).default('browser'),
+  type: z.enum(['browser', 'os', 'device', 'size']).default('browser'),
+  ...filterFields,
+});
+const eventPropsQuery = z.object({
+  period: z.enum(PERIODS).default('today'),
+  event: z.string().min(1).max(256),
   ...filterFields,
 });
 const utmQuery = z.object({
@@ -266,6 +275,49 @@ function parseMetaUrl(meta: string): string {
   } catch {
     return meta;
   }
+}
+
+/**
+ * Aggregate distinct event_meta groups into per-property value counts.
+ * Scalar props only (string/number/boolean); nested values are skipped.
+ * Returns the top values per key, keys ordered by total events.
+ */
+function aggregateMetaProps(
+  rows: { meta: string; events: number }[],
+  valuesPerKey = 10
+): { key: string; value: string; events: number }[] {
+  const byKey = new Map<string, Map<string, number>>();
+  for (const row of rows) {
+    let props: Record<string, unknown>;
+    try {
+      props = JSON.parse(row.meta) as Record<string, unknown>;
+    } catch {
+      continue;
+    }
+    if (typeof props !== 'object' || props === null || Array.isArray(props)) continue;
+    for (const [key, raw] of Object.entries(props)) {
+      const t = typeof raw;
+      if (t !== 'string' && t !== 'number' && t !== 'boolean') continue;
+      const value = String(raw).slice(0, 300);
+      let values = byKey.get(key);
+      if (!values) byKey.set(key, (values = new Map()));
+      values.set(value, (values.get(value) ?? 0) + row.events);
+    }
+  }
+  const keyTotals = Array.from(byKey.entries()).map(([key, values]) => ({
+    key,
+    values,
+    total: Array.from(values.values()).reduce((s, v) => s + v, 0),
+  }));
+  keyTotals.sort((a, b) => b.total - a.total);
+  const out: { key: string; value: string; events: number }[] = [];
+  for (const { key, values } of keyTotals) {
+    const sorted = Array.from(values.entries()).sort((a, b) => b[1] - a[1]);
+    for (const [value, events] of sorted.slice(0, valuesPerKey)) {
+      out.push({ key, value, events });
+    }
+  }
+  return out;
 }
 
 const pctChange = (cur: number, prev: number): number =>
@@ -1031,14 +1083,19 @@ export const analyticsRoute = appWithBatch
     if (period === 'today') {
       try {
         const range = resolvePeriod('today', new Date(), site.timezone);
-        const dimension = type === 'browser' ? 'browser' : type === 'os' ? 'os' : 'device_type';
-        const rows = await liveStore(c, site.key).topList(
-          dimension,
-          ms(range.from),
-          ms(range.to),
-          10,
-          filters
-        );
+        let rows: { name: string; visitors: number }[];
+        if (type === 'size') {
+          rows = await liveStore(c, site.key).screenSizes(ms(range.from), ms(range.to), filters);
+        } else {
+          const dimension = type === 'browser' ? 'browser' : type === 'os' ? 'os' : 'device_type';
+          rows = await liveStore(c, site.key).topList(
+            dimension,
+            ms(range.from),
+            ms(range.to),
+            10,
+            filters
+          );
+        }
         return c.json({
           data: formatDevices(rows.map(r => ({ name: r.name, visitors: r.visitors }))),
         });
@@ -1054,7 +1111,9 @@ export const analyticsRoute = appWithBatch
       cachedR2Sql<{ name: string; visitors: unknown }>(
         c,
         ttl,
-        buildDevicesQuery(site.key, range, type, filters)
+        type === 'size'
+          ? buildScreenSizesQuery(site.key, range, filters)
+          : buildDevicesQuery(site.key, range, type, filters)
       )
     );
     if (outcome instanceof Response) return outcome;
@@ -1252,5 +1311,48 @@ export const analyticsRoute = appWithBatch
         count: toNumber(r.count),
         totalValue: toNumber(r.total_value),
       })),
+    });
+  })
+
+  .get('/:siteId/stats/event-props', requireAuth, zValidator('query', eventPropsQuery), async c => {
+    const userId = c.get('userId')!;
+    const siteId = c.req.param('siteId');
+    const query = c.req.valid('query');
+    const { period, event } = query;
+    const filters = parseFilters(query);
+
+    const site = await getSite(c, siteId, userId);
+    if (!site) return c.json({ error: 'Not found' }, 404);
+
+    if (period === 'today') {
+      try {
+        const range = resolvePeriod('today', new Date(), site.timezone);
+        const rows = await liveStore(c, site.key).eventMetaGroups(
+          event,
+          ms(range.from),
+          ms(range.to),
+          500,
+          filters
+        );
+        return c.json({ data: aggregateMetaProps(rows) });
+      } catch (err) {
+        logLiveFallback(err);
+      }
+    }
+
+    const range = resolvePeriod(period, queryTime(), site.timezone);
+    const ttl = cacheTtlSeconds(period);
+
+    const outcome = await runQueries(c, () =>
+      cachedR2Sql<{ meta: string; events: unknown }>(
+        c,
+        ttl,
+        buildEventMetaQuery(site.key, range, event, filters)
+      )
+    );
+    if (outcome instanceof Response) return outcome;
+
+    return c.json({
+      data: aggregateMetaProps(outcome.map(r => ({ meta: r.meta, events: toNumber(r.events) }))),
     });
   });

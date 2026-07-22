@@ -12,6 +12,7 @@ export type LiveDimension =
   | 'pathname'
   | 'referrer_hostname'
   | 'country'
+  | 'region'
   | 'city'
   | 'browser'
   | 'os'
@@ -37,10 +38,12 @@ export interface LiveEvent {
   utmMedium: string;
   utmCampaign: string;
   country: string;
+  region: string;
   city: string;
   browser: string;
   os: string;
   deviceType: string;
+  screenWidth: number;
   sessionId: string;
   visitorId: string;
   eventName: string;
@@ -108,6 +111,18 @@ export interface LiveEntryPageRow {
   sessions: number;
 }
 
+/** Screen-size bucket row (Mobile / Tablet / Laptop / Desktop). */
+export interface LiveScreenSizeRow {
+  name: string;
+  visitors: number;
+}
+
+/** One distinct event_meta JSON string and how many events carried it. */
+export interface LiveMetaRow {
+  meta: string;
+  events: number;
+}
+
 /** Raw stored row, as returned by exportEvents (snake_case = file/DB shape). */
 export interface LiveExportRow {
   ts: number;
@@ -119,10 +134,12 @@ export interface LiveExportRow {
   utm_medium: string;
   utm_campaign: string;
   country: string;
+  region: string;
   city: string;
   browser: string;
   os: string;
   device_type: string;
+  screen_width: number;
   session_id: string;
   visitor_id: string;
   event_name: string;
@@ -182,6 +199,16 @@ export interface LiveStoreApi {
     limit: number,
     filters?: LiveFilters
   ): Promise<LiveEntryPageRow[]>;
+  /** Visitors bucketed by screen width (Mobile/Tablet/Laptop/Desktop). */
+  screenSizes(fromMs: number, toMs: number, filters?: LiveFilters): Promise<LiveScreenSizeRow[]>;
+  /** Distinct event_meta groups for one custom event (props parsed by the API). */
+  eventMetaGroups(
+    eventName: string,
+    fromMs: number,
+    toMs: number,
+    limit: number,
+    filters?: LiveFilters
+  ): Promise<LiveMetaRow[]>;
   /** Paginated raw dump for the nightly export job (ordered by ts). */
   exportEvents(
     fromMs: number,

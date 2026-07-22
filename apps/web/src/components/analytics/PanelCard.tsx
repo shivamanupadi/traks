@@ -26,6 +26,8 @@ interface PanelCardProps {
   tabs?: PanelTab[];
   activeTab?: string;
   onTabChange?: (key: string) => void;
+  /** Optional element rendered in the header row (e.g. a back button). */
+  headerAction?: ReactElement;
   showPageviews?: boolean;
   /** Show a % share column (uses item.percentage when present). */
   showPercentage?: boolean;
@@ -46,6 +48,7 @@ export function PanelCard({
   tabs,
   activeTab,
   onTabChange,
+  headerAction,
   showPageviews = false,
   showPercentage = false,
   emptyText = 'No data yet',
@@ -64,7 +67,8 @@ export function PanelCard({
     >
       {/* Header: title + tabs */}
       <div className="mb-4 flex items-center justify-between gap-3">
-        <h3 className="text-[15px] font-semibold text-[#2D3436]">{title}</h3>
+        <h3 className="truncate text-[15px] font-semibold text-[#2D3436]">{title}</h3>
+        {headerAction}
         {tabs && tabs.length > 1 && (
           <div className="flex items-center gap-0.5 rounded-lg bg-[#f3f0f7]/60 p-0.5">
             {tabs.map(tab => (

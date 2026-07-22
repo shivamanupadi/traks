@@ -10,6 +10,7 @@ import { accountRoute } from './routes/account';
 import { clerkWebhookRoute } from './routes/webhooks';
 import { runNightlyExports } from './lib/exports';
 import { runDigest, runFreshnessCheck } from './lib/ops';
+import { runTrafficAlerts } from './lib/alerts';
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -63,8 +64,8 @@ export default {
       case '0 4 * * *': // daily email digest (yesterday's numbers)
         ctx.waitUntil(runDigest(env, 'daily'));
         break;
-      case '*/30 * * * *': // pipeline freshness healthcheck
-        ctx.waitUntil(runFreshnessCheck(env));
+      case '*/30 * * * *': // pipeline freshness healthcheck + traffic spike/drop alerts
+        ctx.waitUntil(Promise.all([runFreshnessCheck(env), runTrafficAlerts(env)]));
         break;
       default:
         console.warn(`[cron] unknown schedule: ${event.cron}`);

@@ -10,8 +10,20 @@
   const siteKey = scriptEl.getAttribute('data-site');
   if (!siteKey) return;
 
+  // Opt-in script attributes:
+  //   data-hash  - hash-based SPA routing: '#/route' becomes part of the page
+  //                path and hashchange fires pageviews
+  //   data-404   - put on the 404 template's snippet: fires a '404' event with
+  //                the broken path as a prop (view it via the props breakdown)
+  const useHash = scriptEl.hasAttribute('data-hash');
+  const is404Page = scriptEl.hasAttribute('data-404');
+
   const endpoint = new URL(scriptEl.src).origin + '/api/event';
   let lastPage: string;
+
+  function currentPath(): string {
+    return useHash ? location.pathname + location.hash : location.pathname;
+  }
 
   // Random session ID via sessionStorage (not a fingerprint - just a random token)
   function getSessionId(): string {
@@ -74,20 +86,20 @@
 
   document.addEventListener('visibilitychange', function () {
     if (document.visibilityState === 'hidden') {
-      flushEngagement(lastPage || location.pathname);
+      flushEngagement(lastPage || currentPath());
     } else if (lastPage) {
       engagedStart = Date.now();
     }
   });
   window.addEventListener('pagehide', function () {
-    flushEngagement(lastPage || location.pathname);
+    flushEngagement(lastPage || currentPath());
   });
 
   function page(isSPANavigation?: boolean): void {
-    if (isSPANavigation && lastPage === location.pathname) return;
+    if (isSPANavigation && lastPage === currentPath()) return;
     // SPA navigation: credit accumulated time to the page being left.
     if (isSPANavigation && lastPage) flushEngagement(lastPage);
-    lastPage = location.pathname;
+    lastPage = currentPath();
     engagedStart = Date.now();
 
     const params = new URLSearchParams(location.search);
@@ -95,7 +107,7 @@
     sendRequest({
       t: 'pageview',
       s: siteKey,
-      p: location.pathname,
+      p: currentPath(),
       h: location.hostname,
       r: document.referrer || '',
       sw: screen.width,
@@ -111,7 +123,7 @@
     sendRequest({
       t: 'event',
       s: siteKey,
-      p: location.pathname,
+      p: currentPath(),
       h: location.hostname,
       sid: getSessionId(),
       en: name,
@@ -146,7 +158,7 @@
     sendRequest({
       t: 'event',
       s: siteKey,
-      p: location.pathname,
+      p: currentPath(),
       h: location.hostname,
       sid: getSessionId(),
       en: name,
@@ -157,6 +169,26 @@
 
   document.addEventListener('click', handleLinkClick, true);
   document.addEventListener('auxclick', handleLinkClick, true);
+
+  if (useHash) {
+    window.addEventListener('hashchange', function () {
+      page(true);
+    });
+  }
+
+  // 404 template: report the broken path once per load, alongside the pageview.
+  if (is404Page) {
+    sendRequest({
+      t: 'event',
+      s: siteKey,
+      p: currentPath(),
+      h: location.hostname,
+      sid: getSessionId(),
+      en: '404',
+      ep: JSON.stringify({ path: currentPath().slice(0, 500) }),
+      ev: 0,
+    });
+  }
 
   // SPA support - mirrors Plausible exactly:
   // - Intercept pushState only (NOT replaceState)

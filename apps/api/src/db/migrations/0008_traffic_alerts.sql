@@ -1,0 +1,1 @@
+ALTER TABLE `users` ADD `traffic_alerts` integer DEFAULT false NOT NULL;

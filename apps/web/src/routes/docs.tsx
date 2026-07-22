@@ -49,6 +49,12 @@ function DocsPage(): ReactElement {
             goals).
           </p>
           <Code>{`<script defer data-site="YOUR_SITE_KEY" src="${COLLECT_URL}/t.js"></script>`}</Code>
+          <p>
+            Optional attributes: add <code>data-hash</code> if your app uses hash-based routing (
+            <code>#/route</code> becomes part of the page path), and put <code>data-404</code> on
+            the snippet in your 404 template to record broken URLs as a <code>404</code> event
+            (click it in the Custom Events panel to see which paths).
+          </p>
         </Section>
 
         <Section title="2. Track custom events">

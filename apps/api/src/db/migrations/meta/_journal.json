@@ -57,6 +57,13 @@
       "when": 1784653462112,
       "tag": "0007_goals",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1784700810171,
+      "tag": "0008_traffic_alerts",
+      "breakpoints": true
     }
   ]
 }

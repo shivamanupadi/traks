@@ -120,6 +120,44 @@
     });
   };
 
+  // ---- Outbound links + file downloads ----
+  // Auto-fired as reserved custom events ("Outbound Link: Click" /
+  // "File Download") with the target URL in props. The keepalive fetch in
+  // sendRequest survives the navigation, so no click delay is needed.
+  const FILE_RE =
+    /\.(7z|avi|csv|dmg|docx?|dxf|eps|exe|gz|iso|key|midi?|mov|mp3|mp4|mpe?g|pdf|pkg|pps|ppt|pptx|rar|rtf|tgz|txt|wav|wma|wmv|xlsx?|zip)$/i;
+
+  function handleLinkClick(event: MouseEvent): void {
+    // auxclick fires for all non-primary buttons; only middle-click navigates.
+    if (event.type === 'auxclick' && event.button !== 1) return;
+    let el = event.target as Element | null;
+    while (el && el.tagName !== 'A') el = el.parentElement;
+    const link = el as HTMLAnchorElement | null;
+    if (!link || !link.href || !/^https?:$/.test(link.protocol)) return;
+
+    let name: string;
+    if (link.hostname && link.hostname !== location.hostname) {
+      name = 'Outbound Link: Click';
+    } else if (FILE_RE.test(link.pathname) || link.hasAttribute('download')) {
+      name = 'File Download';
+    } else {
+      return;
+    }
+    sendRequest({
+      t: 'event',
+      s: siteKey,
+      p: location.pathname,
+      h: location.hostname,
+      sid: getSessionId(),
+      en: name,
+      ep: JSON.stringify({ url: link.href.slice(0, 500) }),
+      ev: 0,
+    });
+  }
+
+  document.addEventListener('click', handleLinkClick, true);
+  document.addEventListener('auxclick', handleLinkClick, true);
+
   // SPA support - mirrors Plausible exactly:
   // - Intercept pushState only (NOT replaceState)
   // - Listen to popstate

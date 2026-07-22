@@ -60,6 +60,19 @@ const utmMix = [
 
 const eventNames = ['signup_click', 'cta_click', 'pricing_view', 'docs_search'];
 
+// Auto link events the tracker fires for outbound clicks / file downloads
+const outboundUrls = [
+  'https://github.com/traks/traks',
+  'https://twitter.com/traksdev',
+  'https://developers.cloudflare.com/r2/',
+  'https://news.ycombinator.com/item?id=1',
+];
+const downloadUrls = [
+  'http://localhost/files/whitepaper.pdf',
+  'http://localhost/files/media-kit.zip',
+  'http://localhost/files/pricing.xlsx',
+];
+
 const ipPool = Array.from({ length: 30 }, (_, i) => `203.0.113.${i + 1}`);
 
 function pick(arr) {
@@ -123,6 +136,26 @@ async function run() {
       };
       const sentEvt = await send(evt, ua, ip);
       if (sentEvt) ok++;
+      else failed++;
+    }
+
+    // 10% chance: an outbound click or file download (auto link events)
+    if (Math.random() < 0.1) {
+      const outbound = Math.random() < 0.7;
+      const link = {
+        t: 'event',
+        s: SITE_KEY,
+        p: path,
+        h: 'localhost',
+        r: '',
+        sw: pageview.sw,
+        sid,
+        en: outbound ? 'Outbound Link: Click' : 'File Download',
+        ep: JSON.stringify({ url: outbound ? pick(outboundUrls) : pick(downloadUrls) }),
+        ev: 0,
+      };
+      const sentLink = await send(link, ua, ip);
+      if (sentLink) ok++;
       else failed++;
     }
 

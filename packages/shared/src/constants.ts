@@ -16,6 +16,17 @@ export const EVENT_TYPES = {
   EVENT: 'event',
 } as const;
 
+/**
+ * Reserved event names the tracker fires automatically. Stored as regular
+ * custom events with a canonical `event_meta` of `{"url":"..."}` (the collect
+ * worker re-serializes it), so link panels can GROUP BY the raw meta string
+ * on both the hot and cold paths without JSON functions.
+ */
+export const AUTO_EVENTS = {
+  OUTBOUND: 'Outbound Link: Click',
+  DOWNLOAD: 'File Download',
+} as const;
+
 export const PERIODS = ['today', '7d', '30d', '90d', '6m', '1y', 'all'] as const;
 export type Period = (typeof PERIODS)[number];
 

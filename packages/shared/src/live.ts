@@ -44,6 +44,8 @@ export interface LiveEvent {
   sessionId: string;
   visitorId: string;
   eventName: string;
+  /** Custom-event props JSON (canonical `{"url":"..."}` for auto link events). */
+  eventMeta: string;
   eventValue: number;
 }
 
@@ -92,6 +94,20 @@ export interface LiveCustomEventRow {
   totalValue: number;
 }
 
+/** Outbound-link / file-download breakdown row (from auto link events). */
+export interface LiveLinkRow {
+  url: string;
+  visitors: number;
+  clicks: number;
+}
+
+/** Entry/exit pages row: sessions that started (or ended) on the pathname. */
+export interface LiveEntryPageRow {
+  name: string;
+  visitors: number;
+  sessions: number;
+}
+
 /** Raw stored row, as returned by exportEvents (snake_case = file/DB shape). */
 export interface LiveExportRow {
   ts: number;
@@ -110,6 +126,7 @@ export interface LiveExportRow {
   session_id: string;
   visitor_id: string;
   event_name: string;
+  event_meta: string;
   event_value: number;
 }
 
@@ -149,6 +166,22 @@ export interface LiveStoreApi {
     limit: number,
     filters?: LiveFilters
   ): Promise<LiveCustomEventRow[]>;
+  /** Target-URL breakdown for one auto link event (outbound / download). */
+  linkClicks(
+    eventName: string,
+    fromMs: number,
+    toMs: number,
+    limit: number,
+    filters?: LiveFilters
+  ): Promise<LiveLinkRow[]>;
+  /** Pages sessions started ('entry') or ended ('exit') on. */
+  entryExitPages(
+    kind: 'entry' | 'exit',
+    fromMs: number,
+    toMs: number,
+    limit: number,
+    filters?: LiveFilters
+  ): Promise<LiveEntryPageRow[]>;
   /** Paginated raw dump for the nightly export job (ordered by ts). */
   exportEvents(
     fromMs: number,

@@ -4,6 +4,7 @@ import { zValidator } from '@hono/zod-validator';
 import { eq, and, isNull, inArray } from 'drizzle-orm';
 import {
   PERIODS,
+  AUTO_EVENTS,
   TABLE_PROD,
   TABLE_DEV,
   R2SqlError,
@@ -24,6 +25,8 @@ import {
   buildBatchStatsQuery,
   buildTimeseriesQuery,
   buildTopPagesQuery,
+  buildEntryExitPagesQuery,
+  buildLinkEventsQuery,
   buildTopReferrersQuery,
   buildUtmQuery,
   buildLocationsQuery,
@@ -245,6 +248,25 @@ const utmQuery = z.object({
   type: z.enum(['source', 'medium', 'campaign']).default('source'),
   ...filterFields,
 });
+const pagesQuery = z.object({
+  period: z.enum(PERIODS).default('today'),
+  type: z.enum(['top', 'entry', 'exit']).default('top'),
+  ...filterFields,
+});
+const linksQuery = z.object({
+  period: z.enum(PERIODS).default('today'),
+  type: z.enum(['outbound', 'download']).default('outbound'),
+  ...filterFields,
+});
+
+/** Extract the url from canonical link-event meta ('{"url":"..."}'). */
+function parseMetaUrl(meta: string): string {
+  try {
+    return String((JSON.parse(meta) as { url?: unknown }).url || meta);
+  } catch {
+    return meta;
+  }
+}
 
 const pctChange = (cur: number, prev: number): number =>
   prev === 0 ? (cur > 0 ? 100 : 0) : Math.round(((cur - prev) / prev) * 100);
@@ -727,11 +749,11 @@ export const analyticsRoute = appWithBatch
     });
   })
 
-  .get('/:siteId/stats/pages', requireAuth, zValidator('query', periodQuery), async c => {
+  .get('/:siteId/stats/pages', requireAuth, zValidator('query', pagesQuery), async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('siteId');
     const query = c.req.valid('query');
-    const { period } = query;
+    const { period, type } = query;
     const filters = parseFilters(query);
 
     const site = await getSite(c, siteId, userId);
@@ -740,15 +762,27 @@ export const analyticsRoute = appWithBatch
     if (period === 'today') {
       try {
         const range = resolvePeriod('today', new Date(), site.timezone);
-        const rows = await liveStore(c, site.key).topList(
-          'pathname',
+        if (type === 'top') {
+          const rows = await liveStore(c, site.key).topList(
+            'pathname',
+            ms(range.from),
+            ms(range.to),
+            10,
+            filters
+          );
+          return c.json({
+            data: rows.map(r => ({ name: r.name, visitors: r.visitors, pageviews: r.pageviews })),
+          });
+        }
+        const rows = await liveStore(c, site.key).entryExitPages(
+          type,
           ms(range.from),
           ms(range.to),
           10,
           filters
         );
         return c.json({
-          data: rows.map(r => ({ name: r.name, visitors: r.visitors, pageviews: r.pageviews })),
+          data: rows.map(r => ({ name: r.name, visitors: r.visitors, pageviews: r.sessions })),
         });
       } catch (err) {
         logLiveFallback(err);
@@ -757,6 +791,25 @@ export const analyticsRoute = appWithBatch
 
     const range = resolvePeriod(period, queryTime(), site.timezone);
     const ttl = cacheTtlSeconds(period);
+
+    if (type !== 'top') {
+      const outcome = await runQueries(c, () =>
+        cachedR2Sql<{ pathname: string; visitors: unknown; sessions: unknown }>(
+          c,
+          ttl,
+          buildEntryExitPagesQuery(site.key, range, type, filters)
+        )
+      );
+      if (outcome instanceof Response) return outcome;
+
+      return c.json({
+        data: outcome.map(r => ({
+          name: r.pathname,
+          visitors: toNumber(r.visitors),
+          pageviews: toNumber(r.sessions),
+        })),
+      });
+    }
 
     const outcome = await runQueries(c, () =>
       cachedR2Sql<{ pathname: string; visitors: unknown; pageviews: unknown }>(
@@ -772,6 +825,56 @@ export const analyticsRoute = appWithBatch
         name: r.pathname,
         visitors: toNumber(r.visitors),
         pageviews: toNumber(r.pageviews),
+      })),
+    });
+  })
+
+  .get('/:siteId/stats/links', requireAuth, zValidator('query', linksQuery), async c => {
+    const userId = c.get('userId')!;
+    const siteId = c.req.param('siteId');
+    const query = c.req.valid('query');
+    const { period, type } = query;
+    const filters = parseFilters(query);
+    const eventName = type === 'outbound' ? AUTO_EVENTS.OUTBOUND : AUTO_EVENTS.DOWNLOAD;
+
+    const site = await getSite(c, siteId, userId);
+    if (!site) return c.json({ error: 'Not found' }, 404);
+
+    if (period === 'today') {
+      try {
+        const range = resolvePeriod('today', new Date(), site.timezone);
+        const rows = await liveStore(c, site.key).linkClicks(
+          eventName,
+          ms(range.from),
+          ms(range.to),
+          10,
+          filters
+        );
+        return c.json({
+          data: rows.map(r => ({ name: r.url, visitors: r.visitors, clicks: r.clicks })),
+        });
+      } catch (err) {
+        logLiveFallback(err);
+      }
+    }
+
+    const range = resolvePeriod(period, queryTime(), site.timezone);
+    const ttl = cacheTtlSeconds(period);
+
+    const outcome = await runQueries(c, () =>
+      cachedR2Sql<{ meta: string; clicks: unknown; visitors: unknown }>(
+        c,
+        ttl,
+        buildLinkEventsQuery(site.key, range, eventName, filters)
+      )
+    );
+    if (outcome instanceof Response) return outcome;
+
+    return c.json({
+      data: outcome.map(r => ({
+        name: parseMetaUrl(r.meta),
+        visitors: toNumber(r.visitors),
+        clicks: toNumber(r.clicks),
       })),
     });
   })

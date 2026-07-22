@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { trackingEventSchema, computeBucketKeys } from '@traks/shared';
+import { trackingEventSchema, computeBucketKeys, AUTO_EVENTS } from '@traks/shared';
 import { isBot } from './lib/bots';
 import { parseUA } from './lib/ua';
 import { parseReferrer } from './lib/referrer';
@@ -188,6 +188,23 @@ app.post('/api/event', async c => {
   // align with IST (or whatever the site runs on) rather than UTC.
   const { dateKey, hourKey, weekKey } = computeBucketKeys(now, site.timezone);
 
+  // Auto link events (outbound / download): re-serialize props to the exact
+  // canonical form '{"url":"..."}' so link panels can GROUP BY the raw
+  // event_meta string. User-defined custom events pass through untouched.
+  let eventMeta = event.ep || '';
+  if (
+    event.t === 'event' &&
+    (event.en === AUTO_EVENTS.OUTBOUND || event.en === AUTO_EVENTS.DOWNLOAD)
+  ) {
+    let url = '';
+    try {
+      url = String((JSON.parse(eventMeta || '{}') as { url?: unknown }).url || '').slice(0, 500);
+    } catch {
+      // Malformed props - drop the URL, keep the event.
+    }
+    eventMeta = url ? JSON.stringify({ url }) : '';
+  }
+
   const record = {
     site_id: event.s,
     ts: now.getTime(),
@@ -211,7 +228,7 @@ app.post('/api/event', async c => {
     session_id: event.sid || '',
     visitor_id: visitorId,
     event_name: event.en || '',
-    event_meta: event.ep || '',
+    event_meta: eventMeta,
     event_value: event.ev || 0,
     screen_width: event.sw || 0,
   };
@@ -244,6 +261,7 @@ app.post('/api/event', async c => {
           sessionId: event.sid || '',
           visitorId: visitorId,
           eventName: event.en || '',
+          eventMeta: eventMeta,
           eventValue: event.ev || 0,
         })
         .catch(err => {

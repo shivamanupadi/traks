@@ -43,7 +43,10 @@ function DocsPage(): ReactElement {
           <p>
             Create a site in the dashboard, then add the snippet to your site&apos;s{' '}
             <code>&lt;head&gt;</code>. It&apos;s under 1KB, loads async, uses no cookies, and tracks
-            SPA navigations automatically.
+            SPA navigations automatically. Clicks on outbound links and file downloads are tracked
+            out of the box and appear in the dashboard&apos;s <strong>Links</strong> panel (and as
+            the <code>Outbound Link: Click</code> / <code>File Download</code> events, usable as
+            goals).
           </p>
           <Code>{`<script defer data-site="YOUR_SITE_KEY" src="${COLLECT_URL}/t.js"></script>`}</Code>
         </Section>

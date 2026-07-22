@@ -10,6 +10,8 @@ import type {
   LiveTopListRow,
   LiveRealtimeRow,
   LiveCustomEventRow,
+  LiveLinkRow,
+  LiveEntryPageRow,
   LiveExportRow,
 } from '@traks/shared';
 
@@ -102,7 +104,8 @@ export class SiteLiveStore extends DurableObject<unknown> {
         session_id TEXT NOT NULL DEFAULT '',
         visitor_id TEXT NOT NULL DEFAULT '',
         event_name TEXT NOT NULL DEFAULT '',
-        event_value REAL NOT NULL DEFAULT 0
+        event_value REAL NOT NULL DEFAULT 0,
+        event_meta TEXT NOT NULL DEFAULT ''
       );
       CREATE INDEX IF NOT EXISTS idx_events_ts ON events (ts);
       CREATE TABLE IF NOT EXISTS usage (
@@ -110,6 +113,14 @@ export class SiteLiveStore extends DurableObject<unknown> {
         events INTEGER NOT NULL DEFAULT 0
       );
     `);
+    // Migration for DO instances created before event_meta existed:
+    // CREATE TABLE IF NOT EXISTS leaves their old schema untouched.
+    const hasMeta = this.sql
+      .exec(`SELECT COUNT(*) AS c FROM pragma_table_info('events') WHERE name = 'event_meta'`)
+      .one().c;
+    if (!n(hasMeta)) {
+      this.sql.exec(`ALTER TABLE events ADD COLUMN event_meta TEXT NOT NULL DEFAULT ''`);
+    }
   }
 
   /**
@@ -132,8 +143,8 @@ export class SiteLiveStore extends DurableObject<unknown> {
           ts, hour_key, event_type, pathname, referrer_hostname,
           utm_source, utm_medium, utm_campaign, country, city,
           browser, os, device_type, session_id, visitor_id,
-          event_name, event_value
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          event_name, event_value, event_meta
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         e.ts,
         e.hourKey,
         e.eventType,
@@ -150,7 +161,8 @@ export class SiteLiveStore extends DurableObject<unknown> {
         e.sessionId,
         e.visitorId,
         e.eventName,
-        e.eventValue
+        e.eventValue,
+        e.eventMeta
       );
     }
 
@@ -492,7 +504,7 @@ export class SiteLiveStore extends DurableObject<unknown> {
         `SELECT ts, hour_key, event_type, pathname, referrer_hostname,
                 utm_source, utm_medium, utm_campaign, country, city,
                 browser, os, device_type, session_id, visitor_id,
-                event_name, event_value
+                event_name, event_meta, event_value
          FROM events
          WHERE ts >= ? AND ts < ?
          ORDER BY ts ASC
@@ -599,5 +611,93 @@ export class SiteLiveStore extends DurableObject<unknown> {
           .toArray()
           .map(r => ({ name: String(r.name), count: n(r.count), totalValue: n(r.totalValue) }))
     );
+  }
+
+  async linkClicks(
+    eventName: string,
+    fromMs: number,
+    toMs: number,
+    limit: number,
+    filters?: LiveFilters
+  ): Promise<LiveLinkRow[]> {
+    const boundedLimit = Math.max(1, Math.min(100, limit));
+    const f = SiteLiveStore.filterSql(filters);
+    return this.memoized(
+      `linkClicks:${eventName}:${SiteLiveStore.q(fromMs)}:${SiteLiveStore.q(toMs)}:${boundedLimit}:${SiteLiveStore.filterKey(filters)}`,
+      MEMO_TTL_MS,
+      () =>
+        this.sql
+          .exec(
+            `SELECT event_meta AS meta, COUNT(*) AS clicks,
+                    COUNT(DISTINCT visitor_id) AS visitors
+             FROM events
+             WHERE event_type = 'event' AND event_name = ? AND event_meta != ''
+               AND ts >= ? AND ts < ?${f.sql}
+             GROUP BY event_meta
+             ORDER BY clicks DESC
+             LIMIT ?`,
+            eventName,
+            fromMs,
+            toMs,
+            ...f.params,
+            boundedLimit
+          )
+          .toArray()
+          .map(r => ({
+            url: parseMetaUrl(String(r.meta)),
+            clicks: n(r.clicks),
+            visitors: n(r.visitors),
+          }))
+    );
+  }
+
+  async entryExitPages(
+    kind: 'entry' | 'exit',
+    fromMs: number,
+    toMs: number,
+    limit: number,
+    filters?: LiveFilters
+  ): Promise<LiveEntryPageRow[]> {
+    const order = kind === 'entry' ? 'ASC' : 'DESC';
+    const boundedLimit = Math.max(1, Math.min(100, limit));
+    const f = SiteLiveStore.filterSql(filters);
+    return this.memoized(
+      `entryExit:${kind}:${SiteLiveStore.q(fromMs)}:${SiteLiveStore.q(toMs)}:${boundedLimit}:${SiteLiveStore.filterKey(filters)}`,
+      MEMO_TTL_MS,
+      () =>
+        this.sql
+          .exec(
+            `WITH ranked AS (
+               SELECT pathname, visitor_id,
+                      ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY ts ${order}) AS rn
+               FROM events
+               WHERE event_type = 'pageview' AND session_id != ''
+                 AND ts >= ? AND ts < ?${f.sql}
+             )
+             SELECT pathname AS name,
+                    COUNT(DISTINCT visitor_id) AS visitors,
+                    COUNT(*) AS sessions
+             FROM ranked
+             WHERE rn = 1
+             GROUP BY pathname
+             ORDER BY visitors DESC
+             LIMIT ?`,
+            fromMs,
+            toMs,
+            ...f.params,
+            boundedLimit
+          )
+          .toArray()
+          .map(r => ({ name: String(r.name), visitors: n(r.visitors), sessions: n(r.sessions) }))
+    );
+  }
+}
+
+/** Extract the url from canonical link-event meta ('{"url":"..."}'). */
+function parseMetaUrl(meta: string): string {
+  try {
+    return String((JSON.parse(meta) as { url?: unknown }).url || meta);
+  } catch {
+    return meta;
   }
 }

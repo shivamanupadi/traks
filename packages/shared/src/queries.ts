@@ -492,6 +492,69 @@ export function buildTopPagesQuery(
   `;
 }
 
+/**
+ * Entry/exit pages: the pathname of each session's first (or last) pageview.
+ * ROW_NUMBER over sessions requires window-function support, which R2 SQL
+ * gained in the 2026 feature waves alongside CTEs.
+ */
+export function buildEntryExitPagesQuery(
+  siteKey: string,
+  range: PeriodRange,
+  kind: 'entry' | 'exit',
+  filters?: LiveFilters,
+  limit = 10
+) {
+  const order = kind === 'entry' ? 'ASC' : 'DESC';
+  return (table: string) => `
+    WITH ranked AS (
+      SELECT
+        pathname,
+        visitor_id,
+        ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY ts ${order}) AS rn
+      FROM ${table}
+      WHERE ${whereSiteAndRange(siteKey, range, 'pageview', filters)}
+        AND session_id != ''
+    )
+    SELECT
+      pathname,
+      approx_distinct(visitor_id) AS visitors,
+      COUNT(*) AS sessions
+    FROM ranked
+    WHERE rn = 1
+    GROUP BY pathname
+    ORDER BY visitors DESC
+    LIMIT ${limit}
+  `;
+}
+
+/**
+ * Outbound-link / file-download breakdown. Auto link events carry a canonical
+ * event_meta of exactly '{"url":"..."}' (collect re-serializes it), so
+ * grouping on the raw string is equivalent to grouping by URL - no JSON
+ * functions needed. The caller parses the url back out.
+ */
+export function buildLinkEventsQuery(
+  siteKey: string,
+  range: PeriodRange,
+  eventName: string,
+  filters?: LiveFilters,
+  limit = 10
+) {
+  return (table: string) => `
+    SELECT
+      event_meta AS meta,
+      COUNT(*) AS clicks,
+      approx_distinct(visitor_id) AS visitors
+    FROM ${table}
+    WHERE ${whereSiteAndRange(siteKey, range, 'event', filters)}
+      AND event_name = '${esc(eventName)}'
+      AND event_meta != ''
+    GROUP BY event_meta
+    ORDER BY clicks DESC
+    LIMIT ${limit}
+  `;
+}
+
 export function buildTopReferrersQuery(
   siteKey: string,
   range: PeriodRange,

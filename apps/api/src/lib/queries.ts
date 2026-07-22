@@ -8,6 +8,8 @@ export {
   buildBatchStatsQuery,
   buildTimeseriesQuery,
   buildTopPagesQuery,
+  buildEntryExitPagesQuery,
+  buildLinkEventsQuery,
   buildTopReferrersQuery,
   buildUtmQuery,
   buildLocationsQuery,

@@ -197,11 +197,27 @@ export const api = {
   async getTopPages(
     siteId: string,
     period: Period,
+    type: 'top' | 'entry' | 'exit',
     token: string,
     filters?: AnalyticsFilters
   ): Promise<any> {
     const res = await client.api.analytics[':siteId'].stats.pages.$get(
-      { param: { siteId }, query: { period, ...filters } },
+      { param: { siteId }, query: { period, type, ...filters } },
+      authHeaders(token)
+    );
+    await assertOk(res);
+    return res.json();
+  },
+
+  async getLinks(
+    siteId: string,
+    period: Period,
+    type: 'outbound' | 'download',
+    token: string,
+    filters?: AnalyticsFilters
+  ): Promise<any> {
+    const res = await client.api.analytics[':siteId'].stats.links.$get(
+      { param: { siteId }, query: { period, type, ...filters } },
       authHeaders(token)
     );
     await assertOk(res);

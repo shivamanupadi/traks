@@ -1047,9 +1047,11 @@ function SiteAnalyticsPage(): ReactElement {
   const [chartMetric, setChartMetric] = useState<ChartMetric>('visitors');
 
   // Per-panel tab state
+  const [pagesTab, setPagesTab] = useState('top');
   const [sourceTab, setSourceTab] = useState('referrers');
   const [locationTab, setLocationTab] = useState('country');
   const [deviceTab, setDeviceTab] = useState('browser');
+  const [linksTab, setLinksTab] = useState('outbound');
 
   // Lazy-render sentinels for below-fold sections
   const [belowFoldRef, belowFoldVisible] = useLazyVisible();
@@ -1094,7 +1096,28 @@ function SiteAnalyticsPage(): ReactElement {
   const timeseriesQ = useQuery(
     tileOpts(['timeseries'], t => api.getTimeseries(siteId, period, t, filters))
   );
-  const pagesQ = useQuery(tileOpts(['pages'], t => api.getTopPages(siteId, period, t, filters)));
+  // Pages panel: top pages or entry/exit pages (first/last page of each session)
+  const topPagesQ = useQuery(
+    tileOpts(
+      ['pages', 'top'],
+      t => api.getTopPages(siteId, period, 'top', t, filters),
+      pagesTab === 'top'
+    )
+  );
+  const entryPagesQ = useQuery(
+    tileOpts(
+      ['pages', 'entry'],
+      t => api.getTopPages(siteId, period, 'entry', t, filters),
+      pagesTab === 'entry'
+    )
+  );
+  const exitPagesQ = useQuery(
+    tileOpts(
+      ['pages', 'exit'],
+      t => api.getTopPages(siteId, period, 'exit', t, filters),
+      pagesTab === 'exit'
+    )
+  );
 
   // Sources panel: referrers or one of the UTM dimensions
   const referrersQ = useQuery(
@@ -1165,6 +1188,20 @@ function SiteAnalyticsPage(): ReactElement {
   const eventsQ = useQuery(
     tileOpts(['events'], t => api.getEvents(siteId, period, t, filters), belowFoldVisible)
   );
+  const outboundQ = useQuery(
+    tileOpts(
+      ['links', 'outbound'],
+      t => api.getLinks(siteId, period, 'outbound', t, filters),
+      belowFoldVisible && linksTab === 'outbound'
+    )
+  );
+  const downloadsQ = useQuery(
+    tileOpts(
+      ['links', 'download'],
+      t => api.getLinks(siteId, period, 'download', t, filters),
+      belowFoldVisible && linksTab === 'download'
+    )
+  );
   const goalStatsQ = useQuery(
     tileOpts(['goals'], t => api.getGoalStats(siteId, period, t, filters), belowFoldVisible)
   );
@@ -1184,6 +1221,13 @@ function SiteAnalyticsPage(): ReactElement {
   const site = (siteData as any)?.data;
   const currentVisitors: number | null = (realtimeQ.data as any)?.data?.currentVisitors ?? null;
 
+  const pagesQueries: Record<string, typeof topPagesQ> = {
+    top: topPagesQ,
+    entry: entryPagesQ,
+    exit: exitPagesQ,
+  };
+  const pagesQ = pagesQueries[pagesTab];
+
   const sourceQueries: Record<string, typeof referrersQ> = {
     referrers: referrersQ,
     utm_source: utmSourceQ,
@@ -1191,6 +1235,7 @@ function SiteAnalyticsPage(): ReactElement {
     utm_campaign: utmCampaignQ,
   };
   const sourceQ = sourceQueries[sourceTab];
+  const linkQ = linksTab === 'outbound' ? outboundQ : downloadsQ;
 
   const locationQ = locationTab === 'country' ? countriesQ : citiesQ;
   const deviceQueries: Record<string, typeof browsersQ> = {
@@ -1280,11 +1325,20 @@ function SiteAnalyticsPage(): ReactElement {
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <PanelCard
             title="Top Pages"
-            labelHeader="Page"
+            labelHeader={
+              pagesTab === 'top' ? 'Page' : pagesTab === 'entry' ? 'Entry page' : 'Exit page'
+            }
             items={(pagesQ.data as any)?.data}
             isLoading={pagesQ.isLoading}
             isError={pagesQ.isError}
-            showPageviews
+            showPageviews={pagesTab === 'top'}
+            tabs={[
+              { key: 'top', label: 'Pages' },
+              { key: 'entry', label: 'Entry' },
+              { key: 'exit', label: 'Exit' },
+            ]}
+            activeTab={pagesTab}
+            onTabChange={setPagesTab}
             onItemClick={item => setFilter('page', item.name)}
           />
           <PanelCard
@@ -1368,17 +1422,34 @@ function SiteAnalyticsPage(): ReactElement {
               onManage={() => setGoalsOpen(true)}
             />
 
-            {/* Custom events */}
-            <PanelCard
-              title="Custom Events"
-              labelHeader="Event"
-              valueHeader="Count"
-              items={events?.map(e => ({ name: e.name, visitors: e.count }))}
-              isLoading={eventsQ.isLoading}
-              isError={eventsQ.isError}
-              emptyText="No custom events yet"
-              className="min-h-0"
-            />
+            {/* Custom events + auto-tracked links */}
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <PanelCard
+                title="Custom Events"
+                labelHeader="Event"
+                valueHeader="Count"
+                items={events?.map(e => ({ name: e.name, visitors: e.count }))}
+                isLoading={eventsQ.isLoading}
+                isError={eventsQ.isError}
+                emptyText="No custom events yet"
+              />
+              <PanelCard
+                title="Links"
+                labelHeader="URL"
+                items={(linkQ.data as any)?.data}
+                isLoading={linkQ.isLoading}
+                isError={linkQ.isError}
+                tabs={[
+                  { key: 'outbound', label: 'Outbound' },
+                  { key: 'download', label: 'Downloads' },
+                ]}
+                activeTab={linksTab}
+                onTabChange={setLinksTab}
+                emptyText={
+                  linksTab === 'outbound' ? 'No outbound clicks yet' : 'No file downloads yet'
+                }
+              />
+            </div>
           </>
         )}
       </div>

@@ -39,7 +39,6 @@ import { PeriodPicker } from '@/components/layout/PeriodPicker';
 import { api, type AnalyticsFilters } from '@/lib/api';
 
 const COLLECT_URL = import.meta.env.VITE_COLLECT_URL || 'https://collect.traks.dev';
-const API_URL = import.meta.env.VITE_API_URL || 'https://api.traks.dev';
 
 function cnToggle(on: boolean): string {
   return `relative inline-flex h-6 w-10 shrink-0 items-center rounded-full transition-colors cursor-pointer ${
@@ -212,8 +211,6 @@ function EditSiteModal({
     domain: string;
     timezone?: string;
     public?: boolean;
-    exportEnabled?: boolean;
-    exportToken?: string | null;
   } | null;
   siteId: string;
 }): ReactElement {
@@ -223,8 +220,6 @@ function EditSiteModal({
   const [domain, setDomain] = useState('');
   const [timezone, setTimezone] = useState('UTC');
   const [error, setError] = useState('');
-  const [exportEnabled, setExportEnabled] = useState(false);
-  const [exportToken, setExportToken] = useState<string | null>(null);
   const [publicEnabled, setPublicEnabled] = useState(false);
 
   useEffect(() => {
@@ -232,8 +227,6 @@ function EditSiteModal({
       setName(site.name);
       setDomain(site.domain);
       setTimezone(site.timezone || 'UTC');
-      setExportEnabled(site.exportEnabled ?? false);
-      setExportToken(site.exportToken ?? null);
       setPublicEnabled(site.public ?? false);
       setError('');
     }
@@ -247,20 +240,6 @@ function EditSiteModal({
     },
     onSuccess: (res: { data: { enabled: boolean } }) => {
       setPublicEnabled(res.data.enabled);
-      queryClient.invalidateQueries({ queryKey: ['site', siteId] });
-    },
-    onError: (err: Error) => setError(err.message),
-  });
-
-  const toggleExport = useMutation({
-    mutationFn: async (enabled: boolean) => {
-      const token = await getToken();
-      if (!token) throw new Error('Not authenticated');
-      return api.toggleExport(siteId, enabled, token);
-    },
-    onSuccess: (res: { data: { enabled: boolean; token: string } }) => {
-      setExportEnabled(res.data.enabled);
-      setExportToken(res.data.token);
       queryClient.invalidateQueries({ queryKey: ['site', siteId] });
     },
     onError: (err: Error) => setError(err.message),
@@ -371,36 +350,6 @@ function EditSiteModal({
               {publicEnabled && (
                 <pre className="mt-3 rounded-lg border border-[#e8e3ed] bg-[#fdfbf8] px-3 py-2.5 text-[11px] leading-relaxed text-[#2D3436] whitespace-pre-wrap break-all select-all">
                   {`${window.location.origin}/share/${siteId}`}
-                </pre>
-              )}
-            </div>
-
-            {/* Data export */}
-            <div className="border-t border-[#e8e3ed]/60 pt-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-[13px] font-medium text-[#2D3436]">Data export</p>
-                  <p className="mt-0.5 text-[12px] text-[#9B9590]">
-                    Nightly raw event files (NDJSON) — query with DuckDB or download.
-                  </p>
-                </div>
-                <button
-                  onClick={() => toggleExport.mutate(!exportEnabled)}
-                  disabled={toggleExport.isPending}
-                  className={cnToggle(exportEnabled)}
-                  role="switch"
-                  aria-checked={exportEnabled}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      exportEnabled ? 'translate-x-5' : 'translate-x-1'
-                    }`}
-                  />
-                </button>
-              </div>
-              {exportEnabled && exportToken && (
-                <pre className="mt-3 rounded-lg border border-[#e8e3ed] bg-[#fdfbf8] px-3 py-2.5 text-[11px] leading-relaxed text-[#2D3436] whitespace-pre-wrap break-all select-all">
-                  {`-- DuckDB\nSELECT * FROM read_ndjson_auto(\n  '${API_URL}/api/exports/${exportToken}/YYYY-MM-DD.ndjson.gz');`}
                 </pre>
               )}
             </div>
@@ -1551,8 +1500,6 @@ function SiteAnalyticsPage(): ReactElement {
                 domain: site.domain,
                 timezone: site.timezone,
                 public: site.public,
-                exportEnabled: site.exportEnabled,
-                exportToken: site.exportToken,
               }
             : null
         }

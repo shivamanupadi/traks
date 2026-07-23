@@ -4,11 +4,9 @@ import { drizzle } from 'drizzle-orm/d1';
 import type { Bindings, Variables } from './types';
 import { sitesRoute } from './routes/sites';
 import { analyticsRoute } from './routes/analytics';
-import { exportsRoute } from './routes/exports';
 import { publicRoute } from './routes/public';
 import { accountRoute } from './routes/account';
 import { clerkWebhookRoute } from './routes/webhooks';
-import { runNightlyExports } from './lib/exports';
 import { runDigest, runFreshnessCheck } from './lib/ops';
 import { runTrafficAlerts } from './lib/alerts';
 
@@ -37,7 +35,6 @@ app.get('/health', c => c.json({ status: 'ok', timestamp: new Date().toISOString
 const routes = app
   .route('/api/sites', sitesRoute)
   .route('/api/analytics', analyticsRoute)
-  .route('/api/exports', exportsRoute)
   .route('/api/public', publicRoute)
   .route('/api/account', accountRoute);
 
@@ -55,9 +52,6 @@ export default {
   fetch: app.fetch,
   scheduled(event: ScheduledEvent, env: Bindings, ctx: ExecutionContext): void {
     switch (event.cron) {
-      case '30 3 * * *': // nightly raw-data exports
-        ctx.waitUntil(runNightlyExports(env));
-        break;
       case '0 8 * * 1': // Monday weekly email digest
         ctx.waitUntil(runDigest(env, 'weekly'));
         break;

@@ -32,9 +32,8 @@ name = "EMAIL"
 
 [triggers]
 crons = [
-  "0 8 * * 1",    # Monday weekly email digest
-  "0 4 * * *",    # daily email digest (yesterday's numbers)
-  "*/30 * * * *", # pipeline freshness healthcheck
+  "0 8 * * 1", # Monday weekly email digest
+  "0 4 * * *", # daily email digest (yesterday's numbers)
 ]
 
 [[routes]]
@@ -47,7 +46,6 @@ ALLOWED_ORIGINS = "*"
 R2_BUCKET_NAME = "traks-events-dev"
 APP_URL = "http://localhost:5012"
 EMAIL_FROM = "reports@traks.dev"
-ADMIN_EMAIL = "" # set to receive ops alerts
 
 # --- Production: wrangler deploy --env production ---
 
@@ -73,7 +71,7 @@ id = "8d350a4f547a41218336ba9b4103fe0e"
 name = "EMAIL"
 
 [env.production.triggers]
-crons = ["0 8 * * 1", "0 4 * * *", "*/30 * * * *"]
+crons = ["0 8 * * 1", "0 4 * * *"]
 
 [env.production.vars]
 ENVIRONMENT = "production"
@@ -81,7 +79,6 @@ ALLOWED_ORIGINS = "https://traks.dev,https://www.traks.dev"
 R2_BUCKET_NAME = "traks-events"
 APP_URL = "https://traks.dev"
 EMAIL_FROM = "reports@traks.dev"
-ADMIN_EMAIL = "shiva.manupadi@gmail.com" # ops alerts (pipeline stuck, etc.)
 
 [[env.production.routes]]
 pattern = "api.traks.dev"

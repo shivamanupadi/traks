@@ -18,7 +18,6 @@ export type Bindings = {
   ALLOWED_ORIGINS: string;
   APP_URL: string;
   EMAIL_FROM: string;
-  ADMIN_EMAIL: string;
   CLERK_SECRET_KEY: string;
   CLERK_WEBHOOK_SECRET: string;
   R2_ACCOUNT_ID: string;

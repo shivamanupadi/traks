@@ -71,6 +71,13 @@
       "when": 1784783272007,
       "tag": "0009_drop_site_exports",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1784812696027,
+      "tag": "0010_drop_traffic_alerts_ops_state",
+      "breakpoints": true
     }
   ]
 }

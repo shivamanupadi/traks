@@ -114,14 +114,9 @@ function SettingsPage(): ReactElement {
 
   const weeklyReport = (accountData as any)?.data?.weeklyReport ?? true;
   const dailyReport = (accountData as any)?.data?.dailyReport ?? false;
-  const trafficAlerts = (accountData as any)?.data?.trafficAlerts ?? false;
 
   const setPrefs = useMutation({
-    mutationFn: async (prefs: {
-      weeklyReport?: boolean;
-      dailyReport?: boolean;
-      trafficAlerts?: boolean;
-    }) => {
+    mutationFn: async (prefs: { weeklyReport?: boolean; dailyReport?: boolean }) => {
       const token = await getToken();
       if (!token) throw new Error('Not authenticated');
       return api.setPreferences(prefs, token);
@@ -203,13 +198,6 @@ function SettingsPage(): ReactElement {
             enabled={weeklyReport}
             pending={setPrefs.isPending}
             onToggle={() => setPrefs.mutate({ weeklyReport: !weeklyReport })}
-          />
-          <NotificationToggle
-            title="Traffic alerts"
-            description="An email when a site spikes (3x its usual hourly visitors) or goes silent for 3 hours."
-            enabled={trafficAlerts}
-            pending={setPrefs.isPending}
-            onToggle={() => setPrefs.mutate({ trafficAlerts: !trafficAlerts })}
           />
         </div>
       </section>

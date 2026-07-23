@@ -8,7 +8,7 @@ import {
   buildStatsWithComparisonQuery,
   type PeriodRange,
 } from '@traks/shared';
-import { users, sites, apiKeys, opsState } from '../db/schema';
+import { users, sites, apiKeys } from '../db/schema';
 import type { Bindings } from '../types';
 
 function r2SqlConfig(env: Bindings) {
@@ -32,66 +32,6 @@ export async function sendEmail(
   } catch (err) {
     console.error(`[email] send to ${to} failed:`, err);
     return false;
-  }
-}
-
-export async function alertAdmin(env: Bindings, subject: string, html: string): Promise<void> {
-  if (!env.ADMIN_EMAIL) return;
-  await sendEmail(env, env.ADMIN_EMAIL, `[traks ${env.ENVIRONMENT}] ${subject}`, html);
-}
-
-// ============ Pipeline freshness healthcheck (*/30 cron) ============
-
-async function getOpsValue(env: Bindings, key: string): Promise<string | null> {
-  const db = drizzle(env.DB);
-  const [row] = await db.select().from(opsState).where(eq(opsState.key, key));
-  return row?.value ?? null;
-}
-
-async function setOpsValue(env: Bindings, key: string, value: string): Promise<void> {
-  const db = drizzle(env.DB);
-  await db
-    .insert(opsState)
-    .values({ key, value, updatedAt: new Date() })
-    .onConflictDoUpdate({ target: opsState.key, set: { value, updatedAt: new Date() } });
-}
-
-/**
- * Alerts (once per transition) when no events have landed in Iceberg for 2h.
- * Can't distinguish "pipeline broken" from "genuinely zero traffic", so the
- * alert says to verify — for a product with any steady traffic it's a strong
- * signal the stream→sink path is stuck.
- */
-export async function runFreshnessCheck(env: Bindings): Promise<void> {
-  const config = r2SqlConfig(env);
-  const twoHoursAgo = new Date(Date.now() - 2 * 3600_000).toISOString();
-
-  let status: 'healthy' | 'stale';
-  try {
-    const rows = await queryR2Sql<{ latest: unknown }>(
-      config,
-      table => `SELECT MAX(ts) AS latest FROM ${table} WHERE ts >= TIMESTAMP '${twoHoursAgo}'`
-    );
-    status = rows[0]?.latest ? 'healthy' : 'stale';
-  } catch (err) {
-    console.error('[ops] freshness query failed:', err);
-    status = 'stale';
-  }
-
-  const previous = await getOpsValue(env, 'pipeline_status');
-  if (previous !== status) {
-    await setOpsValue(env, 'pipeline_status', status);
-    if (status === 'stale' && previous !== null) {
-      await alertAdmin(
-        env,
-        'Pipeline may be stuck',
-        `<p>No events have landed in the Iceberg table in the last 2 hours ` +
-          `(or the R2 SQL healthcheck itself failed). If traffic is expected, ` +
-          `check the Pipelines dashboard for dropped events and the sink status.</p>`
-      );
-    } else if (status === 'healthy' && previous === 'stale') {
-      await alertAdmin(env, 'Pipeline recovered', '<p>Events are flowing into Iceberg again.</p>');
-    }
   }
 }
 

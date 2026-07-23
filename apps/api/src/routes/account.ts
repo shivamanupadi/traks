@@ -12,13 +12,10 @@ const prefsSchema = z
   .object({
     weeklyReport: z.boolean().optional(),
     dailyReport: z.boolean().optional(),
-    trafficAlerts: z.boolean().optional(),
   })
-  .refine(
-    p =>
-      p.weeklyReport !== undefined || p.dailyReport !== undefined || p.trafficAlerts !== undefined,
-    { message: 'No preference provided' }
-  );
+  .refine(p => p.weeklyReport !== undefined || p.dailyReport !== undefined, {
+    message: 'No preference provided',
+  });
 
 export const accountRoute = app
   // Account info + preferences for the settings page
@@ -31,23 +28,21 @@ export const accountRoute = app
         email: user?.email ?? '',
         weeklyReport: user?.weeklyReport ?? true,
         dailyReport: user?.dailyReport ?? false,
-        trafficAlerts: user?.trafficAlerts ?? false,
       },
     });
   })
 
   .post('/preferences', requireAuth, zValidator('json', prefsSchema), async c => {
     const userId = c.get('userId')!;
-    const { weeklyReport, dailyReport, trafficAlerts } = c.req.valid('json');
+    const { weeklyReport, dailyReport } = c.req.valid('json');
     const db = c.get('db')!;
     await db
       .update(users)
       .set({
         ...(weeklyReport !== undefined ? { weeklyReport } : {}),
         ...(dailyReport !== undefined ? { dailyReport } : {}),
-        ...(trafficAlerts !== undefined ? { trafficAlerts } : {}),
         updatedAt: new Date(),
       })
       .where(eq(users.id, userId));
-    return c.json({ data: { weeklyReport, dailyReport, trafficAlerts } });
+    return c.json({ data: { weeklyReport, dailyReport } });
   });

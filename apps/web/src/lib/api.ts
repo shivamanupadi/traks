@@ -283,7 +283,7 @@ export const api = {
   },
 
   async setPreferences(
-    prefs: { weeklyReport?: boolean; dailyReport?: boolean; trafficAlerts?: boolean },
+    prefs: { weeklyReport?: boolean; dailyReport?: boolean },
     token: string
   ): Promise<any> {
     const res = await client.api.account.preferences.$post({ json: prefs }, authHeaders(token));

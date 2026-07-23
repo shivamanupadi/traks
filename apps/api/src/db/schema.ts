@@ -15,8 +15,6 @@ export const users = sqliteTable('users', {
   // Email digest opt-ins (account-level; each mail covers all sites)
   weeklyReport: integer('weekly_report', { mode: 'boolean' }).default(true).notNull(),
   dailyReport: integer('daily_report', { mode: 'boolean' }).default(false).notNull(),
-  // Traffic spike/drop alert emails (checked every 30 min against each site's live DO)
-  trafficAlerts: integer('traffic_alerts', { mode: 'boolean' }).default(false).notNull(),
   createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
 });
@@ -88,10 +86,3 @@ export const goals = sqliteTable(
   },
   table => [index('goals_site_id_idx').on(table.siteId)]
 );
-
-// ============ Ops state (healthchecks, cron bookkeeping) ============
-export const opsState = sqliteTable('ops_state', {
-  key: text('key').primaryKey(),
-  value: text('value').notNull(),
-  updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
-});

@@ -15,13 +15,7 @@ import type { Bindings, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
-const exportToggleSchema = z.object({ enabled: z.boolean() });
-
-/** Long random read-only secret for the public export download URLs. */
-function generateExportToken(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(24));
-  return `exp_${Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')}`;
-}
+const publicToggleSchema = z.object({ enabled: z.boolean() });
 
 export const sitesRoute = app
   // List user's sites
@@ -196,7 +190,7 @@ export const sitesRoute = app
   })
 
   // Toggle public share dashboard
-  .post('/:id/public', requireAuth, zValidator('json', exportToggleSchema), async c => {
+  .post('/:id/public', requireAuth, zValidator('json', publicToggleSchema), async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('id');
     const { enabled } = c.req.valid('json');
@@ -215,28 +209,7 @@ export const sitesRoute = app
     return c.json({ data: { enabled } });
   })
 
-  // Toggle nightly raw-data export; generates the access token on first enable
-  .post('/:id/export', requireAuth, zValidator('json', exportToggleSchema), async c => {
-    const userId = c.get('userId')!;
-    const siteId = c.req.param('id');
-    const { enabled } = c.req.valid('json');
-    const db = c.get('db')!;
-
-    const [site] = await db.select().from(sites).where(eq(sites.id, siteId));
-    if (!site || site.userId !== userId) {
-      return c.json({ error: 'Not found' }, 404);
-    }
-
-    const exportToken = site.exportToken ?? generateExportToken();
-    await db
-      .update(sites)
-      .set({ exportEnabled: enabled, exportToken, updatedAt: new Date() })
-      .where(eq(sites.id, siteId));
-
-    return c.json({ data: { enabled, token: exportToken } });
-  })
-
-  // Delete a site (also purges its live DO and export files)
+  // Delete a site (also purges its live DO)
   .delete('/:id', requireAuth, async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('id');
@@ -265,15 +238,6 @@ export const sitesRoute = app
           };
           await stub.purge().catch(err => console.error('[sites] DO purge failed:', err));
         }
-        // Remove export files.
-        let cursor: string | undefined;
-        do {
-          const listed = await c.env.EXPORTS.list({ prefix: `${siteId}/`, cursor });
-          if (listed.objects.length > 0) {
-            await c.env.EXPORTS.delete(listed.objects.map(o => o.key));
-          }
-          cursor = listed.truncated ? listed.cursor : undefined;
-        } while (cursor);
       })().catch(err => console.error('[sites] cleanup failed:', err))
     );
 

@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "ec37ffc0-bfab-49ff-bae1-9a6d4b67aa98",
-  "prevId": "66e23898-c8a3-4bc2-9781-f3af5f81dd88",
+  "id": "ebfc0368-ef45-4925-9520-a0a782111618",
+  "prevId": "ec37ffc0-bfab-49ff-bae1-9a6d4b67aa98",
   "tables": {
     "api_keys": {
       "name": "api_keys",
@@ -252,21 +252,6 @@
           "autoincrement": false,
           "default": false
         },
-        "export_enabled": {
-          "name": "export_enabled",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": false
-        },
-        "export_token": {
-          "name": "export_token",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -291,11 +276,6 @@
         "sites_domain_idx": {
           "name": "sites_domain_idx",
           "columns": ["domain"],
-          "isUnique": true
-        },
-        "sites_export_token_idx": {
-          "name": "sites_export_token_idx",
-          "columns": ["export_token"],
           "isUnique": true
         }
       },

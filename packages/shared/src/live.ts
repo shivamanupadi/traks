@@ -123,30 +123,6 @@ export interface LiveMetaRow {
   events: number;
 }
 
-/** Raw stored row, as returned by exportEvents (snake_case = file/DB shape). */
-export interface LiveExportRow {
-  ts: number;
-  hour_key: string;
-  event_type: string;
-  pathname: string;
-  referrer_hostname: string;
-  utm_source: string;
-  utm_medium: string;
-  utm_campaign: string;
-  country: string;
-  region: string;
-  city: string;
-  browser: string;
-  os: string;
-  device_type: string;
-  screen_width: number;
-  session_id: string;
-  visitor_id: string;
-  event_name: string;
-  event_meta: string;
-  event_value: number;
-}
-
 /** RPC surface of SiteLiveStore. All ranges are [fromMs, toMs) epoch ms. */
 export interface LiveStoreApi {
   /** Stores the event and returns the site's event count for its calendar month (site tz) — used for quota enforcement. */
@@ -209,11 +185,4 @@ export interface LiveStoreApi {
     limit: number,
     filters?: LiveFilters
   ): Promise<LiveMetaRow[]>;
-  /** Paginated raw dump for the nightly export job (ordered by ts). */
-  exportEvents(
-    fromMs: number,
-    toMs: number,
-    offset: number,
-    limit: number
-  ): Promise<LiveExportRow[]>;
 }

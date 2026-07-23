@@ -25,11 +25,6 @@ script_name = "traks-collect-dev"
 binding = "R2SQL_CACHE"
 id = "fc5eb93cfb8f4cb18969af2ccd4f9ea5"
 
-# Nightly per-site raw-data exports (gzipped NDJSON, DuckDB-readable)
-[[r2_buckets]]
-binding = "EXPORTS"
-bucket_name = "traks-exports-dev"
-
 # Transactional email (Cloudflare Email Service, open beta - Workers Paid).
 # The EMAIL_FROM domain must be onboarded for Email Sending in the dashboard.
 [[send_email]]
@@ -37,7 +32,6 @@ name = "EMAIL"
 
 [triggers]
 crons = [
-  "30 3 * * *",   # nightly raw-data exports
   "0 8 * * 1",    # Monday weekly email digest
   "0 4 * * *",    # daily email digest (yesterday's numbers)
   "*/30 * * * *", # pipeline freshness healthcheck
@@ -75,15 +69,11 @@ script_name = "traks-collect"
 binding = "R2SQL_CACHE"
 id = "8d350a4f547a41218336ba9b4103fe0e"
 
-[[env.production.r2_buckets]]
-binding = "EXPORTS"
-bucket_name = "traks-exports"
-
 [[env.production.send_email]]
 name = "EMAIL"
 
 [env.production.triggers]
-crons = ["30 3 * * *", "0 8 * * 1", "0 4 * * *", "*/30 * * * *"]
+crons = ["0 8 * * 1", "0 4 * * *", "*/30 * * * *"]
 
 [env.production.vars]
 ENVIRONMENT = "production"

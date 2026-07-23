@@ -2,7 +2,6 @@ import type { ReactElement, ReactNode } from 'react';
 import { createFileRoute, Link } from '@tanstack/react-router';
 
 const COLLECT_URL = import.meta.env.VITE_COLLECT_URL || 'https://collect.traks.dev';
-const API_URL = import.meta.env.VITE_API_URL || 'https://api.traks.dev';
 
 export const Route = createFileRoute('/docs')({
   component: DocsPage,
@@ -64,21 +63,7 @@ function DocsPage(): ReactElement {
           <Code>{`traks('signup', { plan: 'pro' });\ntraks('purchase', { sku: 'T100' }, 49.99);`}</Code>
         </Section>
 
-        <Section title="3. Query your raw data with DuckDB">
-          <p>
-            Enable <strong>Data export</strong> in your site settings. Every night we write the
-            previous day&apos;s raw events as gzipped NDJSON, readable straight from DuckDB with
-            your private token URL:
-          </p>
-          <Code>{`INSTALL httpfs; LOAD httpfs;\n\nSELECT country, COUNT(*) AS pageviews\nFROM read_ndjson_auto(\n  '${API_URL}/api/exports/YOUR_TOKEN/2026-07-07.ndjson.gz')\nGROUP BY country ORDER BY pageviews DESC;`}</Code>
-          <p>
-            List available files as JSON at <code>{API_URL}/api/exports/YOUR_TOKEN</code>. Each row
-            contains the full event: timestamp, path, referrer, UTM tags, geo, device, session and
-            (daily-rotating) visitor IDs, and custom event payloads.
-          </p>
-        </Section>
-
-        <Section title="4. Share a public dashboard">
+        <Section title="3. Share a public dashboard">
           <p>
             Flip on <strong>Public dashboard</strong> in site settings and share{' '}
             <code>{`${typeof window !== 'undefined' ? window.location.origin : 'https://traks.dev'}/share/SITE_ID`}</code>

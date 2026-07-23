@@ -201,10 +201,10 @@ npx wrangler pipelines sinks list
 ## SaaS layer
 
 - **Plans** (`packages/shared/src/plans.ts`, single source of truth):
-  Free ($0: 10k events/mo, 1 site) · Pro ($19: 1M, 10 sites, exports +
-  weekly reports) · Business ($99: 10M, 50 sites). Enforced at ingest
-  (monthly quota via the DO usage counter, soft-stop with 10-min recheck),
-  site creation, and export enablement.
+  Free ($0: 10k events/mo, 1 site) · Pro ($19: 1M, 10 sites, weekly
+  reports) · Business ($99: 10M, 50 sites). Enforced at ingest
+  (monthly quota via the DO usage counter, soft-stop with 10-min recheck)
+  and site creation.
 - **Billing**: Dodo Payments (merchant of record). Checkout sessions +
   customer portal via `/api/billing`; `/api/webhooks/dodo` (Standard
   Webhooks HMAC) syncs plan state. Secrets: `DODO_API_KEY`,
@@ -222,40 +222,10 @@ npx wrangler pipelines sinks list
   legitimate traffic spikes pass; sustained volume is the monthly quota's
   job. Plus isolate-cached key auth in collect (no per-event D1 reads).
 - **Ops**: 30-min pipeline freshness healthcheck (admin email on stale/
-  recovery transitions, state in D1 `ops_state`); nightly-export failure
-  alerts; Clerk webhook keeps real user emails in D1.
+  recovery transitions, state in D1 `ops_state`); Clerk webhook keeps
+  real user emails in D1.
 - **Public dashboards**: per-site opt-in; `/share/<siteId>` serves the live
   dashboard through `/api/public`.
 - **Web hosting**: `apps/web/wrangler.toml` deploys the dashboard + landing
   + docs as Workers static assets (SPA fallback).
 
-## Customer data export (DuckDB access)
-
-Paid feature-flag per site (`Data export` toggle in site settings; included
-free in paid tiers — it costs ~nothing to serve and egress is $0). When
-enabled:
-
-- A nightly cron in the api worker (03:30 UTC) pulls the previous day's raw
-  events **from the site's live DO** (no R2 SQL scan cost, still within the
-  DO's ~50h retention) and writes gzipped NDJSON to the `traks-exports`
-  bucket as `<siteId>/<YYYY-MM-DD>.ndjson.gz` (`.1`, `.2`… suffixes past 50k
-  events per file).
-- Enabling generates a long random read-only token. Customers query their
-  data directly:
-
-```sql
--- DuckDB
-INSTALL httpfs; LOAD httpfs;
-SELECT country, COUNT(*) AS pageviews
-FROM read_ndjson_auto(
-  'https://api.traks.dev/api/exports/<TOKEN>/2026-07-07.ndjson.gz')
-GROUP BY country ORDER BY pageviews DESC;
-```
-
-- `GET /api/exports/<TOKEN>` lists available files (JSON) for scripting.
-- The token grants read access to that site's files only; multi-tenant
-  isolation is enforced by the api worker, not by bucket ACLs. Rotating =
-  disable + re-enable exports.
-
-Ops note: create the export buckets once per environment:
-`npx wrangler r2 bucket create traks-exports-dev` / `traks-exports`.

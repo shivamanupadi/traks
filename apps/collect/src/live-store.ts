@@ -14,7 +14,6 @@ import type {
   LiveEntryPageRow,
   LiveScreenSizeRow,
   LiveMetaRow,
-  LiveExportRow,
 } from '@traks/shared';
 import { SCREEN_SIZE_CASE } from '@traks/shared';
 
@@ -507,32 +506,6 @@ export class SiteLiveStore extends DurableObject<unknown> {
         .toArray()
         .map(r => ({ pathname: String(r.pathname), visitors: n(r.visitors) }))
     );
-  }
-
-  async exportEvents(
-    fromMs: number,
-    toMs: number,
-    offset: number,
-    limit: number
-  ): Promise<LiveExportRow[]> {
-    // Not memoized: paginated bulk reads, each page requested exactly once.
-    this.flushBuffer();
-    return this.sql
-      .exec(
-        `SELECT ts, hour_key, event_type, pathname, referrer_hostname,
-                utm_source, utm_medium, utm_campaign, country, region, city,
-                browser, os, device_type, screen_width, session_id, visitor_id,
-                event_name, event_meta, event_value
-         FROM events
-         WHERE ts >= ? AND ts < ?
-         ORDER BY ts ASC
-         LIMIT ? OFFSET ?`,
-        fromMs,
-        toMs,
-        Math.max(1, Math.min(10_000, limit)),
-        Math.max(0, offset)
-      )
-      .toArray() as unknown as LiveExportRow[];
   }
 
   async goalStats(

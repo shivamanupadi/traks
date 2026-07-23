@@ -1,8 +1,8 @@
 import { useState, useMemo, useRef, type ReactElement } from 'react';
 import { createLazyFileRoute } from '@tanstack/react-router';
 import { useAuth } from '@clerk/clerk-react';
-import { useQuery, keepPreviousData } from '@tanstack/react-query';
-import { Plus, Globe, Search, X } from 'lucide-react';
+import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
+import { Plus, Globe, Search, X, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { api } from '@/lib/api';
@@ -18,11 +18,16 @@ const PAGE_SIZE = 6;
 
 function SitesPage(): ReactElement {
   const { getToken } = useAuth();
+  const queryClient = useQueryClient();
   const [wizardOpen, setWizardOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
-  const { data: sitesData, isLoading } = useQuery({
+  const {
+    data: sitesData,
+    isLoading,
+    isFetching,
+  } = useQuery({
     queryKey: ['sites'],
     queryFn: async () => {
       const token = await getToken();
@@ -79,6 +84,11 @@ function SitesPage(): ReactElement {
     setVisibleCount(PAGE_SIZE);
   };
 
+  const handleRefresh = (): void => {
+    void queryClient.invalidateQueries({ queryKey: ['sites'] });
+    void queryClient.invalidateQueries({ queryKey: ['stats', 'batch'] });
+  };
+
   return (
     <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
       {/* Page header */}
@@ -110,6 +120,15 @@ function SitesPage(): ReactElement {
               )}
             </div>
           )}
+          <Button
+            variant="outline"
+            onClick={handleRefresh}
+            disabled={isFetching}
+            aria-label="Refresh sites"
+            className="rounded-xl h-10 w-10 p-0 border-[#e8e3ed] text-[#9B9590] hover:text-[#2D3436] hover:border-[#d5cfe0]"
+          >
+            <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} strokeWidth={1.8} />
+          </Button>
           <Button
             onClick={() => setWizardOpen(true)}
             className="bg-[#9b72cf] hover:bg-[#8a63bf] text-white rounded-xl px-5 h-10"

@@ -125,12 +125,13 @@ function SitesPage(): ReactElement {
             onClick={handleRefresh}
             disabled={isFetching}
             aria-label="Refresh sites"
-            className="rounded-xl h-10 w-10 p-0 border-[#e8e3ed] text-[#9B9590] hover:text-[#2D3436] hover:border-[#d5cfe0]"
+            className="rounded-xl h-10 px-4 border-[#e8e3ed] text-[#9B9590] hover:text-[#2D3436] hover:border-[#d5cfe0]"
           >
             <RefreshCw
               className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`}
               strokeWidth={1.8}
             />
+            Refresh
           </Button>
           <Button
             onClick={() => setWizardOpen(true)}

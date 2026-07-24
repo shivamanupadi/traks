@@ -9,6 +9,7 @@ interface PeriodPickerProps {
 
 const PERIOD_OPTIONS: { label: string; value: Period }[] = [
   { label: 'Today', value: 'today' },
+  { label: 'Yesterday', value: 'yesterday' },
   { label: '7D', value: '7d' },
   { label: '30D', value: '30d' },
   { label: '90D', value: '90d' },

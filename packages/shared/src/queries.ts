@@ -161,13 +161,18 @@ export function computeBucketKeys(
  * The `buckets` array lets routes zero-fill timeseries gaps.
  */
 export function resolvePeriod(period: Period, now: Date, tz: string): PeriodRange {
-  const to = now;
+  let to = now;
   let from: Date;
   let granularity: PeriodRange['granularity'];
 
   switch (period) {
     case 'today':
       from = startOfDayInTz(now, tz);
+      granularity = 'hour';
+      break;
+    case 'yesterday':
+      to = startOfDayInTz(now, tz);
+      from = addUTCDays(to, -1);
       granularity = 'hour';
       break;
     case '7d':
@@ -196,11 +201,16 @@ export function resolvePeriod(period: Period, now: Date, tz: string): PeriodRang
       break;
   }
 
+  // generateBuckets treats `to` as inclusive; 'yesterday' is a closed window
+  // ending exactly on today's midnight, so back off 1ms to keep today's first
+  // hour bucket out.
+  const bucketsTo = period === 'yesterday' ? new Date(to.getTime() - 1) : to;
+
   return {
     from: from.toISOString(),
     to: to.toISOString(),
     granularity,
-    buckets: granularity === 'week' ? [] : generateBuckets(from, to, granularity, tz),
+    buckets: granularity === 'week' ? [] : generateBuckets(from, bucketsTo, granularity, tz),
   };
 }
 

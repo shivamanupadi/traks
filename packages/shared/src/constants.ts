@@ -27,7 +27,7 @@ export const AUTO_EVENTS = {
   DOWNLOAD: 'File Download',
 } as const;
 
-export const PERIODS = ['today', '7d', '30d', '90d', '6m', '1y', 'all'] as const;
+export const PERIODS = ['today', 'yesterday', '7d', '30d', '90d', '6m', '1y', 'all'] as const;
 export type Period = (typeof PERIODS)[number];
 
 // Both envs use `traks.events` — physical isolation is per-bucket (R2_BUCKET_NAME env),

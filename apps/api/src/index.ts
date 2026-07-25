@@ -5,9 +5,7 @@ import type { Bindings, Variables } from './types';
 import { sitesRoute } from './routes/sites';
 import { analyticsRoute } from './routes/analytics';
 import { publicRoute } from './routes/public';
-import { accountRoute } from './routes/account';
 import { clerkWebhookRoute } from './routes/webhooks';
-import { runDigest } from './lib/ops';
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -34,8 +32,7 @@ app.get('/health', c => c.json({ status: 'ok', timestamp: new Date().toISOString
 const routes = app
   .route('/api/sites', sitesRoute)
   .route('/api/analytics', analyticsRoute)
-  .route('/api/public', publicRoute)
-  .route('/api/account', accountRoute);
+  .route('/api/public', publicRoute);
 
 // Webhooks live outside the RPC chain (external callers, not the web app).
 app.route('/api/webhooks/clerk', clerkWebhookRoute);
@@ -47,18 +44,4 @@ app.onError((err, c) => {
 });
 
 export type AppType = typeof routes;
-export default {
-  fetch: app.fetch,
-  scheduled(event: ScheduledEvent, env: Bindings, ctx: ExecutionContext): void {
-    switch (event.cron) {
-      case '0 8 * * 1': // Monday weekly email digest
-        ctx.waitUntil(runDigest(env, 'weekly'));
-        break;
-      case '0 4 * * *': // daily email digest (yesterday's numbers)
-        ctx.waitUntil(runDigest(env, 'daily'));
-        break;
-      default:
-        console.warn(`[cron] unknown schedule: ${event.cron}`);
-    }
-  },
-};
+export default app;

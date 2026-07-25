@@ -275,22 +275,6 @@ export const api = {
     return res.json();
   },
 
-  // Account
-  async getAccount(token: string): Promise<any> {
-    const res = await client.api.account.me.$get({}, authHeaders(token));
-    await assertOk(res);
-    return res.json();
-  },
-
-  async setPreferences(
-    prefs: { weeklyReport?: boolean; dailyReport?: boolean },
-    token: string
-  ): Promise<any> {
-    const res = await client.api.account.preferences.$post({ json: prefs }, authHeaders(token));
-    await assertOk(res);
-    return res.json();
-  },
-
   async getRealtime(siteId: string, token: string): Promise<any> {
     const res = await client.api.analytics[':siteId'].stats.realtime.$get(
       { param: { siteId } },

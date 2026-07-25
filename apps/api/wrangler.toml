@@ -25,17 +25,6 @@ script_name = "traks-collect-dev"
 binding = "R2SQL_CACHE"
 id = "fc5eb93cfb8f4cb18969af2ccd4f9ea5"
 
-# Transactional email (Cloudflare Email Service, open beta - Workers Paid).
-# The EMAIL_FROM domain must be onboarded for Email Sending in the dashboard.
-[[send_email]]
-name = "EMAIL"
-
-[triggers]
-crons = [
-  "0 8 * * 1", # Monday weekly email digest
-  "0 4 * * *", # daily email digest (yesterday's numbers)
-]
-
 [[routes]]
 pattern = "api-dev.traks.dev"
 custom_domain = true
@@ -44,8 +33,6 @@ custom_domain = true
 ENVIRONMENT = "development"
 ALLOWED_ORIGINS = "*"
 R2_BUCKET_NAME = "traks-events-dev"
-APP_URL = "http://localhost:5012"
-EMAIL_FROM = "reports@traks.dev"
 
 # --- Production: wrangler deploy --env production ---
 
@@ -67,18 +54,10 @@ script_name = "traks-collect"
 binding = "R2SQL_CACHE"
 id = "8d350a4f547a41218336ba9b4103fe0e"
 
-[[env.production.send_email]]
-name = "EMAIL"
-
-[env.production.triggers]
-crons = ["0 8 * * 1", "0 4 * * *"]
-
 [env.production.vars]
 ENVIRONMENT = "production"
 ALLOWED_ORIGINS = "https://traks.dev,https://www.traks.dev"
 R2_BUCKET_NAME = "traks-events"
-APP_URL = "https://traks.dev"
-EMAIL_FROM = "reports@traks.dev"
 
 [[env.production.routes]]
 pattern = "api.traks.dev"

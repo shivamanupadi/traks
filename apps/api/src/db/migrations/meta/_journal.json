@@ -78,6 +78,13 @@
       "when": 1784812696027,
       "tag": "0010_drop_traffic_alerts_ops_state",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1784958180431,
+      "tag": "0011_drop_email_digests",
+      "breakpoints": true
     }
   ]
 }

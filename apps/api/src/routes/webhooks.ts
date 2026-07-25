@@ -18,7 +18,7 @@ interface ClerkUserEvent {
 
 /**
  * Clerk webhook (svix / Standard Webhooks). Keeps D1 user records in sync so
- * we have real emails for digests instead of the ensure-user placeholder.
+ * we have real emails instead of the ensure-user placeholder.
  */
 export const clerkWebhookRoute = new Hono<{ Bindings: Bindings; Variables: Variables }>().post(
   '/',

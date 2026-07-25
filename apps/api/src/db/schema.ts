@@ -12,9 +12,6 @@ export const users = sqliteTable('users', {
   // Dodo Payments linkage
   dodoCustomerId: text('dodo_customer_id'),
   dodoSubscriptionId: text('dodo_subscription_id'),
-  // Email digest opt-ins (account-level; each mail covers all sites)
-  weeklyReport: integer('weekly_report', { mode: 'boolean' }).default(true).notNull(),
-  dailyReport: integer('daily_report', { mode: 'boolean' }).default(false).notNull(),
   createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
 });

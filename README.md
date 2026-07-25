@@ -201,8 +201,8 @@ npx wrangler pipelines sinks list
 ## SaaS layer
 
 - **Plans** (`packages/shared/src/plans.ts`, single source of truth):
-  Free ($0: 10k events/mo, 1 site) · Pro ($19: 1M, 10 sites, weekly
-  reports) · Business ($99: 10M, 50 sites). Enforced at ingest
+  Free ($0: 10k events/mo, 1 site) · Pro ($19: 1M, 10 sites) ·
+  Business ($99: 10M, 50 sites). Enforced at ingest
   (monthly quota via the DO usage counter, soft-stop with 10-min recheck)
   and site creation.
 - **Billing**: Dodo Payments (merchant of record). Checkout sessions +
@@ -214,9 +214,6 @@ npx wrangler pipelines sinks list
   portal return 503, the Dodo webhook is inert, and the dashboard shows paid
   plans as "Coming soon". To turn on: set `BILLING_ENABLED="true"`, fill the
   `DODO_PRODUCT_*` vars, and add the `DODO_*` secrets to Doppler.
-- **Email** (Cloudflare Email Service, open beta — requires Workers Paid and
-  an onboarded sending domain): daily and Monday weekly digests (opt-in).
-  3k emails/mo included, then $0.35/1k.
 - **Abuse guards**: plan-aware per-site-key burst limits counted per colo
   (paid: 6,000 events/min ≈ 100/s; free: 1,200/min) — floods get cut while
   legitimate traffic spikes pass; sustained volume is the monthly quota's

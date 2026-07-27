@@ -23,5 +23,9 @@ export default defineConfig({
   },
   server: {
     port: 5012,
+    // Mirror prod topology (traks.dev/api/* -> API worker): same-origin /api.
+    proxy: {
+      '/api': { target: 'http://localhost:5011', changeOrigin: true },
+    },
   },
 });

@@ -1,6 +1,5 @@
 import { useState, useMemo, useRef, type ReactElement } from 'react';
 import { createLazyFileRoute } from '@tanstack/react-router';
-import { useAuth } from '@clerk/clerk-react';
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { Plus, Globe, Search, X, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -17,7 +16,6 @@ const TILE_COLORS = ['#9b72cf', '#5b9a6f', '#e07a5f'];
 const PAGE_SIZE = 6;
 
 function SitesPage(): ReactElement {
-  const { getToken } = useAuth();
   const queryClient = useQueryClient();
   const [wizardOpen, setWizardOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -29,11 +27,7 @@ function SitesPage(): ReactElement {
     isFetching,
   } = useQuery({
     queryKey: ['sites'],
-    queryFn: async () => {
-      const token = await getToken();
-      if (!token) throw new Error('Not authenticated');
-      return api.getSites(token);
-    },
+    queryFn: () => api.getSites(),
   });
 
   const allSites = (sitesData as any)?.data || [];
@@ -62,11 +56,7 @@ function SitesPage(): ReactElement {
   // Batch stats scoped to visible sites only
   const { data: batchStatsData, isLoading: batchStatsLoading } = useQuery({
     queryKey: ['stats', 'batch', 'today', visibleSiteIdsKey],
-    queryFn: async () => {
-      const token = await getToken();
-      if (!token) throw new Error('Not authenticated');
-      return api.getBatchStats('today', token, visibleSiteIds);
-    },
+    queryFn: () => api.getBatchStats('today', visibleSiteIds),
     enabled: visibleSiteIds.length > 0,
     staleTime: 60_000,
     placeholderData: keepPreviousData,

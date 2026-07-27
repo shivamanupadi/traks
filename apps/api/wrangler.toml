@@ -4,6 +4,7 @@ compatibility_date = "2026-06-01"
 compatibility_flags = ["nodejs_compat"]
 
 # --- Dev (default: wrangler dev --remote) ---
+# Local dev serves the SPA from vite (:5012, proxying /api to :5011).
 
 [[d1_databases]]
 binding = "DB"
@@ -36,7 +37,6 @@ custom_domain = true
 
 [vars]
 ENVIRONMENT = "development"
-ALLOWED_ORIGINS = "*"
 R2_BUCKET_NAME = "traks-events-dev"
 
 # --- Production: wrangler deploy --env production ---
@@ -64,22 +64,38 @@ crons = []
 
 [env.production.vars]
 ENVIRONMENT = "production"
-ALLOWED_ORIGINS = "https://traks.dev,https://www.traks.dev"
 R2_BUCKET_NAME = "traks-events"
 
+# Single-worker deploy: this worker serves the SPA (static assets) and the
+# API on one hostname, so the Better Auth session cookie is first-party by
+# construction — including on bare workers.dev for one-click deploys.
+# run_worker_first keeps /api/* out of the SPA fallback. The web build must
+# exist before deploying (release:prod builds it). Local dev is unaffected:
+# vite (:5012, HMR) proxies /api to wrangler dev (:5011).
+[env.production.assets]
+directory = "../web/dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
+
+# Cutover note: traks.dev/www.traks.dev were bound to the old traks-web
+# worker — delete that worker (npx wrangler delete --name traks-web) right
+# before the first deploy of this config, or the domain claim will conflict.
 [[env.production.routes]]
-pattern = "api.traks.dev"
+pattern = "traks.dev"
 custom_domain = true
+
+[[env.production.routes]]
+pattern = "www.traks.dev"
+custom_domain = true
+
 
 # Secrets managed via Doppler (project: traks-api, configs: dev / prd).
 # Dev:     `yarn dev` pulls Doppler dev config into .dev.vars.doppler.
 # Prod:    `yarn release:prod` runs `doppler secrets --json -c prd | wrangler secret bulk --env production`.
-# Required keys: CLERK_SECRET_KEY, R2_ACCOUNT_ID, R2_SQL_TOKEN.
+# Required keys: BETTER_AUTH_SECRET, R2_ACCOUNT_ID, R2_SQL_TOKEN.
 #
 # R2_SQL_TOKEN must carry all three permission groups (per R2 SQL docs):
 #   Workers R2 SQL Read + Workers R2 Data Catalog Write + Workers R2 Storage Write
 # (or use an R2 "Admin Read & Write" account token).
-#
-# Also required: CLERK_WEBHOOK_SECRET (Clerk dashboard -> Webhooks, point at
-# /api/webhooks/clerk).
 

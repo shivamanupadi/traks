@@ -1,6 +1,5 @@
 import type { ReactElement } from 'react';
-import { createLazyFileRoute, Link } from '@tanstack/react-router';
-import { SignedIn, SignedOut } from '@clerk/clerk-react';
+import { createLazyFileRoute } from '@tanstack/react-router';
 import { motion } from 'framer-motion';
 import {
   ArrowRight,
@@ -15,7 +14,6 @@ import {
   Cookie,
   Sparkles,
   LayoutDashboard,
-  LogIn,
   type LucideIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -111,22 +109,13 @@ function LandingPage(): ReactElement {
             Why Traks
           </a>
           <div className="w-px h-4 bg-[#e8e3ed] mx-1" />
-          <SignedIn>
-            <Link to="/portal/sites">
-              <Button variant="ghost" className="text-[13px] gap-1.5">
-                <LayoutDashboard className="w-3.5 h-3.5" strokeWidth={1.75} />
-                Dashboard
-              </Button>
-            </Link>
-          </SignedIn>
-          <SignedOut>
-            <Link to="/login">
-              <Button variant="ghost" className="text-[13px] gap-1.5">
-                <LogIn className="w-3.5 h-3.5" strokeWidth={1.75} />
-                Sign in
-              </Button>
-            </Link>
-          </SignedOut>
+          {/* Plain anchor: a full navigation lets Cloudflare Access gate /portal. */}
+          <a href="/portal/sites">
+            <Button variant="ghost" className="text-[13px] gap-1.5">
+              <LayoutDashboard className="w-3.5 h-3.5" strokeWidth={1.75} />
+              Dashboard
+            </Button>
+          </a>
         </nav>
       </header>
 
@@ -171,30 +160,12 @@ function LandingPage(): ReactElement {
               transition={{ duration: 0.5, delay: 0.28 }}
               className="flex items-center gap-3.5"
             >
-              <SignedIn>
-                <Link to="/portal/sites">
-                  <Button className="h-[50px] px-7 rounded-2xl text-[14px] font-semibold bg-[#9b72cf] hover:bg-[#8a63bf] text-white shadow-lg shadow-[#9b72cf]/15 hover:shadow-xl hover:shadow-[#9b72cf]/20 transition-all duration-300 hover:-translate-y-0.5">
-                    Go to Dashboard
-                    <ArrowRight className="w-4 h-4 ml-2" />
-                  </Button>
-                </Link>
-              </SignedIn>
-              <SignedOut>
-                <Link to="/signup">
-                  <Button className="h-[50px] px-7 rounded-2xl text-[14px] font-semibold bg-[#9b72cf] hover:bg-[#8a63bf] text-white shadow-lg shadow-[#9b72cf]/15 hover:shadow-xl hover:shadow-[#9b72cf]/20 transition-all duration-300 hover:-translate-y-0.5">
-                    Get Started Free
-                    <ArrowRight className="w-4 h-4 ml-2" />
-                  </Button>
-                </Link>
-                <Link to="/login">
-                  <Button
-                    variant="outline"
-                    className="h-[50px] px-7 rounded-2xl text-[14px] font-semibold border-[#e8e3ed] bg-white hover:bg-[#fdfbf8] hover:border-[#d5cfe0] text-[#2D3436] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md hover:shadow-black/[0.04]"
-                  >
-                    Sign In
-                  </Button>
-                </Link>
-              </SignedOut>
+              <a href="/portal/sites">
+                <Button className="h-[50px] px-7 rounded-2xl text-[14px] font-semibold bg-[#9b72cf] hover:bg-[#8a63bf] text-white shadow-lg shadow-[#9b72cf]/15 hover:shadow-xl hover:shadow-[#9b72cf]/20 transition-all duration-300 hover:-translate-y-0.5">
+                  Go to Dashboard
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              </a>
             </motion.div>
 
             <motion.div
@@ -508,22 +479,12 @@ function LandingPage(): ReactElement {
               <p className="text-[16px] text-[#8A8580] mb-8 max-w-md mx-auto">
                 Add the tracking script to your site and see visitors in real-time within minutes.
               </p>
-              <SignedIn>
-                <Link to="/portal/sites">
-                  <Button className="h-[50px] px-8 rounded-2xl text-[14px] font-semibold bg-[#9b72cf] hover:bg-[#8a63bf] text-white shadow-lg shadow-[#9b72cf]/15 hover:shadow-xl hover:shadow-[#9b72cf]/20 transition-all duration-300 hover:-translate-y-0.5">
-                    Go to Dashboard
-                    <ArrowRight className="w-4 h-4 ml-2" />
-                  </Button>
-                </Link>
-              </SignedIn>
-              <SignedOut>
-                <Link to="/signup">
-                  <Button className="h-[50px] px-8 rounded-2xl text-[14px] font-semibold bg-[#9b72cf] hover:bg-[#8a63bf] text-white shadow-lg shadow-[#9b72cf]/15 hover:shadow-xl hover:shadow-[#9b72cf]/20 transition-all duration-300 hover:-translate-y-0.5">
-                    Get Started Free
-                    <ArrowRight className="w-4 h-4 ml-2" />
-                  </Button>
-                </Link>
-              </SignedOut>
+              <a href="/portal/sites">
+                <Button className="h-[50px] px-8 rounded-2xl text-[14px] font-semibold bg-[#9b72cf] hover:bg-[#8a63bf] text-white shadow-lg shadow-[#9b72cf]/15 hover:shadow-xl hover:shadow-[#9b72cf]/20 transition-all duration-300 hover:-translate-y-0.5">
+                  Go to Dashboard
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              </a>
             </motion.div>
           </div>
         </section>

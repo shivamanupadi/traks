@@ -7,9 +7,6 @@
     "dev": "doppler run -p traks-web -c dev -- vite",
     "build": "tsc --noEmit && vite build",
     "build:prod": "doppler run -p traks-web -c prd -- yarn build",
-    "deploy:dev": "wrangler deploy",
-    "worker:prod:deploy": "wrangler deploy --env production",
-    "release:prod": "yarn build:prod && yarn worker:prod:deploy",
     "lint": "eslint . --ext .ts,.tsx --fix",
     "format": "prettier --write .",
     "preview": "vite preview",
@@ -17,7 +14,6 @@
     "clean": "rimraf node_modules .turbo dist"
   },
   "dependencies": {
-    "@clerk/clerk-react": "^5.15.0",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-dropdown-menu": "^2.1.16",
     "@radix-ui/react-select": "^2.2.6",
@@ -28,6 +24,7 @@
     "@tanstack/react-query": "^5.90.12",
     "@tanstack/react-router": "^1.140.1",
     "@traks/shared": "*",
+    "better-auth": "^1.6.25",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "framer-motion": "^12.18.0",

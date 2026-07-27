@@ -9,7 +9,6 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SignupRouteImport } from './routes/signup'
 import { Route as PortalRouteImport } from './routes/portal'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as DocsRouteImport } from './routes/docs'
@@ -19,11 +18,6 @@ import { Route as PortalSitesRouteImport } from './routes/portal.sites'
 import { Route as PortalSettingsRouteImport } from './routes/portal.settings'
 import { Route as PortalSiteSiteIdRouteImport } from './routes/portal.site.$siteId'
 
-const SignupRoute = SignupRouteImport.update({
-  id: '/signup',
-  path: '/signup',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const PortalRoute = PortalRouteImport.update({
   id: '/portal',
   path: '/portal',
@@ -72,7 +66,6 @@ export interface FileRoutesByFullPath {
   '/docs': typeof DocsRoute
   '/login': typeof LoginRoute
   '/portal': typeof PortalRouteWithChildren
-  '/signup': typeof SignupRoute
   '/portal/settings': typeof PortalSettingsRoute
   '/portal/sites': typeof PortalSitesRoute
   '/share/$siteId': typeof ShareSiteIdRoute
@@ -83,7 +76,6 @@ export interface FileRoutesByTo {
   '/docs': typeof DocsRoute
   '/login': typeof LoginRoute
   '/portal': typeof PortalRouteWithChildren
-  '/signup': typeof SignupRoute
   '/portal/settings': typeof PortalSettingsRoute
   '/portal/sites': typeof PortalSitesRoute
   '/share/$siteId': typeof ShareSiteIdRoute
@@ -95,7 +87,6 @@ export interface FileRoutesById {
   '/docs': typeof DocsRoute
   '/login': typeof LoginRoute
   '/portal': typeof PortalRouteWithChildren
-  '/signup': typeof SignupRoute
   '/portal/settings': typeof PortalSettingsRoute
   '/portal/sites': typeof PortalSitesRoute
   '/share/$siteId': typeof ShareSiteIdRoute
@@ -108,7 +99,6 @@ export interface FileRouteTypes {
     | '/docs'
     | '/login'
     | '/portal'
-    | '/signup'
     | '/portal/settings'
     | '/portal/sites'
     | '/share/$siteId'
@@ -119,7 +109,6 @@ export interface FileRouteTypes {
     | '/docs'
     | '/login'
     | '/portal'
-    | '/signup'
     | '/portal/settings'
     | '/portal/sites'
     | '/share/$siteId'
@@ -130,7 +119,6 @@ export interface FileRouteTypes {
     | '/docs'
     | '/login'
     | '/portal'
-    | '/signup'
     | '/portal/settings'
     | '/portal/sites'
     | '/share/$siteId'
@@ -142,19 +130,11 @@ export interface RootRouteChildren {
   DocsRoute: typeof DocsRoute
   LoginRoute: typeof LoginRoute
   PortalRoute: typeof PortalRouteWithChildren
-  SignupRoute: typeof SignupRoute
   ShareSiteIdRoute: typeof ShareSiteIdRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/signup': {
-      id: '/signup'
-      path: '/signup'
-      fullPath: '/signup'
-      preLoaderRoute: typeof SignupRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/portal': {
       id: '/portal'
       path: '/portal'
@@ -234,7 +214,6 @@ const rootRouteChildren: RootRouteChildren = {
   DocsRoute: DocsRoute,
   LoginRoute: LoginRoute,
   PortalRoute: PortalRouteWithChildren,
-  SignupRoute: SignupRoute,
   ShareSiteIdRoute: ShareSiteIdRoute,
 }
 export const routeTree = rootRouteImport

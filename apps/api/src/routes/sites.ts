@@ -37,13 +37,20 @@ export const sitesRoute = app
     const siteId = createId();
     const siteKey = `pb_live_${createId()}`;
 
-    await db.insert(sites).values({
-      id: siteId,
-      userId,
-      name: body.name,
-      domain: body.domain,
-      timezone: body.timezone,
-    });
+    try {
+      await db.insert(sites).values({
+        id: siteId,
+        userId,
+        name: body.name,
+        domain: body.domain,
+        timezone: body.timezone,
+      });
+    } catch (err: any) {
+      if (err?.message?.includes('UNIQUE constraint failed')) {
+        return c.json({ error: 'A site for this domain already exists' }, 409);
+      }
+      throw err;
+    }
 
     await db.insert(apiKeys).values({
       siteId,

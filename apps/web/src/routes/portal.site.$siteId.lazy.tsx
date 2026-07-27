@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useRef, type ReactElement } from 'react';
 import { createLazyFileRoute, Link, useNavigate } from '@tanstack/react-router';
-import { useAuth } from '@clerk/clerk-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
@@ -214,7 +213,6 @@ function EditSiteModal({
   } | null;
   siteId: string;
 }): ReactElement {
-  const { getToken } = useAuth();
   const queryClient = useQueryClient();
   const [name, setName] = useState('');
   const [domain, setDomain] = useState('');
@@ -234,9 +232,7 @@ function EditSiteModal({
 
   const togglePublic = useMutation({
     mutationFn: async (enabled: boolean) => {
-      const token = await getToken();
-      if (!token) throw new Error('Not authenticated');
-      return api.togglePublic(siteId, enabled, token);
+      return api.togglePublic(siteId, enabled);
     },
     onSuccess: (res: { data: { enabled: boolean } }) => {
       setPublicEnabled(res.data.enabled);
@@ -247,9 +243,7 @@ function EditSiteModal({
 
   const updateSite = useMutation({
     mutationFn: async () => {
-      const token = await getToken();
-      if (!token) throw new Error('Not authenticated');
-      return api.updateSite(siteId, { name, domain, timezone }, token);
+      return api.updateSite(siteId, { name, domain, timezone });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['site', siteId] });
@@ -389,7 +383,6 @@ function ManageGoalsModal({
   onOpenChange: (open: boolean) => void;
   siteId: string;
 }): ReactElement {
-  const { getToken } = useAuth();
   const queryClient = useQueryClient();
   const [name, setName] = useState('');
   const [type, setType] = useState<'event' | 'page'>('event');
@@ -408,9 +401,7 @@ function ManageGoalsModal({
   const goalsQ = useQuery({
     queryKey: ['site-goals', siteId],
     queryFn: async () => {
-      const token = await getToken();
-      if (!token) throw new Error('Not authenticated');
-      return api.getGoals(siteId, token);
+      return api.getGoals(siteId);
     },
     enabled: open,
     staleTime: 60_000,
@@ -423,9 +414,7 @@ function ManageGoalsModal({
 
   const createGoal = useMutation({
     mutationFn: async () => {
-      const token = await getToken();
-      if (!token) throw new Error('Not authenticated');
-      return api.createGoal(siteId, { name, type, target }, token);
+      return api.createGoal(siteId, { name, type, target });
     },
     onSuccess: () => {
       setName('');
@@ -438,9 +427,7 @@ function ManageGoalsModal({
 
   const deleteGoal = useMutation({
     mutationFn: async (goalId: string) => {
-      const token = await getToken();
-      if (!token) throw new Error('Not authenticated');
-      return api.deleteGoal(siteId, goalId, token);
+      return api.deleteGoal(siteId, goalId);
     },
     onSuccess: invalidate,
     onError: (err: Error) => setError(err.message),
@@ -596,7 +583,6 @@ function DeleteSiteModal({
   site: { name: string; domain: string } | null;
   siteId: string;
 }): ReactElement {
-  const { getToken } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [confirmText, setConfirmText] = useState('');
@@ -611,9 +597,7 @@ function DeleteSiteModal({
 
   const deleteSite = useMutation({
     mutationFn: async () => {
-      const token = await getToken();
-      if (!token) throw new Error('Not authenticated');
-      return api.deleteSite(siteId, token);
+      return api.deleteSite(siteId);
     },
     onSuccess: () => {
       queryClient.removeQueries({ queryKey: ['site', siteId] });
@@ -929,7 +913,6 @@ function SiteAnalyticsPage(): ReactElement {
   const search = Route.useSearch();
   const { period: searchPeriod } = search;
   const navigate = useNavigate();
-  const { getToken } = useAuth();
   const queryClient = useQueryClient();
   const period: Period = searchPeriod || 'today';
 
@@ -1018,9 +1001,7 @@ function SiteAnalyticsPage(): ReactElement {
   const { data: siteData } = useQuery({
     queryKey: ['site', siteId],
     queryFn: async () => {
-      const token = await getToken();
-      if (!token) throw new Error('Not authenticated');
-      return api.getSite(siteId, token);
+      return api.getSite(siteId);
     },
     staleTime: 300_000,
   });
@@ -1030,43 +1011,41 @@ function SiteAnalyticsPage(): ReactElement {
   // R2 SQL query is a paid distributed scan; don't fetch hidden tabs).
   const tileOpts = (
     key: readonly unknown[],
-    call: (token: string) => Promise<unknown>,
+    call: () => Promise<unknown>,
     enabled = true
   ): Parameters<typeof useQuery>[0] => ({
     queryKey: ['site-analytics', siteId, ...key, period, filterKey],
     queryFn: async () => {
-      const token = await getToken();
-      if (!token) throw new Error('Not authenticated');
-      return call(token);
+      return call();
     },
     refetchInterval: getRefetchInterval(period),
     staleTime: getStaleTime(period),
     enabled,
   });
 
-  const mainQ = useQuery(tileOpts(['main'], t => api.getMainStats(siteId, period, t, filters)));
+  const mainQ = useQuery(tileOpts(['main'], () => api.getMainStats(siteId, period, filters)));
   const timeseriesQ = useQuery(
-    tileOpts(['timeseries'], t => api.getTimeseries(siteId, period, t, filters))
+    tileOpts(['timeseries'], () => api.getTimeseries(siteId, period, filters))
   );
   // Pages panel: top pages or entry/exit pages (first/last page of each session)
   const topPagesQ = useQuery(
     tileOpts(
       ['pages', 'top'],
-      t => api.getTopPages(siteId, period, 'top', t, filters),
+      () => api.getTopPages(siteId, period, 'top', filters),
       pagesTab === 'top'
     )
   );
   const entryPagesQ = useQuery(
     tileOpts(
       ['pages', 'entry'],
-      t => api.getTopPages(siteId, period, 'entry', t, filters),
+      () => api.getTopPages(siteId, period, 'entry', filters),
       pagesTab === 'entry'
     )
   );
   const exitPagesQ = useQuery(
     tileOpts(
       ['pages', 'exit'],
-      t => api.getTopPages(siteId, period, 'exit', t, filters),
+      () => api.getTopPages(siteId, period, 'exit', filters),
       pagesTab === 'exit'
     )
   );
@@ -1075,28 +1054,28 @@ function SiteAnalyticsPage(): ReactElement {
   const referrersQ = useQuery(
     tileOpts(
       ['referrers'],
-      t => api.getTopReferrers(siteId, period, t, filters),
+      () => api.getTopReferrers(siteId, period, filters),
       sourceTab === 'referrers'
     )
   );
   const utmSourceQ = useQuery(
     tileOpts(
       ['utm', 'source'],
-      t => api.getUtm(siteId, period, 'source', t, filters),
+      () => api.getUtm(siteId, period, 'source', filters),
       sourceTab === 'utm_source'
     )
   );
   const utmMediumQ = useQuery(
     tileOpts(
       ['utm', 'medium'],
-      t => api.getUtm(siteId, period, 'medium', t, filters),
+      () => api.getUtm(siteId, period, 'medium', filters),
       sourceTab === 'utm_medium'
     )
   );
   const utmCampaignQ = useQuery(
     tileOpts(
       ['utm', 'campaign'],
-      t => api.getUtm(siteId, period, 'campaign', t, filters),
+      () => api.getUtm(siteId, period, 'campaign', filters),
       sourceTab === 'utm_campaign'
     )
   );
@@ -1105,76 +1084,76 @@ function SiteAnalyticsPage(): ReactElement {
   const countriesQ = useQuery(
     tileOpts(
       ['locations', 'country'],
-      t => api.getLocations(siteId, period, 'country', t, filters),
+      () => api.getLocations(siteId, period, 'country', filters),
       belowFoldVisible && locationTab === 'country'
     )
   );
   const regionsQ = useQuery(
     tileOpts(
       ['locations', 'region'],
-      t => api.getLocations(siteId, period, 'region', t, filters),
+      () => api.getLocations(siteId, period, 'region', filters),
       belowFoldVisible && locationTab === 'region'
     )
   );
   const citiesQ = useQuery(
     tileOpts(
       ['locations', 'city'],
-      t => api.getLocations(siteId, period, 'city', t, filters),
+      () => api.getLocations(siteId, period, 'city', filters),
       belowFoldVisible && locationTab === 'city'
     )
   );
   const browsersQ = useQuery(
     tileOpts(
       ['devices', 'browser'],
-      t => api.getDevices(siteId, period, 'browser', t, filters),
+      () => api.getDevices(siteId, period, 'browser', filters),
       belowFoldVisible && deviceTab === 'browser'
     )
   );
   const osQ = useQuery(
     tileOpts(
       ['devices', 'os'],
-      t => api.getDevices(siteId, period, 'os', t, filters),
+      () => api.getDevices(siteId, period, 'os', filters),
       belowFoldVisible && deviceTab === 'os'
     )
   );
   const deviceTypeQ = useQuery(
     tileOpts(
       ['devices', 'device'],
-      t => api.getDevices(siteId, period, 'device', t, filters),
+      () => api.getDevices(siteId, period, 'device', filters),
       belowFoldVisible && deviceTab === 'device'
     )
   );
   const screenSizeQ = useQuery(
     tileOpts(
       ['devices', 'size'],
-      t => api.getDevices(siteId, period, 'size', t, filters),
+      () => api.getDevices(siteId, period, 'size', filters),
       belowFoldVisible && deviceTab === 'size'
     )
   );
   const eventsQ = useQuery(
-    tileOpts(['events'], t => api.getEvents(siteId, period, t, filters), belowFoldVisible)
+    tileOpts(['events'], () => api.getEvents(siteId, period, filters), belowFoldVisible)
   );
   const outboundQ = useQuery(
     tileOpts(
       ['links', 'outbound'],
-      t => api.getLinks(siteId, period, 'outbound', t, filters),
+      () => api.getLinks(siteId, period, 'outbound', filters),
       belowFoldVisible && linksTab === 'outbound'
     )
   );
   const downloadsQ = useQuery(
     tileOpts(
       ['links', 'download'],
-      t => api.getLinks(siteId, period, 'download', t, filters),
+      () => api.getLinks(siteId, period, 'download', filters),
       belowFoldVisible && linksTab === 'download'
     )
   );
   const goalStatsQ = useQuery(
-    tileOpts(['goals'], t => api.getGoalStats(siteId, period, t, filters), belowFoldVisible)
+    tileOpts(['goals'], () => api.getGoalStats(siteId, period, filters), belowFoldVisible)
   );
   const eventPropsQ = useQuery(
     tileOpts(
       ['event-props', selectedEvent],
-      t => api.getEventProps(siteId, period, selectedEvent!, t, filters),
+      () => api.getEventProps(siteId, period, selectedEvent!, filters),
       belowFoldVisible && selectedEvent !== null
     )
   );
@@ -1183,9 +1162,7 @@ function SiteAnalyticsPage(): ReactElement {
   const realtimeQ = useQuery({
     queryKey: ['site-analytics', siteId, 'realtime'],
     queryFn: async () => {
-      const token = await getToken();
-      if (!token) throw new Error('Not authenticated');
-      return api.getRealtime(siteId, token);
+      return api.getRealtime(siteId);
     },
     refetchInterval: 30_000,
     staleTime: 15_000,

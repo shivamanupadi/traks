@@ -1,6 +1,5 @@
 import { useState, useEffect, type ReactElement } from 'react';
 import { createFileRoute } from '@tanstack/react-router';
-import { useAuth } from '@clerk/clerk-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Check, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -12,18 +11,13 @@ export const Route = createFileRoute('/portal/settings')({
 });
 
 function SettingsPage(): ReactElement {
-  const { getToken } = useAuth();
   const queryClient = useQueryClient();
   const [timezone, setTimezone] = useState('');
   const [applied, setApplied] = useState(false);
 
   const { data: sitesData } = useQuery({
     queryKey: ['sites'],
-    queryFn: async () => {
-      const token = await getToken();
-      if (!token) throw new Error('Not authenticated');
-      return api.getSites(token);
-    },
+    queryFn: () => api.getSites(),
     staleTime: 60_000,
   });
 
@@ -41,11 +35,7 @@ function SettingsPage(): ReactElement {
   }, [sitesData]);
 
   const applyTimezone = useMutation({
-    mutationFn: async () => {
-      const token = await getToken();
-      if (!token) throw new Error('Not authenticated');
-      return api.setAllSitesTimezone(timezone, token);
-    },
+    mutationFn: () => api.setAllSitesTimezone(timezone),
     onSuccess: () => {
       // Every bucket window depends on the zone - refetch everything.
       queryClient.invalidateQueries({ queryKey: ['sites'] });

@@ -1,152 +1,132 @@
+import { useEffect, useState, type ReactElement, type FormEvent } from 'react';
 import { createFileRoute, useNavigate, Link } from '@tanstack/react-router';
-import { ArrowLeft } from 'lucide-react';
-import { SignIn, useAuth } from '@clerk/clerk-react';
-import { useEffect } from 'react';
+import { Lock, UserPlus } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { authClient } from '@/lib/auth-client';
 
 export const Route = createFileRoute('/login')({
   component: LoginPage,
 });
 
-function LoginPage(): React.ReactNode {
-  const { isSignedIn, isLoaded } = useAuth();
+function LoginPage(): ReactElement {
   const navigate = useNavigate();
+  const { data: session, isPending } = authClient.useSession();
+  // null = loading; false = claimed (sign in); true = first run (create owner)
+  const [firstRun, setFirstRun] = useState<boolean | null>(null);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (isLoaded && isSignedIn) {
+    if (!isPending && session) {
       navigate({ to: '/portal/sites' });
     }
-  }, [isLoaded, isSignedIn, navigate]);
+  }, [isPending, session, navigate]);
+
+  useEffect(() => {
+    fetch('/api/claim-status')
+      .then(res => res.json() as Promise<{ claimed: boolean }>)
+      .then(data => setFirstRun(!data.claimed))
+      .catch(() => setFirstRun(false));
+  }, []);
+
+  const handleSubmit = async (e: FormEvent): Promise<void> => {
+    e.preventDefault();
+    setError('');
+    setSubmitting(true);
+    const result = firstRun
+      ? await authClient.signUp.email({
+          email,
+          password,
+          name: email.split('@')[0],
+        })
+      : await authClient.signIn.email({ email, password });
+    setSubmitting(false);
+    if (result.error) {
+      setError(result.error.message || 'Something went wrong');
+      return;
+    }
+    navigate({ to: '/portal/sites' });
+  };
 
   return (
-    <div className="min-h-screen flex bg-white">
-      {/* Left side - Sign in form */}
-      <div className="flex-1 flex flex-col justify-center px-6 py-12 lg:px-16">
-        <div className="mx-auto w-full max-w-sm">
-          {/* Back button */}
-          <Link
-            to="/"
-            className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-8"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span className="text-sm font-medium">Back</span>
-          </Link>
+    <div className="min-h-screen bg-[#fdfbf8] flex items-center justify-center px-4">
+      <div className="w-full max-w-sm">
+        <Link to="/" className="flex items-center justify-center gap-2.5 mb-8">
+          <img src="/logo64.png" alt="Traks" className="h-10 w-10 rounded-lg" />
+          <span className="font-semibold text-[20px] text-[#2D3436] tracking-tight">Traks</span>
+        </Link>
 
-          {/* Clerk SignIn */}
-          <SignIn routing="hash" signUpUrl="/signup" forceRedirectUrl="/portal/sites" />
-
-          {/* Footer */}
-          <p className="text-center text-sm text-muted-foreground mt-8">
-            Don&apos;t have an account?{' '}
-            <Link
-              to="/signup"
-              className="font-semibold text-foreground hover:text-[#9b72cf] transition-colors"
-            >
-              Sign up
-            </Link>
-          </p>
-        </div>
-      </div>
-
-      {/* Right side - Decorative */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-[#f3f0f7] via-white to-[#e8f5e9]/30 relative overflow-hidden">
-        {/* Dot pattern */}
-        <div
-          className="absolute inset-0 opacity-[0.03]"
-          style={{
-            backgroundImage: 'radial-gradient(circle, #2D3436 1px, transparent 1px)',
-            backgroundSize: '24px 24px',
-          }}
-        />
-
-        {/* Content */}
-        <div className="relative z-10 flex flex-col items-center justify-center w-full p-12">
-          {/* Dashboard preview cards */}
-          <div className="relative w-full max-w-md h-[400px]">
-            {/* Card 1 - Stats card */}
-            <div className="absolute left-0 top-8 transform -rotate-3 hover:rotate-0 hover:scale-105 transition-all duration-500 cursor-pointer group">
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-14 h-6 bg-[#9b72cf]/20 rounded-sm transform -rotate-1" />
-              <div className="bg-white p-4 rounded-lg shadow-[0_10px_40px_-10px_rgba(0,0,0,0.15)] group-hover:shadow-[0_20px_50px_-10px_rgba(0,0,0,0.2)] transition-shadow">
-                <div className="w-48 h-28 rounded flex flex-col gap-2 p-3">
-                  <div className="text-[10px] font-medium text-[#9B9590]">Visitors today</div>
-                  <div className="text-[28px] font-bold text-[#2D3436]">2,847</div>
-                  <div className="flex items-center gap-1">
-                    <span className="text-[11px] font-medium text-[#5b9a6f]">+12.4%</span>
-                    <span className="text-[10px] text-[#9B9590]">vs yesterday</span>
-                  </div>
+        <div className="rounded-2xl border border-[#e8e3ed] bg-white p-6 shadow-sm">
+          {firstRun === null ? (
+            <p className="py-8 text-center text-[14px] text-[#9B9590]">Loading...</p>
+          ) : (
+            <>
+              <div className="mb-5">
+                <div className="w-10 h-10 rounded-xl bg-[#9b72cf]/10 flex items-center justify-center mb-3">
+                  {firstRun ? (
+                    <UserPlus className="w-5 h-5 text-[#9b72cf]" strokeWidth={1.7} />
+                  ) : (
+                    <Lock className="w-5 h-5 text-[#9b72cf]" strokeWidth={1.7} />
+                  )}
                 </div>
+                <h1 className="text-[18px] font-bold text-[#2D3436] tracking-[-0.01em]">
+                  {firstRun ? 'Create your owner account' : 'Sign in'}
+                </h1>
+                <p className="mt-1 text-[13px] text-[#9B9590]">
+                  {firstRun
+                    ? 'This instance is unclaimed. The account you create here becomes its owner — sign-ups close afterwards.'
+                    : 'Welcome back. Sign in to your dashboard.'}
+                </p>
               </div>
-            </div>
 
-            {/* Card 2 - Mini chart */}
-            <div className="absolute right-0 top-0 transform rotate-2 hover:rotate-0 hover:scale-105 transition-all duration-500 cursor-pointer group">
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-12 h-6 bg-[#5b9a6f]/20 rounded-sm transform rotate-2" />
-              <div className="bg-white p-4 rounded-lg shadow-[0_10px_40px_-10px_rgba(0,0,0,0.12)] group-hover:shadow-[0_20px_50px_-10px_rgba(0,0,0,0.18)] transition-shadow">
-                <div className="w-40 h-24 rounded flex flex-col gap-2 p-3">
-                  <div className="text-[10px] font-medium text-[#9B9590]">Pageviews</div>
-                  <svg viewBox="0 0 120 40" className="w-full h-full" fill="none">
-                    <path
-                      d="M0 35 L15 30 L30 32 L45 22 L60 25 L75 15 L90 18 L105 8 L120 12"
-                      stroke="#9b72cf"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      fill="none"
-                    />
-                    <path
-                      d="M0 35 L15 30 L30 32 L45 22 L60 25 L75 15 L90 18 L105 8 L120 12 L120 40 L0 40 Z"
-                      fill="url(#chartGrad)"
-                      opacity="0.15"
-                    />
-                    <defs>
-                      <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#9b72cf" />
-                        <stop offset="100%" stopColor="#9b72cf" stopOpacity="0" />
-                      </linearGradient>
-                    </defs>
-                  </svg>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label className="mb-1.5 block text-[13px] font-medium text-[#2D3436]">
+                    Email
+                  </label>
+                  <Input
+                    type="email"
+                    required
+                    autoComplete="email"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    className="rounded-xl h-11 border-[#e8e3ed] focus:border-[#9b72cf]/40 px-4 text-[14px]"
+                    autoFocus
+                  />
                 </div>
-              </div>
-            </div>
-
-            {/* Card 3 - Top pages */}
-            <div className="absolute left-16 bottom-0 transform -rotate-1 hover:rotate-0 hover:scale-105 transition-all duration-500 cursor-pointer group">
-              <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 w-10 h-5 bg-[#e07a5f]/20 rounded-sm transform rotate-1" />
-              <div className="bg-white p-3 rounded-lg shadow-[0_8px_30px_-8px_rgba(0,0,0,0.1)] group-hover:shadow-[0_15px_40px_-8px_rgba(0,0,0,0.15)] transition-shadow">
-                <div className="w-44 rounded p-2">
-                  <div className="text-[10px] font-medium text-[#9B9590] mb-2">Top pages</div>
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between text-[10px]">
-                      <span className="text-[#2D3436]">/pricing</span>
-                      <span className="text-[#9B9590]">842</span>
-                    </div>
-                    <div className="flex justify-between text-[10px]">
-                      <span className="text-[#2D3436]">/blog</span>
-                      <span className="text-[#9B9590]">631</span>
-                    </div>
-                    <div className="flex justify-between text-[10px]">
-                      <span className="text-[#2D3436]">/docs</span>
-                      <span className="text-[#9B9590]">428</span>
-                    </div>
-                  </div>
+                <div>
+                  <label className="mb-1.5 block text-[13px] font-medium text-[#2D3436]">
+                    Password
+                  </label>
+                  <Input
+                    type="password"
+                    required
+                    minLength={8}
+                    autoComplete={firstRun ? 'new-password' : 'current-password'}
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    className="rounded-xl h-11 border-[#e8e3ed] focus:border-[#9b72cf]/40 px-4 text-[14px]"
+                  />
+                  {firstRun && (
+                    <p className="mt-1.5 text-[12px] text-[#B5B0AA]">At least 8 characters</p>
+                  )}
                 </div>
-              </div>
-            </div>
-          </div>
 
-          {/* Text */}
-          <div className="mt-8 text-center">
-            <h2 className="text-2xl font-semibold text-[#2D3436] mb-2">Your dashboard awaits</h2>
-            <p className="text-muted-foreground text-sm max-w-xs">
-              Sign in to see real-time analytics across all your sites
-            </p>
-          </div>
+                {error && <p className="text-[13px] text-[#e5484d]">{error}</p>}
 
-          {/* Decorative bars */}
-          <div className="absolute bottom-8 right-8 flex gap-1.5 transform rotate-[15deg]">
-            <div className="w-2.5 h-20 rounded-t-full bg-[#9b72cf]/30" />
-            <div className="w-2.5 h-16 rounded-t-full bg-[#5b9a6f]/30" />
-            <div className="w-2.5 h-24 rounded-t-full bg-[#e07a5f]/30" />
-            <div className="w-2.5 h-14 rounded-t-full bg-[#d4a574]/30" />
-          </div>
+                <Button
+                  type="submit"
+                  isLoading={submitting}
+                  className="w-full h-11 rounded-xl bg-[#9b72cf] hover:bg-[#8a63bf] text-white text-[14px] font-semibold"
+                >
+                  {firstRun ? 'Create account' : 'Sign in'}
+                </Button>
+              </form>
+            </>
+          )}
         </div>
       </div>
     </div>

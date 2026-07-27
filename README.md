@@ -27,7 +27,7 @@ Iceberg sink → R2 Data Catalog      serves: today, realtime
    auto compaction +                        │
    snapshot expiration)                     │
        ▼                                    │
-COLD PATH: R2 SQL ◄── api Worker (apps/api) ── Clerk auth, D1 metadata
+COLD PATH: R2 SQL ◄── api Worker (apps/api) ── Better Auth, D1 metadata
   serves: 7d/30d/90d/1y/all   ▲                today/realtime → DO
   (edge-cached 5-15 min)      │                history → R2 SQL
                               │                (DO failure → R2 SQL fallback)
@@ -170,8 +170,31 @@ yarn dev                                   # collect :5010, api :5011, web :5012
 Secrets come from Doppler (see comments in each `wrangler.toml`). The api
 Worker needs `R2_SQL_TOKEN` with **Workers R2 SQL Read + Workers R2 Data
 Catalog Write + Workers R2 Storage Write** (or an R2 Admin Read & Write account
-token), plus `R2_ACCOUNT_ID` and `CLERK_SECRET_KEY`. The collect Worker needs
+token), plus `R2_ACCOUNT_ID`. The collect Worker needs
 `VISITOR_HASH_SECRET`.
+
+### Auth (Better Auth, self-hosted)
+
+Auth is [Better Auth](https://better-auth.com) running inside the api Worker —
+no auth SaaS, no third party. Email + password only; users, sessions, and
+credential accounts live in D1 (`users`, `sessions`, `accounts`,
+`verifications` in `apps/api/src/db/schema.ts`). Endpoints mount at
+`/api/auth/*` (`apps/api/src/lib/auth.ts`); `requireAuth` resolves the session
+cookie via `auth.api.getSession`.
+
+**First-run claim**: a fresh instance is unclaimed — `/login` shows a
+"create your owner account" screen (driven by `GET /api/claim-status`), and
+the first sign-up claims the instance; sign-ups are rejected server-side after
+that. If a pre-existing `users` row matches the claiming email (e.g. the
+Clerk-era owner row), its sites and API keys are adopted automatically.
+**Recovery** (forgot password, no email sending configured): delete the row
+in `accounts` (+ `sessions`) for the owner and re-claim with the same email —
+site ownership is re-adopted by email.
+
+Same-origin: the api Worker serves the SPA as its static assets and the API
+on one hostname, so the session cookie is first-party by construction; local
+dev mirrors this with the vite proxy (`:5012 → :5011`). Secret:
+`BETTER_AUTH_SECRET` (Doppler, both configs).
 
 ### 3. Seed test data
 
@@ -218,9 +241,12 @@ npx wrangler pipelines sinks list
   (paid: 6,000 events/min ≈ 100/s; free: 1,200/min) — floods get cut while
   legitimate traffic spikes pass; sustained volume is the monthly quota's
   job. Plus isolate-cached key auth in collect (no per-event D1 reads).
-- **Ops**: Clerk webhook keeps real user emails in D1.
+- **Ops**: auth is fully self-contained (Better Auth on D1, no sync webhook).
 - **Public dashboards**: per-site opt-in; `/share/<siteId>` serves the live
   dashboard through `/api/public`.
-- **Web hosting**: `apps/web/wrangler.toml` deploys the dashboard + landing
-  + docs as Workers static assets (SPA fallback).
+- **Web hosting**: the api Worker serves the dashboard + landing + docs as
+  its static assets (`[env.production.assets]` → `apps/web/dist`, SPA
+  fallback, `run_worker_first` for `/api/*`). One worker, one hostname —
+  `cd apps/api && yarn release:prod` builds the web app and ships both
+  atomically.
 

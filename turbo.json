@@ -10,18 +10,14 @@
       "dependsOn": ["^build"],
       "outputs": ["dist/**"],
       "env": [
-        "VITE_API_URL",
-        "VITE_COLLECT_URL",
-        "VITE_CLERK_PUBLISHABLE_KEY"
+        "VITE_COLLECT_URL"
       ]
     },
     "dev": {
       "cache": false,
       "persistent": true,
       "env": [
-        "VITE_API_URL",
-        "VITE_COLLECT_URL",
-        "VITE_CLERK_PUBLISHABLE_KEY"
+        "VITE_COLLECT_URL"
       ]
     },
     "lint": {},

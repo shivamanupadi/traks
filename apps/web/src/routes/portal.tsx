@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate, useLocation, Link, Outlet } from '@tanstack/react-router';
-import { useAuth, useUser, useClerk } from '@clerk/clerk-react';
 import { useEffect } from 'react';
 import { LayoutGrid, Settings, User, ChevronDown, LogOut } from 'lucide-react';
+import { authClient } from '@/lib/auth-client';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,23 +16,23 @@ export const Route = createFileRoute('/portal')({
 });
 
 function PortalLayout(): React.ReactNode {
-  const { isSignedIn, isLoaded } = useAuth();
   const navigate = useNavigate();
+  const { data: session, isPending } = authClient.useSession();
 
   useEffect(() => {
-    if (isLoaded && !isSignedIn) {
+    if (!isPending && !session) {
       navigate({ to: '/login' });
     }
-  }, [isLoaded, isSignedIn, navigate]);
+  }, [isPending, session, navigate]);
 
   // Redirect /portal to /portal/sites
   useEffect(() => {
-    if (isLoaded && isSignedIn && window.location.pathname === '/portal') {
+    if (!isPending && session && window.location.pathname === '/portal') {
       navigate({ to: '/portal/sites' });
     }
-  }, [isLoaded, isSignedIn, navigate]);
+  }, [isPending, session, navigate]);
 
-  if (!isLoaded) {
+  if (isPending) {
     return (
       <div className="min-h-screen bg-[#fdfbf8] flex items-center justify-center">
         <div className="text-[14px] text-[#9B9590]">Loading...</div>
@@ -40,7 +40,7 @@ function PortalLayout(): React.ReactNode {
     );
   }
 
-  if (!isSignedIn) {
+  if (!session) {
     return null;
   }
 
@@ -155,11 +155,15 @@ function NavIcon({ type }: { type: 'sites' | 'settings' }): React.ReactNode {
 }
 
 function UserMenu(): React.ReactNode {
-  const { user } = useUser();
-  const { signOut } = useClerk();
+  const { data: session } = authClient.useSession();
 
-  const displayName =
-    user?.firstName || user?.emailAddresses?.[0]?.emailAddress?.split('@')[0] || 'User';
+  const email: string | undefined = session?.user?.email;
+  const displayName = session?.user?.name || email?.split('@')[0] || 'User';
+
+  const signOut = async (): Promise<void> => {
+    await authClient.signOut();
+    window.location.href = '/';
+  };
 
   return (
     <DropdownMenu>
@@ -180,12 +184,8 @@ function UserMenu(): React.ReactNode {
         className="w-56 rounded-xl bg-white border border-[#e8e3ed] shadow-lg"
       >
         <DropdownMenuLabel className="px-4 py-3 bg-gradient-to-br from-[#9b72cf]/5 via-[#5b9a6f]/5 to-[#e07a5f]/5 -mx-1 -mt-1 rounded-t-lg">
-          <p className="text-sm font-semibold text-[#2D3436] truncate">
-            {user?.firstName} {user?.lastName}
-          </p>
-          <p className="text-xs text-[#9B9590] font-normal truncate">
-            {user?.emailAddresses?.[0]?.emailAddress}
-          </p>
+          <p className="text-sm font-semibold text-[#2D3436] truncate">{displayName}</p>
+          <p className="text-xs text-[#9B9590] font-normal truncate">{email}</p>
         </DropdownMenuLabel>
 
         <DropdownMenuSeparator />
@@ -210,7 +210,7 @@ function UserMenu(): React.ReactNode {
         <DropdownMenuSeparator />
 
         <DropdownMenuItem
-          onClick={() => signOut({ redirectUrl: '/' })}
+          onClick={() => void signOut()}
           className="flex items-center gap-3 px-4 py-2.5 text-[#e5484d] focus:text-[#e5484d] focus:bg-red-50 cursor-pointer"
         >
           <LogOut className="w-4 h-4" />

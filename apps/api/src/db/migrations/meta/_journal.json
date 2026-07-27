@@ -85,6 +85,13 @@
       "when": 1784958180431,
       "tag": "0011_drop_email_digests",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1785130228480,
+      "tag": "0012_better_auth",
+      "breakpoints": true
     }
   ]
 }

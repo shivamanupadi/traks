@@ -1,5 +1,5 @@
 /**
- * Standard Webhooks (svix-style) signature verification, as used by Clerk.
+ * Standard Webhooks (svix-style) signature verification, as used by Dodo Payments.
  * Signed content is `${id}.${timestamp}.${body}`, HMAC-SHA256 with the
  * base64-decoded endpoint secret (whsec_ prefix stripped), base64-encoded,
  * matched against any `v1,<sig>` entry in the header.

@@ -11,7 +11,8 @@
     "deploy:dev": "wrangler deploy",
     "worker:prod:deploy": "wrangler deploy --env production",
     "secrets:prod:sync": "doppler secrets --json -p traks-api -c prd | jq -c 'with_entries(select(.key | test(\"^DOPPLER_\") | not) | .value = .value.computed)' | wrangler secret bulk --env production",
-    "release:prod": "yarn db:migrate:prod && yarn secrets:prod:sync && yarn worker:prod:deploy",
+    "build:web": "yarn workspace @traks/web build:prod",
+    "release:prod": "yarn db:migrate:prod && yarn secrets:prod:sync && yarn build:web && yarn worker:prod:deploy",
     "db:generate": "drizzle-kit generate",
     "db:check": "drizzle-kit generate --name drift_check 2>&1 | tee /dev/stderr | grep -q 'No schema changes' || (git checkout -- src/db/migrations/ >/dev/null 2>&1; git clean -fd src/db/migrations/ >/dev/null 2>&1; echo '\\n✗ Schema drift: schema.ts has uncommitted changes. Run: yarn db:generate --name <descriptive_name>' && exit 1)",
     "db:migrate:dev": "wrangler d1 migrations apply traks-db-dev --remote",
@@ -26,6 +27,7 @@
     "@hono/zod-validator": "^0.4.2",
     "@paralleldrive/cuid2": "^2.2.2",
     "@traks/shared": "*",
+    "better-auth": "^1.6.25",
     "drizzle-orm": "^0.38.3",
     "hono": "^4.6.16",
     "zod": "^3.24.1"

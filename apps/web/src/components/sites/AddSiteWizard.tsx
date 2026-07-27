@@ -1,5 +1,4 @@
 import { useState, type ReactElement } from 'react';
-import { useAuth } from '@clerk/clerk-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Globe, ArrowRight, Check, Copy, Code2, Zap } from 'lucide-react';
@@ -34,7 +33,6 @@ export function AddSiteWizard({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }): ReactElement {
-  const { getToken } = useAuth();
   const queryClient = useQueryClient();
   const [step, setStep] = useState<WizardStep>('details');
   const [name, setName] = useState('');
@@ -44,12 +42,10 @@ export function AddSiteWizard({
 
   const createSite = useMutation({
     mutationFn: async () => {
-      const token = await getToken();
-      if (!token) throw new Error('Not authenticated');
       // Site timezone drives how dashboard buckets are computed at ingest;
       // default it to the browser's zone instead of UTC.
       const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-      return api.createSite({ name, domain, timezone }, token);
+      return api.createSite({ name, domain, timezone });
     },
     onSuccess: (result: any) => {
       queryClient.invalidateQueries({ queryKey: ['sites'] });
@@ -188,6 +184,9 @@ export function AddSiteWizard({
                   />
                   <p className="mt-2 text-[12px] text-[#B5B0AA]">Without http:// or https://</p>
                 </div>
+                {createSite.isError && (
+                  <p className="text-[13px] text-[#e5484d]">{createSite.error.message}</p>
+                )}
               </motion.div>
             ) : (
               <motion.div

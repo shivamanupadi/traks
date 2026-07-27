@@ -8,7 +8,6 @@ import { TimeseriesChart } from '@/components/analytics/TimeseriesChart';
 import { TopList } from '@/components/analytics/TopList';
 import { PeriodPicker } from '@/components/layout/PeriodPicker';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://api.traks.dev';
 
 interface ShareSearch {
   period?: Period;
@@ -30,7 +29,7 @@ function SharePage(): ReactElement {
   const { data, isLoading, isError } = useQuery({
     queryKey: ['public-dashboard', siteId, period],
     queryFn: async () => {
-      const res = await fetch(`${API_URL}/api/public/${siteId}/stats/all?period=${period}`);
+      const res = await fetch(`/api/public/${siteId}/stats/all?period=${period}`);
       if (!res.ok) throw new Error(`API error ${res.status}`);
       return res.json();
     },

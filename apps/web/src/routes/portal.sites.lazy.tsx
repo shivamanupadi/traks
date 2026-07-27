@@ -125,7 +125,7 @@ function SitesPage(): ReactElement {
           </Button>
           <Button
             onClick={() => setWizardOpen(true)}
-            className="bg-[#9b72cf] hover:bg-[#8a63bf] text-white rounded-xl px-5 h-10"
+            className="bg-[#2D3436] hover:bg-[#1B1F21] text-white rounded-xl px-5 h-10"
           >
             <Plus className="h-4 w-4" />
             Add Site
@@ -157,7 +157,7 @@ function SitesPage(): ReactElement {
           </p>
           <Button
             onClick={() => setWizardOpen(true)}
-            className="mt-5 bg-[#9b72cf] hover:bg-[#8a63bf] text-white rounded-xl px-6"
+            className="mt-5 bg-[#2D3436] hover:bg-[#1B1F21] text-white rounded-xl px-6"
           >
             <Plus className="h-4 w-4" />
             Add Your First Site

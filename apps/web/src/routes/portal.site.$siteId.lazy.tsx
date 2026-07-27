@@ -895,6 +895,14 @@ function FilterChips({
 
 function LiveVisitorsPill({ count }: { count: number | null }): ReactElement | null {
   if (count === null) return null;
+  if (count === 0) {
+    return (
+      <div className="flex items-center gap-2 rounded-full bg-[#F5F3F0] px-3 py-1.5">
+        <span className="inline-flex h-2 w-2 rounded-full bg-[#B5B0AA]" />
+        <span className="text-[12px] font-medium text-[#9B9590]">0 current visitors</span>
+      </div>
+    );
+  }
   return (
     <div className="flex items-center gap-2 rounded-full bg-[#5b9a6f]/8 px-3 py-1.5">
       <span className="relative flex h-2 w-2">

@@ -34,19 +34,10 @@ export function SiteTile({
         params={{ siteId: site.id }}
         className="group relative block rounded-2xl border border-[#e8e3ed]/80 bg-white p-5 transition-all duration-300 hover:shadow-xl hover:shadow-black/[0.06] hover:border-[#d5cfe0] overflow-hidden"
       >
-        {/* Left accent bar */}
-        <div
-          className="absolute top-0 left-0 w-[3px] h-full origin-top scale-y-0 group-hover:scale-y-100 transition-transform duration-400 ease-out rounded-l-2xl"
-          style={{ backgroundColor: color }}
-        />
-
         {/* Header row: icon + name */}
         <div className="flex items-center gap-3 mb-1">
-          <div
-            className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 transition-transform duration-300 group-hover:scale-110"
-            style={{ backgroundColor: `${color}12` }}
-          >
-            <Globe className="w-[18px] h-[18px]" style={{ color }} strokeWidth={1.7} />
+          <div className="w-9 h-9 rounded-lg bg-[#F5F3F0] flex items-center justify-center shrink-0 transition-transform duration-300 group-hover:scale-110">
+            <Globe className="w-[18px] h-[18px] text-[#6B6560]" strokeWidth={1.7} />
           </div>
           <div className="flex-1 min-w-0">
             <h3 className="text-[15px] font-semibold text-[#2D3436] leading-tight truncate">

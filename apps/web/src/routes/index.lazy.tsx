@@ -82,7 +82,7 @@ function LandingPage(): ReactElement {
       {/* Header */}
       <header className="relative z-10 py-5 max-w-5xl mx-auto w-full px-6 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <img src="/logo64.png" alt="Traks" className="w-8 h-8 rounded-lg" />
+          <img src="/logo.svg" alt="Traks" className="w-8 h-8" />
           <span className="text-[17px] font-bold text-[#2D3436] tracking-tight">Traks</span>
         </div>
         <nav className="flex items-center gap-1">
@@ -494,7 +494,7 @@ function LandingPage(): ReactElement {
       <footer className="relative z-10 py-8 border-t border-[#e8e3ed]">
         <div className="max-w-5xl mx-auto px-6 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <img src="/logo64.png" alt="Traks" className="w-6 h-6 rounded-md" />
+            <img src="/logo.svg" alt="Traks" className="w-6 h-6" />
             <span className="text-[13px] font-semibold text-[#2D3436]">Traks</span>
           </div>
           <p className="text-[12px] text-[#B5B0AA]">Privacy-friendly analytics on Cloudflare</p>

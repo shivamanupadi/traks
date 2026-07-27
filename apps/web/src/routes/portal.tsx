@@ -52,9 +52,9 @@ function PortalLayout(): React.ReactNode {
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2.5 group">
             <img
-              src="/logo64.png"
+              src="/logo.svg"
               alt="Traks"
-              className="h-9 w-9 rounded-lg group-hover:scale-105 transition-transform"
+              className="h-9 w-9 group-hover:scale-105 transition-transform"
             />
             <span className="font-semibold text-[17px] text-[#2D3436] tracking-tight hidden sm:block">
               Traks

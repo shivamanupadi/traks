@@ -55,7 +55,7 @@ function LoginPage(): ReactElement {
     <div className="min-h-screen bg-[#fdfbf8] flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <Link to="/" className="flex items-center justify-center gap-2.5 mb-8">
-          <img src="/logo64.png" alt="Traks" className="h-10 w-10 rounded-lg" />
+          <img src="/logo.svg" alt="Traks" className="h-10 w-10" />
           <span className="font-semibold text-[20px] text-[#2D3436] tracking-tight">Traks</span>
         </Link>
 

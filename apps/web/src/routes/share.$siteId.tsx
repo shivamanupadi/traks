@@ -8,7 +8,6 @@ import { TimeseriesChart } from '@/components/analytics/TimeseriesChart';
 import { TopList } from '@/components/analytics/TopList';
 import { PeriodPicker } from '@/components/layout/PeriodPicker';
 
-
 interface ShareSearch {
   period?: Period;
 }

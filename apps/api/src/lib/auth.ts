@@ -45,9 +45,7 @@ async function adoptLegacyData(
   pendingAdoptions.delete(newUser.email);
   await db.update(sites).set({ userId: newUser.id }).where(eq(sites.userId, legacyId));
   await db.update(apiKeys).set({ userId: newUser.id }).where(eq(apiKeys.userId, legacyId));
-  await db
-    .delete(users)
-    .where(and(eq(users.id, legacyId), ne(users.id, newUser.id)));
+  await db.delete(users).where(and(eq(users.id, legacyId), ne(users.id, newUser.id)));
 }
 
 // Return type deliberately inferred: betterAuth's generic Auth<TOptions> is

@@ -107,8 +107,7 @@ function SettingsPage(): ReactElement {
               <div className="min-w-0 flex-1">
                 <p className="text-[13.5px] font-semibold text-[#3D3B4F]">Reporting timezone</p>
                 <p className="mt-0.5 text-[12px] text-[#9B9590]">
-                  Dashboard days and hours are bucketed in this timezone. Applies to all your
-                  sites.
+                  Dashboard days and hours are bucketed in this timezone. Applies to all your sites.
                 </p>
               </div>
             </div>
@@ -134,13 +133,13 @@ function SettingsPage(): ReactElement {
 
             {uniformZone === null && sites.length > 0 && (
               <p className="mt-3 text-[12px] text-[#e07a5f]">
-                Your sites currently use different timezones ({distinctZones.join(', ')}).
-                Applying will unify them.
+                Your sites currently use different timezones ({distinctZones.join(', ')}). Applying
+                will unify them.
               </p>
             )}
             <p className="mt-3.5 border-t border-[#F5F2EC] pt-3.5 text-[12px] text-[#B5B0AA]">
-              Takes effect on new data within a minute. Events already collected keep their
-              original bucketing, so past days may look shifted until new data accumulates.
+              Takes effect on new data within a minute. Events already collected keep their original
+              bucketing, so past days may look shifted until new data accumulates.
             </p>
           </div>
         </section>

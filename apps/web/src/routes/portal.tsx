@@ -110,9 +110,7 @@ function NavLink({
     <Link
       to={to}
       className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-full transition-all ${
-        isActive
-          ? 'text-white bg-[#3D3B4F] font-semibold'
-          : 'text-[#9B9590] hover:text-[#6b6560]'
+        isActive ? 'text-white bg-[#3D3B4F] font-semibold' : 'text-[#9B9590] hover:text-[#6b6560]'
       }`}
     >
       <NavIcon type={icon} />
@@ -139,9 +137,7 @@ function MobileNavLink({
     <Link
       to={to}
       className={`w-9 h-9 flex items-center justify-center rounded-full transition-all ${
-        isActive
-          ? 'bg-[#3D3B4F] text-white'
-          : 'text-[#9B9590] hover:text-[#6b6560] hover:bg-muted'
+        isActive ? 'bg-[#3D3B4F] text-white' : 'text-[#9B9590] hover:text-[#6b6560] hover:bg-muted'
       }`}
     >
       <NavIcon type={icon} />

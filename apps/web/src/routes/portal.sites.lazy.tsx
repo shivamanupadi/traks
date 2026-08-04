@@ -127,11 +127,7 @@ function SitesPage(): ReactElement {
             />
             Refresh
           </Button>
-          <Button
-            variant="dark"
-            onClick={() => setWizardOpen(true)}
-            className="px-5 h-10"
-          >
+          <Button variant="dark" onClick={() => setWizardOpen(true)} className="px-5 h-10">
             <Plus className="h-4 w-4" />
             Add Site
           </Button>
@@ -145,10 +141,7 @@ function SitesPage(): ReactElement {
       {isLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {[...Array(3)].map((_, i) => (
-            <div
-              key={i}
-              className="h-[248px] animate-pulse rounded-[20px] bg-white shadow-float"
-            />
+            <div key={i} className="h-[248px] animate-pulse rounded-[20px] bg-white shadow-float" />
           ))}
         </div>
       ) : allSites.length === 0 ? (
@@ -160,11 +153,7 @@ function SitesPage(): ReactElement {
           <p className="mt-2 text-[14px] text-[#9B9590] max-w-sm mx-auto">
             Add your first website to start tracking visitors, pageviews, and more
           </p>
-          <Button
-            variant="dark"
-            onClick={() => setWizardOpen(true)}
-            className="mt-5 px-6"
-          >
+          <Button variant="dark" onClick={() => setWizardOpen(true)} className="mt-5 px-6">
             <Plus className="h-4 w-4" />
             Add Your First Site
           </Button>

@@ -125,7 +125,10 @@ export function SiteTile({
         </div>
 
         {sparkLoading ? (
-          <div className="mt-3.5 h-11 w-full animate-pulse rounded-xl bg-muted" aria-hidden="true" />
+          <div
+            className="mt-3.5 h-11 w-full animate-pulse rounded-xl bg-muted"
+            aria-hidden="true"
+          />
         ) : (
           <Sparkline points={sparkPoints} color={color} />
         )}

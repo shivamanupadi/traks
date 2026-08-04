@@ -1,9 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <style>
-    .i { fill: #2D3436 }
-    @media (prefers-color-scheme: dark) { .i { fill: #FDFBF8 } }
+    .i { fill: #3D3B4F }
+    @media (prefers-color-scheme: dark) { .i { fill: #FAFAFA } }
   </style>
+  <g transform="rotate(180 32 32)">
   <path d="M 14 52 L 14 32 A 18 18 0 0 1 50 32 L 50 52 Z" class="i"/>
-  <path d="M 25 52 L 25 34 A 7 7 0 0 1 39 34 L 39 52 Z" fill="#CDB8E7"/>
-  <rect x="4" y="39" width="56" height="11" rx="5.5" fill="#9B72CF"/>
+  <path d="M 25 52 L 25 34 A 7 7 0 0 1 39 34 L 39 52 Z" fill="#93F4CF"/>
+  <rect x="4" y="39" width="56" height="11" rx="5.5" fill="#28E99F"/></g>
 </svg>

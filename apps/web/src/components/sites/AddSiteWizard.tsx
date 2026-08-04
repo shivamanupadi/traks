@@ -89,12 +89,12 @@ export function AddSiteWizard({
     <div className="flex items-center gap-1.5 mb-4">
       <div
         className={`h-1.5 rounded-full transition-all duration-300 ${
-          step === 'details' ? 'w-8 bg-[#9b72cf]' : 'w-8 bg-[#9b72cf]/20'
+          step === 'details' ? 'w-8 bg-foreground' : 'w-8 bg-border'
         }`}
       />
       <div
         className={`h-1.5 rounded-full transition-all duration-300 ${
-          step === 'snippet' ? 'w-8 bg-[#9b72cf]' : 'w-8 bg-[#e8e3ed]'
+          step === 'snippet' ? 'w-8 bg-foreground' : 'w-8 bg-border'
         }`}
       />
     </div>
@@ -114,8 +114,8 @@ export function AddSiteWizard({
                 exit={{ opacity: 0, x: -10 }}
                 transition={{ duration: 0.15 }}
               >
-                <div className="w-10 h-10 rounded-xl bg-[#9b72cf]/10 flex items-center justify-center mb-3">
-                  <Globe className="w-5 h-5 text-[#9b72cf]" strokeWidth={1.7} />
+                <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center mb-3">
+                  <Globe className="w-5 h-5 text-foreground" strokeWidth={1.7} />
                 </div>
                 <DialogTitle>Add a new site</DialogTitle>
                 <DialogDescription>
@@ -130,16 +130,16 @@ export function AddSiteWizard({
                 exit={{ opacity: 0, x: 10 }}
                 transition={{ duration: 0.15 }}
               >
-                <div className="w-10 h-10 rounded-xl bg-[#5b9a6f]/10 flex items-center justify-center mb-3">
-                  <Code2 className="w-5 h-5 text-[#5b9a6f]" strokeWidth={1.7} />
+                <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center mb-3">
+                  <Code2 className="w-5 h-5 text-[#6E6C7C]" strokeWidth={1.7} />
                 </div>
                 <DialogTitle>Install tracking script</DialogTitle>
                 <DialogDescription>
                   Add this snippet to the{' '}
-                  <code className="text-[12px] bg-[#f3f0f7] px-1.5 py-0.5 rounded font-medium">
+                  <code className="text-[12px] bg-muted px-1.5 py-0.5 rounded font-medium">
                     &lt;head&gt;
                   </code>{' '}
-                  of <span className="font-semibold text-[#2D3436]">{createdSite?.domain}</span>
+                  of <span className="font-semibold text-[#3D3B4F]">{createdSite?.domain}</span>
                 </DialogDescription>
               </motion.div>
             )}
@@ -158,26 +158,26 @@ export function AddSiteWizard({
                 className="space-y-5"
               >
                 <div>
-                  <label className="mb-2 block text-[13px] font-medium text-[#2D3436]">
+                  <label className="mb-2 block text-[13px] font-medium text-[#3D3B4F]">
                     Site Name
                   </label>
                   <Input
                     placeholder="My SaaS"
                     value={name}
                     onChange={e => setName(e.target.value)}
-                    className="rounded-xl h-11 border-[#e8e3ed] focus:border-[#9b72cf]/40 px-4 text-[14px]"
+                    className="h-11 px-4 text-[14px]"
                     autoFocus
                   />
                 </div>
                 <div>
-                  <label className="mb-2 block text-[13px] font-medium text-[#2D3436]">
+                  <label className="mb-2 block text-[13px] font-medium text-[#3D3B4F]">
                     Domain
                   </label>
                   <Input
                     placeholder="example.com"
                     value={domain}
                     onChange={e => setDomain(e.target.value)}
-                    className="rounded-xl h-11 border-[#e8e3ed] focus:border-[#9b72cf]/40 px-4 text-[14px]"
+                    className="h-11 px-4 text-[14px]"
                     onKeyDown={e => {
                       if (e.key === 'Enter' && canCreate) createSite.mutate();
                     }}
@@ -198,18 +198,18 @@ export function AddSiteWizard({
                 className="space-y-4"
               >
                 {/* Snippet card */}
-                <div className="relative rounded-xl border border-[#e8e3ed] bg-[#fdfbf8] overflow-hidden">
-                  <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#e8e3ed]/60">
+                <div className="relative rounded-xl border border-[#e6e5ea] bg-[#fafafa] overflow-hidden">
+                  <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#e6e5ea]/60">
                     <span className="text-[11px] font-medium text-[#B5B0AA] uppercase tracking-wider">
                       HTML Snippet
                     </span>
                     <button
                       onClick={handleCopy}
-                      className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium text-[#9B9590] hover:text-[#9b72cf] transition-colors"
+                      className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium text-[#9B9590] hover:text-foreground transition-colors"
                     >
                       {copied ? (
                         <>
-                          <Check className="w-3 h-3 text-[#5b9a6f]" />
+                          <Check className="w-3 h-3 text-[#6E6C7C]" />
                           Copied
                         </>
                       ) : (
@@ -220,15 +220,15 @@ export function AddSiteWizard({
                       )}
                     </button>
                   </div>
-                  <pre className="text-[12px] leading-relaxed text-[#2D3436] font-mono whitespace-pre-wrap break-all select-all px-4 py-3.5">
+                  <pre className="text-[12px] leading-relaxed text-[#3D3B4F] font-mono whitespace-pre-wrap break-all select-all px-4 py-3.5">
                     {snippet}
                   </pre>
                 </div>
 
                 {/* Info note */}
-                <div className="flex gap-3 rounded-xl bg-[#5b9a6f]/5 border border-[#5b9a6f]/10 px-4 py-3.5">
-                  <Zap className="w-4 h-4 text-[#5b9a6f] shrink-0 mt-0.5" strokeWidth={1.7} />
-                  <p className="text-[12px] text-[#5b9a6f]/80 leading-relaxed">
+                <div className="flex gap-3 rounded-xl bg-[#F4F4F6] border border-[#E4E4E9] px-4 py-3.5">
+                  <Zap className="w-4 h-4 text-[#6E6C7C] shrink-0 mt-0.5" strokeWidth={1.7} />
+                  <p className="text-[12px] text-[#6E6C7C] leading-relaxed">
                     Under 1KB, loads async - zero impact on page speed. Data appears within seconds
                     of the first visit.
                   </p>
@@ -238,7 +238,7 @@ export function AddSiteWizard({
           </AnimatePresence>
         </DialogBody>
 
-        <DialogFooter className="border-t border-[#e8e3ed]/50 mx-6 px-0 pb-5 pt-4">
+        <DialogFooter className="border-t border-[#e6e5ea]/50 mx-6 px-0 pb-5 pt-4">
           {step === 'details' ? (
             <>
               <Button variant="ghost" onClick={handleClose} className="rounded-xl text-[13px]">
@@ -248,7 +248,7 @@ export function AddSiteWizard({
                 onClick={() => createSite.mutate()}
                 disabled={!canCreate}
                 isLoading={createSite.isPending}
-                className="bg-[#9b72cf] hover:bg-[#8a63bf] text-white rounded-xl text-[13px] px-5"
+                className="text-[13px] px-5"
               >
                 Continue
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -262,7 +262,7 @@ export function AddSiteWizard({
               </Button>
               <Button
                 onClick={handleClose}
-                className="bg-[#5b9a6f] hover:bg-[#4e8a62] text-white rounded-xl text-[13px] px-5"
+                className="bg-[#3D3B4F] hover:bg-[#2C2B3B] text-white rounded-xl text-[13px] px-5"
               >
                 <Check className="w-3.5 h-3.5" />
                 Done

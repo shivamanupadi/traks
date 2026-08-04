@@ -2,7 +2,7 @@
  * Regenerate every logo/icon asset from the Tunnel mark — the SVGs in public/
  * (logo, dark, mono, favicon) plus all raster favicons and the touch icon.
  *
- * The mark: an ink arch with the lavender track running through it and out
+ * The mark: an ink arch with the mint track running through it and out
  * both sides, a tint half-disc glowing inside — events passing through the
  * pipeline. Same family language as otterkit (thread mark) and payweave
  * (P mark): 2-3 flat shapes, bold overlap, brand hue + ink + tint.
@@ -20,27 +20,34 @@ import { fileURLToPath } from 'node:url';
 
 const PUB = p => path.join(path.dirname(fileURLToPath(import.meta.url)), '../public', p);
 
-const INK = '#2D3436';
-const INK_DARK = '#FDFBF8'; // ink shapes on dark grounds (family cream)
-const LAVENDER = '#9B72CF'; // --primary in src/styles/index.css
-const TINT = '#CDB8E7'; // lavender lerped 50% to white, payweave-style
+const INK = '#3D3B4F';
+const INK_DARK = '#FAFAFA'; // ink shapes on dark grounds (family off-white)
+const MINT = '#28E99F'; // --primary in src/styles/index.css
+const TINT = '#93F4CF'; // mint lerped 50% to white, payweave-style
 
-/** The Tunnel mark on a 64 grid: ink arch, tint glow, lavender track over. */
-const mark = (ink, track = LAVENDER, tint = TINT) => `
+// The mark renders inverted (rotated 180°): flat edge up, dome hanging down,
+// track running above — the awning orientation chosen in the tunnel-mark rebrand.
+const FLIP = '<g transform="rotate(180 32 32)">';
+
+/** The Tunnel mark on a 64 grid: ink arch, tint glow, mint track over. */
+const mark = (ink, track = MINT, tint = TINT) => `
+  ${FLIP}
   <path d="M 14 52 L 14 32 A 18 18 0 0 1 50 32 L 50 52 Z" fill="${ink}"/>
   <path d="M 25 52 L 25 34 A 7 7 0 0 1 39 34 L 39 52 Z" fill="${tint}"/>
-  <rect x="4" y="39" width="56" height="11" rx="5.5" fill="${track}"/>`;
+  <rect x="4" y="39" width="56" height="11" rx="5.5" fill="${track}"/></g>`;
 
 /** 16px cut: tint glow dropped, track slightly heavier. */
-const markSmall = (ink, track = LAVENDER) => `
+const markSmall = (ink, track = MINT) => `
+  ${FLIP}
   <path d="M 14 52 L 14 32 A 18 18 0 0 1 50 32 L 50 52 Z" fill="${ink}"/>
-  <rect x="4" y="39" width="56" height="12" rx="6" fill="${track}"/>`;
+  <rect x="4" y="39" width="56" height="12" rx="6" fill="${track}"/></g>`;
 
 /** Mono: tunnel opening knocked out of the arch, track in the same color. */
 const markMono = `
+  ${FLIP}
   <path fill-rule="evenodd" d="M 14 52 L 14 32 A 18 18 0 0 1 50 32 L 50 52 Z
     M 25 52 L 25 34 A 7 7 0 0 1 39 34 L 39 52 Z" fill="currentColor"/>
-  <rect x="4" y="39" width="56" height="11" rx="5.5" fill="currentColor"/>`;
+  <rect x="4" y="39" width="56" height="11" rx="5.5" fill="currentColor"/></g>`;
 
 const svg = body => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">${body}
 </svg>`;
@@ -48,12 +55,12 @@ const svg = body => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"
 /** Cream rounded tile for raster favicons — legible on any tab color. */
 const faviconTile = inner =>
   svg(`
-  <rect width="64" height="64" rx="13" fill="#FDFBF8"/>
+  <rect width="64" height="64" rx="13" fill="#FAFAFA"/>
   <g transform="translate(6.4,6.4) scale(0.8)">${inner}</g>`);
 
 /** Full-bleed cream square for iOS (iOS applies its own corner mask). */
 const touchIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180">
-  <rect width="180" height="180" fill="#FDFBF8"/>
+  <rect width="180" height="180" fill="#FAFAFA"/>
   <g transform="translate(37,37) scale(1.656)">${mark(INK)}</g>
 </svg>`;
 
@@ -62,10 +69,11 @@ const faviconSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <style>
     .i { fill: ${INK} }
     @media (prefers-color-scheme: dark) { .i { fill: ${INK_DARK} } }
-  </style>${mark('', LAVENDER, TINT).replaceAll(' fill=""', ' class="i"')}
+  </style>${mark('', MINT, TINT).replaceAll(' fill=""', ' class="i"')}
 </svg>`;
 
 /** Family sibling hues, used as accents on marketing images. */
+const DEEP = '#0A7F55'; // mint's chart/text companion — legible on light grounds
 const SAGE = '#6B8F71';
 const CORAL = '#E07A5F';
 const INK_2 = '#6B6560';
@@ -77,16 +85,16 @@ const INK_2 = '#6B6560';
 const ogSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630"
   font-family="Helvetica Neue, Helvetica, Arial, sans-serif">
   <defs>
-    <radialGradient id="orb-a"><stop offset="0" stop-color="${LAVENDER}" stop-opacity="0.13"/><stop offset="1" stop-color="${LAVENDER}" stop-opacity="0"/></radialGradient>
+    <radialGradient id="orb-a"><stop offset="0" stop-color="${MINT}" stop-opacity="0.2"/><stop offset="1" stop-color="${MINT}" stop-opacity="0"/></radialGradient>
     <radialGradient id="orb-b"><stop offset="0" stop-color="${SAGE}" stop-opacity="0.11"/><stop offset="1" stop-color="${SAGE}" stop-opacity="0"/></radialGradient>
   </defs>
-  <rect width="1200" height="630" fill="#FDFBF8"/>
+  <rect width="1200" height="630" fill="#FAFAFA"/>
   <circle cx="120" cy="90" r="360" fill="url(#orb-a)"/>
   <circle cx="1110" cy="560" r="320" fill="url(#orb-b)"/>
   <g transform="translate(150 219) scale(3)">${mark(INK)}</g>
   <text x="418" y="299" font-size="64" font-weight="bold" letter-spacing="-1.5" fill="${INK}">Traks</text>
   <text x="418" y="357" font-size="27" fill="${INK_2}">Privacy-friendly web analytics, self-hosted on Cloudflare</text>
-  <text x="418" y="410" font-size="21" font-weight="bold" fill="${LAVENDER}">no cookies<tspan dx="16" fill="#A8A099" font-weight="normal">&#183;</tspan><tspan dx="16" fill="${SAGE}">your data, your account</tspan><tspan dx="16" fill="#A8A099" font-weight="normal">&#183;</tspan><tspan dx="16" fill="${CORAL}">Workers + R2 SQL</tspan></text>
+  <text x="418" y="410" font-size="21" font-weight="bold" fill="${DEEP}">no cookies<tspan dx="16" fill="#A8A099" font-weight="normal">&#183;</tspan><tspan dx="16" fill="${SAGE}">your data, your account</tspan><tspan dx="16" fill="#A8A099" font-weight="normal">&#183;</tspan><tspan dx="16" fill="${CORAL}">Workers + R2 SQL</tspan></text>
 </svg>`;
 
 async function render(src, size, out) {

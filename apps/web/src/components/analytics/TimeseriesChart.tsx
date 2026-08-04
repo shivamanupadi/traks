@@ -8,6 +8,7 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
+  ReferenceDot,
 } from 'recharts';
 import type { TimeseriesPoint } from '@traks/shared';
 
@@ -18,9 +19,13 @@ interface TimeseriesChartProps {
   metric?: 'visitors' | 'pageviews' | 'sessions';
   /** Render only the chart (no card frame / title) for embedding in a parent card. */
   bare?: boolean;
-  /** Line/fill color; defaults to the visitors purple. */
+  /** Line color; defaults to the metric's stroke. */
   color?: string;
 }
+
+/* All metrics share the same treatment: ink stroke over a whisper of fill —
+ * the metric tabs above the chart carry the "which metric" signal. */
+const INK = '#3D3B4F';
 
 /**
  * Bucket keys are pre-computed at ingest in the *site's* IANA timezone
@@ -121,9 +126,11 @@ export function TimeseriesChart({
   isError,
   metric = 'visitors',
   bare = false,
-  color = '#9b72cf',
+  color,
 }: TimeseriesChartProps): ReactElement {
-  const frame = bare ? '' : 'rounded-2xl border border-[#e8e3ed]/80 bg-white';
+  const stroke = color ?? INK;
+  const fill = stroke;
+  const frame = bare ? '' : 'rounded-[20px] bg-white shadow-float';
 
   if (isError) {
     return (
@@ -137,12 +144,12 @@ export function TimeseriesChart({
   if (isLoading || !data) {
     return (
       <div className={`h-[300px] p-5 ${frame}`}>
-        {!bare && <div className="h-4 w-24 rounded bg-[#f3f0f7] animate-pulse" />}
+        {!bare && <div className="h-4 w-24 rounded bg-muted animate-pulse" />}
         <div className="mt-5 flex h-[210px] items-end gap-2">
           {[40, 65, 50, 80, 55, 90, 70, 60, 85, 45, 75, 95].map((h, i) => (
             <div
               key={i}
-              className="flex-1 rounded-t bg-[#f3f0f7] animate-pulse"
+              className="flex-1 rounded-t bg-muted animate-pulse"
               style={{ height: `${h}%` }}
             />
           ))}
@@ -164,43 +171,59 @@ export function TimeseriesChart({
   }
 
   const gradientId = `colorMetric-${metric}`;
+  const last = data[data.length - 1];
 
   const chart = (
     <ResponsiveContainer width="100%" height={260}>
       <AreaChart data={data}>
         <defs>
           <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor={color} stopOpacity={0.15} />
-            <stop offset="95%" stopColor={color} stopOpacity={0} />
+            <stop offset="0%" stopColor={fill} stopOpacity={0.09} />
+            <stop offset="100%" stopColor={fill} stopOpacity={0} />
           </linearGradient>
         </defs>
-        <CartesianGrid strokeDasharray="3 3" stroke="#e8e3ed" vertical={false} />
+        <CartesianGrid stroke="#EFEFF3" vertical={false} />
         <XAxis
           dataKey="date"
           tickFormatter={formatAxis}
-          stroke="#6b6560"
-          fontSize={12}
+          stroke="#B5B0AA"
+          fontSize={11.5}
           tickLine={false}
           axisLine={false}
         />
-        <YAxis stroke="#6b6560" fontSize={12} tickLine={false} axisLine={false} width={40} />
+        <YAxis stroke="#B5B0AA" fontSize={11.5} tickLine={false} axisLine={false} width={40} />
         <Tooltip
           contentStyle={{
-            backgroundColor: '#fff',
-            border: '1px solid #e8e3ed',
-            borderRadius: '8px',
-            fontSize: '13px',
-            boxShadow: '0 4px 8px rgba(0,0,0,0.06)',
+            backgroundColor: '#3D3B4F',
+            border: 'none',
+            borderRadius: '10px',
+            fontSize: '12px',
+            color: '#FAFAFA',
+            boxShadow: '0 8px 20px rgba(61,59,79,0.25)',
           }}
+          labelStyle={{ color: '#C9C3BC', marginBottom: 2 }}
+          itemStyle={{ color: '#FAFAFA', fontWeight: 700 }}
+          cursor={{ stroke: '#3D3B4F', strokeOpacity: 0.35, strokeDasharray: '3 3' }}
           labelFormatter={formatTooltip}
         />
         <Area
           type="monotone"
           dataKey={metric}
-          stroke={color}
-          strokeWidth={2}
+          stroke={stroke}
+          strokeWidth={2.25}
           fillOpacity={1}
           fill={`url(#${gradientId})`}
+          activeDot={{ r: 4.5, strokeWidth: 2, stroke: '#fff' }}
+        />
+        {/* Always-visible endpoint dot anchoring "now" */}
+        <ReferenceDot
+          x={last.date}
+          y={last[metric]}
+          r={4}
+          fill={stroke}
+          stroke="#fff"
+          strokeWidth={2}
+          isFront
         />
       </AreaChart>
     </ResponsiveContainer>
@@ -209,8 +232,8 @@ export function TimeseriesChart({
   if (bare) return chart;
 
   return (
-    <div className="rounded-2xl border border-[#e8e3ed]/80 bg-white p-5">
-      <h3 className="mb-4 text-[15px] font-semibold text-[#2D3436]">
+    <div className="rounded-[20px] bg-white p-6 shadow-float">
+      <h3 className="mb-4 text-[15px] font-bold tracking-[-0.01em] text-[#3D3B4F]">
         {metric === 'visitors' ? 'Visitors' : metric === 'pageviews' ? 'Pageviews' : 'Sessions'}
       </h3>
       {chart}

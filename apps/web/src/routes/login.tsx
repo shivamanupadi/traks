@@ -1,6 +1,5 @@
 import { useEffect, useState, type ReactElement, type FormEvent } from 'react';
-import { createFileRoute, useNavigate, Link } from '@tanstack/react-router';
-import { Lock, UserPlus } from 'lucide-react';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { authClient } from '@/lib/auth-client';
@@ -52,30 +51,35 @@ function LoginPage(): ReactElement {
   };
 
   return (
-    <div className="min-h-screen bg-[#fdfbf8] flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
-        <Link to="/" className="flex items-center justify-center gap-2.5 mb-8">
-          <img src="/logo.svg" alt="Traks" className="h-10 w-10" />
-          <span className="font-semibold text-[20px] text-[#2D3436] tracking-tight">Traks</span>
-        </Link>
+    <div className="flex min-h-screen flex-col items-center justify-center bg-[#FAFAFA] px-4 py-12">
+      {/* faint dot grid, fading out below the card */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0"
+        style={{
+          backgroundImage: 'radial-gradient(circle, rgba(61,59,79,0.06) 1px, transparent 1px)',
+          backgroundSize: '26px 26px',
+          maskImage: 'linear-gradient(to bottom, black 0%, transparent 70%)',
+          WebkitMaskImage: 'linear-gradient(to bottom, black 0%, transparent 70%)',
+        }}
+      />
 
-        <div className="rounded-2xl border border-[#e8e3ed] bg-white p-6 shadow-sm">
+      <div className="relative w-full max-w-[384px]">
+        <div className="mb-9 flex flex-col items-center">
+          <img src="/logo.svg" alt="Traks" className="h-11 w-11" />
+          <span className="mt-3 text-[19px] font-bold tracking-tight text-[#3D3B4F]">Traks</span>
+        </div>
+
+        <div className="rounded-[20px] border border-[#E9E9EE] bg-white p-8 shadow-float">
           {firstRun === null ? (
-            <p className="py-8 text-center text-[14px] text-[#9B9590]">Loading...</p>
+            <p className="py-8 text-center text-[14px] text-[#9B99A6]">Loading...</p>
           ) : (
             <>
-              <div className="mb-5">
-                <div className="w-10 h-10 rounded-xl bg-[#9b72cf]/10 flex items-center justify-center mb-3">
-                  {firstRun ? (
-                    <UserPlus className="w-5 h-5 text-[#9b72cf]" strokeWidth={1.7} />
-                  ) : (
-                    <Lock className="w-5 h-5 text-[#9b72cf]" strokeWidth={1.7} />
-                  )}
-                </div>
-                <h1 className="text-[18px] font-bold text-[#2D3436] tracking-[-0.01em]">
+              <div className="mb-6">
+                <h1 className="text-[18px] font-bold tracking-[-0.01em] text-[#3D3B4F]">
                   {firstRun ? 'Create your owner account' : 'Sign in'}
                 </h1>
-                <p className="mt-1 text-[13px] text-[#9B9590]">
+                <p className="mt-1.5 text-[13px] leading-relaxed text-[#9B99A6]">
                   {firstRun
                     ? 'This instance is unclaimed. The account you create here becomes its owner — sign-ups close afterwards.'
                     : 'Welcome back. Sign in to your dashboard.'}
@@ -84,7 +88,7 @@ function LoginPage(): ReactElement {
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <label className="mb-1.5 block text-[13px] font-medium text-[#2D3436]">
+                  <label className="mb-1.5 block text-[12.5px] font-semibold text-[#3D3B4F]">
                     Email
                   </label>
                   <Input
@@ -93,12 +97,12 @@ function LoginPage(): ReactElement {
                     autoComplete="email"
                     value={email}
                     onChange={e => setEmail(e.target.value)}
-                    className="rounded-xl h-11 border-[#e8e3ed] focus:border-[#9b72cf]/40 px-4 text-[14px]"
+                    className="h-11 px-4 text-[14px]"
                     autoFocus
                   />
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-[13px] font-medium text-[#2D3436]">
+                  <label className="mb-1.5 block text-[12.5px] font-semibold text-[#3D3B4F]">
                     Password
                   </label>
                   <Input
@@ -108,10 +112,10 @@ function LoginPage(): ReactElement {
                     autoComplete={firstRun ? 'new-password' : 'current-password'}
                     value={password}
                     onChange={e => setPassword(e.target.value)}
-                    className="rounded-xl h-11 border-[#e8e3ed] focus:border-[#9b72cf]/40 px-4 text-[14px]"
+                    className="h-11 px-4 text-[14px]"
                   />
                   {firstRun && (
-                    <p className="mt-1.5 text-[12px] text-[#B5B0AA]">At least 8 characters</p>
+                    <p className="mt-1.5 text-[12px] text-[#B3B1BE]">At least 8 characters</p>
                   )}
                 </div>
 
@@ -119,8 +123,9 @@ function LoginPage(): ReactElement {
 
                 <Button
                   type="submit"
+                  variant="dark"
                   isLoading={submitting}
-                  className="w-full h-11 rounded-xl bg-[#9b72cf] hover:bg-[#8a63bf] text-white text-[14px] font-semibold"
+                  className="mt-1 h-[46px] w-full text-[14px]"
                 >
                   {firstRun ? 'Create account' : 'Sign in'}
                 </Button>
@@ -128,6 +133,10 @@ function LoginPage(): ReactElement {
             </>
           )}
         </div>
+
+        <p className="mt-7 text-center font-mono text-[10.5px] font-medium uppercase tracking-[0.14em] text-[#B3B1BE]">
+          Self-hosted instance · traks.dev
+        </p>
       </div>
     </div>
   );

@@ -6,23 +6,25 @@ import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer outline-none disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed',
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full text-sm font-medium transition-all duration-200 cursor-pointer outline-none disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed',
   {
     variants: {
       variant: {
-        default: 'bg-primary text-primary-foreground hover:bg-primary/90',
+        default:
+          'bg-primary text-primary-foreground font-bold shadow-sm hover:-translate-y-px hover:shadow-md',
+        dark: 'bg-[#3D3B4F] text-white font-semibold hover:bg-[#2C2B3B] hover:-translate-y-px hover:shadow-lg',
         destructive: 'bg-destructive text-white hover:bg-destructive/90',
         outline:
-          'border border-border/50 bg-white text-foreground hover:bg-muted hover:border-border',
+          'bg-white text-[#9B9590] shadow-[inset_0_0_0_1px_var(--border)] hover:text-foreground hover:shadow-[inset_0_0_0_1px_#C7C6D2]',
         secondary: 'bg-muted text-foreground hover:bg-muted/80',
         ghost: 'hover:bg-muted hover:text-foreground',
-        link: 'text-primary underline-offset-4 hover:underline',
+        link: 'text-foreground underline-offset-4 hover:underline',
       },
       size: {
-        default: 'h-10 px-4 py-2',
-        sm: 'h-9 rounded-md px-3 text-xs',
-        lg: 'h-11 rounded-lg px-6',
-        xl: 'h-12 rounded-xl px-8 text-base',
+        default: 'h-10 px-5 py-2',
+        sm: 'h-9 px-4 text-xs',
+        lg: 'h-11 px-6',
+        xl: 'h-12 px-8 text-base',
         icon: 'h-10 w-10',
       },
     },

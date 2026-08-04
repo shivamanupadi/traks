@@ -37,7 +37,37 @@ interface PanelCardProps {
   onItemClick?: (item: PanelItem) => void;
 }
 
-/** Plausible-style list panel: title + tab switcher, rows with proportional bars. */
+/** Pill tab switcher shared by the list panels. */
+export function PanelTabs({
+  tabs,
+  activeTab,
+  onTabChange,
+}: {
+  tabs: PanelTab[];
+  activeTab?: string;
+  onTabChange?: (key: string) => void;
+}): ReactElement {
+  return (
+    <div className="flex items-center gap-0.5 rounded-full bg-muted p-0.5">
+      {tabs.map(tab => (
+        <button
+          key={tab.key}
+          onClick={() => onTabChange?.(tab.key)}
+          className={cn(
+            'rounded-full px-2.5 py-1 text-[11px] font-medium transition-all cursor-pointer',
+            activeTab === tab.key
+              ? 'bg-white text-[#3D3B4F] shadow-sm'
+              : 'text-[#9B9590] hover:text-[#6b6560]'
+          )}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Floating list panel: title + pill tabs, rows with proportional fill bars behind them. */
 export function PanelCard({
   title,
   labelHeader,
@@ -61,31 +91,18 @@ export function PanelCard({
   return (
     <div
       className={cn(
-        'flex min-h-[22rem] flex-col rounded-2xl border border-[#e8e3ed]/80 bg-white p-5',
+        'flex min-h-[22rem] flex-col rounded-[20px] bg-white p-6 shadow-float',
         className
       )}
     >
       {/* Header: title + tabs */}
       <div className="mb-4 flex items-center justify-between gap-3">
-        <h3 className="truncate text-[15px] font-semibold text-[#2D3436]">{title}</h3>
+        <h3 className="truncate text-[15px] font-bold tracking-[-0.01em] text-[#3D3B4F]">
+          {title}
+        </h3>
         {headerAction}
         {tabs && tabs.length > 1 && (
-          <div className="flex items-center gap-0.5 rounded-lg bg-[#f3f0f7]/60 p-0.5">
-            {tabs.map(tab => (
-              <button
-                key={tab.key}
-                onClick={() => onTabChange?.(tab.key)}
-                className={cn(
-                  'rounded-md px-2.5 py-1 text-[11px] font-medium transition-all cursor-pointer',
-                  activeTab === tab.key
-                    ? 'bg-white text-[#2D3436] shadow-sm'
-                    : 'text-[#9B9590] hover:text-[#6b6560]'
-                )}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+          <PanelTabs tabs={tabs} activeTab={activeTab} onTabChange={onTabChange} />
         )}
       </div>
 
@@ -98,8 +115,8 @@ export function PanelCard({
         <div className="mt-1 space-y-2.5">
           {[95, 78, 62, 48, 36, 28, 20].map((w, i) => (
             <div key={i} className="flex items-center justify-between gap-4">
-              <div className="h-6 animate-pulse rounded bg-[#f3f0f7]" style={{ width: `${w}%` }} />
-              <div className="h-6 w-10 shrink-0 animate-pulse rounded bg-[#f3f0f7]" />
+              <div className="h-6 animate-pulse rounded bg-muted" style={{ width: `${w}%` }} />
+              <div className="h-6 w-10 shrink-0 animate-pulse rounded bg-muted" />
             </div>
           ))}
         </div>
@@ -133,23 +150,18 @@ export function PanelCard({
                 onClick={clickable ? () => onItemClick!(item) : undefined}
                 className={cn(
                   'relative flex h-[30px] w-full items-center justify-between rounded-md px-2.5',
-                  clickable && 'cursor-pointer transition-colors hover:bg-[#9b72cf]/[0.05]'
+                  clickable && 'cursor-pointer transition-colors hover:bg-muted'
                 )}
                 title={clickable ? `Filter by ${item.name}` : undefined}
               >
                 <div
-                  className="absolute inset-y-0 left-0 rounded-md bg-[#9b72cf]/[0.08]"
+                  className="absolute inset-y-0 left-0 rounded-md bg-[#3D3B4F]/[0.05]"
                   style={{ width: `${(item.visitors / maxVisitors) * 100}%` }}
                 />
-                <span
-                  className={cn(
-                    'relative z-10 truncate pr-4 text-[13px] text-[#2D3436]',
-                    clickable && 'group-hover:underline'
-                  )}
-                >
+                <span className="relative z-10 truncate pr-4 text-[13px] text-[#3D3B4F]">
                   {item.name || '(none)'}
                 </span>
-                <div className="relative z-10 flex shrink-0 gap-5 text-[13px] font-medium tabular-nums text-[#2D3436]">
+                <div className="relative z-10 flex shrink-0 gap-5 text-[13px] font-medium tabular-nums text-[#3D3B4F]">
                   <span className="w-12 text-right">{formatNumber(item.visitors)}</span>
                   {showPageviews && (
                     <span className="w-12 text-right">{formatNumber(item.pageviews || 0)}</span>

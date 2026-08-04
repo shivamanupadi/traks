@@ -4,7 +4,6 @@ import type { Bindings, Variables } from './types';
 import { getAuth, claimStatus } from './lib/auth';
 import { sitesRoute } from './routes/sites';
 import { analyticsRoute } from './routes/analytics';
-import { publicRoute } from './routes/public';
 import { meRoute } from './routes/me';
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
@@ -30,8 +29,7 @@ app.get('/api/claim-status', async c => c.json({ claimed: await claimStatus(c.en
 const routes = app
   .route('/api/me', meRoute)
   .route('/api/sites', sitesRoute)
-  .route('/api/analytics', analyticsRoute)
-  .route('/api/public', publicRoute);
+  .route('/api/analytics', analyticsRoute);
 
 // Unmatched non-API paths are SPA routes (/login, /portal/…): serve the
 // assets fallback (index.html). Assets that exist never reach the worker.

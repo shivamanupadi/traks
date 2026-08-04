@@ -1,8 +1,73 @@
 import type { ReactElement } from 'react';
 import { Link } from '@tanstack/react-router';
 import { motion } from 'framer-motion';
+import { useQuery } from '@tanstack/react-query';
 import { Globe, ArrowRight } from 'lucide-react';
+import type { TimeseriesPoint } from '@traks/shared';
+import { api } from '@/lib/api';
 import { SiteTileStats } from './SiteTileStats';
+
+export interface TileColor {
+  /** Deep companion: icon, sparkline stroke, arrow. */
+  deep: string;
+  /** Pastel: sparkline fill, icon-chip wash. */
+  pastel: string;
+}
+
+/** Today's hourly visitors sparkline; last point gets an anchored endpoint dot. */
+function Sparkline({
+  points,
+  color,
+}: {
+  points: TimeseriesPoint[];
+  color: TileColor;
+}): ReactElement {
+  if (points.length < 2) return <div className="mt-3.5 h-11 w-full" aria-hidden="true" />;
+  const w = 280;
+  const h = 44;
+  const values = points.map(p => p.visitors);
+  const max = Math.max(...values);
+  const min = Math.min(...values);
+  const pad = (max - min) * 0.2 || 1;
+  const sx = (i: number): number => 4 + (i * (w - 8)) / (values.length - 1);
+  const sy = (v: number): number => 4 + (h - 10) * (1 - (v - min + pad) / (max - min + 2 * pad));
+  const line = values.map((v, i) => `${sx(i)},${sy(v)}`).join(' L ');
+  const gid = `spark-${color.deep.slice(1)}`;
+  const lastI = values.length - 1;
+
+  return (
+    <svg
+      className="mt-3.5 block h-11 w-full"
+      viewBox={`0 0 ${w} ${h}`}
+      preserveAspectRatio="none"
+      aria-hidden="true"
+    >
+      <defs>
+        <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color.pastel} stopOpacity="0.35" />
+          <stop offset="100%" stopColor={color.pastel} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={`M ${line} L ${sx(lastI)},${h} L ${sx(0)},${h} Z`} fill={`url(#${gid})`} />
+      <path
+        d={`M ${line}`}
+        fill="none"
+        stroke={color.deep}
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle
+        cx={sx(lastI)}
+        cy={sy(values[lastI])}
+        r="3"
+        fill={color.deep}
+        stroke="#fff"
+        strokeWidth="1.5"
+      />
+    </svg>
+  );
+}
 
 export function SiteTile({
   site,
@@ -13,12 +78,21 @@ export function SiteTile({
   batchIndex,
 }: {
   site: { id: string; name: string; domain: string };
-  color: string;
+  color: TileColor;
   stats: { visitors: number; pageviews: number; sessions: number } | undefined;
   isStatsLoading: boolean;
   isNew: boolean;
   batchIndex: number;
 }): ReactElement {
+  // Today's hourly sparkline — matches the "Today" stats below it. 'today'
+  // is served live from the site's DO, so this stays cheap per tile.
+  const { data: sparkData, isLoading: sparkLoading } = useQuery({
+    queryKey: ['site-analytics', site.id, 'spark', 'today'],
+    queryFn: () => api.getTimeseries(site.id, 'today'),
+    staleTime: 60_000,
+  });
+  const sparkPoints = ((sparkData as any)?.data ?? []) as TimeseriesPoint[];
+
   return (
     <motion.div
       initial={isNew ? { opacity: 0, y: 16, scale: 0.97 } : false}
@@ -32,39 +106,47 @@ export function SiteTile({
       <Link
         to="/portal/site/$siteId"
         params={{ siteId: site.id }}
-        className="group relative block rounded-2xl border border-[#e8e3ed]/80 bg-white p-5 transition-all duration-300 hover:shadow-xl hover:shadow-black/[0.06] hover:border-[#d5cfe0] overflow-hidden"
+        className="group relative block rounded-[20px] bg-white p-[22px] shadow-float transition-all duration-300 hover:-translate-y-[3px] hover:shadow-float-lg"
       >
         {/* Header row: icon + name */}
-        <div className="flex items-center gap-3 mb-1">
-          <div className="w-9 h-9 rounded-lg bg-[#F5F3F0] flex items-center justify-center shrink-0 transition-transform duration-300 group-hover:scale-110">
-            <Globe className="w-[18px] h-[18px] text-[#6B6560]" strokeWidth={1.7} />
+        <div className="flex items-center gap-3">
+          <div
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] transition-transform duration-300 group-hover:scale-110"
+            style={{ backgroundColor: `${color.pastel}40` }}
+          >
+            <Globe className="h-[18px] w-[18px]" style={{ color: color.deep }} strokeWidth={1.7} />
           </div>
-          <div className="flex-1 min-w-0">
-            <h3 className="text-[15px] font-semibold text-[#2D3436] leading-tight truncate">
+          <div className="min-w-0 flex-1">
+            <h3 className="truncate text-[15px] font-bold leading-tight text-[#3D3B4F]">
               {site.name}
             </h3>
-            <span className="text-[12px] text-[#B5B0AA] mt-0.5 truncate block">{site.domain}</span>
+            <span className="mt-0.5 block truncate text-[12px] text-[#B5B0AA]">{site.domain}</span>
           </div>
         </div>
+
+        {sparkLoading ? (
+          <div className="mt-3.5 h-11 w-full animate-pulse rounded-xl bg-muted" aria-hidden="true" />
+        ) : (
+          <Sparkline points={sparkPoints} color={color} />
+        )}
 
         {/* Stats - today */}
-        <div className="mt-4">
-          <div className="flex items-center justify-between mb-2.5">
-            <span className="text-[10px] font-semibold text-[#B5B0AA] uppercase tracking-wider">
-              Today
-            </span>
-          </div>
-          <SiteTileStats stats={stats} isLoading={isStatsLoading} />
+        <div className="mt-3.5">
+          <span className="mb-2.5 block text-[10.5px] font-bold uppercase tracking-[0.1em] text-[#9B9590]">
+            Today
+          </span>
+          <SiteTileStats stats={stats} isLoading={isStatsLoading} accent={color.deep} />
         </div>
 
-        {/* View analytics button */}
-        <div className="mt-4 flex items-center justify-between pt-3 border-t border-[#e8e3ed]/50">
-          <span className="text-[12px] font-medium text-[#9B9590] group-hover:text-[#2D3436] transition-colors">
+        {/* View analytics footer */}
+        <div className="mt-4 flex items-center justify-between">
+          <span className="text-[12px] font-semibold text-[#9B9590] transition-colors group-hover:text-[#3D3B4F]">
             View Analytics
           </span>
           <ArrowRight
-            className="w-4 h-4 text-[#d5cfe0] group-hover:translate-x-0.5 transition-all duration-200"
-            style={{ color }}
+            className="h-4 w-4 transition-all duration-200 group-hover:translate-x-0.5"
+            style={{ color: color.deep }}
+            strokeWidth={2}
           />
         </div>
       </Link>

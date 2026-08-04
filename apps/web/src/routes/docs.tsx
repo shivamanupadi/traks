@@ -9,7 +9,7 @@ export const Route = createFileRoute('/docs')({
 
 function Code({ children }: { children: ReactNode }): ReactElement {
   return (
-    <pre className="mt-3 rounded-xl border border-[#e8e3ed] bg-[#fdfbf8] px-4 py-3.5 text-[12.5px] leading-relaxed text-[#2D3436] font-mono whitespace-pre-wrap break-all select-all">
+    <pre className="mt-3 rounded-2xl bg-white px-4 py-3.5 text-[12.5px] leading-relaxed text-[#3D3B4F] font-mono whitespace-pre-wrap break-all select-all shadow-float">
       {children}
     </pre>
   );
@@ -18,7 +18,7 @@ function Code({ children }: { children: ReactNode }): ReactElement {
 function Section({ title, children }: { title: string; children: ReactNode }): ReactElement {
   return (
     <section className="mt-12">
-      <h2 className="text-[20px] font-bold text-[#2D3436] tracking-[-0.01em]">{title}</h2>
+      <h2 className="text-[20px] font-bold text-[#3D3B4F] tracking-[-0.01em]">{title}</h2>
       <div className="mt-3 space-y-3 text-[14px] leading-relaxed text-[#5a5550]">{children}</div>
     </section>
   );
@@ -26,12 +26,12 @@ function Section({ title, children }: { title: string; children: ReactNode }): R
 
 function DocsPage(): ReactElement {
   return (
-    <div className="min-h-screen bg-[#fdfbf8]">
+    <div className="min-h-screen bg-[#fafafa]">
       <main className="max-w-3xl mx-auto px-4 sm:px-6 py-12">
-        <Link to="/" className="text-[13px] text-[#9b72cf] hover:underline">
+        <Link to="/" className="text-[13px] font-semibold text-foreground hover:underline">
           ← traks.dev
         </Link>
-        <h1 className="mt-4 text-[32px] font-bold text-[#2D3436] tracking-[-0.02em]">
+        <h1 className="mt-4 text-[32px] font-bold text-[#3D3B4F] tracking-[-0.02em]">
           Documentation
         </h1>
         <p className="mt-2 text-[15px] text-[#8A8580]">
@@ -61,14 +61,6 @@ function DocsPage(): ReactElement {
             Call <code>window.traks(name, props?, value?)</code> anywhere after the script loads:
           </p>
           <Code>{`traks('signup', { plan: 'pro' });\ntraks('purchase', { sku: 'T100' }, 49.99);`}</Code>
-        </Section>
-
-        <Section title="3. Share a public dashboard">
-          <p>
-            Flip on <strong>Public dashboard</strong> in site settings and share{' '}
-            <code>{`${typeof window !== 'undefined' ? window.location.origin : 'https://traks.dev'}/share/SITE_ID`}</code>
-            . Viewers see the same live stats you do — no account needed.
-          </p>
         </Section>
 
         <Section title="Privacy">

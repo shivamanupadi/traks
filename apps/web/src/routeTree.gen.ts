@@ -13,7 +13,6 @@ import { Route as PortalRouteImport } from './routes/portal'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as DocsRouteImport } from './routes/docs'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ShareSiteIdRouteImport } from './routes/share.$siteId'
 import { Route as PortalSitesRouteImport } from './routes/portal.sites'
 import { Route as PortalSettingsRouteImport } from './routes/portal.settings'
 import { Route as PortalSiteSiteIdRouteImport } from './routes/portal.site.$siteId'
@@ -38,11 +37,6 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any).lazy(() => import('./routes/index.lazy').then((d) => d.Route))
-const ShareSiteIdRoute = ShareSiteIdRouteImport.update({
-  id: '/share/$siteId',
-  path: '/share/$siteId',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const PortalSitesRoute = PortalSitesRouteImport.update({
   id: '/sites',
   path: '/sites',
@@ -68,7 +62,6 @@ export interface FileRoutesByFullPath {
   '/portal': typeof PortalRouteWithChildren
   '/portal/settings': typeof PortalSettingsRoute
   '/portal/sites': typeof PortalSitesRoute
-  '/share/$siteId': typeof ShareSiteIdRoute
   '/portal/site/$siteId': typeof PortalSiteSiteIdRoute
 }
 export interface FileRoutesByTo {
@@ -78,7 +71,6 @@ export interface FileRoutesByTo {
   '/portal': typeof PortalRouteWithChildren
   '/portal/settings': typeof PortalSettingsRoute
   '/portal/sites': typeof PortalSitesRoute
-  '/share/$siteId': typeof ShareSiteIdRoute
   '/portal/site/$siteId': typeof PortalSiteSiteIdRoute
 }
 export interface FileRoutesById {
@@ -89,7 +81,6 @@ export interface FileRoutesById {
   '/portal': typeof PortalRouteWithChildren
   '/portal/settings': typeof PortalSettingsRoute
   '/portal/sites': typeof PortalSitesRoute
-  '/share/$siteId': typeof ShareSiteIdRoute
   '/portal/site/$siteId': typeof PortalSiteSiteIdRoute
 }
 export interface FileRouteTypes {
@@ -101,7 +92,6 @@ export interface FileRouteTypes {
     | '/portal'
     | '/portal/settings'
     | '/portal/sites'
-    | '/share/$siteId'
     | '/portal/site/$siteId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -111,7 +101,6 @@ export interface FileRouteTypes {
     | '/portal'
     | '/portal/settings'
     | '/portal/sites'
-    | '/share/$siteId'
     | '/portal/site/$siteId'
   id:
     | '__root__'
@@ -121,7 +110,6 @@ export interface FileRouteTypes {
     | '/portal'
     | '/portal/settings'
     | '/portal/sites'
-    | '/share/$siteId'
     | '/portal/site/$siteId'
   fileRoutesById: FileRoutesById
 }
@@ -130,7 +118,6 @@ export interface RootRouteChildren {
   DocsRoute: typeof DocsRoute
   LoginRoute: typeof LoginRoute
   PortalRoute: typeof PortalRouteWithChildren
-  ShareSiteIdRoute: typeof ShareSiteIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -161,13 +148,6 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/share/$siteId': {
-      id: '/share/$siteId'
-      path: '/share/$siteId'
-      fullPath: '/share/$siteId'
-      preLoaderRoute: typeof ShareSiteIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/portal/sites': {
@@ -214,7 +194,6 @@ const rootRouteChildren: RootRouteChildren = {
   DocsRoute: DocsRoute,
   LoginRoute: LoginRoute,
   PortalRoute: PortalRouteWithChildren,
-  ShareSiteIdRoute: ShareSiteIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

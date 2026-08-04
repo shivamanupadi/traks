@@ -2,47 +2,49 @@
 @import 'tw-animate-css';
 
 /*
- * Pulsebeam Design System
- * Lavender primary theme - analytics dashboard aesthetic
+ * Traks Design System — Ink & Mint
+ * Neutral slate ink (#3D3B4F) anchors text, dark buttons, chart strokes,
+ * and focus rings; mint (#28E99F) is a sparing accent — primary buttons,
+ * the live dot, chart fills. Surfaces float on soft shadows.
  */
 
 :root {
-  --radius: 0.5rem;
-  /* Lavender palette */
-  --background: #fdfbf8;
-  --foreground: #2d3436;
+  --radius: 0.625rem;
+  /* Mint palette */
+  --background: #fafafa;
+  --foreground: #3d3b4f;
   --card: #ffffff;
-  --card-foreground: #2d3436;
+  --card-foreground: #3d3b4f;
   --popover: #ffffff;
-  --popover-foreground: #2d3436;
-  /* Primary: Lavender */
-  --primary: #9b72cf;
-  --primary-foreground: #ffffff;
-  --secondary: #f3f0f7;
-  --secondary-foreground: #2d3436;
-  --muted: #f3f0f7;
-  --muted-foreground: #6b6560;
-  --accent: #f3f0f7;
-  --accent-foreground: #2d3436;
+  --popover-foreground: #3d3b4f;
+  /* Primary: mint green, ink text (AA 6.8:1) */
+  --primary: #28e99f;
+  --primary-foreground: #3d3b4f;
+  --secondary: #f1f1f5;
+  --secondary-foreground: #3d3b4f;
+  --muted: #f1f1f5;
+  --muted-foreground: #6e6c7c;
+  --accent: #f1f1f5;
+  --accent-foreground: #3d3b4f;
   --destructive: #e5484d;
-  --border: #e8e3ed;
-  --input: #e8e3ed;
-  --ring: #9b72cf;
+  --border: #e5e5eb;
+  --input: #e5e5eb;
+  --ring: #3d3b4f;
   /* Chart colors */
-  --chart-1: #9b72cf;
+  --chart-1: #3d3b4f;
   --chart-2: #5b9a6f;
   --chart-3: #e07a5f;
   --chart-4: #d4a574;
   --chart-5: #6b8ead;
   /* Sidebar */
   --sidebar: #ffffff;
-  --sidebar-foreground: #2d3436;
-  --sidebar-primary: #9b72cf;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #f3f0f7;
-  --sidebar-accent-foreground: #2d3436;
-  --sidebar-border: #e8e3ed;
-  --sidebar-ring: #9b72cf;
+  --sidebar-foreground: #3d3b4f;
+  --sidebar-primary: #28e99f;
+  --sidebar-primary-foreground: #3d3b4f;
+  --sidebar-accent: #f1f1f5;
+  --sidebar-accent-foreground: #3d3b4f;
+  --sidebar-border: #e5e5eb;
+  --sidebar-ring: #3d3b4f;
 }
 
 /* shadcn theme mapping */
@@ -86,7 +88,7 @@
 
 @theme {
   /* Brand accents */
-  --color-lavender: #9b72cf;
+  --color-mint: #28e99f;
   --color-sage: #5b9a6f;
   --color-coral: #e07a5f;
 
@@ -100,6 +102,10 @@
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
   --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.06);
   --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.08);
+  /* Floating surfaces (borderless cards) */
+  --shadow-float: 0 1px 2px rgba(61, 59, 79, 0.04), 0 10px 32px rgba(61, 59, 79, 0.07);
+  --shadow-float-lg: 0 2px 4px rgba(61, 59, 79, 0.05), 0 20px 48px rgba(61, 59, 79, 0.11);
+  --shadow-pill: 0 1px 2px rgba(61, 59, 79, 0.05), 0 4px 14px rgba(61, 59, 79, 0.06);
 
   /* Font */
   --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
@@ -165,7 +171,7 @@
   border-radius: 9999px;
 }
 
-/* Selection - lavender tint */
+/* Selection - mint tint */
 ::selection {
-  background: rgba(155, 114, 207, 0.15);
+  background: rgba(40, 233, 159, 0.25);
 }

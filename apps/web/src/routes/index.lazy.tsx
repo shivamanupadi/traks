@@ -1,503 +1,613 @@
-import type { ReactElement } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 import { createLazyFileRoute } from '@tanstack/react-router';
 import { motion } from 'framer-motion';
 import {
   ArrowRight,
+  ArrowUpRight,
+  Activity,
+  Check,
+  FileText,
+  Filter,
   Globe,
-  Zap,
-  Shield,
-  Eye,
-  MousePointer,
   MapPin,
+  MousePointerClick,
   Smartphone,
-  Code2,
-  Cookie,
-  Sparkles,
-  LayoutDashboard,
+  Target,
   type LucideIcon,
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 
 export const Route = createLazyFileRoute('/')({
   component: LandingPage,
 });
 
-interface Feature {
-  icon: LucideIcon;
-  label: string;
-  desc: string;
-  color: string;
+/* ── shared bits ─────────────────────────────────────────────── */
+
+const EASE = [0.25, 0.1, 0.25, 1] as const;
+
+interface RiseProps {
+  initial: { opacity: number; y: number };
+  whileInView: { opacity: number; y: number };
+  viewport: { once: boolean; margin: string };
+  transition: { duration: number; delay: number; ease: typeof EASE };
 }
 
-const features: Feature[] = [
-  { icon: Eye, label: 'Real-time', desc: 'Live visitor dashboard', color: '#9b72cf' },
-  { icon: Globe, label: 'Top Pages', desc: 'Most visited pages', color: '#5b9a6f' },
-  { icon: MapPin, label: 'Locations', desc: 'Country & city breakdown', color: '#e07a5f' },
-  { icon: MousePointer, label: 'Referrers', desc: 'Traffic sources & UTMs', color: '#9b72cf' },
-  { icon: Smartphone, label: 'Devices', desc: 'Browser, OS & screen size', color: '#5b9a6f' },
-  { icon: Zap, label: 'Custom Events', desc: 'Track clicks & conversions', color: '#e07a5f' },
+const rise = (delay = 0): RiseProps => ({
+  initial: { opacity: 0, y: 16 },
+  whileInView: { opacity: 1, y: 0 },
+  viewport: { once: true, margin: '-60px' },
+  transition: { duration: 0.55, delay, ease: EASE },
+});
+
+function Mono({
+  children,
+  className = '',
+}: {
+  children: ReactNode;
+  className?: string;
+}): ReactElement {
+  return (
+    <span className={`font-mono text-[11px] font-medium uppercase tracking-[0.14em] ${className}`}>
+      {children}
+    </span>
+  );
+}
+
+function SectionRule({ n, label }: { n: string; label: string }): ReactElement {
+  return (
+    <div className="flex items-baseline gap-4 border-t border-[#E4E4E9] pt-5">
+      <Mono className="text-[#B3B1BE]">{n}</Mono>
+      <Mono className="text-[#6E6C7C]">{label}</Mono>
+    </div>
+  );
+}
+
+/* ── dashboard mock ──────────────────────────────────────────── */
+
+const SPARK = [18, 24, 21, 30, 26, 34, 31, 42, 38, 47, 43, 56, 50, 62, 58, 70, 64, 76, 72, 84];
+
+function sparkPath(values: number[], w: number, h: number): { line: string; area: string } {
+  const max = Math.max(...values) * 1.15;
+  const step = w / (values.length - 1);
+  const pts = values.map((v, i) => [i * step, h - (v / max) * h] as const);
+  const line = pts
+    .map(([x, y], i) => (i === 0 ? `M ${x} ${y}` : `L ${x.toFixed(1)} ${y.toFixed(1)}`))
+    .join(' ');
+  return { line, area: `${line} L ${w} ${h} L 0 ${h} Z` };
+}
+
+const METRICS = [
+  { label: 'Visitors', value: '12,481', change: '+8.2%' },
+  { label: 'Pageviews', value: '38,204', change: '+12.4%' },
+  { label: 'Bounce rate', value: '42%', change: '−3.1%' },
+  { label: 'Visit duration', value: '1m 54s', change: '+0.9%' },
 ];
 
-const highlights: { icon: LucideIcon; title: string; desc: string; color: string }[] = [
+const MOCK_PAGES = [
+  { name: '/', share: 92, value: '9,320' },
+  { name: '/pricing', share: 61, value: '4,187' },
+  { name: '/blog/launch', share: 44, value: '2,905' },
+  { name: '/docs', share: 27, value: '1,733' },
+];
+
+const MOCK_SOURCES = [
+  { name: 'google.com', share: 88, value: '6,914' },
+  { name: 'news.ycombinator.com', share: 52, value: '3,516' },
+  { name: 'Direct', share: 46, value: '3,102' },
+  { name: 'x.com', share: 22, value: '1,048' },
+];
+
+function MockList({ title, rows }: { title: string; rows: typeof MOCK_PAGES }): ReactElement {
+  return (
+    <div>
+      <div className="mb-2.5 flex items-baseline justify-between">
+        <Mono className="text-[#8C8A99]">{title}</Mono>
+        <Mono className="text-[#B3B1BE]">Visitors</Mono>
+      </div>
+      <div className="space-y-1">
+        {rows.map(r => (
+          <div
+            key={r.name}
+            className="relative flex items-center justify-between rounded-md px-2.5 py-[7px]"
+          >
+            <span
+              className="absolute inset-y-0 left-0 rounded-md bg-[#3D3B4F]/[0.05]"
+              style={{ width: `${r.share}%` }}
+            />
+            <span className="relative z-10 text-[12.5px] text-[#3D3B4F]">{r.name}</span>
+            <span className="relative z-10 font-mono text-[12px] tabular-nums text-[#6E6C7C]">
+              {r.value}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DashboardMock(): ReactElement {
+  const { line, area } = sparkPath(SPARK, 720, 120);
+  return (
+    <div className="overflow-hidden rounded-[18px] border border-[#E4E4E9] bg-white shadow-[0_1px_2px_rgba(61,59,79,0.04),0_16px_48px_rgba(61,59,79,0.07)]">
+      {/* window chrome */}
+      <div className="flex items-center justify-between border-b border-[#EEEEF2] px-5 py-3">
+        <div className="flex items-center gap-2.5">
+          <img src="/logo.svg" alt="" className="h-4.5 w-4.5" />
+          <span className="text-[13px] font-semibold text-[#3D3B4F]">yoursite.com</span>
+        </div>
+        <span className="flex items-center gap-2 rounded-full bg-[#F4F4F6] py-1 pl-2.5 pr-3">
+          <span className="relative flex h-1.5 w-1.5">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-mint opacity-60" />
+            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-mint" />
+          </span>
+          <span className="font-mono text-[11px] font-medium text-[#3D3B4F]">23 online</span>
+        </span>
+      </div>
+
+      {/* metrics */}
+      <div className="grid grid-cols-2 gap-px bg-[#EEEEF2] sm:grid-cols-4">
+        {METRICS.map(m => (
+          <div key={m.label} className="bg-white px-5 py-4">
+            <Mono className="text-[#8C8A99]">{m.label}</Mono>
+            <div className="mt-1.5 flex items-baseline gap-2">
+              <span className="font-mono text-[20px] font-semibold tabular-nums tracking-tight text-[#3D3B4F]">
+                {m.value}
+              </span>
+              <span className="font-mono text-[11px] text-[#8C8A99]">{m.change}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* sparkline */}
+      <div className="border-t border-[#EEEEF2] px-5 pb-1 pt-4">
+        <svg viewBox="0 0 720 120" className="block h-[110px] w-full" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="spark-fill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#28E99F" stopOpacity="0.22" />
+              <stop offset="100%" stopColor="#28E99F" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          <motion.path
+            d={area}
+            fill="url(#spark-fill)"
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.8, delay: 0.7 }}
+          />
+          <motion.path
+            d={line}
+            fill="none"
+            stroke="#3D3B4F"
+            strokeWidth="2"
+            strokeLinecap="round"
+            initial={{ pathLength: 0 }}
+            whileInView={{ pathLength: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 1.1, delay: 0.25, ease: EASE }}
+          />
+        </svg>
+      </div>
+
+      {/* panels */}
+      <div className="grid grid-cols-1 gap-8 border-t border-[#EEEEF2] px-5 py-5 sm:grid-cols-2">
+        <MockList title="Top pages" rows={MOCK_PAGES} />
+        <MockList title="Top sources" rows={MOCK_SOURCES} />
+      </div>
+    </div>
+  );
+}
+
+/* ── content ─────────────────────────────────────────────────── */
+
+const FEATURES: { icon: LucideIcon; title: string; desc: string }[] = [
   {
-    icon: Cookie,
-    title: 'No cookies, ever',
-    desc: 'Cookieless visitor tracking with daily-rotating hashed IDs. Fully GDPR compliant, no consent banner needed.',
-    color: '#9b72cf',
+    icon: Activity,
+    title: 'Real-time',
+    desc: 'A live visitor count served from the edge, with today’s numbers updating every few seconds. No ingest delay.',
   },
   {
-    icon: Zap,
-    title: 'Under 1KB script',
-    desc: 'Lightweight tracking script that loads instantly. No impact on your site performance or Core Web Vitals.',
-    color: '#5b9a6f',
+    icon: FileText,
+    title: 'Pages',
+    desc: 'Pageviews and unique visitors for every URL — including entry and exit pages, so you see where journeys start and stall.',
   },
   {
-    icon: Shield,
-    title: 'Your data, your cloud',
-    desc: 'Self-hosted on Cloudflare Workers & Analytics Engine. Data never leaves your account.',
-    color: '#e07a5f',
+    icon: ArrowUpRight,
+    title: 'Sources',
+    desc: 'Referrers plus full UTM breakdowns — source, medium, and campaign — to tell you which channels actually convert.',
   },
   {
-    icon: Code2,
-    title: 'One-line setup',
-    desc: 'Add a single script tag to your site. Works with SPAs, static sites, and server-rendered pages.',
-    color: '#6b8ead',
+    icon: MapPin,
+    title: 'Locations',
+    desc: 'Visitors by country, region, and city, resolved at the edge without storing a single IP address.',
+  },
+  {
+    icon: Smartphone,
+    title: 'Devices',
+    desc: 'Browser, operating system, and screen size — enough to know what to test on, nothing you don’t need.',
+  },
+  {
+    icon: Target,
+    title: 'Events & goals',
+    desc: 'Custom events with one call to window.traks(). Outbound clicks and file downloads are tracked automatically. Turn any of them into a goal with a conversion value.',
   },
 ];
+
+const PRIVACY_POINTS = [
+  'No cookies and nothing stored in the browser — no consent banner required',
+  'Visitors are counted with daily-rotating hashed identifiers, never profiles',
+  'IP addresses are used in-memory to resolve geography, then discarded',
+  'GDPR, ePrivacy, and PECR compliant by design, not by checkbox',
+];
+
+const STACK = ['Workers', 'D1', 'R2 SQL', 'Durable Objects'];
+
+/* ── page ────────────────────────────────────────────────────── */
+
+function NavLink({ id, children }: { id: string; children: ReactNode }): ReactElement {
+  return (
+    <a
+      href={`#${id}`}
+      onClick={e => {
+        e.preventDefault();
+        document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+      }}
+      className="rounded-md px-3 py-2 font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-[#6E6C7C] transition-colors hover:text-[#3D3B4F]"
+    >
+      {children}
+    </a>
+  );
+}
 
 function LandingPage(): ReactElement {
   return (
-    <div className="min-h-screen flex flex-col relative overflow-hidden bg-[#fdfbf8]">
-      {/* Background gradients */}
-      <div className="fixed inset-0 pointer-events-none">
-        <div
-          className="absolute inset-0"
-          style={{
-            background:
-              'radial-gradient(ellipse 60% 50% at 85% 15%, rgba(155,114,207,0.06) 0%, transparent 70%), radial-gradient(ellipse 50% 50% at 10% 85%, rgba(91,154,111,0.05) 0%, transparent 70%), radial-gradient(ellipse 40% 40% at 50% 50%, rgba(224,122,95,0.03) 0%, transparent 60%)',
-          }}
-        />
-      </div>
+    <div className="min-h-screen bg-[#FAFAFA] text-[#3D3B4F]">
+      {/* dot grid ground */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0"
+        style={{
+          backgroundImage: 'radial-gradient(circle, rgba(61,59,79,0.075) 1px, transparent 1px)',
+          backgroundSize: '26px 26px',
+          maskImage: 'linear-gradient(to bottom, black 0%, transparent 55%)',
+          WebkitMaskImage: 'linear-gradient(to bottom, black 0%, transparent 55%)',
+        }}
+      />
 
-      {/* Header */}
-      <header className="relative z-10 py-5 max-w-5xl mx-auto w-full px-6 flex items-center justify-between">
+      {/* header */}
+      <header className="relative z-10 mx-auto flex w-full max-w-[1060px] items-center justify-between px-6 py-6">
         <div className="flex items-center gap-2.5">
-          <img src="/logo.svg" alt="Traks" className="w-8 h-8" />
-          <span className="text-[17px] font-bold text-[#2D3436] tracking-tight">Traks</span>
+          <img src="/logo.svg" alt="Traks" className="h-7 w-7" />
+          <span className="text-[16px] font-bold tracking-tight">Traks</span>
         </div>
         <nav className="flex items-center gap-1">
-          <a
-            href="#features"
-            onClick={e => {
-              e.preventDefault();
-              document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' });
-            }}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-[13px] font-medium text-[#6b6560] hover:text-[#2D3436] hover:bg-[#f3f0f7]/80 transition-all"
-          >
-            <Zap className="w-3.5 h-3.5" strokeWidth={1.75} />
-            Features
-          </a>
-          <a
-            href="#why"
-            onClick={e => {
-              e.preventDefault();
-              document.getElementById('why')?.scrollIntoView({ behavior: 'smooth' });
-            }}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-[13px] font-medium text-[#6b6560] hover:text-[#2D3436] hover:bg-[#f3f0f7]/80 transition-all"
-          >
-            <Sparkles className="w-3.5 h-3.5" strokeWidth={1.75} />
-            Why Traks
-          </a>
-          <div className="w-px h-4 bg-[#e8e3ed] mx-1" />
+          <div className="hidden sm:flex sm:items-center sm:gap-1">
+            <NavLink id="features">Features</NavLink>
+            <NavLink id="how">How it works</NavLink>
+            <a
+              href="/docs"
+              className="rounded-md px-3 py-2 font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-[#6E6C7C] transition-colors hover:text-[#3D3B4F]"
+            >
+              Docs
+            </a>
+          </div>
           {/* Plain anchor: a full navigation lets Cloudflare Access gate /portal. */}
-          <a href="/portal/sites">
-            <Button variant="ghost" className="text-[13px] gap-1.5">
-              <LayoutDashboard className="w-3.5 h-3.5" strokeWidth={1.75} />
-              Dashboard
-            </Button>
+          <a
+            href="/portal/sites"
+            className="ml-2 inline-flex h-9 items-center gap-1.5 rounded-full bg-[#3D3B4F] px-4 text-[12.5px] font-semibold text-white transition-all hover:-translate-y-px hover:bg-[#2C2B3B] hover:shadow-md"
+          >
+            Dashboard
           </a>
         </nav>
       </header>
 
-      {/* Hero - 2-column */}
-      <main className="relative z-10 flex-1 flex flex-col">
-        <div className="max-w-5xl w-full mx-auto flex-1 grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-16 items-center px-6 py-12 sm:py-16 lg:py-24">
-          {/* Left: Hero text */}
-          <section className="flex flex-col justify-center items-center lg:items-start text-center lg:text-left">
-            <motion.h1
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.08, ease: [0.25, 0.1, 0.25, 1] }}
-              className="mb-6"
-            >
-              <span className="block text-[42px] sm:text-[54px] lg:text-[62px] font-bold text-[#2D3436] leading-[1.05] tracking-[-0.03em]">
-                Know your{' '}
-                <span className="relative inline-block">
-                  <span className="relative z-10 text-[#9b72cf]">audience</span>
-                  <motion.span
-                    initial={{ scaleX: 0 }}
-                    animate={{ scaleX: 1 }}
-                    transition={{ duration: 0.5, delay: 0.55, ease: [0.25, 0.1, 0.25, 1] }}
-                    className="absolute -bottom-1 left-0 right-0 h-[3px] bg-gradient-to-r from-[#9b72cf]/60 via-[#9b72cf]/40 to-transparent rounded-full origin-left"
-                  />
-                </span>
-              </span>
-            </motion.h1>
-
-            <motion.p
-              initial={{ opacity: 0, y: 14 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.18 }}
-              className="text-[16px] sm:text-[17px] text-[#8A8580] leading-relaxed mb-10 max-w-[420px]"
-            >
-              Privacy-friendly, cookieless analytics for all your sites. Self-hosted on Cloudflare,
-              lightweight script, real-time dashboard.
-            </motion.p>
-
-            <motion.div
-              initial={{ opacity: 0, y: 14 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.28 }}
-              className="flex items-center gap-3.5"
-            >
-              <a href="/portal/sites">
-                <Button className="h-[50px] px-7 rounded-2xl text-[14px] font-semibold bg-[#9b72cf] hover:bg-[#8a63bf] text-white shadow-lg shadow-[#9b72cf]/15 hover:shadow-xl hover:shadow-[#9b72cf]/20 transition-all duration-300 hover:-translate-y-0.5">
-                  Go to Dashboard
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </Button>
-              </a>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.5, delay: 0.5 }}
-              className="mt-8 flex items-center gap-2 text-[12px] text-[#B5B0AA]"
-            >
-              <Cookie className="w-3.5 h-3.5 text-[#9b72cf]/60" />
-              <span>No cookies, no consent banners, GDPR compliant</span>
-            </motion.div>
-          </section>
-
-          {/* Right: Feature showcase cards */}
+      <main className="relative z-10">
+        {/* hero */}
+        <section className="mx-auto w-full max-w-[1060px] px-6 pb-20 pt-14 sm:pt-20">
           <motion.div
-            initial="hidden"
-            animate="visible"
-            variants={{
-              hidden: { opacity: 0 },
-              visible: {
-                opacity: 1,
-                transition: { staggerChildren: 0.05, delayChildren: 0.3 },
-              },
-            }}
-            className="hidden lg:flex flex-col gap-3"
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, ease: EASE }}
           >
-            {/* Top row - 3 cards */}
-            <div className="grid grid-cols-3 gap-3">
-              {features.slice(0, 3).map(f => (
-                <motion.div
-                  key={f.label}
-                  variants={{
-                    hidden: { opacity: 0, y: 18, scale: 0.97 },
-                    visible: {
-                      opacity: 1,
-                      y: 0,
-                      scale: 1,
-                      transition: { duration: 0.5, ease: [0.25, 0.1, 0.25, 1] as const },
-                    },
-                  }}
-                  whileHover={{ y: -4, transition: { duration: 0.25, ease: 'easeOut' } }}
-                  className="group relative rounded-2xl bg-white border border-[#e8e3ed]/80 p-5 cursor-default overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-black/[0.06] hover:border-[#d5cfe0]"
-                >
-                  <div
-                    className="absolute top-0 left-0 right-0 h-[2px] origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-400 ease-out"
-                    style={{ backgroundColor: f.color }}
-                  />
-                  <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 transition-transform duration-300 group-hover:scale-110"
-                    style={{ backgroundColor: `${f.color}12` }}
-                  >
-                    <f.icon
-                      className="w-[18px] h-[18px]"
-                      style={{ color: f.color }}
-                      strokeWidth={1.7}
-                    />
-                  </div>
-                  <p className="text-[13px] font-semibold text-[#2D3436] leading-tight">
-                    {f.label}
-                  </p>
-                  <p className="text-[11px] text-[#9B9590] leading-snug mt-1">{f.desc}</p>
-                </motion.div>
-              ))}
-            </div>
-
-            {/* Bottom row - 3 cards */}
-            <div className="grid grid-cols-3 gap-3">
-              {features.slice(3, 6).map(f => (
-                <motion.div
-                  key={f.label}
-                  variants={{
-                    hidden: { opacity: 0, y: 18, scale: 0.97 },
-                    visible: {
-                      opacity: 1,
-                      y: 0,
-                      scale: 1,
-                      transition: { duration: 0.5, ease: [0.25, 0.1, 0.25, 1] as const },
-                    },
-                  }}
-                  whileHover={{ y: -4, transition: { duration: 0.25, ease: 'easeOut' } }}
-                  className="group relative rounded-2xl bg-white border border-[#e8e3ed]/80 p-5 cursor-default overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-black/[0.06] hover:border-[#d5cfe0]"
-                >
-                  <div
-                    className="absolute top-0 left-0 right-0 h-[2px] origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-400 ease-out"
-                    style={{ backgroundColor: f.color }}
-                  />
-                  <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center mb-3 transition-transform duration-300 group-hover:scale-110"
-                    style={{ backgroundColor: `${f.color}12` }}
-                  >
-                    <f.icon
-                      className="w-[18px] h-[18px]"
-                      style={{ color: f.color }}
-                      strokeWidth={1.7}
-                    />
-                  </div>
-                  <p className="text-[13px] font-semibold text-[#2D3436] leading-tight">
-                    {f.label}
-                  </p>
-                  <p className="text-[11px] text-[#9B9590] leading-snug mt-1">{f.desc}</p>
-                </motion.div>
-              ))}
-            </div>
-
-            {/* Code snippet card */}
-            <motion.div
-              variants={{
-                hidden: { opacity: 0, y: 14 },
-                visible: {
-                  opacity: 1,
-                  y: 0,
-                  transition: { duration: 0.4, ease: [0.25, 0.1, 0.25, 1] as const },
-                },
-              }}
-              className="rounded-2xl bg-white border border-[#e8e3ed]/80 p-4 cursor-default overflow-hidden"
-            >
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#e07a5f]/60" />
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#d4a574]/60" />
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#5b9a6f]/60" />
-                  </div>
-                  <span className="text-[11px] text-[#B5B0AA] font-medium ml-1">index.html</span>
-                </div>
-                <span className="text-[10px] text-[#9b72cf]/70 font-medium tracking-wide uppercase">
-                  Add to any site
-                </span>
-              </div>
-              <pre className="text-[12px] font-mono leading-[1.7] overflow-x-auto">
-                <code>
-                  <span className="text-[#6b8ead]">{'<'}</span>
-                  <span className="text-[#9b72cf]">script</span>{' '}
-                  <span className="text-[#d4a574]">defer</span>
-                  {'\n'}
-                  {'  '}
-                  <span className="text-[#5b9a6f]">data-site</span>
-                  <span className="text-[#B5B0AA]">=</span>
-                  <span className="text-[#e07a5f]">{'"YOUR_KEY"'}</span>
-                  {'\n'}
-                  {'  '}
-                  <span className="text-[#5b9a6f]">src</span>
-                  <span className="text-[#B5B0AA]">=</span>
-                  <span className="text-[#e07a5f]">{'"https://collect.traks.dev/t.js"'}</span>
-                  <span className="text-[#6b8ead]">{'>'}</span>
-                  {'\n'}
-                  <span className="text-[#6b8ead]">{'</'}</span>
-                  <span className="text-[#9b72cf]">script</span>
-                  <span className="text-[#6b8ead]">{'>'}</span>
-                </code>
-              </pre>
-            </motion.div>
+            <Mono className="text-[#8C8A99]">Self-hosted web analytics</Mono>
           </motion.div>
-        </div>
 
-        {/* Why Traks section */}
-        <section id="why" className="relative z-10 py-20 sm:py-28">
-          <div className="max-w-5xl mx-auto px-6">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: '-100px' }}
-              transition={{ duration: 0.5 }}
-              className="text-center mb-14"
+          <motion.h1
+            initial={{ opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.08, ease: EASE }}
+            className="mt-5 max-w-[15ch] text-[clamp(40px,7vw,72px)] font-bold leading-[1.02] tracking-[-0.035em]"
+          >
+            Analytics you{' '}
+            <span className="relative inline-block">
+              own
+              <motion.span
+                initial={{ scaleX: 0 }}
+                animate={{ scaleX: 1 }}
+                transition={{ duration: 0.5, delay: 0.7, ease: EASE }}
+                className="absolute -bottom-1 left-0 right-0 h-[5px] origin-left rounded-full bg-mint"
+              />
+            </span>
+            , not rent.
+          </motion.h1>
+
+          <motion.p
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.55, delay: 0.18, ease: EASE }}
+            className="mt-6 max-w-[52ch] text-[16px] leading-relaxed text-[#6E6C7C] sm:text-[17px]"
+          >
+            Traks runs entirely in your own Cloudflare account — a cookieless tracker under
+            1&nbsp;KB, a real-time dashboard, and traffic data that never touches anyone
+            else&rsquo;s servers.
+          </motion.p>
+
+          <motion.div
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.55, delay: 0.28, ease: EASE }}
+            className="mt-9 flex flex-wrap items-center gap-4"
+          >
+            <a
+              href="/portal/sites"
+              className="inline-flex h-12 items-center gap-2 rounded-full bg-[#3D3B4F] px-7 text-[14px] font-semibold text-white transition-all hover:-translate-y-px hover:bg-[#2C2B3B] hover:shadow-lg"
             >
-              <h2 className="text-[32px] sm:text-[40px] font-bold text-[#2D3436] tracking-[-0.02em]">
-                Why Traks?
-              </h2>
-              <p className="mt-3 text-[16px] text-[#8A8580] max-w-lg mx-auto">
-                Analytics that respects your visitors and gives you the insights you actually need.
-              </p>
-            </motion.div>
+              Open the dashboard
+              <ArrowRight className="h-4 w-4" />
+            </a>
+            <a
+              href="/docs"
+              className="inline-flex h-12 items-center gap-1.5 rounded-full px-4 text-[14px] font-semibold text-[#3D3B4F] underline-offset-4 transition-colors hover:underline"
+            >
+              Read the docs
+            </a>
+          </motion.div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-              {highlights.map((item, i) => (
-                <motion.div
-                  key={item.title}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, margin: '-50px' }}
-                  transition={{ duration: 0.5, delay: i * 0.08 }}
-                  className="group relative rounded-2xl bg-white border border-[#e8e3ed]/80 p-6 transition-all duration-300 hover:shadow-xl hover:shadow-black/[0.06] hover:border-[#d5cfe0]"
-                >
-                  <div
-                    className="absolute top-0 left-0 right-0 h-[2px] origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-400 ease-out"
-                    style={{ backgroundColor: item.color }}
-                  />
-                  <div className="flex items-start gap-4">
-                    <div
-                      className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 transition-transform duration-300 group-hover:scale-110"
-                      style={{ backgroundColor: `${item.color}12` }}
-                    >
-                      <item.icon
-                        className="w-5 h-5"
-                        style={{ color: item.color }}
-                        strokeWidth={1.7}
-                      />
-                    </div>
-                    <div>
-                      <h3 className="text-[15px] font-semibold text-[#2D3436]">{item.title}</h3>
-                      <p className="text-[13px] text-[#9B9590] leading-relaxed mt-1.5">
-                        {item.desc}
-                      </p>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          </div>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5, delay: 0.45 }}
+            className="mt-8"
+          >
+            <Mono className="text-[#B3B1BE]">
+              No cookies&ensp;·&ensp;No consent banner&ensp;·&ensp;&lt;&thinsp;1 KB script
+            </Mono>
+          </motion.div>
+
+          {/* dashboard mock */}
+          <motion.div
+            initial={{ opacity: 0, y: 28 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, delay: 0.4, ease: EASE }}
+            className="mt-16"
+          >
+            <DashboardMock />
+          </motion.div>
         </section>
 
-        {/* Features section */}
-        <section id="features" className="relative z-10 py-20 sm:py-28 bg-white/50">
-          <div className="max-w-5xl mx-auto px-6">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: '-100px' }}
-              transition={{ duration: 0.5 }}
-              className="text-center mb-14"
-            >
-              <h2 className="text-[32px] sm:text-[40px] font-bold text-[#2D3436] tracking-[-0.02em]">
-                Everything you need
-              </h2>
-              <p className="mt-3 text-[16px] text-[#8A8580] max-w-lg mx-auto">
-                Comprehensive analytics without the complexity. No bloat, no learning curve.
-              </p>
-            </motion.div>
+        {/* features */}
+        <section id="features" className="mx-auto w-full max-w-[1060px] px-6 py-16 sm:py-20">
+          <motion.div {...rise()}>
+            <SectionRule n="01" label="Everything measured" />
+            <h2 className="mt-8 max-w-[24ch] text-[28px] font-bold leading-tight tracking-[-0.02em] sm:text-[36px]">
+              The numbers you check daily, without the two hundred reports you don&rsquo;t.
+            </h2>
+          </motion.div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="mt-12 grid grid-cols-1 gap-px overflow-hidden rounded-[18px] border border-[#E4E4E9] bg-[#E4E4E9] sm:grid-cols-2 lg:grid-cols-3">
+            {FEATURES.map((f, i) => (
+              <motion.div key={f.title} {...rise(i * 0.05)} className="bg-white p-7">
+                <f.icon className="h-[18px] w-[18px] text-[#8C8A99]" strokeWidth={1.6} />
+                <h3 className="mt-4 text-[15px] font-semibold">{f.title}</h3>
+                <p className="mt-2 text-[13px] leading-relaxed text-[#8C8A99]">{f.desc}</p>
+              </motion.div>
+            ))}
+          </div>
+
+          <motion.div {...rise(0.1)} className="mt-6 flex items-center gap-3 px-1">
+            <Filter className="h-3.5 w-3.5 shrink-0 text-[#B3B1BE]" strokeWidth={1.6} />
+            <p className="text-[13px] text-[#8C8A99]">
+              Every row is a filter — click any page, country, or referrer to segment the whole
+              dashboard by it.
+            </p>
+          </motion.div>
+        </section>
+
+        {/* how it works */}
+        <section id="how" className="mx-auto w-full max-w-[1060px] px-6 py-16 sm:py-20">
+          <motion.div {...rise()}>
+            <SectionRule n="02" label="How it works" />
+          </motion.div>
+
+          <div className="mt-12 grid grid-cols-1 gap-12 lg:grid-cols-[5fr_6fr] lg:gap-16">
+            <div className="flex flex-col gap-9">
               {[
                 {
-                  icon: Eye,
-                  title: 'Real-time Dashboard',
-                  desc: 'See who is on your site right now. Live visitor count, active pages, and current traffic sources.',
-                  color: '#9b72cf',
+                  n: '1',
+                  title: 'Drop in one script tag',
+                  desc: 'Under 1 KB, loads deferred, zero impact on Core Web Vitals. Works with SPAs, hash routers, and plain HTML alike.',
                 },
                 {
-                  icon: Globe,
-                  title: 'Top Pages',
-                  desc: 'Know which pages drive the most traffic. Pageviews and unique visitors for every URL.',
-                  color: '#5b9a6f',
+                  n: '2',
+                  title: 'Watch visitors arrive',
+                  desc: 'Today’s traffic streams in live from an edge Durable Object — no sampling, no processing queue, no "data may take 24 hours".',
                 },
                 {
-                  icon: MousePointer,
-                  title: 'Traffic Sources',
-                  desc: 'See where your visitors come from. Referrers, UTM campaigns, and direct traffic breakdown.',
-                  color: '#e07a5f',
+                  n: '3',
+                  title: 'Track what matters',
+                  desc: 'Fire custom events for signups and purchases, then promote them to goals with conversion values. Outbound links and downloads come free.',
                 },
-                {
-                  icon: MapPin,
-                  title: 'Geo Analytics',
-                  desc: 'Country and city-level visitor breakdown. Know your audience geography at a glance.',
-                  color: '#d4a574',
-                },
-                {
-                  icon: Smartphone,
-                  title: 'Device Insights',
-                  desc: 'Browser, OS, and device type breakdown. Understand how visitors access your site.',
-                  color: '#6b8ead',
-                },
-                {
-                  icon: Zap,
-                  title: 'Custom Events',
-                  desc: 'Track button clicks, form submissions, and conversions with window.traks() API.',
-                  color: '#9b72cf',
-                },
-              ].map((item, i) => (
-                <motion.div
-                  key={item.title}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true, margin: '-50px' }}
-                  transition={{ duration: 0.5, delay: i * 0.06 }}
-                  className="group relative rounded-2xl bg-white border border-[#e8e3ed]/80 p-6 transition-all duration-300 hover:shadow-xl hover:shadow-black/[0.06] hover:border-[#d5cfe0]"
-                >
-                  <div
-                    className="absolute top-0 left-0 right-0 h-[2px] origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-400 ease-out"
-                    style={{ backgroundColor: item.color }}
-                  />
-                  <div
-                    className="w-11 h-11 rounded-xl flex items-center justify-center mb-4 transition-transform duration-300 group-hover:scale-110"
-                    style={{ backgroundColor: `${item.color}12` }}
-                  >
-                    <item.icon
-                      className="w-5 h-5"
-                      style={{ color: item.color }}
-                      strokeWidth={1.7}
-                    />
+              ].map((s, i) => (
+                <motion.div key={s.n} {...rise(i * 0.07)} className="flex gap-5">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#E4E4E9] bg-white font-mono text-[12px] font-semibold text-[#3D3B4F]">
+                    {s.n}
+                  </span>
+                  <div>
+                    <h3 className="text-[15px] font-semibold">{s.title}</h3>
+                    <p className="mt-1.5 text-[13px] leading-relaxed text-[#8C8A99]">{s.desc}</p>
                   </div>
-                  <h3 className="text-[15px] font-semibold text-[#2D3436]">{item.title}</h3>
-                  <p className="text-[13px] text-[#9B9590] leading-relaxed mt-1.5">{item.desc}</p>
                 </motion.div>
               ))}
             </div>
+
+            {/* code block */}
+            <motion.div {...rise(0.12)}>
+              <div className="overflow-hidden rounded-[18px] bg-[#34324A] shadow-[0_16px_48px_rgba(61,59,79,0.18)]">
+                <div className="flex items-center justify-between border-b border-white/[0.07] px-5 py-3">
+                  <Mono className="text-[#8C8A99]">index.html</Mono>
+                  <Mono className="text-mint">Add to any site</Mono>
+                </div>
+                <pre className="overflow-x-auto p-5 font-mono text-[12.5px] leading-[1.8] text-[#C9C8D4]">
+                  <code>
+                    <span className="text-[#75738C]">{'<'}</span>
+                    <span className="text-white">script</span>{' '}
+                    <span className="text-[#93F4CF]">defer</span>
+                    {'\n  '}
+                    <span className="text-[#93F4CF]">data-site</span>
+                    <span className="text-[#75738C]">=</span>
+                    <span className="text-[#F2B5A4]">&quot;YOUR_SITE_KEY&quot;</span>
+                    {'\n  '}
+                    <span className="text-[#93F4CF]">src</span>
+                    <span className="text-[#75738C]">=</span>
+                    <span className="text-[#F2B5A4]">
+                      &quot;https://collect.traks.dev/t.js&quot;
+                    </span>
+                    <span className="text-[#75738C]">{'>'}</span>
+                    {'\n'}
+                    <span className="text-[#75738C]">{'</'}</span>
+                    <span className="text-white">script</span>
+                    <span className="text-[#75738C]">{'>'}</span>
+                    {'\n\n'}
+                    <span className="text-[#75738C]">{'// later, anywhere:'}</span>
+                    {'\n'}
+                    <span className="text-white">window</span>
+                    <span className="text-[#75738C]">.</span>
+                    <span className="text-[#93F4CF]">traks</span>
+                    <span className="text-[#75738C]">(</span>
+                    <span className="text-[#F2B5A4]">&apos;signup&apos;</span>
+                    <span className="text-[#75738C]">, {'{'} </span>
+                    <span className="text-[#C9C8D4]">plan</span>
+                    <span className="text-[#75738C]">: </span>
+                    <span className="text-[#F2B5A4]">&apos;pro&apos;</span>
+                    <span className="text-[#75738C]"> {'}'}, </span>
+                    <span className="text-[#93F4CF]">49</span>
+                    <span className="text-[#75738C]">)</span>
+                  </code>
+                </pre>
+              </div>
+            </motion.div>
           </div>
         </section>
 
-        {/* CTA section */}
-        <section className="relative z-10 py-20 sm:py-28">
-          <div className="max-w-2xl mx-auto px-6 text-center">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: '-100px' }}
-              transition={{ duration: 0.5 }}
-            >
-              <h2 className="text-[32px] sm:text-[40px] font-bold text-[#2D3436] tracking-[-0.02em] mb-4">
-                Ready to go?
+        {/* privacy + stack */}
+        <section className="mx-auto w-full max-w-[1060px] px-6 py-16 sm:py-20">
+          <div className="grid grid-cols-1 gap-14 lg:grid-cols-2 lg:gap-16">
+            <motion.div {...rise()}>
+              <SectionRule n="03" label="Private by default" />
+              <h2 className="mt-8 text-[24px] font-bold tracking-[-0.02em] sm:text-[28px]">
+                Respectful of every visitor.
               </h2>
-              <p className="text-[16px] text-[#8A8580] mb-8 max-w-md mx-auto">
-                Add the tracking script to your site and see visitors in real-time within minutes.
+              <ul className="mt-6 space-y-3.5">
+                {PRIVACY_POINTS.map(p => (
+                  <li
+                    key={p}
+                    className="flex items-start gap-3 text-[13.5px] leading-relaxed text-[#6E6C7C]"
+                  >
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#3D3B4F]" strokeWidth={2} />
+                    {p}
+                  </li>
+                ))}
+              </ul>
+            </motion.div>
+
+            <motion.div {...rise(0.08)}>
+              <SectionRule n="04" label="Your stack" />
+              <h2 className="mt-8 text-[24px] font-bold tracking-[-0.02em] sm:text-[28px]">
+                Deployed once, yours forever.
+              </h2>
+              <p className="mt-4 text-[13.5px] leading-relaxed text-[#6E6C7C]">
+                Traks isn&rsquo;t a subscription dashboard holding your history hostage. It deploys
+                into your own Cloudflare account, stores events in your own database, and serves the
+                dashboard from your own domain. Cloudflare&rsquo;s free tier comfortably covers most
+                sites — and if you ever leave, the data is already yours.
               </p>
-              <a href="/portal/sites">
-                <Button className="h-[50px] px-8 rounded-2xl text-[14px] font-semibold bg-[#9b72cf] hover:bg-[#8a63bf] text-white shadow-lg shadow-[#9b72cf]/15 hover:shadow-xl hover:shadow-[#9b72cf]/20 transition-all duration-300 hover:-translate-y-0.5">
-                  Go to Dashboard
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </Button>
-              </a>
+              <div className="mt-6 flex flex-wrap gap-2">
+                {STACK.map(s => (
+                  <span
+                    key={s}
+                    className="rounded-full border border-[#E4E4E9] bg-white px-3.5 py-1.5 font-mono text-[11px] font-medium text-[#6E6C7C]"
+                  >
+                    {s}
+                  </span>
+                ))}
+              </div>
+              <div className="mt-6 flex items-center gap-2.5">
+                <Globe className="h-3.5 w-3.5 text-[#B3B1BE]" strokeWidth={1.6} />
+                <p className="text-[12.5px] text-[#8C8A99]">
+                  One worker, one database, one cron — nothing else to operate.
+                </p>
+              </div>
             </motion.div>
           </div>
+        </section>
+
+        {/* CTA */}
+        <section className="mx-auto w-full max-w-[1060px] px-6 pb-24 pt-8">
+          <motion.div
+            {...rise()}
+            className="relative overflow-hidden rounded-[24px] bg-[#3D3B4F] px-8 py-14 text-center sm:py-16"
+          >
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0"
+              style={{
+                backgroundImage:
+                  'radial-gradient(circle, rgba(255,255,255,0.09) 1px, transparent 1px)',
+                backgroundSize: '22px 22px',
+                maskImage: 'radial-gradient(ellipse 70% 90% at 50% 0%, black, transparent)',
+                WebkitMaskImage: 'radial-gradient(ellipse 70% 90% at 50% 0%, black, transparent)',
+              }}
+            />
+            <h2 className="relative text-[28px] font-bold tracking-[-0.02em] text-white sm:text-[34px]">
+              See who&rsquo;s on your site right now.
+            </h2>
+            <p className="relative mx-auto mt-3 max-w-[44ch] text-[14.5px] leading-relaxed text-white/60">
+              Add the script, reload your site, and watch the first pageview land in the dashboard
+              within seconds.
+            </p>
+            <a
+              href="/portal/sites"
+              className="relative mt-8 inline-flex h-12 items-center gap-2 rounded-full bg-mint px-8 text-[14px] font-bold text-[#123326] transition-all hover:-translate-y-px hover:shadow-[0_8px_24px_rgba(40,233,159,0.35)]"
+            >
+              Open the dashboard
+              <ArrowRight className="h-4 w-4" />
+            </a>
+          </motion.div>
         </section>
       </main>
 
-      {/* Footer */}
-      <footer className="relative z-10 py-8 border-t border-[#e8e3ed]">
-        <div className="max-w-5xl mx-auto px-6 flex items-center justify-between">
+      {/* footer */}
+      <footer className="relative z-10 border-t border-[#E4E4E9]">
+        <div className="mx-auto flex w-full max-w-[1060px] flex-wrap items-center justify-between gap-4 px-6 py-8">
           <div className="flex items-center gap-2">
-            <img src="/logo.svg" alt="Traks" className="w-6 h-6" />
-            <span className="text-[13px] font-semibold text-[#2D3436]">Traks</span>
+            <img src="/logo.svg" alt="Traks" className="h-5 w-5" />
+            <span className="text-[13px] font-semibold">Traks</span>
           </div>
-          <p className="text-[12px] text-[#B5B0AA]">Privacy-friendly analytics on Cloudflare</p>
+          <div className="flex items-center gap-6">
+            <a
+              href="/docs"
+              className="font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-[#8C8A99] transition-colors hover:text-[#3D3B4F]"
+            >
+              Docs
+            </a>
+            <MousePointerClick
+              className="hidden h-3.5 w-3.5 text-[#D8D7DE] sm:block"
+              strokeWidth={1.6}
+            />
+            <Mono className="text-[#B3B1BE]">
+              Privacy-first analytics · self-hosted on Cloudflare
+            </Mono>
+          </div>
         </div>
       </footer>
     </div>

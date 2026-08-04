@@ -12,7 +12,11 @@ export const Route = createLazyFileRoute('/portal/sites')({
   component: SitesPage,
 });
 
-const TILE_COLORS = ['#9b72cf', '#5b9a6f', '#e07a5f'];
+const TILE_COLORS = [
+  { deep: '#3D3B4F', pastel: '#C9C8D4' },
+  { deep: '#6b8ead', pastel: '#b8cbd9' },
+  { deep: '#e07a5f', pastel: '#f2b5a4' },
+];
 const PAGE_SIZE = 6;
 
 function SitesPage(): ReactElement {
@@ -84,7 +88,7 @@ function SitesPage(): ReactElement {
       {/* Page header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-[24px] font-bold text-[#2D3436] tracking-[-0.02em]">Your Sites</h1>
+          <h1 className="text-[26px] font-bold text-[#3D3B4F] tracking-[-0.02em]">Your Sites</h1>
           <p className="mt-1 text-[14px] text-[#9B9590]">Select a site to view its analytics</p>
         </div>
         <div className="flex items-center gap-3">
@@ -98,12 +102,12 @@ function SitesPage(): ReactElement {
                 placeholder="Search sites..."
                 value={search}
                 onChange={e => handleSearchChange(e.target.value)}
-                className="pl-10 pr-9 rounded-xl h-10 w-56 border-[#e8e3ed] focus:border-[#9b72cf]/40 text-[14px]"
+                className="pl-10 pr-9 rounded-full h-10 w-56 text-[14px]"
               />
               {search && (
                 <button
                   onClick={() => handleSearchChange('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#B5B0AA] hover:text-[#2D3436] transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#B5B0AA] hover:text-[#3D3B4F] transition-colors"
                 >
                   <X className="w-4 h-4" strokeWidth={1.8} />
                 </button>
@@ -115,7 +119,7 @@ function SitesPage(): ReactElement {
             onClick={handleRefresh}
             disabled={isFetching}
             aria-label="Refresh sites"
-            className="rounded-xl h-10 px-4 border-[#e8e3ed] text-[#9B9590] hover:text-[#2D3436] hover:border-[#d5cfe0]"
+            className="h-10 px-4"
           >
             <RefreshCw
               className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`}
@@ -124,8 +128,9 @@ function SitesPage(): ReactElement {
             Refresh
           </Button>
           <Button
+            variant="dark"
             onClick={() => setWizardOpen(true)}
-            className="bg-[#2D3436] hover:bg-[#1B1F21] text-white rounded-xl px-5 h-10"
+            className="px-5 h-10"
           >
             <Plus className="h-4 w-4" />
             Add Site
@@ -142,31 +147,32 @@ function SitesPage(): ReactElement {
           {[...Array(3)].map((_, i) => (
             <div
               key={i}
-              className="h-[210px] animate-pulse rounded-2xl border border-[#e8e3ed] bg-white"
+              className="h-[248px] animate-pulse rounded-[20px] bg-white shadow-float"
             />
           ))}
         </div>
       ) : allSites.length === 0 ? (
-        <div className="rounded-2xl border-2 border-dashed border-[#e8e3ed] bg-white px-8 py-16 text-center">
-          <div className="mx-auto w-16 h-16 rounded-2xl bg-[#9b72cf]/10 flex items-center justify-center mb-4">
-            <Globe className="h-8 w-8 text-[#9b72cf]" />
+        <div className="rounded-[20px] bg-white px-8 py-16 text-center shadow-float">
+          <div className="mx-auto w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
+            <Globe className="h-8 w-8 text-foreground" />
           </div>
-          <p className="text-[17px] font-semibold text-[#2D3436]">No sites yet</p>
+          <p className="text-[17px] font-semibold text-[#3D3B4F]">No sites yet</p>
           <p className="mt-2 text-[14px] text-[#9B9590] max-w-sm mx-auto">
             Add your first website to start tracking visitors, pageviews, and more
           </p>
           <Button
+            variant="dark"
             onClick={() => setWizardOpen(true)}
-            className="mt-5 bg-[#2D3436] hover:bg-[#1B1F21] text-white rounded-xl px-6"
+            className="mt-5 px-6"
           >
             <Plus className="h-4 w-4" />
             Add Your First Site
           </Button>
         </div>
       ) : filteredSites.length === 0 ? (
-        <div className="rounded-2xl border border-[#e8e3ed] bg-white px-8 py-12 text-center">
+        <div className="rounded-[20px] bg-white px-8 py-12 text-center shadow-float">
           <Search className="mx-auto h-8 w-8 text-[#B5B0AA] mb-3" strokeWidth={1.5} />
-          <p className="text-[15px] font-medium text-[#2D3436]">
+          <p className="text-[15px] font-medium text-[#3D3B4F]">
             No sites match &quot;{search}&quot;
           </p>
           <p className="mt-1 text-[13px] text-[#9B9590]">Try a different search term</p>
@@ -204,7 +210,7 @@ function SitesPage(): ReactElement {
                     window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
                   });
                 }}
-                className="rounded-xl border-[#e8e3ed] text-[13px] text-[#9B9590] hover:text-[#2D3436] hover:border-[#d5cfe0] px-8"
+                className="text-[13px] px-8"
               >
                 Load more
               </Button>

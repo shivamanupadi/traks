@@ -99,7 +99,7 @@ export function TimezoneSelect({
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
-        className="flex h-11 w-full items-center justify-between gap-2 rounded-xl border border-[#e8e3ed] bg-white px-3.5 text-[14px] text-[#2D3436] transition-colors hover:border-[#d5cfe0] focus:border-[#9b72cf]/40 focus:outline-none cursor-pointer"
+        className="flex h-11 w-full items-center justify-between gap-2 rounded-2xl border-none bg-white px-4 text-[14px] text-[#3D3B4F] shadow-[inset_0_0_0_1px_var(--input)] transition-shadow hover:shadow-[inset_0_0_0_1px_#C7C6D2] focus:shadow-[inset_0_0_0_1.5px_var(--ring)] focus:outline-none cursor-pointer"
         aria-haspopup="listbox"
         aria-expanded={open}
       >
@@ -125,8 +125,8 @@ export function TimezoneSelect({
       </button>
 
       {open && (
-        <div className="absolute z-50 mt-2 w-full overflow-hidden rounded-xl border border-[#e8e3ed] bg-white shadow-xl shadow-black/[0.08]">
-          <div className="flex items-center gap-2 border-b border-[#e8e3ed]/60 px-3.5 py-2.5">
+        <div className="absolute z-50 mt-2 w-full overflow-hidden rounded-2xl border-none bg-white shadow-float-lg">
+          <div className="flex items-center gap-2 border-b border-[#e6e5ea]/60 px-3.5 py-2.5">
             <Search className="h-3.5 w-3.5 shrink-0 text-[#B5B0AA]" />
             <input
               ref={searchRef}
@@ -136,7 +136,7 @@ export function TimezoneSelect({
                 if (e.key === 'Enter' && filtered.length > 0) select(filtered[0].tz);
               }}
               placeholder="Search timezones…"
-              className="w-full bg-transparent text-[13px] text-[#2D3436] placeholder:text-[#B5B0AA] focus:outline-none"
+              className="w-full bg-transparent text-[13px] text-[#3D3B4F] placeholder:text-[#B5B0AA] focus:outline-none"
             />
           </div>
           <ul role="listbox" className="max-h-64 overflow-y-auto py-1">
@@ -151,12 +151,12 @@ export function TimezoneSelect({
                     className={cn(
                       'flex w-full items-center justify-between gap-3 px-3.5 py-2 text-left text-[13px] transition-colors cursor-pointer',
                       z.tz === value
-                        ? 'bg-[#9b72cf]/[0.07] text-[#2D3436] font-medium'
-                        : 'text-[#2D3436] hover:bg-[#f3f0f7]/70'
+                        ? 'bg-muted text-[#3D3B4F] font-medium'
+                        : 'text-[#3D3B4F] hover:bg-muted/70'
                     )}
                   >
                     <span className="flex items-center gap-2 truncate">
-                      {z.tz === value && <Check className="h-3.5 w-3.5 shrink-0 text-[#9b72cf]" />}
+                      {z.tz === value && <Check className="h-3.5 w-3.5 shrink-0 text-foreground" />}
                       <span className={cn('truncate', z.tz !== value && 'pl-[22px]')}>
                         {z.tz.replaceAll('_', ' ')}
                       </span>

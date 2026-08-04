@@ -1,5 +1,6 @@
 import { sqliteTable, text, integer, uniqueIndex, index } from 'drizzle-orm/sqlite-core';
 import { createId } from '@paralleldrive/cuid2';
+import type { FunnelStep } from '@traks/shared';
 
 // ============ Users (owned by Better Auth; app fields alongside) ============
 export const users = sqliteTable(
@@ -139,4 +140,22 @@ export const goals = sqliteTable(
     createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
   },
   table => [index('goals_site_id_idx').on(table.siteId)]
+);
+
+// ============ Funnels (ordered conversion steps over pages/events) ============
+export const funnels = sqliteTable(
+  'funnels',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    siteId: text('site_id')
+      .notNull()
+      .references(() => sites.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    /** Ordered steps (2-8), validated by createFunnelSchema at the API edge. */
+    steps: text('steps', { mode: 'json' }).$type<FunnelStep[]>().notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+  },
+  table => [index('funnels_site_id_idx').on(table.siteId)]
 );

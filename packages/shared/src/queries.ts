@@ -429,6 +429,58 @@ export function buildGoalPagesQuery(
 }
 
 /**
+ * Ordered funnel completion counts in one scan.
+ *
+ * Per session, take the first-occurrence time of each step (MIN over a CASE),
+ * then count a session into step N only when steps 0..N all occurred and
+ * their first occurrences are non-decreasing in time. This is first-touch
+ * ordering — the standard funnel approximation; a session that re-enters a
+ * step later doesn't change its counted position.
+ *
+ * NULL comparisons make missing steps drop out naturally: if sN is NULL,
+ * `sN >= sN-1` is NULL, the CASE falls to ELSE 0.
+ */
+export function buildFunnelQuery(
+  siteKey: string,
+  range: PeriodRange,
+  steps: { type: 'event' | 'page'; target: string }[],
+  filters?: LiveFilters
+) {
+  const conds = steps.map(s =>
+    s.type === 'page'
+      ? `(event_type = 'pageview' AND pathname = '${esc(s.target)}')`
+      : `(event_type = 'event' AND event_name = '${esc(s.target)}')`
+  );
+  const stepCols = conds
+    .map((cond, i) => `MIN(CASE WHEN ${cond} THEN ts END) AS s${i}`)
+    .join(',\n        ');
+  const chain: string[] = [];
+  const counts = conds
+    .map((_, i) => {
+      chain.push(i === 0 ? 's0 IS NOT NULL' : `s${i} >= s${i - 1}`);
+      return `SUM(CASE WHEN ${chain.join(' AND ')} THEN 1 ELSE 0 END) AS c${i}`;
+    })
+    .join(',\n      ');
+  return (table: string) => `
+    WITH step_times AS (
+      SELECT
+        session_id,
+        ${stepCols}
+      FROM ${table}
+      WHERE site_id = '${esc(siteKey)}'
+        AND ts >= TIMESTAMP '${esc(range.from)}'
+        AND ts < TIMESTAMP '${esc(range.to)}'
+        AND session_id != ''
+        AND (${conds.join(' OR ')})${filterClause(filters)}
+      GROUP BY session_id
+    )
+    SELECT
+      ${counts}
+    FROM step_times
+  `;
+}
+
+/**
  * Main stats for many sites at once (sites-list page). One GROUP BY site_id
  * query replaces a query per site; the API groups sites by timezone so every
  * site in a call shares the same resolved period window.

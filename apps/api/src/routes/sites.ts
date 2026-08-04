@@ -1,5 +1,4 @@
 import { Hono } from 'hono';
-import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { eq } from 'drizzle-orm';
 import { createId } from '@paralleldrive/cuid2';
@@ -8,14 +7,13 @@ import {
   updateSiteSchema,
   allSitesTimezoneSchema,
   createGoalSchema,
+  createFunnelSchema,
 } from '@traks/shared';
 import { requireAuth } from '../middleware/auth';
-import { sites, apiKeys, goals } from '../db/schema';
+import { sites, apiKeys, goals, funnels } from '../db/schema';
 import type { Bindings, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
-
-const publicToggleSchema = z.object({ enabled: z.boolean() });
 
 export const sitesRoute = app
   // List user's sites
@@ -196,24 +194,74 @@ export const sitesRoute = app
     return c.json({ ok: true });
   })
 
-  // Toggle public share dashboard
-  .post('/:id/public', requireAuth, zValidator('json', publicToggleSchema), async c => {
+  // List funnels for a site
+  .get('/:id/funnels', requireAuth, async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('id');
-    const { enabled } = c.req.valid('json');
     const db = c.get('db')!;
 
-    const [site] = await db.select().from(sites).where(eq(sites.id, siteId));
-    if (!site || site.userId !== userId) {
-      return c.json({ error: 'Not found' }, 404);
-    }
-
-    await db
-      .update(sites)
-      .set({ public: enabled, updatedAt: new Date() })
+    const [site] = await db
+      .select({ userId: sites.userId })
+      .from(sites)
       .where(eq(sites.id, siteId));
+    if (!site || site.userId !== userId) return c.json({ error: 'Not found' }, 404);
 
-    return c.json({ data: { enabled } });
+    const siteFunnels = await db.select().from(funnels).where(eq(funnels.siteId, siteId));
+    return c.json({ data: siteFunnels });
+  })
+
+  // Create a funnel
+  .post('/:id/funnels', requireAuth, zValidator('json', createFunnelSchema), async c => {
+    const userId = c.get('userId')!;
+    const siteId = c.req.param('id');
+    const body = c.req.valid('json');
+    const db = c.get('db')!;
+
+    const [site] = await db
+      .select({ userId: sites.userId })
+      .from(sites)
+      .where(eq(sites.id, siteId));
+    if (!site || site.userId !== userId) return c.json({ error: 'Not found' }, 404);
+
+    // Bound per-site funnel count (each funnel stat render is a paid R2 SQL scan).
+    const existing = await db
+      .select({ id: funnels.id })
+      .from(funnels)
+      .where(eq(funnels.siteId, siteId));
+    if (existing.length >= 20) return c.json({ error: 'Funnel limit reached (20 per site)' }, 400);
+
+    const funnelId = createId();
+    await db.insert(funnels).values({
+      id: funnelId,
+      siteId,
+      name: body.name,
+      steps: body.steps,
+    });
+    const [funnel] = await db.select().from(funnels).where(eq(funnels.id, funnelId));
+    return c.json({ data: funnel }, 201);
+  })
+
+  // Delete a funnel
+  .delete('/:id/funnels/:funnelId', requireAuth, async c => {
+    const userId = c.get('userId')!;
+    const siteId = c.req.param('id');
+    const funnelId = c.req.param('funnelId');
+    const db = c.get('db')!;
+
+    const [site] = await db
+      .select({ userId: sites.userId })
+      .from(sites)
+      .where(eq(sites.id, siteId));
+    if (!site || site.userId !== userId) return c.json({ error: 'Not found' }, 404);
+
+    const [funnel] = await db
+      .select({ siteId: funnels.siteId })
+      .from(funnels)
+      .where(eq(funnels.id, funnelId));
+    if (!funnel || funnel.siteId !== siteId) return c.json({ error: 'Not found' }, 404);
+
+    await db.delete(funnels).where(eq(funnels.id, funnelId));
+    return c.json({ ok: true });
   })
 
   // Delete a site (also purges its live DO)

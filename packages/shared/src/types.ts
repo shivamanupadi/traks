@@ -50,6 +50,33 @@ export interface GoalStat {
   conversionRate: number;
 }
 
+/** One ordered funnel step: a pageview of a pathname or a custom event. */
+export interface FunnelStep {
+  type: 'event' | 'page';
+  target: string;
+}
+
+export interface FunnelDef {
+  id: string;
+  name: string;
+  steps: FunnelStep[];
+}
+
+export interface FunnelStepStat extends FunnelStep {
+  /** Sessions that completed this step and every prior step, in order. */
+  sessions: number;
+  /** Percent of step-1 sessions that reached this step (0-100, one decimal). */
+  rateFromFirst: number;
+  /** Percent of previous-step sessions that reached this step (0-100, one decimal). */
+  rateFromPrev: number;
+}
+
+export interface FunnelStat {
+  id: string;
+  name: string;
+  steps: FunnelStepStat[];
+}
+
 export interface TimeseriesPoint {
   date: string;
   visitors: number;

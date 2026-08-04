@@ -21,5 +21,6 @@ export {
   buildEngagementStatsQuery,
   buildGoalEventsQuery,
   buildGoalPagesQuery,
+  buildFunnelQuery,
 } from '@traks/shared';
 export type { QueryConfig, PeriodRange } from '@traks/shared';

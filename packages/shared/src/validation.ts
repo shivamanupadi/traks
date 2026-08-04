@@ -66,6 +66,18 @@ export const createGoalSchema = z.object({
   target: z.string().min(1).max(2048),
 });
 
+/** One ordered funnel step: a pageview of a pathname or a custom event. */
+export const funnelStepSchema = z.object({
+  type: z.enum(['event', 'page']),
+  target: z.string().min(1).max(2048),
+});
+
+/** Funnel definition: 2-8 ordered steps a session should complete in sequence. */
+export const createFunnelSchema = z.object({
+  name: z.string().min(1).max(100),
+  steps: z.array(funnelStepSchema).min(2).max(8),
+});
+
 export const statsQuerySchema = z.object({
   period: z.enum(['today', '7d', '30d', '90d', '6m', '1y', 'all']).default('today'),
   from: z.string().optional(),

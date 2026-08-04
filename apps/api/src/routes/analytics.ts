@@ -17,7 +17,7 @@ import {
   type LiveFilters,
 } from '@traks/shared';
 import { requireAuth } from '../middleware/auth';
-import { sites, apiKeys, goals } from '../db/schema';
+import { sites, apiKeys, goals, funnels } from '../db/schema';
 import {
   queryR2Sql,
   buildStatsWithComparisonQuery,
@@ -38,6 +38,7 @@ import {
   buildEngagementStatsQuery,
   buildGoalEventsQuery,
   buildGoalPagesQuery,
+  buildFunnelQuery,
 } from '../lib/queries';
 import type { Bindings, Variables } from '../types';
 
@@ -1226,6 +1227,59 @@ export const analyticsRoute = appWithBatch
     ];
     return respond(rows, totalVisitors);
   })
+
+  // Funnel completion stats. Always answered from R2 SQL — funnels need
+  // cross-event ordering per session, which the live DO doesn't track — so
+  // 'today' numbers trail ingest by the sink roll interval (~1 min).
+  .get(
+    '/:siteId/stats/funnel/:funnelId',
+    requireAuth,
+    zValidator('query', periodQuery),
+    async c => {
+      const userId = c.get('userId')!;
+      const siteId = c.req.param('siteId');
+      const funnelId = c.req.param('funnelId');
+      const query = c.req.valid('query');
+      const { period } = query;
+      const filters = parseFilters(query);
+
+      const site = await getSite(c, siteId, userId);
+      if (!site) return c.json({ error: 'Not found' }, 404);
+
+      const db = c.get('db')!;
+      const [funnel] = await db.select().from(funnels).where(eq(funnels.id, funnelId));
+      if (!funnel || funnel.siteId !== siteId) return c.json({ error: 'Not found' }, 404);
+
+      const range = resolvePeriod(period, queryTime(), site.timezone);
+      const outcome = await runQueries(c, () =>
+        cachedR2Sql<Record<string, unknown>>(
+          c,
+          cacheTtlSeconds(period),
+          buildFunnelQuery(site.key, range, funnel.steps, filters)
+        )
+      );
+      if (outcome instanceof Response) return outcome;
+
+      const row = outcome[0] ?? {};
+      const counts = funnel.steps.map((_, i) => toNumber(row[`c${i}`]));
+      const first = counts[0] ?? 0;
+      const pct = (num: number, den: number): number =>
+        den > 0 ? Math.round((num / den) * 1000) / 10 : 0;
+
+      return c.json({
+        data: {
+          id: funnel.id,
+          name: funnel.name,
+          steps: funnel.steps.map((s, i) => ({
+            ...s,
+            sessions: counts[i],
+            rateFromFirst: i === 0 ? 100 : pct(counts[i], first),
+            rateFromPrev: i === 0 ? 100 : pct(counts[i], counts[i - 1]),
+          })),
+        },
+      });
+    }
+  )
 
   .get('/:siteId/stats/realtime', requireAuth, async c => {
     const userId = c.get('userId')!;

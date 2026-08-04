@@ -17,7 +17,7 @@ import {
   Target,
   Plus,
 } from 'lucide-react';
-import type { Period, MainStats } from '@traks/shared';
+import type { Period, MainStats, FunnelDef, FunnelStat, FunnelStep } from '@traks/shared';
 import { cn, formatNumber, formatDuration, formatPercentChange } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,16 +34,11 @@ import {
 import { TimeseriesChart } from '@/components/analytics/TimeseriesChart';
 import { PanelCard } from '@/components/analytics/PanelCard';
 import { GoalsPanel } from '@/components/analytics/GoalsPanel';
+import { FunnelsPanel } from '@/components/analytics/FunnelsPanel';
 import { PeriodPicker } from '@/components/layout/PeriodPicker';
 import { api, type AnalyticsFilters } from '@/lib/api';
 
 const COLLECT_URL = import.meta.env.VITE_COLLECT_URL || 'https://collect.traks.dev';
-
-function cnToggle(on: boolean): string {
-  return `relative inline-flex h-6 w-10 shrink-0 items-center rounded-full transition-colors cursor-pointer ${
-    on ? 'bg-[#5b9a6f]' : 'bg-[#e8e3ed]'
-  }`;
-}
 
 // Auto-poll only 'today' - it's served live from the site's Durable Object
 // (millisecond queries, zero ingest delay), so a 15s poll gives a live feel
@@ -121,34 +116,34 @@ function InstallModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent onClose={() => onOpenChange(false)} className="max-w-md">
         <DialogHeader>
-          <div className="w-10 h-10 rounded-xl bg-[#5b9a6f]/10 flex items-center justify-center mb-3">
-            <Code2 className="w-5 h-5 text-[#5b9a6f]" strokeWidth={1.7} />
+          <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center mb-3">
+            <Code2 className="w-5 h-5 text-[#6E6C7C]" strokeWidth={1.7} />
           </div>
           <DialogTitle>Installation</DialogTitle>
           <DialogDescription>
             Add this snippet to the{' '}
-            <code className="text-[12px] bg-[#f3f0f7] px-1.5 py-0.5 rounded font-medium">
+            <code className="text-[12px] bg-muted px-1.5 py-0.5 rounded font-medium">
               &lt;head&gt;
             </code>{' '}
-            of <span className="font-semibold text-[#2D3436]">{site?.domain}</span>
+            of <span className="font-semibold text-[#3D3B4F]">{site?.domain}</span>
           </DialogDescription>
         </DialogHeader>
 
         <DialogBody>
           <div className="space-y-4">
             {/* Snippet card */}
-            <div className="relative rounded-xl border border-[#e8e3ed] bg-[#fdfbf8] overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#e8e3ed]/60">
+            <div className="relative rounded-xl border border-[#e6e5ea] bg-[#fafafa] overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#e6e5ea]/60">
                 <span className="text-[11px] font-medium text-[#B5B0AA] uppercase tracking-wider">
                   HTML Snippet
                 </span>
                 <button
                   onClick={handleCopy}
-                  className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium text-[#9B9590] hover:text-[#9b72cf] transition-colors cursor-pointer"
+                  className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium text-[#9B9590] hover:text-foreground transition-colors cursor-pointer"
                 >
                   {copied ? (
                     <>
-                      <Check className="w-3 h-3 text-[#5b9a6f]" />
+                      <Check className="w-3 h-3 text-[#6E6C7C]" />
                       Copied
                     </>
                   ) : (
@@ -159,15 +154,15 @@ function InstallModal({
                   )}
                 </button>
               </div>
-              <pre className="text-[12px] leading-relaxed text-[#2D3436] font-mono whitespace-pre-wrap break-all select-all px-4 py-3.5">
+              <pre className="text-[12px] leading-relaxed text-[#3D3B4F] font-mono whitespace-pre-wrap break-all select-all px-4 py-3.5">
                 {snippet}
               </pre>
             </div>
 
             {/* Info note */}
-            <div className="flex gap-3 rounded-xl bg-[#5b9a6f]/5 border border-[#5b9a6f]/10 px-4 py-3.5">
-              <Zap className="w-4 h-4 text-[#5b9a6f] shrink-0 mt-0.5" strokeWidth={1.7} />
-              <p className="text-[12px] text-[#5b9a6f]/80 leading-relaxed">
+            <div className="flex gap-3 rounded-xl bg-[#F4F4F6] border border-[#E4E4E9] px-4 py-3.5">
+              <Zap className="w-4 h-4 text-[#6E6C7C] shrink-0 mt-0.5" strokeWidth={1.7} />
+              <p className="text-[12px] text-[#6E6C7C] leading-relaxed">
                 Under 1KB, loads async - zero impact on page speed. Data appears within seconds of
                 the first visit.
               </p>
@@ -175,18 +170,14 @@ function InstallModal({
           </div>
         </DialogBody>
 
-        <DialogFooter className="border-t border-[#e8e3ed]/50 mx-6 px-0 pb-5 pt-4">
-          <Button
-            variant="ghost"
-            onClick={handleCopy}
-            className="rounded-xl text-[13px] cursor-pointer"
-          >
+        <DialogFooter className="border-t border-[#e6e5ea]/50 mx-6 px-0 pb-5 pt-4">
+          <Button variant="ghost" onClick={handleCopy} className="text-[13px] cursor-pointer">
             <Copy className="w-3.5 h-3.5" />
             {copied ? 'Copied!' : 'Copy snippet'}
           </Button>
           <Button
             onClick={() => onOpenChange(false)}
-            className="bg-[#5b9a6f] hover:bg-[#4e8a62] text-white rounded-xl text-[13px] px-5 cursor-pointer"
+            className="bg-[#3D3B4F] hover:bg-[#2C2B3B] text-white shadow-none text-[13px] px-5 cursor-pointer"
           >
             <Check className="w-3.5 h-3.5" />
             Done
@@ -209,7 +200,6 @@ function EditSiteModal({
     name: string;
     domain: string;
     timezone?: string;
-    public?: boolean;
   } | null;
   siteId: string;
 }): ReactElement {
@@ -218,28 +208,15 @@ function EditSiteModal({
   const [domain, setDomain] = useState('');
   const [timezone, setTimezone] = useState('UTC');
   const [error, setError] = useState('');
-  const [publicEnabled, setPublicEnabled] = useState(false);
 
   useEffect(() => {
     if (open && site) {
       setName(site.name);
       setDomain(site.domain);
       setTimezone(site.timezone || 'UTC');
-      setPublicEnabled(site.public ?? false);
       setError('');
     }
   }, [open, site]);
-
-  const togglePublic = useMutation({
-    mutationFn: async (enabled: boolean) => {
-      return api.togglePublic(siteId, enabled);
-    },
-    onSuccess: (res: { data: { enabled: boolean } }) => {
-      setPublicEnabled(res.data.enabled);
-      queryClient.invalidateQueries({ queryKey: ['site', siteId] });
-    },
-    onError: (err: Error) => setError(err.message),
-  });
 
   const updateSite = useMutation({
     mutationFn: async () => {
@@ -267,8 +244,8 @@ function EditSiteModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent onClose={() => onOpenChange(false)} className="max-w-md">
         <DialogHeader>
-          <div className="w-10 h-10 rounded-xl bg-[#9b72cf]/10 flex items-center justify-center mb-3">
-            <Settings className="w-5 h-5 text-[#9b72cf]" strokeWidth={1.7} />
+          <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center mb-3">
+            <Settings className="w-5 h-5 text-foreground" strokeWidth={1.7} />
           </div>
           <DialogTitle>Edit site</DialogTitle>
           <DialogDescription>Update your site name and domain.</DialogDescription>
@@ -277,7 +254,7 @@ function EditSiteModal({
         <DialogBody>
           <div className="space-y-5">
             <div>
-              <label className="mb-2 block text-[13px] font-medium text-[#2D3436]">Site Name</label>
+              <label className="mb-2 block text-[13px] font-medium text-[#3D3B4F]">Site Name</label>
               <Input
                 placeholder="My SaaS"
                 value={name}
@@ -285,12 +262,12 @@ function EditSiteModal({
                   setName(e.target.value);
                   setError('');
                 }}
-                className="rounded-xl h-11 border-[#e8e3ed] focus:border-[#9b72cf]/40 px-4 text-[14px]"
+                className="h-11 px-4 text-[14px]"
                 autoFocus
               />
             </div>
             <div>
-              <label className="mb-2 block text-[13px] font-medium text-[#2D3436]">Domain</label>
+              <label className="mb-2 block text-[13px] font-medium text-[#3D3B4F]">Domain</label>
               <Input
                 placeholder="example.com"
                 value={domain}
@@ -298,7 +275,7 @@ function EditSiteModal({
                   setDomain(e.target.value);
                   setError('');
                 }}
-                className="rounded-xl h-11 border-[#e8e3ed] focus:border-[#9b72cf]/40 px-4 text-[14px]"
+                className="h-11 px-4 text-[14px]"
                 onKeyDown={e => {
                   if (e.key === 'Enter' && canSave) updateSite.mutate();
                 }}
@@ -306,7 +283,7 @@ function EditSiteModal({
               <p className="mt-2 text-[12px] text-[#B5B0AA]">Without http:// or https://</p>
             </div>
             <div>
-              <label className="mb-2 block text-[13px] font-medium text-[#2D3436]">Timezone</label>
+              <label className="mb-2 block text-[13px] font-medium text-[#3D3B4F]">Timezone</label>
               <TimezoneSelect
                 value={timezone}
                 onChange={tz => {
@@ -318,53 +295,19 @@ function EditSiteModal({
                 Dashboard days and hours are bucketed in this timezone.
               </p>
             </div>
-            {/* Public dashboard */}
-            <div className="border-t border-[#e8e3ed]/60 pt-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-[13px] font-medium text-[#2D3436]">Public dashboard</p>
-                  <p className="mt-0.5 text-[12px] text-[#9B9590]">
-                    Anyone with the link can view this site&apos;s stats.
-                  </p>
-                </div>
-                <button
-                  onClick={() => togglePublic.mutate(!publicEnabled)}
-                  disabled={togglePublic.isPending}
-                  className={cnToggle(publicEnabled)}
-                  role="switch"
-                  aria-checked={publicEnabled}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      publicEnabled ? 'translate-x-5' : 'translate-x-1'
-                    }`}
-                  />
-                </button>
-              </div>
-              {publicEnabled && (
-                <pre className="mt-3 rounded-lg border border-[#e8e3ed] bg-[#fdfbf8] px-3 py-2.5 text-[11px] leading-relaxed text-[#2D3436] whitespace-pre-wrap break-all select-all">
-                  {`${window.location.origin}/share/${siteId}`}
-                </pre>
-              )}
-            </div>
-
             {error && <p className="text-[13px] text-[#e07a5f]">{error}</p>}
           </div>
         </DialogBody>
 
-        <DialogFooter className="border-t border-[#e8e3ed]/50 mx-6 px-0 pb-5 pt-4">
-          <Button
-            variant="ghost"
-            onClick={() => onOpenChange(false)}
-            className="rounded-xl text-[13px]"
-          >
+        <DialogFooter className="border-t border-[#e6e5ea]/50 mx-6 px-0 pb-5 pt-4">
+          <Button variant="ghost" onClick={() => onOpenChange(false)} className="text-[13px]">
             Cancel
           </Button>
           <Button
             onClick={() => updateSite.mutate()}
             disabled={!canSave}
             isLoading={updateSite.isPending}
-            className="bg-[#9b72cf] hover:bg-[#8a63bf] text-white rounded-xl text-[13px] px-5"
+            className="text-[13px] px-5"
           >
             Save changes
           </Button>
@@ -445,8 +388,8 @@ function ManageGoalsModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent onClose={() => onOpenChange(false)} className="max-w-md">
         <DialogHeader>
-          <div className="w-10 h-10 rounded-xl bg-[#5b9a6f]/10 flex items-center justify-center mb-3">
-            <Target className="w-5 h-5 text-[#5b9a6f]" strokeWidth={1.7} />
+          <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center mb-3">
+            <Target className="w-5 h-5 text-[#6E6C7C]" strokeWidth={1.7} />
           </div>
           <DialogTitle>Goals</DialogTitle>
           <DialogDescription>
@@ -462,10 +405,10 @@ function ManageGoalsModal({
                 {goals.map(goal => (
                   <div
                     key={goal.id}
-                    className="flex items-center justify-between rounded-xl border border-[#e8e3ed]/80 px-3.5 py-2.5"
+                    className="flex items-center justify-between rounded-xl border border-[#e6e5ea]/80 px-3.5 py-2.5"
                   >
                     <div className="min-w-0">
-                      <p className="truncate text-[13px] font-medium text-[#2D3436]">{goal.name}</p>
+                      <p className="truncate text-[13px] font-medium text-[#3D3B4F]">{goal.name}</p>
                       <p className="truncate text-[11px] text-[#9B9590]">
                         {goal.type === 'event' ? `event: ${goal.target}` : `visit: ${goal.target}`}
                       </p>
@@ -484,8 +427,8 @@ function ManageGoalsModal({
             )}
 
             {/* Add goal */}
-            <div className={goals.length > 0 ? 'border-t border-[#e8e3ed]/60 pt-5' : ''}>
-              <p className="mb-3 text-[13px] font-medium text-[#2D3436]">Add a goal</p>
+            <div className={goals.length > 0 ? 'border-t border-[#e6e5ea]/60 pt-5' : ''}>
+              <p className="mb-3 text-[13px] font-medium text-[#3D3B4F]">Add a goal</p>
               <div className="space-y-3">
                 <div className="flex gap-2">
                   <button
@@ -493,8 +436,8 @@ function ManageGoalsModal({
                     className={cn(
                       'flex-1 rounded-xl border px-3 py-2 text-[12px] font-medium transition-colors cursor-pointer',
                       type === 'event'
-                        ? 'border-[#5b9a6f]/40 bg-[#5b9a6f]/[0.06] text-[#2D3436]'
-                        : 'border-[#e8e3ed] text-[#9B9590] hover:border-[#d5cfe0]'
+                        ? 'border-[#3D3B4F]/40 bg-[#3D3B4F]/[0.04] text-[#3D3B4F]'
+                        : 'border-[#e6e5ea] text-[#9B9590] hover:border-[#cbcad4]'
                     )}
                   >
                     Custom event
@@ -504,8 +447,8 @@ function ManageGoalsModal({
                     className={cn(
                       'flex-1 rounded-xl border px-3 py-2 text-[12px] font-medium transition-colors cursor-pointer',
                       type === 'page'
-                        ? 'border-[#5b9a6f]/40 bg-[#5b9a6f]/[0.06] text-[#2D3436]'
-                        : 'border-[#e8e3ed] text-[#9B9590] hover:border-[#d5cfe0]'
+                        ? 'border-[#3D3B4F]/40 bg-[#3D3B4F]/[0.04] text-[#3D3B4F]'
+                        : 'border-[#e6e5ea] text-[#9B9590] hover:border-[#cbcad4]'
                     )}
                   >
                     Page visit
@@ -518,7 +461,7 @@ function ManageGoalsModal({
                     setName(e.target.value);
                     setError('');
                   }}
-                  className="rounded-xl h-10 border-[#e8e3ed] focus:border-[#5b9a6f]/40 px-4 text-[13px]"
+                  className="h-10 px-4 text-[13px]"
                 />
                 <Input
                   placeholder={
@@ -529,7 +472,7 @@ function ManageGoalsModal({
                     setTarget(e.target.value);
                     setError('');
                   }}
-                  className="rounded-xl h-10 border-[#e8e3ed] focus:border-[#5b9a6f]/40 px-4 text-[13px]"
+                  className="h-10 px-4 text-[13px]"
                   onKeyDown={e => {
                     if (e.key === 'Enter' && canCreate) createGoal.mutate();
                   }}
@@ -537,9 +480,7 @@ function ManageGoalsModal({
                 {type === 'event' && (
                   <p className="text-[11px] text-[#B5B0AA]">
                     Fire it from your site with{' '}
-                    <code className="rounded bg-[#f3f0f7] px-1 py-0.5">
-                      traks(&apos;signup&apos;)
-                    </code>
+                    <code className="rounded bg-muted px-1 py-0.5">traks(&apos;signup&apos;)</code>
                   </p>
                 )}
               </div>
@@ -549,11 +490,11 @@ function ManageGoalsModal({
           </div>
         </DialogBody>
 
-        <DialogFooter className="border-t border-[#e8e3ed]/50 mx-6 px-0 pb-5 pt-4">
+        <DialogFooter className="border-t border-[#e6e5ea]/50 mx-6 px-0 pb-5 pt-4">
           <Button
             variant="ghost"
             onClick={() => onOpenChange(false)}
-            className="rounded-xl text-[13px] cursor-pointer"
+            className="text-[13px] cursor-pointer"
           >
             Done
           </Button>
@@ -561,10 +502,215 @@ function ManageGoalsModal({
             onClick={() => createGoal.mutate()}
             disabled={!canCreate}
             isLoading={createGoal.isPending}
-            className="bg-[#5b9a6f] hover:bg-[#4e8a62] text-white rounded-xl text-[13px] px-5 cursor-pointer"
+            className="bg-[#3D3B4F] hover:bg-[#2C2B3B] text-white shadow-none text-[13px] px-5 cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" />
             Add goal
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+const EMPTY_FUNNEL_STEPS: FunnelStep[] = [
+  { type: 'page', target: '' },
+  { type: 'event', target: '' },
+];
+
+function ManageFunnelsModal({
+  open,
+  onOpenChange,
+  siteId,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  siteId: string;
+}): ReactElement {
+  const queryClient = useQueryClient();
+  const [name, setName] = useState('');
+  const [steps, setSteps] = useState<FunnelStep[]>(EMPTY_FUNNEL_STEPS);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (open) {
+      setName('');
+      setSteps(EMPTY_FUNNEL_STEPS);
+      setError('');
+    }
+  }, [open]);
+
+  const funnelsQ = useQuery({
+    queryKey: ['site-funnels', siteId],
+    queryFn: async () => {
+      return api.getFunnels(siteId);
+    },
+    enabled: open,
+    staleTime: 60_000,
+  });
+
+  const invalidate = (): void => {
+    queryClient.invalidateQueries({ queryKey: ['site-funnels', siteId] });
+    queryClient.invalidateQueries({ queryKey: ['site-analytics', siteId] });
+  };
+
+  const createFunnel = useMutation({
+    mutationFn: async () => {
+      return api.createFunnel(siteId, {
+        name,
+        steps: steps.map(s => ({ type: s.type, target: s.target.trim() })),
+      });
+    },
+    onSuccess: () => {
+      setName('');
+      setSteps(EMPTY_FUNNEL_STEPS);
+      setError('');
+      invalidate();
+    },
+    onError: (err: Error) => setError(err.message),
+  });
+
+  const deleteFunnel = useMutation({
+    mutationFn: async (funnelId: string) => {
+      return api.deleteFunnel(siteId, funnelId);
+    },
+    onSuccess: invalidate,
+    onError: (err: Error) => setError(err.message),
+  });
+
+  const funnels = ((funnelsQ.data as any)?.data ?? []) as FunnelDef[];
+  const canCreate =
+    name.trim().length > 0 && steps.length >= 2 && steps.every(s => s.target.trim().length > 0);
+
+  const setStep = (i: number, patch: Partial<FunnelStep>): void => {
+    setSteps(prev => prev.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
+    setError('');
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent onClose={() => onOpenChange(false)} className="max-w-md">
+        <DialogHeader>
+          <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center mb-3">
+            <Filter className="w-5 h-5 text-[#6E6C7C]" strokeWidth={1.7} />
+          </div>
+          <DialogTitle>Funnels</DialogTitle>
+          <DialogDescription>
+            Ordered steps a visitor should complete in one session — pages or custom events. The
+            panel shows where they drop off.
+          </DialogDescription>
+        </DialogHeader>
+
+        <DialogBody>
+          <div className="space-y-5">
+            {/* Existing funnels */}
+            {funnels.length > 0 && (
+              <div className="space-y-1.5">
+                {funnels.map(funnel => (
+                  <div
+                    key={funnel.id}
+                    className="flex items-center justify-between rounded-xl border border-[#e6e5ea]/80 px-3.5 py-2.5"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-[13px] font-medium text-[#3D3B4F]">
+                        {funnel.name}
+                      </p>
+                      <p className="truncate text-[11px] text-[#9B9590]">
+                        {funnel.steps.map(s => s.target).join(' → ')}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => deleteFunnel.mutate(funnel.id)}
+                      disabled={deleteFunnel.isPending}
+                      className="ml-3 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[#B5B0AA] hover:bg-[#e07a5f]/10 hover:text-[#e07a5f] transition-colors cursor-pointer"
+                      title="Delete funnel"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Create funnel */}
+            <div className={funnels.length > 0 ? 'border-t border-[#e6e5ea]/60 pt-5' : ''}>
+              <p className="mb-3 text-[13px] font-medium text-[#3D3B4F]">Create a funnel</p>
+              <div className="space-y-3">
+                <Input
+                  placeholder="Funnel name (e.g. Signup flow)"
+                  value={name}
+                  onChange={e => {
+                    setName(e.target.value);
+                    setError('');
+                  }}
+                  className="h-10 px-4 text-[13px]"
+                />
+
+                <div className="space-y-2">
+                  {steps.map((step, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#e6e5ea] bg-white font-mono text-[10.5px] font-semibold text-[#6E6C7C]">
+                        {i + 1}
+                      </span>
+                      <button
+                        onClick={() =>
+                          setStep(i, { type: step.type === 'page' ? 'event' : 'page' })
+                        }
+                        className="w-[64px] shrink-0 rounded-lg border border-[#e6e5ea] px-2 py-2 text-[11.5px] font-medium text-[#6E6C7C] hover:border-[#cbcad4] transition-colors cursor-pointer"
+                        title="Toggle step type"
+                      >
+                        {step.type === 'page' ? 'Page' : 'Event'}
+                      </button>
+                      <Input
+                        placeholder={step.type === 'page' ? '/pricing' : 'signup'}
+                        value={step.target}
+                        onChange={e => setStep(i, { target: e.target.value })}
+                        className="h-9 px-3 text-[13px]"
+                      />
+                      <button
+                        onClick={() => setSteps(prev => prev.filter((_, idx) => idx !== i))}
+                        disabled={steps.length <= 2}
+                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[#B5B0AA] hover:text-[#e07a5f] disabled:opacity-30 disabled:cursor-default transition-colors cursor-pointer"
+                        title="Remove step"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {steps.length < 8 && (
+                  <button
+                    onClick={() => setSteps(prev => [...prev, { type: 'page', target: '' }])}
+                    className="flex items-center gap-1.5 rounded-lg px-1 py-0.5 text-[12px] font-medium text-[#6E6C7C] hover:text-[#3D3B4F] transition-colors cursor-pointer"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Add step
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {error && <p className="text-[13px] text-[#e07a5f]">{error}</p>}
+          </div>
+        </DialogBody>
+
+        <DialogFooter className="border-t border-[#e6e5ea]/50 mx-6 px-0 pb-5 pt-4">
+          <Button
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
+            className="text-[13px] cursor-pointer"
+          >
+            Done
+          </Button>
+          <Button
+            onClick={() => createFunnel.mutate()}
+            disabled={!canCreate}
+            isLoading={createFunnel.isPending}
+            className="bg-[#3D3B4F] hover:bg-[#2C2B3B] text-white shadow-none text-[13px] px-5 cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Create funnel
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -627,7 +773,7 @@ function DeleteSiteModal({
 
         <DialogBody>
           <div className="space-y-3">
-            <p className="text-[13px] text-[#2D3436]">
+            <p className="text-[13px] text-[#3D3B4F]">
               Type <span className="font-semibold select-all">{site?.domain}</span> to confirm:
             </p>
             <Input
@@ -637,7 +783,7 @@ function DeleteSiteModal({
                 setConfirmText(e.target.value);
                 setError('');
               }}
-              className="rounded-xl h-11 border-[#e07a5f]/30 focus:border-[#e07a5f]/60 px-4 text-[14px]"
+              className="h-11 px-4 text-[14px] shadow-[inset_0_0_0_1px_rgba(224,122,95,0.3)] focus:shadow-[inset_0_0_0_1.5px_rgba(224,122,95,0.6)]"
               autoFocus
               onKeyDown={e => {
                 if (e.key === 'Enter' && canDelete) deleteSite.mutate();
@@ -647,11 +793,11 @@ function DeleteSiteModal({
           </div>
         </DialogBody>
 
-        <DialogFooter className="border-t border-[#e8e3ed]/50 mx-6 px-0 pb-5 pt-4">
+        <DialogFooter className="border-t border-[#e6e5ea]/50 mx-6 px-0 pb-5 pt-4">
           <Button
             variant="ghost"
             onClick={() => onOpenChange(false)}
-            className="rounded-xl text-[13px] cursor-pointer"
+            className="text-[13px] cursor-pointer"
           >
             Cancel
           </Button>
@@ -659,7 +805,7 @@ function DeleteSiteModal({
             onClick={() => deleteSite.mutate()}
             disabled={!canDelete}
             isLoading={deleteSite.isPending}
-            className="bg-[#e07a5f] hover:bg-[#d06a4f] text-white rounded-xl text-[13px] px-5 cursor-pointer"
+            className="bg-coral hover:bg-[#d06a4f] text-white shadow-none text-[13px] px-5 cursor-pointer"
           >
             <Trash2 className="w-3.5 h-3.5" />
             Delete forever
@@ -673,9 +819,26 @@ function DeleteSiteModal({
 type ChartMetric = 'visitors' | 'pageviews' | 'sessions';
 
 const METRIC_COLORS: Record<ChartMetric, string> = {
-  visitors: '#9b72cf',
-  pageviews: '#e07a5f',
-  sessions: '#5b9a6f',
+  visitors: '#3D3B4F',
+  pageviews: '#3D3B4F',
+  sessions: '#3D3B4F',
+};
+
+const EL_TABS = [
+  { key: 'events', label: 'Events' },
+  { key: 'outbound', label: 'Outbound' },
+  { key: 'download', label: 'Downloads' },
+];
+
+const PERIOD_LABELS: Record<string, string> = {
+  today: 'Today',
+  yesterday: 'Yesterday',
+  '7d': 'Last 7 days',
+  '30d': 'Last 30 days',
+  '90d': 'Last 90 days',
+  '6m': 'Last 6 months',
+  '1y': 'Last year',
+  all: 'All time',
 };
 
 function MetricTile({
@@ -703,36 +866,38 @@ function MetricTile({
       onClick={onClick}
       disabled={!onClick}
       className={cn(
-        'group relative flex flex-col items-start gap-1 rounded-xl px-4 py-3 text-left transition-colors',
-        onClick && 'cursor-pointer hover:bg-[#f3f0f7]/60',
-        active && 'bg-[#f3f0f7]/60'
+        'relative flex flex-col items-start gap-[7px] border-l border-[#F5F2EC] px-[22px] py-5 text-left transition-colors first:border-l-0',
+        onClick && 'cursor-pointer hover:bg-[#F4F4F6]',
+        active && 'bg-[#F4F4F6]'
       )}
     >
-      <span className="text-[11px] font-semibold uppercase tracking-wider text-[#9B9590]">
+      <span className="text-[10.5px] font-bold uppercase tracking-[0.09em] text-[#9B9590]">
         {label}
       </span>
-      <span className="text-[24px] font-bold leading-none tracking-tight text-[#2D3436]">
+      <span className="text-[25px] font-bold leading-none tracking-[-0.02em] tabular-nums text-[#3D3B4F]">
         {value}
       </span>
-      {delta && (
+      {delta ? (
         <span
           className={cn(
-            'flex items-center gap-0.5 text-[11px] font-semibold',
-            isGood ? 'text-[#5b9a6f]' : 'text-[#e07a5f]'
+            'flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10.5px] font-bold',
+            isGood ? 'bg-[#F4F4F6] text-[#6E6C7C]' : 'bg-[#F7DCD4] text-[#8F3B2C]'
           )}
         >
           {delta.isPositive ? (
-            <ArrowUpRight className="h-3 w-3" strokeWidth={2.5} />
+            <ArrowUpRight className="h-[11px] w-[11px]" strokeWidth={2.5} />
           ) : (
-            <ArrowDownRight className="h-3 w-3" strokeWidth={2.5} />
+            <ArrowDownRight className="h-[11px] w-[11px]" strokeWidth={2.5} />
           )}
           {delta.text}
         </span>
+      ) : (
+        <span className="text-[10.5px] font-semibold text-[#C9C3BC]">—</span>
       )}
-      {/* Active underline */}
+      {/* Active indicator bar running into the chart below */}
       <span
         className={cn(
-          'absolute inset-x-4 bottom-0 h-[3px] rounded-full transition-opacity',
+          'absolute inset-x-[22px] bottom-0 h-[3px] rounded-t-full transition-opacity',
           active ? 'opacity-100' : 'opacity-0'
         )}
         style={{ backgroundColor: color }}
@@ -750,6 +915,7 @@ function ChartCard({
   timeseriesError,
   metric,
   onMetricChange,
+  period,
 }: {
   stats: MainStats | undefined;
   statsLoading: boolean;
@@ -759,26 +925,32 @@ function ChartCard({
   timeseriesError: boolean;
   metric: ChartMetric;
   onMetricChange: (m: ChartMetric) => void;
+  period: Period;
 }): ReactElement {
   const viewsPerVisit =
     stats && stats.sessions > 0 ? (stats.pageviews / stats.sessions).toFixed(2) : '0';
 
   return (
-    <div className="rounded-2xl border border-[#e8e3ed]/80 bg-white p-5">
-      {/* Metric tiles row */}
+    <div className="overflow-hidden rounded-[20px] bg-white shadow-float">
+      {/* KPI columns */}
       {statsError ? (
-        <p className="px-2 pb-4 text-[13px] text-[#e07a5f]">Failed to load stats</p>
+        <p className="border-b border-[#F3F0EA] px-6 py-5 text-[13px] text-[#e07a5f]">
+          Failed to load stats
+        </p>
       ) : statsLoading || !stats ? (
-        <div className="flex flex-wrap gap-4 border-b border-[#e8e3ed]/60 px-2 pb-4">
-          {[...Array(5)].map((_, i) => (
-            <div key={i} className="flex flex-col gap-2 px-4 py-3">
-              <div className="h-3 w-20 animate-pulse rounded bg-[#f3f0f7]" />
-              <div className="h-6 w-14 animate-pulse rounded bg-[#f3f0f7]" />
+        <div className="grid grid-cols-2 border-b border-[#F3F0EA] sm:grid-cols-3 lg:grid-cols-6">
+          {[...Array(6)].map((_, i) => (
+            <div
+              key={i}
+              className="flex flex-col gap-2 border-l border-[#F5F2EC] px-[22px] py-5 first:border-l-0"
+            >
+              <div className="h-3 w-20 animate-pulse rounded bg-muted" />
+              <div className="h-6 w-14 animate-pulse rounded bg-muted" />
             </div>
           ))}
         </div>
       ) : (
-        <div className="flex flex-wrap items-stretch gap-1 border-b border-[#e8e3ed]/60 pb-4">
+        <div className="grid grid-cols-2 border-b border-[#F3F0EA] sm:grid-cols-3 lg:grid-cols-6">
           <MetricTile
             label="Unique Visitors"
             value={formatNumber(stats.visitors)}
@@ -819,13 +991,22 @@ function ChartCard({
       )}
 
       {/* Chart */}
-      <div className="pt-4">
+      <div className="px-6 pb-4 pt-5">
+        <div className="mb-3.5 flex items-baseline justify-between">
+          <h3 className="text-[15px] font-bold tracking-[-0.01em] text-[#3D3B4F]">
+            {metric === 'visitors'
+              ? 'Unique Visitors'
+              : metric === 'pageviews'
+                ? 'Total Pageviews'
+                : 'Visits'}
+          </h3>
+          <span className="text-[12px] text-[#B5B0AA]">{PERIOD_LABELS[period] ?? period}</span>
+        </div>
         <TimeseriesChart
           data={timeseries}
           isLoading={timeseriesLoading}
           isError={timeseriesError}
           metric={metric}
-          color={METRIC_COLORS[metric]}
           bare
         />
       </div>
@@ -868,13 +1049,13 @@ function FilterChips({
       {entries.map(([key, value]) => (
         <span
           key={key}
-          className="flex items-center gap-1.5 rounded-full bg-[#9b72cf]/[0.08] py-1 pl-3 pr-1.5 text-[12px] text-[#2D3436]"
+          className="flex items-center gap-1.5 rounded-full bg-muted py-1 pl-3 pr-1.5 text-[12px] text-[#3D3B4F]"
         >
           <span className="text-[#9B9590]">{FILTER_LABELS[key]}</span>
           <span className="max-w-[180px] truncate font-medium">{value}</span>
           <button
             onClick={() => onRemove(key)}
-            className="flex h-4.5 w-4.5 items-center justify-center rounded-full hover:bg-[#9b72cf]/15 transition-colors cursor-pointer"
+            className="flex h-4.5 w-4.5 items-center justify-center rounded-full hover:bg-[#E4E4E9] transition-colors cursor-pointer"
             title="Remove filter"
           >
             <X className="h-3 w-3 text-[#9B9590]" />
@@ -884,7 +1065,7 @@ function FilterChips({
       {entries.length > 1 && (
         <button
           onClick={onClear}
-          className="text-[12px] text-[#9B9590] hover:text-[#2D3436] transition-colors cursor-pointer"
+          className="text-[12px] text-[#9B9590] hover:text-[#3D3B4F] transition-colors cursor-pointer"
         >
           Clear all
         </button>
@@ -893,26 +1074,23 @@ function FilterChips({
   );
 }
 
-function LiveVisitorsPill({ count }: { count: number | null }): ReactElement | null {
+function LiveStatus({ count }: { count: number | null }): ReactElement | null {
   if (count === null) return null;
   if (count === 0) {
     return (
-      <div className="flex items-center gap-2 rounded-full bg-[#F5F3F0] px-3 py-1.5">
-        <span className="inline-flex h-2 w-2 rounded-full bg-[#B5B0AA]" />
-        <span className="text-[12px] font-medium text-[#9B9590]">0 current visitors</span>
-      </div>
+      <span className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-[#9B9590]">
+        <span className="inline-flex h-[7px] w-[7px] rounded-full bg-[#B5B0AA]" />0 online now
+      </span>
     );
   }
   return (
-    <div className="flex items-center gap-2 rounded-full bg-[#5b9a6f]/8 px-3 py-1.5">
-      <span className="relative flex h-2 w-2">
-        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#5b9a6f] opacity-60" />
-        <span className="relative inline-flex h-2 w-2 rounded-full bg-[#5b9a6f]" />
+    <span className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-[#3F7A50]">
+      <span className="relative flex h-[7px] w-[7px]">
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-mint opacity-60 motion-reduce:animate-none" />
+        <span className="relative inline-flex h-[7px] w-[7px] rounded-full bg-mint" />
       </span>
-      <span className="text-[12px] font-medium text-[#5b9a6f]">
-        {count} current visitor{count === 1 ? '' : 's'}
-      </span>
-    </div>
+      {count} online now
+    </span>
   );
 }
 
@@ -985,6 +1163,8 @@ function SiteAnalyticsPage(): ReactElement {
   const [installOpen, setInstallOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [goalsOpen, setGoalsOpen] = useState(false);
+  const [funnelsOpen, setFunnelsOpen] = useState(false);
+  const [selectedFunnelId, setSelectedFunnelId] = useState<string | null>(null);
   const [chartMetric, setChartMetric] = useState<ChartMetric>('visitors');
 
   // Per-panel tab state
@@ -992,9 +1172,14 @@ function SiteAnalyticsPage(): ReactElement {
   const [sourceTab, setSourceTab] = useState('referrers');
   const [locationTab, setLocationTab] = useState('country');
   const [deviceTab, setDeviceTab] = useState('browser');
-  const [linksTab, setLinksTab] = useState('outbound');
+  // Merged panel: custom events + auto-tracked links share one card
+  const [elTab, setElTab] = useState('events');
   // Drill-down: when set, the Custom Events panel shows this event's props
   const [selectedEvent, setSelectedEvent] = useState<string | null>(null);
+  const handleElTab = useCallback((key: string): void => {
+    setElTab(key);
+    setSelectedEvent(null);
+  }, []);
 
   // Lazy-render sentinels for below-fold sections
   const [belowFoldRef, belowFoldVisible] = useLazyVisible();
@@ -1145,18 +1330,41 @@ function SiteAnalyticsPage(): ReactElement {
     tileOpts(
       ['links', 'outbound'],
       () => api.getLinks(siteId, period, 'outbound', filters),
-      belowFoldVisible && linksTab === 'outbound'
+      belowFoldVisible && elTab === 'outbound'
     )
   );
   const downloadsQ = useQuery(
     tileOpts(
       ['links', 'download'],
       () => api.getLinks(siteId, period, 'download', filters),
-      belowFoldVisible && linksTab === 'download'
+      belowFoldVisible && elTab === 'download'
     )
   );
   const goalStatsQ = useQuery(
     tileOpts(['goals'], () => api.getGoalStats(siteId, period, filters), belowFoldVisible)
+  );
+
+  // Funnel definitions live in D1 (cheap); stats are one R2 SQL scan per funnel,
+  // so only the selected funnel's stats query runs.
+  const funnelsQ = useQuery({
+    queryKey: ['site-funnels', siteId],
+    queryFn: async () => {
+      return api.getFunnels(siteId);
+    },
+    staleTime: 60_000,
+    enabled: belowFoldVisible,
+  });
+  const funnelList = ((funnelsQ.data as any)?.data ?? []) as FunnelDef[];
+  const activeFunnelId =
+    selectedFunnelId && funnelList.some(f => f.id === selectedFunnelId)
+      ? selectedFunnelId
+      : (funnelList[0]?.id ?? null);
+  const funnelStatsQ = useQuery(
+    tileOpts(
+      ['funnel', activeFunnelId],
+      () => api.getFunnelStats(siteId, activeFunnelId!, period, filters),
+      belowFoldVisible && activeFunnelId !== null
+    )
   );
   const eventPropsQ = useQuery(
     tileOpts(
@@ -1193,7 +1401,7 @@ function SiteAnalyticsPage(): ReactElement {
     utm_campaign: utmCampaignQ,
   };
   const sourceQ = sourceQueries[sourceTab];
-  const linkQ = linksTab === 'outbound' ? outboundQ : downloadsQ;
+  const linkQ = elTab === 'download' ? downloadsQ : outboundQ;
 
   const locationQueries: Record<string, typeof countriesQ> = {
     country: countriesQ,
@@ -1216,54 +1424,57 @@ function SiteAnalyticsPage(): ReactElement {
   return (
     <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
       <div className="space-y-6">
-        {/* Header */}
+        {/* Header: identity block */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <Link
               to="/portal/sites"
-              className="flex items-center justify-center w-9 h-9 rounded-lg hover:bg-[#f3f0f7] transition-colors cursor-pointer"
+              className="flex h-8 w-8 items-center justify-center rounded-full text-[#B5B0AA] transition-all hover:bg-white hover:text-[#3D3B4F] hover:shadow-pill cursor-pointer"
             >
-              <ArrowLeft className="w-4 h-4 text-[#9B9590]" />
+              <ArrowLeft className="w-4 h-4" />
             </Link>
             <div>
-              <h1 className="text-[20px] font-bold text-[#2D3436] tracking-[-0.01em]">
+              <h1 className="text-[22px] font-bold leading-tight text-[#3D3B4F] tracking-[-0.02em]">
                 {site?.name || 'Analytics'}
               </h1>
-              {site?.domain && <p className="text-[13px] text-[#9B9590]">{site.domain}</p>}
+              <div className="mt-1 flex items-center gap-2.5 text-[12.5px]">
+                {site?.domain && <span className="text-[#9B9590]">{site.domain}</span>}
+                {site?.domain && currentVisitors !== null && (
+                  <span className="h-[3px] w-[3px] rounded-full bg-[#D8D2CA]" />
+                )}
+                <LiveStatus count={currentVisitors} />
+              </div>
             </div>
-            <LiveVisitorsPill count={currentVisitors} />
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setInstallOpen(true)}
-              className="flex items-center justify-center w-9 h-9 rounded-xl bg-[#f3f0f7]/60 hover:bg-[#f3f0f7] transition-colors cursor-pointer"
+              className="flex items-center justify-center w-[38px] h-[38px] rounded-full bg-white shadow-pill text-[#9B9590] hover:text-foreground transition-colors cursor-pointer"
               title="Installation"
             >
-              <Code2 className="w-3.5 h-3.5 text-[#9B9590]" />
+              <Code2 className="w-[15px] h-[15px]" />
             </button>
             <button
               onClick={() => setEditOpen(true)}
-              className="flex items-center justify-center w-9 h-9 rounded-xl bg-[#f3f0f7]/60 hover:bg-[#f3f0f7] transition-colors cursor-pointer"
+              className="flex items-center justify-center w-[38px] h-[38px] rounded-full bg-white shadow-pill text-[#9B9590] hover:text-foreground transition-colors cursor-pointer"
               title="Site settings"
             >
-              <Settings className="w-3.5 h-3.5 text-[#9B9590]" />
+              <Settings className="w-[15px] h-[15px]" />
             </button>
             <button
               onClick={handleRefresh}
-              className="flex items-center justify-center w-9 h-9 rounded-xl bg-[#f3f0f7]/60 hover:bg-[#f3f0f7] transition-colors cursor-pointer"
+              className="flex items-center justify-center w-[38px] h-[38px] rounded-full bg-white shadow-pill text-[#9B9590] hover:text-foreground transition-colors cursor-pointer"
               title="Refresh data"
             >
-              <RefreshCw
-                className={`w-3.5 h-3.5 text-[#9B9590] ${refreshing ? 'animate-spin' : ''}`}
-              />
+              <RefreshCw className={`w-[15px] h-[15px] ${refreshing ? 'animate-spin' : ''}`} />
             </button>
             <PeriodPicker value={period} onChange={setPeriod} />
             <button
               onClick={() => setDeleteOpen(true)}
-              className="flex items-center justify-center w-9 h-9 rounded-xl bg-[#e07a5f]/[0.06] hover:bg-[#e07a5f]/15 transition-colors cursor-pointer"
+              className="flex items-center justify-center w-[38px] h-[38px] rounded-full bg-white shadow-pill text-coral hover:bg-[#e07a5f]/10 transition-colors cursor-pointer"
               title="Delete site"
             >
-              <Trash2 className="w-3.5 h-3.5 text-[#e07a5f]" />
+              <Trash2 className="w-[15px] h-[15px]" />
             </button>
           </div>
         </div>
@@ -1283,6 +1494,7 @@ function SiteAnalyticsPage(): ReactElement {
           timeseriesError={timeseriesQ.isError}
           metric={chartMetric}
           onMetricChange={setChartMetric}
+          period={period}
         />
 
         {/* Pages + Sources */}
@@ -1379,9 +1591,9 @@ function SiteAnalyticsPage(): ReactElement {
                         : 'Size'
                 }
                 items={(deviceQ.data as any)?.data}
+                showPercentage
                 isLoading={deviceQ.isLoading}
                 isError={deviceQ.isError}
-                showPercentage
                 tabs={[
                   { key: 'browser', label: 'Browser' },
                   { key: 'os', label: 'OS' },
@@ -1407,70 +1619,82 @@ function SiteAnalyticsPage(): ReactElement {
               />
             </div>
 
-            {/* Goal conversions */}
-            <GoalsPanel
-              goals={(goalStatsQ.data as any)?.data}
-              isLoading={goalStatsQ.isLoading}
-              isError={goalStatsQ.isError}
-              onManage={() => setGoalsOpen(true)}
-            />
-
-            {/* Custom events + auto-tracked links */}
+            {/* Goal conversions + custom events / links */}
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-              {selectedEvent === null ? (
-                <PanelCard
-                  title="Custom Events"
-                  labelHeader="Event"
-                  valueHeader="Count"
-                  items={events?.map(e => ({ name: e.name, visitors: e.count }))}
-                  isLoading={eventsQ.isLoading}
-                  isError={eventsQ.isError}
-                  emptyText="No custom events yet"
-                  onItemClick={item => setSelectedEvent(item.name)}
-                />
+              <GoalsPanel
+                goals={(goalStatsQ.data as any)?.data}
+                isLoading={goalStatsQ.isLoading}
+                isError={goalStatsQ.isError}
+                onManage={() => setGoalsOpen(true)}
+              />
+              {elTab === 'events' ? (
+                selectedEvent === null ? (
+                  <PanelCard
+                    title="Custom Events"
+                    labelHeader="Event"
+                    valueHeader="Count"
+                    items={events?.map(e => ({ name: e.name, visitors: e.count }))}
+                    isLoading={eventsQ.isLoading}
+                    isError={eventsQ.isError}
+                    emptyText="No custom events yet"
+                    tabs={EL_TABS}
+                    activeTab={elTab}
+                    onTabChange={handleElTab}
+                    onItemClick={item => setSelectedEvent(item.name)}
+                  />
+                ) : (
+                  <PanelCard
+                    title={selectedEvent}
+                    labelHeader="Property"
+                    valueHeader="Events"
+                    items={(
+                      (eventPropsQ.data as any)?.data as
+                        | { key: string; value: string; events: number }[]
+                        | undefined
+                    )?.map(p => ({
+                      name: `${p.key}: ${p.value}`,
+                      visitors: p.events,
+                    }))}
+                    isLoading={eventPropsQ.isLoading}
+                    isError={eventPropsQ.isError}
+                    emptyText="No properties on this event"
+                    headerAction={
+                      <button
+                        onClick={() => setSelectedEvent(null)}
+                        className="ml-auto shrink-0 rounded-full bg-muted px-3 py-1 text-[11px] font-semibold text-foreground hover:bg-muted transition-colors cursor-pointer"
+                      >
+                        ← All events
+                      </button>
+                    }
+                  />
+                )
               ) : (
                 <PanelCard
-                  title={selectedEvent}
-                  labelHeader="Property"
-                  valueHeader="Events"
-                  items={(
-                    (eventPropsQ.data as any)?.data as
-                      | { key: string; value: string; events: number }[]
-                      | undefined
-                  )?.map(p => ({
-                    name: `${p.key}: ${p.value}`,
-                    visitors: p.events,
-                  }))}
-                  isLoading={eventPropsQ.isLoading}
-                  isError={eventPropsQ.isError}
-                  emptyText="No properties on this event"
-                  headerAction={
-                    <button
-                      onClick={() => setSelectedEvent(null)}
-                      className="ml-auto shrink-0 rounded-lg bg-[#f3f0f7]/60 px-2.5 py-1 text-[11px] font-medium text-[#9B9590] hover:bg-[#f3f0f7] hover:text-[#2D3436] transition-colors cursor-pointer"
-                    >
-                      ← All events
-                    </button>
+                  title="Links"
+                  labelHeader="URL"
+                  items={(linkQ.data as any)?.data}
+                  isLoading={linkQ.isLoading}
+                  isError={linkQ.isError}
+                  tabs={EL_TABS}
+                  activeTab={elTab}
+                  onTabChange={handleElTab}
+                  emptyText={
+                    elTab === 'outbound' ? 'No outbound clicks yet' : 'No file downloads yet'
                   }
                 />
               )}
-              <PanelCard
-                title="Links"
-                labelHeader="URL"
-                items={(linkQ.data as any)?.data}
-                isLoading={linkQ.isLoading}
-                isError={linkQ.isError}
-                tabs={[
-                  { key: 'outbound', label: 'Outbound' },
-                  { key: 'download', label: 'Downloads' },
-                ]}
-                activeTab={linksTab}
-                onTabChange={setLinksTab}
-                emptyText={
-                  linksTab === 'outbound' ? 'No outbound clicks yet' : 'No file downloads yet'
-                }
-              />
             </div>
+
+            {/* Funnels */}
+            <FunnelsPanel
+              funnels={funnelsQ.isLoading ? undefined : funnelList}
+              selectedId={activeFunnelId}
+              onSelect={setSelectedFunnelId}
+              stat={(funnelStatsQ.data as any)?.data as FunnelStat | undefined}
+              isLoading={funnelStatsQ.isLoading}
+              isError={funnelStatsQ.isError || funnelsQ.isError}
+              onManage={() => setFunnelsOpen(true)}
+            />
           </>
         )}
       </div>
@@ -1478,22 +1702,15 @@ function SiteAnalyticsPage(): ReactElement {
       <EditSiteModal
         open={editOpen}
         onOpenChange={setEditOpen}
-        site={
-          site
-            ? {
-                name: site.name,
-                domain: site.domain,
-                timezone: site.timezone,
-                public: site.public,
-              }
-            : null
-        }
+        site={site ? { name: site.name, domain: site.domain, timezone: site.timezone } : null}
         siteId={siteId}
       />
 
       <InstallModal open={installOpen} onOpenChange={setInstallOpen} site={site} />
 
       <ManageGoalsModal open={goalsOpen} onOpenChange={setGoalsOpen} siteId={siteId} />
+
+      <ManageFunnelsModal open={funnelsOpen} onOpenChange={setFunnelsOpen} siteId={siteId} />
 
       <DeleteSiteModal
         open={deleteOpen}

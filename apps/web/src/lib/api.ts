@@ -107,19 +107,47 @@ export const api = {
     return res.json();
   },
 
-  async getGoalStats(siteId: string, period: Period, filters?: AnalyticsFilters): Promise<any> {
-    const res = await client.api.analytics[':siteId'].stats.goals.$get({
-      param: { siteId },
+  async getFunnels(siteId: string): Promise<any> {
+    const res = await client.api.sites[':id'].funnels.$get({ param: { id: siteId } });
+    await assertOk(res);
+    return res.json();
+  },
+
+  async createFunnel(
+    siteId: string,
+    data: { name: string; steps: { type: 'event' | 'page'; target: string }[] }
+  ): Promise<any> {
+    const res = await client.api.sites[':id'].funnels.$post({ param: { id: siteId }, json: data });
+    await assertOk(res);
+    return res.json();
+  },
+
+  async deleteFunnel(siteId: string, funnelId: string): Promise<any> {
+    const res = await client.api.sites[':id'].funnels[':funnelId'].$delete({
+      param: { id: siteId, funnelId },
+    });
+    await assertOk(res);
+    return res.json();
+  },
+
+  async getFunnelStats(
+    siteId: string,
+    funnelId: string,
+    period: Period,
+    filters?: AnalyticsFilters
+  ): Promise<any> {
+    const res = await client.api.analytics[':siteId'].stats.funnel[':funnelId'].$get({
+      param: { siteId, funnelId },
       query: { period, ...filters },
     });
     await assertOk(res);
     return res.json();
   },
 
-  async togglePublic(siteId: string, enabled: boolean): Promise<any> {
-    const res = await client.api.sites[':id'].public.$post({
-      param: { id: siteId },
-      json: { enabled },
+  async getGoalStats(siteId: string, period: Period, filters?: AnalyticsFilters): Promise<any> {
+    const res = await client.api.analytics[':siteId'].stats.goals.$get({
+      param: { siteId },
+      query: { period, ...filters },
     });
     await assertOk(res);
     return res.json();

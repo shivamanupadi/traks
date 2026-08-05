@@ -8,9 +8,10 @@ import {
   allSitesTimezoneSchema,
   createGoalSchema,
   createFunnelSchema,
+  createSegmentSchema,
 } from '@traks/shared';
 import { requireAuth } from '../middleware/auth';
-import { sites, apiKeys, goals, funnels } from '../db/schema';
+import { sites, apiKeys, goals, funnels, segments } from '../db/schema';
 import type { Bindings, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
@@ -191,6 +192,75 @@ export const sitesRoute = app
     if (!goal || goal.siteId !== siteId) return c.json({ error: 'Not found' }, 404);
 
     await db.delete(goals).where(eq(goals.id, goalId));
+    return c.json({ ok: true });
+  })
+
+  // List segments for a site
+  .get('/:id/segments', requireAuth, async c => {
+    const userId = c.get('userId')!;
+    const siteId = c.req.param('id');
+    const db = c.get('db')!;
+
+    const [site] = await db
+      .select({ userId: sites.userId })
+      .from(sites)
+      .where(eq(sites.id, siteId));
+    if (!site || site.userId !== userId) return c.json({ error: 'Not found' }, 404);
+
+    const siteSegments = await db.select().from(segments).where(eq(segments.siteId, siteId));
+    return c.json({ data: siteSegments });
+  })
+
+  // Create a segment
+  .post('/:id/segments', requireAuth, zValidator('json', createSegmentSchema), async c => {
+    const userId = c.get('userId')!;
+    const siteId = c.req.param('id');
+    const body = c.req.valid('json');
+    const db = c.get('db')!;
+
+    const [site] = await db
+      .select({ userId: sites.userId })
+      .from(sites)
+      .where(eq(sites.id, siteId));
+    if (!site || site.userId !== userId) return c.json({ error: 'Not found' }, 404);
+
+    const existing = await db
+      .select({ id: segments.id })
+      .from(segments)
+      .where(eq(segments.siteId, siteId));
+    if (existing.length >= 50) return c.json({ error: 'Segment limit reached (50 per site)' }, 400);
+
+    const segmentId = createId();
+    await db.insert(segments).values({
+      id: segmentId,
+      siteId,
+      name: body.name,
+      filters: body.filters,
+    });
+    const [segment] = await db.select().from(segments).where(eq(segments.id, segmentId));
+    return c.json({ data: segment }, 201);
+  })
+
+  // Delete a segment
+  .delete('/:id/segments/:segmentId', requireAuth, async c => {
+    const userId = c.get('userId')!;
+    const siteId = c.req.param('id');
+    const segmentId = c.req.param('segmentId');
+    const db = c.get('db')!;
+
+    const [site] = await db
+      .select({ userId: sites.userId })
+      .from(sites)
+      .where(eq(sites.id, siteId));
+    if (!site || site.userId !== userId) return c.json({ error: 'Not found' }, 404);
+
+    const [segment] = await db
+      .select({ siteId: segments.siteId })
+      .from(segments)
+      .where(eq(segments.id, segmentId));
+    if (!segment || segment.siteId !== siteId) return c.json({ error: 'Not found' }, 404);
+
+    await db.delete(segments).where(eq(segments.id, segmentId));
     return c.json({ ok: true });
   })
 

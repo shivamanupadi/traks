@@ -50,6 +50,30 @@ export interface GoalStat {
   conversionRate: number;
 }
 
+/**
+ * A saved filter set — same camelCase keys the analytics endpoints accept as
+ * query params (and the dashboard carries in its URL search params).
+ */
+export interface SegmentFilters {
+  page?: string;
+  source?: string;
+  utmSource?: string;
+  utmMedium?: string;
+  utmCampaign?: string;
+  country?: string;
+  region?: string;
+  city?: string;
+  browser?: string;
+  os?: string;
+  device?: string;
+}
+
+export interface SegmentDef {
+  id: string;
+  name: string;
+  filters: SegmentFilters;
+}
+
 /** One ordered funnel step: a pageview of a pathname or a custom event. */
 export interface FunnelStep {
   type: 'event' | 'page';

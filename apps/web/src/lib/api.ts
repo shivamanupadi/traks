@@ -107,6 +107,32 @@ export const api = {
     return res.json();
   },
 
+  async getSegments(siteId: string): Promise<any> {
+    const res = await client.api.sites[':id'].segments.$get({ param: { id: siteId } });
+    await assertOk(res);
+    return res.json();
+  },
+
+  async createSegment(
+    siteId: string,
+    data: { name: string; filters: Record<string, string> }
+  ): Promise<any> {
+    const res = await client.api.sites[':id'].segments.$post({
+      param: { id: siteId },
+      json: data,
+    });
+    await assertOk(res);
+    return res.json();
+  },
+
+  async deleteSegment(siteId: string, segmentId: string): Promise<any> {
+    const res = await client.api.sites[':id'].segments[':segmentId'].$delete({
+      param: { id: siteId, segmentId },
+    });
+    await assertOk(res);
+    return res.json();
+  },
+
   async getFunnels(siteId: string): Promise<any> {
     const res = await client.api.sites[':id'].funnels.$get({ param: { id: siteId } });
     await assertOk(res);

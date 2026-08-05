@@ -66,6 +66,31 @@ export const createGoalSchema = z.object({
   target: z.string().min(1).max(2048),
 });
 
+/** Saved filter set: at least one known filter dimension, unknown keys stripped. */
+export const segmentFiltersSchema = z
+  .object({
+    page: z.string().min(1).max(2048),
+    source: z.string().min(1).max(512),
+    utmSource: z.string().min(1).max(512),
+    utmMedium: z.string().min(1).max(512),
+    utmCampaign: z.string().min(1).max(512),
+    country: z.string().min(1).max(128),
+    region: z.string().min(1).max(128),
+    city: z.string().min(1).max(128),
+    browser: z.string().min(1).max(128),
+    os: z.string().min(1).max(128),
+    device: z.string().min(1).max(128),
+  })
+  .partial()
+  .refine(f => Object.values(f).some(v => v), {
+    message: 'A segment needs at least one filter',
+  });
+
+export const createSegmentSchema = z.object({
+  name: z.string().min(1).max(100),
+  filters: segmentFiltersSchema,
+});
+
 /** One ordered funnel step: a pageview of a pathname or a custom event. */
 export const funnelStepSchema = z.object({
   type: z.enum(['event', 'page']),

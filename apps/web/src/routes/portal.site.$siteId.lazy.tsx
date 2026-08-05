@@ -16,8 +16,18 @@ import {
   Filter,
   Target,
   Plus,
+  Bookmark,
+  BookmarkPlus,
 } from 'lucide-react';
-import type { Period, MainStats, FunnelDef, FunnelStat, FunnelStep } from '@traks/shared';
+import type {
+  Period,
+  MainStats,
+  FunnelDef,
+  FunnelStat,
+  FunnelStep,
+  SegmentDef,
+  SegmentFilters,
+} from '@traks/shared';
 import { cn, formatNumber, formatDuration, formatPercentChange } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,6 +41,14 @@ import {
   DialogBody,
   DialogFooter,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { TimeseriesChart } from '@/components/analytics/TimeseriesChart';
 import { PanelCard } from '@/components/analytics/PanelCard';
 import { GoalsPanel } from '@/components/analytics/GoalsPanel';
@@ -1074,6 +1092,203 @@ function FilterChips({
   );
 }
 
+/**
+ * Saved segments: apply a named filter set, save the current one, or delete.
+ * Definitions live in D1; applying just rewrites the URL search params.
+ */
+function SegmentsMenu({
+  siteId,
+  filters,
+  hasFilters,
+  onApply,
+}: {
+  siteId: string;
+  filters: AnalyticsFilters;
+  hasFilters: boolean;
+  onApply: (filters: SegmentFilters) => void;
+}): ReactElement {
+  const queryClient = useQueryClient();
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [name, setName] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (saveOpen) {
+      setName('');
+      setError('');
+    }
+  }, [saveOpen]);
+
+  const segmentsQ = useQuery({
+    queryKey: ['site-segments', siteId],
+    queryFn: async () => {
+      return api.getSegments(siteId);
+    },
+    staleTime: 60_000,
+  });
+  const segments = ((segmentsQ.data as any)?.data ?? []) as SegmentDef[];
+
+  const invalidate = (): void => {
+    queryClient.invalidateQueries({ queryKey: ['site-segments', siteId] });
+  };
+
+  const createSegment = useMutation({
+    mutationFn: async () => {
+      return api.createSegment(siteId, { name, filters: filters as Record<string, string> });
+    },
+    onSuccess: () => {
+      setSaveOpen(false);
+      invalidate();
+    },
+    onError: (err: Error) => setError(err.message),
+  });
+
+  const deleteSegment = useMutation({
+    mutationFn: async (segmentId: string) => {
+      return api.deleteSegment(siteId, segmentId);
+    },
+    onSuccess: invalidate,
+  });
+
+  const activeEntries = Object.entries(filters).filter(([, v]) => v) as [
+    keyof AnalyticsFilters,
+    string,
+  ][];
+
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            className="flex items-center justify-center w-[38px] h-[38px] rounded-full bg-white shadow-pill text-[#9B9590] hover:text-foreground transition-colors cursor-pointer focus:outline-none"
+            title="Segments"
+          >
+            <Bookmark className="w-[15px] h-[15px]" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="end"
+          className="w-64 rounded-2xl bg-white border-none shadow-float"
+        >
+          <DropdownMenuLabel className="px-4 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wider text-[#B5B0AA]">
+            Segments
+          </DropdownMenuLabel>
+          {segments.length === 0 ? (
+            <p className="px-4 pb-3 pt-1 text-[12.5px] leading-relaxed text-[#9B9590]">
+              No saved segments. Filter the dashboard (click any row), then save the view here.
+            </p>
+          ) : (
+            segments.map(segment => (
+              <DropdownMenuItem
+                key={segment.id}
+                onClick={() => onApply(segment.filters)}
+                className="group flex items-center justify-between gap-2 px-4 py-2.5 cursor-pointer"
+              >
+                <span className="min-w-0">
+                  <span className="block truncate text-[13px] font-medium text-[#3D3B4F]">
+                    {segment.name}
+                  </span>
+                  <span className="block truncate text-[11px] text-[#9B9590]">
+                    {Object.entries(segment.filters)
+                      .filter(([, v]) => v)
+                      .map(([k, v]) => `${FILTER_LABELS[k as keyof AnalyticsFilters] ?? k}: ${v}`)
+                      .join(' · ')}
+                  </span>
+                </span>
+                <button
+                  onClick={e => {
+                    e.stopPropagation();
+                    deleteSegment.mutate(segment.id);
+                  }}
+                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[#B5B0AA] opacity-0 transition-all hover:text-[#e07a5f] group-hover:opacity-100 cursor-pointer"
+                  title="Delete segment"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </DropdownMenuItem>
+            ))
+          )}
+          {hasFilters && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => setSaveOpen(true)}
+                className="flex items-center gap-2.5 px-4 py-2.5 cursor-pointer text-[13px] font-medium text-[#3D3B4F]"
+              >
+                <BookmarkPlus className="h-4 w-4 text-[#6E6C7C]" />
+                Save current filters…
+              </DropdownMenuItem>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <Dialog open={saveOpen} onOpenChange={setSaveOpen}>
+        <DialogContent onClose={() => setSaveOpen(false)} className="max-w-sm">
+          <DialogHeader>
+            <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center mb-3">
+              <BookmarkPlus className="w-5 h-5 text-[#6E6C7C]" strokeWidth={1.7} />
+            </div>
+            <DialogTitle>Save segment</DialogTitle>
+            <DialogDescription>
+              Saves the active filters as a named view you can re-apply from the segments menu.
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogBody>
+            <div className="space-y-4">
+              <div className="flex flex-wrap gap-1.5">
+                {activeEntries.map(([key, value]) => (
+                  <span
+                    key={key}
+                    className="flex items-center gap-1.5 rounded-full bg-muted py-1 px-3 text-[12px] text-[#3D3B4F]"
+                  >
+                    <span className="text-[#9B9590]">{FILTER_LABELS[key]}</span>
+                    <span className="max-w-[160px] truncate font-medium">{value}</span>
+                  </span>
+                ))}
+              </div>
+              <Input
+                placeholder="Segment name (e.g. Google · Mobile)"
+                value={name}
+                onChange={e => {
+                  setName(e.target.value);
+                  setError('');
+                }}
+                className="h-10 px-4 text-[13px]"
+                autoFocus
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && name.trim()) createSegment.mutate();
+                }}
+              />
+              {error && <p className="text-[13px] text-[#e07a5f]">{error}</p>}
+            </div>
+          </DialogBody>
+
+          <DialogFooter className="border-t border-[#e6e5ea]/50 mx-6 px-0 pb-5 pt-4">
+            <Button
+              variant="ghost"
+              onClick={() => setSaveOpen(false)}
+              className="text-[13px] cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => createSegment.mutate()}
+              disabled={name.trim().length === 0}
+              isLoading={createSegment.isPending}
+              className="bg-[#3D3B4F] hover:bg-[#2C2B3B] text-white shadow-none text-[13px] px-5 cursor-pointer"
+            >
+              <BookmarkPlus className="w-3.5 h-3.5" />
+              Save segment
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 function LiveStatus({ count }: { count: number | null }): ReactElement | null {
   if (count === null) return null;
   if (count === 0) {
@@ -1158,6 +1373,25 @@ function SiteAnalyticsPage(): ReactElement {
       replace: true,
     });
   }, [navigate, siteId]);
+
+  // Replace the active filters wholesale with a saved segment's set.
+  const applySegment = useCallback(
+    (segmentFilters: SegmentFilters) => {
+      navigate({
+        to: '/portal/site/$siteId',
+        params: { siteId },
+        search: prev => {
+          const next = { ...prev } as Record<string, unknown>;
+          for (const key of Object.keys(FILTER_LABELS)) {
+            next[key] = (segmentFilters as Record<string, string | undefined>)[key] || undefined;
+          }
+          return next;
+        },
+        replace: true,
+      });
+    },
+    [navigate, siteId]
+  );
   const [refreshing, setRefreshing] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [installOpen, setInstallOpen] = useState(false);
@@ -1468,6 +1702,12 @@ function SiteAnalyticsPage(): ReactElement {
             >
               <RefreshCw className={`w-[15px] h-[15px] ${refreshing ? 'animate-spin' : ''}`} />
             </button>
+            <SegmentsMenu
+              siteId={siteId}
+              filters={filters}
+              hasFilters={hasFilters}
+              onApply={applySegment}
+            />
             <PeriodPicker value={period} onChange={setPeriod} />
             <button
               onClick={() => setDeleteOpen(true)}

@@ -4,42 +4,70 @@
  *
  * Provisions a complete Traks deployment into a Cloudflare account and keeps
  * it updated. The resource layer (D1, KV, R2 + Data Catalog, pipeline
- * stream/sink) is managed by OpenTofu/Terraform (installer/terraform/main.tf)
- * — real state, ownership tracking, plan/destroy safety. The app layer
- * (worker builds + deploys, D1 migrations, secrets) stays with wrangler;
- * this CLI orchestrates both.
+ * stream/sink) is managed by OpenTofu/Terraform — real state, ownership
+ * tracking, plan/destroy safety. The app layer (worker deploys, D1
+ * migrations, secrets) goes through wrangler; this CLI orchestrates both.
  *
- *   node installer/cli.mjs install   [--instance <name>] [--yes]
- *   node installer/cli.mjs update    [--instance <name>]
- *   node installer/cli.mjs doctor    [--instance <name>]
- *   node installer/cli.mjs adopt    [--instance <name>]   import an existing
- *                                    (pre-Terraform) instance into state
- *   node installer/cli.mjs destroy   --instance <name>
+ * Ships as the @traks/cli npm package with everything it deploys prebuilt
+ * inside it — worker bundles, the web dist, migrations, Terraform config —
+ * so users never need this repository. (Developing? Build the package first:
+ * `node installer/build-package.mjs`, then run the built CLI.)
+ *
+ * All state lives under ~/.traks (override with TRAKS_HOME):
+ *   ~/.traks/terraform/        tofu working dir; one workspace per instance —
+ *                              that workspace's state IS the ownership record
+ *   ~/.traks/<instance>/       generated wrangler configs for the instance
+ *
+ *   traks install   [--instance <name>] [--yes]
+ *   traks update    [--instance <name>]
+ *   traks doctor    [--instance <name>]
+ *   traks adopt     [--instance <name>]   import a pre-Terraform instance
+ *   traks destroy   --instance <name>
  *
  * Requirements:
- *   - Node 20+, repo dependencies installed (`yarn install`)
- *   - OpenTofu (`brew install opentofu`) or Terraform on PATH
+ *   - Node 20+; OpenTofu (`brew install opentofu`) or Terraform on PATH
  *   - Cloudflare auth: `npx wrangler login` (or CLOUDFLARE_API_TOKEN)
  *   - CATALOG_TOKEN env var (install/adopt/destroy): an R2 API token with
  *     "Workers R2 SQL Read" + "Workers R2 Data Catalog Write" + "Workers R2
  *     Storage Write". It becomes the catalog service credential and the
  *     worker's query token.
  *
- * Ownership: every instance is a Terraform workspace with its own state
- * file — destroy removes exactly the resources recorded in that state,
- * never a same-named resource it didn't create. Secrets are never stored
- * in state (wrangler-managed) and are never overwritten on re-runs.
+ * Secrets are never stored in Terraform state (wrangler-managed) and are
+ * never overwritten on re-runs.
  */
 import { spawnSync } from 'node:child_process';
 import { randomBytes, createHash, createHmac } from 'node:crypto';
-import { writeFileSync, existsSync, readFileSync } from 'node:fs';
+import { writeFileSync, existsSync, readFileSync, mkdirSync, copyFileSync } from 'node:fs';
 import { createInterface } from 'node:readline/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const TF_DIR = path.join(ROOT, 'installer/terraform');
+const SELF_DIR = path.dirname(fileURLToPath(import.meta.url));
+
+/** Everything the installer deploys ships inside the package. */
+const SRC = {
+  apiMain: path.join(SELF_DIR, 'dist/api/worker.js'),
+  collectMain: path.join(SELF_DIR, 'dist/collect/worker.js'),
+  webDist: path.join(SELF_DIR, 'dist/web'),
+  migrationsDir: path.join(SELF_DIR, 'dist/migrations'),
+  tfMain: path.join(SELF_DIR, 'dist/terraform/main.tf'),
+  schema: path.join(SELF_DIR, 'dist/terraform/pipeline-schema.json'),
+};
+
+if (!existsSync(SRC.tfMain)) {
+  console.error(
+    '\n✗ Package artifacts missing. If you are developing from the Traks repo,\n' +
+      '  build the package first:  node installer/build-package.mjs\n' +
+      '  then run:                 node installer/npm/traks-cli/cli.mjs <command>'
+  );
+  process.exit(1);
+}
+
+const TRAKS_HOME = process.env.TRAKS_HOME ?? path.join(os.homedir(), '.traks');
+const TF_DIR = path.join(TRAKS_HOME, 'terraform');
+mkdirSync(TRAKS_HOME, { recursive: true });
+
 const args = process.argv.slice(2);
 const command = args[0] ?? 'install';
 const flag = name => {
@@ -53,7 +81,11 @@ if (!/^[a-z][a-z0-9-]{2,20}$/.test(INSTANCE)) {
   fail(`--instance must be lowercase alphanumeric/hyphens (got "${INSTANCE}")`);
 }
 
-/** App-layer names (workers stay wrangler-managed; resource names live in main.tf). */
+const INSTANCE_DIR = path.join(TRAKS_HOME, INSTANCE);
+const API_TOML = path.join(INSTANCE_DIR, 'api.toml');
+const COLLECT_TOML = path.join(INSTANCE_DIR, 'collect.toml');
+
+/** App-layer names (workers are wrangler-managed; resource names live in main.tf). */
 const N = {
   apiWorker: `${INSTANCE}-api`,
   collectWorker: `${INSTANCE}-collect`,
@@ -65,8 +97,6 @@ const N = {
   pipeline: `${INSTANCE.replaceAll('-', '_')}_events`,
   aeDataset: `${INSTANCE.replaceAll('-', '_')}_collect_metrics`,
 };
-const API_TOML = path.join(ROOT, 'apps/api', `wrangler.selfhost.toml`);
-const COLLECT_TOML = path.join(ROOT, 'apps/collect', `wrangler.selfhost.toml`);
 
 /* ── plumbing ────────────────────────────────────────────────── */
 
@@ -79,10 +109,32 @@ function step(msg) {
   console.log(`\n==> ${msg}`);
 }
 
+/**
+ * Wrangler entrypoint: always the package's own pinned dependency, found by
+ * filesystem lookup — wrangler's `exports` map blocks require.resolve of the
+ * bin subpath, and a bare `npx wrangler` is unacceptable here because the
+ * npx cache can hold an arbitrarily old version that predates config keys
+ * we rely on (e.g. the pipelines `stream` binding).
+ */
+function wranglerCmd() {
+  // node_modules next to the package (npm i inside it) or hoisted beside
+  // it (npx / npm-create layout: <prefix>/node_modules/@traks/cli).
+  for (const dir of [
+    path.join(SELF_DIR, 'node_modules'),
+    path.resolve(SELF_DIR, '../..'),
+    path.resolve(SELF_DIR, '../../..', 'node_modules'),
+  ]) {
+    const bin = path.join(dir, 'wrangler/bin/wrangler.js');
+    if (existsSync(bin)) return [process.execPath, bin];
+  }
+  fail('Bundled wrangler not found — reinstall @traks/cli (npm cache may be corrupted).');
+}
+
 /** Run wrangler; returns stdout+stderr. ok=false instead of throwing when allowFail. */
 function wrangler(wranglerArgs, { input, allowFail = false } = {}) {
-  const res = spawnSync('npx', ['wrangler', ...wranglerArgs], {
-    cwd: ROOT,
+  const [cmd, ...pre] = wranglerCmd();
+  const res = spawnSync(cmd, [...pre, ...wranglerArgs], {
+    cwd: TRAKS_HOME,
     input,
     encoding: 'utf8',
     env: { ...process.env, CI: '1', WRANGLER_SEND_METRICS: 'false' },
@@ -127,11 +179,6 @@ function parseJsonArray(out) {
     }
   }
   return null;
-}
-
-function sh(cmd, shArgs) {
-  const res = spawnSync(cmd, shArgs, { cwd: ROOT, stdio: 'inherit' });
-  if (res.status !== 0) fail(`${cmd} ${shArgs.join(' ')} failed`);
 }
 
 async function ask(question) {
@@ -236,8 +283,15 @@ function tofu(tofuArgs, { allowFail = false, capture = false } = {}) {
   return { ok: res.status === 0, out };
 }
 
-/** init once, one workspace per instance — that workspace's state IS the ownership record. */
+/**
+ * Materialize the tofu working dir under ~/.traks: config + schema are
+ * refreshed from this CLI's sources on every run (so updates pick up config
+ * changes), state stays put — one workspace per instance.
+ */
 function tofuPrepare() {
+  mkdirSync(TF_DIR, { recursive: true });
+  copyFileSync(SRC.tfMain, path.join(TF_DIR, 'main.tf'));
+  copyFileSync(SRC.schema, path.join(TF_DIR, 'pipeline-schema.json'));
   if (!existsSync(path.join(TF_DIR, '.terraform'))) {
     tofu(['init', '-input=false'], { capture: true });
   }
@@ -293,13 +347,15 @@ function preflight() {
 /* ── config generation ───────────────────────────────────────── */
 
 function writeConfigs({ accountId, d1Id, kvId, streamId, collectUrl }) {
-  step('Writing wrangler.selfhost.toml for both workers');
+  step(`Writing wrangler configs → ${INSTANCE_DIR}`);
+  mkdirSync(INSTANCE_DIR, { recursive: true });
+  const noBundle = 'no_bundle = true\n';
   writeFileSync(
     COLLECT_TOML,
-    `# Generated by installer/cli.mjs — do not edit by hand; re-run the installer.
+    `# Generated by the Traks installer — do not edit by hand; re-run install/update.
 name = "${N.collectWorker}"
-main = "src/index.ts"
-compatibility_date = "2026-06-01"
+main = "${SRC.collectMain}"
+${noBundle}compatibility_date = "2026-06-01"
 compatibility_flags = ["nodejs_compat"]
 account_id = "${accountId}"
 
@@ -307,7 +363,7 @@ account_id = "${accountId}"
 binding = "DB"
 database_name = "${N.d1}"
 database_id = "${d1Id}"
-migrations_dir = "../api/src/db/migrations"
+migrations_dir = "${SRC.migrationsDir}"
 
 [[unsafe.bindings]]
 name = "RATE_LIMIT"
@@ -338,10 +394,10 @@ ENVIRONMENT = "production"
 
   writeFileSync(
     API_TOML,
-    `# Generated by installer/cli.mjs — do not edit by hand; re-run the installer.
+    `# Generated by the Traks installer — do not edit by hand; re-run install/update.
 name = "${N.apiWorker}"
-main = "src/index.ts"
-compatibility_date = "2026-06-01"
+main = "${SRC.apiMain}"
+${noBundle}compatibility_date = "2026-06-01"
 compatibility_flags = ["nodejs_compat"]
 account_id = "${accountId}"
 
@@ -349,7 +405,7 @@ account_id = "${accountId}"
 binding = "DB"
 database_name = "${N.d1}"
 database_id = "${d1Id}"
-migrations_dir = "src/db/migrations"
+migrations_dir = "${SRC.migrationsDir}"
 
 [[durable_objects.bindings]]
 name = "LIVE"
@@ -370,7 +426,7 @@ R2_ACCOUNT_ID = "${accountId}"
 COLLECT_URL = "${collectUrl}"
 
 [assets]
-directory = "../web/dist"
+directory = "${SRC.webDist}"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
 run_worker_first = ["/api/*"]
@@ -398,10 +454,26 @@ function ensureSecret(configPath, name, valueFn) {
 
 /* ── deploy + smoke ──────────────────────────────────────────── */
 
-function deploy(configPath) {
-  const res = wrangler(['deploy', '--config', configPath]);
-  const url = res.out.match(/https:\/\/[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev/)?.[0];
-  return url ?? null;
+async function deploy(configPath) {
+  // Worker + asset uploads occasionally fail transiently on Cloudflare's
+  // side (or rate-limit under bursts); wrangler's internal retries don't
+  // always cover it, so wrap the whole deploy in a patient retry.
+  for (let attempt = 1; ; attempt++) {
+    const res = wrangler(['deploy', '--config', configPath], { allowFail: true });
+    if (res.ok) {
+      return res.out.match(/https:\/\/[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev/)?.[0] ?? null;
+    }
+    const transient =
+      /Asset upload failed|unknown error|code: -1|500 Internal|fetch failed|ETIMEDOUT|ECONNRESET/i.test(
+        res.out
+      );
+    if (!transient || attempt >= 4) {
+      console.error(res.out);
+      fail(`wrangler deploy --config ${configPath} failed`);
+    }
+    console.log(`    ⚠ transient deploy failure — retrying in 45s [attempt ${attempt}/4]`);
+    await new Promise(r => setTimeout(r, 45_000));
+  }
 }
 
 /** Freshly deployed workers.dev subdomains can take ~1-2 min to resolve — retry. */
@@ -534,7 +606,44 @@ async function provision({ catalogToken }) {
 
   step('Resource layer (tofu apply)');
   tofuPrepare();
-  tofu(['apply', '-auto-approve', '-input=false']);
+  // Recreating a same-named bucket/catalog hits eventual consistency in the
+  // beta catalog service: sink creation can 422 with "writing to existing
+  // Catalog tables" for a few minutes until stale state expires. Apply is
+  // idempotent, so retry with a fixed backoff instead of failing the install.
+  for (let attempt = 1; ; attempt++) {
+    const res = tofu(['apply', '-auto-approve', '-input=false'], {
+      allowFail: true,
+      capture: true,
+    });
+    const summary = res.out
+      .split('\n')
+      .filter(l => /Creation complete|Apply complete|No changes|Error:/.test(l))
+      .map(l => `    ${l.replace(/\x1b\[[0-9;]*m/g, '').trim()}`)
+      .join('\n');
+    if (summary) console.log(summary);
+    if (res.ok) break;
+    // tofu line-wraps error bodies with │ gutters — flatten before matching.
+    const flat = res.out.replace(/[│\n]/g, ' ').replace(/\s+/g, ' ');
+    const transient = /existing Catalog tables|"code":\s*1012|429 Too Many|timeout/i.test(flat);
+    if (!transient) {
+      console.error(res.out);
+      fail('tofu apply failed');
+    }
+    if (attempt >= 5) {
+      fail(
+        `Cloudflare's catalog is still releasing state from a previously\n` +
+          `  destroyed instance named "${INSTANCE}" — this can take ~15-30 minutes\n` +
+          `  on Cloudflare's side (beta limitation). Either wait and re-run the\n` +
+          `  same command (safe — the install resumes where it left off), or\n` +
+          `  install under a fresh name:  --instance <new-name>`
+      );
+    }
+    console.log(
+      `    ⚠ Cloudflare's catalog is still releasing state from a previous ` +
+        `instance of this name — retrying in 90s [attempt ${attempt}/5]`
+    );
+    await new Promise(r => setTimeout(r, 90_000));
+  }
   const outputs = tofuOutputs();
   const { stream_id: streamId, d1_id: d1Id, kv_id: kvId } = outputs;
   if (!streamId || !d1Id || !kvId) fail('Terraform outputs incomplete — check tofu state.');
@@ -583,18 +692,15 @@ async function provision({ catalogToken }) {
   step('Applying D1 migrations');
   wrangler(['d1', 'migrations', 'apply', N.d1, '--remote', '--config', API_TOML]);
 
-  step('Building web dashboard');
-  sh('yarn', ['workspace', '@traks/web', 'build']);
-
   step(`Deploying ${N.collectWorker}`);
-  const collectUrl = deploy(COLLECT_TOML);
+  const collectUrl = await deploy(COLLECT_TOML);
   if (!collectUrl) fail('Could not determine collect worker URL from deploy output');
   console.log(`    ${collectUrl}`);
 
   writeConfigs({ accountId: account.id, d1Id, kvId, streamId, collectUrl });
 
   step(`Deploying ${N.apiWorker}`);
-  const apiUrl = deploy(API_TOML);
+  const apiUrl = await deploy(API_TOML);
   if (!apiUrl) fail('Could not determine api worker URL from deploy output');
   console.log(`    ${apiUrl}`);
 
@@ -624,7 +730,7 @@ async function install() {
         '    - Workers R2 Data Catalog Write\n' +
         '    - Workers R2 Storage Write\n' +
         '  (dashboard: R2 → Manage API Tokens → Admin Read & Write covers the last two)\n' +
-        '  then re-run:  CATALOG_TOKEN=<token> node installer/cli.mjs install'
+        '  then re-run:  CATALOG_TOKEN=<token> traks install'
     );
   }
 
@@ -639,7 +745,7 @@ ${ok ? '✓ Install complete.' : '⚠ Installed, but some smoke tests failed —
   Tracking snippet (per site — the dashboard shows it with your real site key):
     <script defer data-site="YOUR_SITE_KEY" src="${collectUrl}/t.js"></script>
 
-  Update later: git pull && node installer/cli.mjs update${INSTANCE !== 'traks' ? ` --instance ${INSTANCE}` : ''}
+  Update later: traks update${INSTANCE !== 'traks' ? ` --instance ${INSTANCE}` : ''}
 `);
 }
 
@@ -657,7 +763,8 @@ async function update() {
 
 async function doctor() {
   console.log(`Traks doctor — instance "${INSTANCE}"`);
-  if (!existsSync(API_TOML)) fail('No generated configs found — run `install` first.');
+  if (!existsSync(API_TOML))
+    fail(`No configs for "${INSTANCE}" in ${TRAKS_HOME} — run install first.`);
   await resolveAccount();
   ensureTofu();
   const apiToml = readFileSync(API_TOML, 'utf8');
@@ -774,6 +881,39 @@ async function adopt() {
   }
 }
 
+/**
+ * Best-effort drop of the Iceberg table + namespace via the catalog REST API.
+ * Without this, a destroyed instance's table registration lingers in the
+ * catalog service and blocks sink re-creation under the same name for a
+ * while ("writing to existing Catalog tables is not yet supported").
+ */
+async function dropCatalogTable(accountId, catalogToken) {
+  const base = `https://catalog.cloudflarestorage.com/${accountId}/${N.bucket}/v1`;
+  const auth = { Authorization: `Bearer ${catalogToken}` };
+  try {
+    const config = await fetch(`${base}/config?warehouse=${accountId}_${N.bucket}`, {
+      headers: auth,
+    }).then(r => r.json());
+    const prefix = config?.overrides?.prefix;
+    if (!prefix) return;
+    const drop = await fetch(`${base}/${prefix}/namespaces/traks/tables/events`, {
+      method: 'DELETE',
+      headers: auth,
+    });
+    const ns = await fetch(`${base}/${prefix}/namespaces/traks`, {
+      method: 'DELETE',
+      headers: auth,
+    });
+    if (drop.status === 204 || ns.status === 204) {
+      console.log('    catalog cleanup: table registration dropped');
+    }
+    void drop;
+    void ns;
+  } catch (err) {
+    console.log(`    ⚠ catalog cleanup skipped: ${err.message}`);
+  }
+}
+
 async function destroy() {
   if (typeof flag('instance') !== 'string') {
     fail('destroy requires an explicit --instance <name> (refusing to guess).');
@@ -788,10 +928,13 @@ async function destroy() {
   wrangler(['delete', '--name', N.apiWorker, '--force'], { allowFail: true });
   wrangler(['delete', '--name', N.collectWorker, '--force'], { allowFail: true });
 
-  // Buckets holding flushed Iceberg data can't be deleted until emptied.
+  // Buckets holding flushed Iceberg data can't be deleted until emptied,
+  // and the catalog's table registration must be dropped while the catalog
+  // is still enabled or it lingers and blocks future same-name installs.
   const catalogToken = process.env.CATALOG_TOKEN ?? '';
   if (catalogToken) {
-    step('Emptying events bucket');
+    step('Catalog + bucket cleanup');
+    await dropCatalogTable(account.id, catalogToken);
     try {
       const removed = await emptyBucket(account.id, catalogToken);
       console.log(`    emptied ${N.bucket} (${removed} objects)`);

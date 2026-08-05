@@ -55,8 +55,10 @@ variable "catalog_token" {
 provider "cloudflare" {}
 
 locals {
-  us     = replace(var.instance, "-", "_")
-  schema = jsondecode(file("${path.module}/../../scripts/pipeline-schema.json"))
+  us = replace(var.instance, "-", "_")
+  # The CLI copies pipeline-schema.json (source of truth: scripts/) next to
+  # this file when materializing the working dir under ~/.traks/terraform.
+  schema = jsondecode(file("${path.module}/pipeline-schema.json"))
 }
 
 # ── data platform ────────────────────────────────────────────────────
@@ -97,6 +99,10 @@ resource "cloudflare_pipeline_sink" "events" {
   account_id = var.account_id
   name       = "${local.us}_events_sink"
   type       = "r2_data_catalog"
+  # The sink config references the bucket by *name*, so Terraform can't infer
+  # that it must wait for the catalog to finish enabling — without this, sink
+  # creation races the catalog and intermittently 422s.
+  depends_on = [cloudflare_r2_data_catalog.catalog]
   format     = { type = "parquet" }
   config = {
     account_id = var.account_id

@@ -1,12 +1,27 @@
 {
   "name": "create-traks",
-  "version": "0.0.1",
-  "description": "Installer for Traks — privacy-first web analytics, self-hosted in your own Cloudflare account. Coming soon.",
-  "bin": { "create-traks": "index.mjs" },
+  "version": "0.1.0",
+  "description": "Installer for Traks \u2014 privacy-first web analytics, self-hosted in your own Cloudflare account. Coming soon.",
+  "bin": {
+    "create-traks": "index.mjs"
+  },
   "type": "module",
   "license": "SEE LICENSE IN https://traks.dev",
   "homepage": "https://traks.dev",
-  "repository": { "type": "git", "url": "git+https://github.com/shivamanupadi/traks.git" },
-  "keywords": ["analytics", "cloudflare", "self-hosted", "privacy"],
-  "engines": { "node": ">=20" }
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shivamanupadi/traks.git"
+  },
+  "keywords": [
+    "analytics",
+    "cloudflare",
+    "self-hosted",
+    "privacy"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@traks/cli": "^0.1.0"
+  }
 }

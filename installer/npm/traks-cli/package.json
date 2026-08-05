@@ -1,12 +1,31 @@
 {
   "name": "@traks/cli",
-  "version": "0.0.1",
-  "description": "Management CLI for self-hosted Traks instances (install, update, doctor, destroy). Coming soon.",
-  "bin": { "traks": "index.mjs" },
+  "version": "0.1.0",
+  "description": "Traks self-host installer and management CLI \u2014 deploys privacy-first web analytics into your own Cloudflare account.",
+  "bin": {
+    "traks": "cli.mjs"
+  },
   "type": "module",
   "license": "SEE LICENSE IN https://traks.dev",
   "homepage": "https://traks.dev",
-  "repository": { "type": "git", "url": "git+https://github.com/shivamanupadi/traks.git" },
-  "keywords": ["analytics", "cloudflare", "self-hosted", "privacy"],
-  "engines": { "node": ">=20" }
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shivamanupadi/traks.git"
+  },
+  "keywords": [
+    "analytics",
+    "cloudflare",
+    "self-hosted",
+    "privacy"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "cli.mjs",
+    "dist"
+  ],
+  "dependencies": {
+    "wrangler": "^4.107.1"
+  }
 }

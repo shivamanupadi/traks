@@ -177,6 +177,43 @@ async function resolveAccount() {
   return account;
 }
 
+/* ── preflight ───────────────────────────────────────────────── */
+
+/**
+ * Verify account entitlements before touching anything, so a missing
+ * prerequisite fails in seconds with instructions instead of mid-install
+ * with a raw API error. Notes on what Traks actually needs:
+ *   - Workers, D1, KV, SQLite-backed Durable Objects: free plan is fine
+ *   - R2: requires a payment method on file (free tier still costs $0)
+ *   - Pipelines + R2 Data Catalog / R2 SQL: beta products — entitlement
+ *     can vary by account/plan, so probe them directly
+ */
+function preflight() {
+  step('Preflight: account entitlements');
+
+  const r2 = wrangler(['r2', 'bucket', 'list'], { allowFail: true });
+  if (!r2.ok) {
+    console.error(r2.out.slice(0, 600));
+    fail(
+      'R2 is not enabled on this account. Open the Cloudflare dashboard → R2\n' +
+        '  and enable it (requires adding a payment method; the free tier bills $0).\n' +
+        '  Then re-run the installer.'
+    );
+  }
+  console.log('    ✓ R2 enabled');
+
+  const pipelines = wrangler(['pipelines', 'list'], { allowFail: true });
+  if (!pipelines.ok) {
+    console.error(pipelines.out.slice(0, 600));
+    fail(
+      'Cloudflare Pipelines is not available on this account (beta product;\n' +
+        '  may require the Workers Paid plan). Check Compute → Pipelines in the\n' +
+        '  dashboard, then re-run the installer.'
+    );
+  }
+  console.log('    ✓ Pipelines available');
+}
+
 /* ── resource provisioning (idempotent) ──────────────────────── */
 
 function ensureD1() {
@@ -469,6 +506,7 @@ async function smoke(url, path_, expect, { attempts = 7, delayMs = 10_000 } = {}
  */
 async function provision({ catalogToken }) {
   const account = await resolveAccount();
+  preflight();
 
   const d1Id = ensureD1();
   const kvId = ensureKv();

@@ -23,7 +23,7 @@
  * secrets, so `update` after a `git pull` redeploys code + migrations only.
  */
 import { spawnSync } from 'node:child_process';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, createHash, createHmac } from 'node:crypto';
 import { writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { createInterface } from 'node:readline/promises';
 import path from 'node:path';
@@ -599,6 +599,102 @@ async function doctor() {
   console.log(stream.ok ? `    ✓ stream ${N.stream} exists` : `    ✗ stream ${N.stream} missing`);
 }
 
+/* ── R2 S3 API (bucket emptying) ─────────────────────────────── */
+//
+// Wrangler has no recursive object delete, and a catalog-enabled bucket
+// always holds Iceberg metadata. S3 credentials derive from the Cloudflare
+// API token per R2 docs: access_key_id = token ID, secret = SHA-256 of the
+// token value — so CATALOG_TOKEN is all destroy needs to leave nothing behind.
+
+const sha256hex = data => createHash('sha256').update(data).digest('hex');
+const hmacSha256 = (key, data) => createHmac('sha256', key).update(data).digest();
+
+async function s3Request(accountId, accessKeyId, secret, method, path, query = '') {
+  const host = `${accountId}.r2.cloudflarestorage.com`;
+  const now = new Date();
+  const amzDate = now
+    .toISOString()
+    .replace(/[-:]/g, '')
+    .replace(/\.\d{3}/, '');
+  const datestamp = amzDate.slice(0, 8);
+  const payloadHash = sha256hex('');
+
+  const canonicalQuery = query
+    .split('&')
+    .filter(Boolean)
+    .map(kv => kv.split('=').map(encodeURIComponent).join('='))
+    .sort()
+    .join('&');
+  const canonicalHeaders = `host:${host}\nx-amz-content-sha256:${payloadHash}\nx-amz-date:${amzDate}\n`;
+  const signedHeaders = 'host;x-amz-content-sha256;x-amz-date';
+  const canonicalPath = path.split('/').map(encodeURIComponent).join('/');
+  const canonicalRequest = [
+    method,
+    canonicalPath,
+    canonicalQuery,
+    canonicalHeaders,
+    signedHeaders,
+    payloadHash,
+  ].join('\n');
+  const scope = `${datestamp}/auto/s3/aws4_request`;
+  const stringToSign = ['AWS4-HMAC-SHA256', amzDate, scope, sha256hex(canonicalRequest)].join('\n');
+  const kSigning = hmacSha256(
+    hmacSha256(hmacSha256(hmacSha256(`AWS4${secret}`, datestamp), 'auto'), 's3'),
+    'aws4_request'
+  );
+  const signature = createHmac('sha256', kSigning).update(stringToSign).digest('hex');
+
+  const res = await fetch(`https://${host}${canonicalPath}${query ? `?${query}` : ''}`, {
+    method,
+    headers: {
+      'x-amz-date': amzDate,
+      'x-amz-content-sha256': payloadHash,
+      Authorization: `AWS4-HMAC-SHA256 Credential=${accessKeyId}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}`,
+    },
+  });
+  return { status: res.status, body: await res.text() };
+}
+
+/** Delete every object in the bucket. Returns the count, or throws. */
+async function emptyBucket(accountId, catalogToken) {
+  // The token's ID doubles as the S3 access key; ask Cloudflare for it.
+  const verify = await fetch(
+    `https://api.cloudflare.com/client/v4/accounts/${accountId}/tokens/verify`,
+    { headers: { Authorization: `Bearer ${catalogToken}` } }
+  ).then(r => r.json());
+  const accessKeyId = verify?.result?.id;
+  if (!accessKeyId) throw new Error('could not resolve token ID for S3 access');
+  const secret = sha256hex(catalogToken);
+
+  let total = 0;
+  for (;;) {
+    const list = await s3Request(
+      accountId,
+      accessKeyId,
+      secret,
+      'GET',
+      `/${N.bucket}`,
+      'list-type=2'
+    );
+    if (list.status !== 200) throw new Error(`list objects failed: ${list.status}`);
+    const keys = [...list.body.matchAll(/<Key>([^<]+)<\/Key>/g)].map(m =>
+      m[1]
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+    );
+    if (keys.length === 0) break;
+    for (const key of keys) {
+      const del = await s3Request(accountId, accessKeyId, secret, 'DELETE', `/${N.bucket}/${key}`);
+      if (![200, 204].includes(del.status)) throw new Error(`delete ${key} failed: ${del.status}`);
+      total++;
+    }
+  }
+  return total;
+}
+
 async function destroy() {
   if (typeof flag('instance') !== 'string') {
     fail('destroy requires an explicit --instance <name> (refusing to guess).');
@@ -623,11 +719,21 @@ async function destroy() {
   const ns = (parseJsonArray(list.out) ?? []).find(n => n.title === N.kvTitle);
   if (ns) wrangler(['kv', 'namespace', 'delete', '--namespace-id', ns.id], { allowFail: true });
 
-  step('Deleting R2 bucket (must be empty; Iceberg data may need manual cleanup)');
+  step('Emptying + deleting R2 bucket');
+  wrangler(['r2', 'bucket', 'catalog', 'disable', N.bucket], { allowFail: true, input: 'y\n' });
+  const catalogToken = process.env.CATALOG_TOKEN ?? '';
+  if (catalogToken) {
+    try {
+      const removed = await emptyBucket(process.env.CLOUDFLARE_ACCOUNT_ID, catalogToken);
+      console.log(`    emptied ${N.bucket} (${removed} objects)`);
+    } catch (err) {
+      console.log(`    ⚠ could not empty bucket: ${err.message}`);
+    }
+  }
   const del = wrangler(['r2', 'bucket', 'delete', N.bucket], { allowFail: true });
   if (!del.ok) {
     console.log(
-      `    ⚠ bucket ${N.bucket} not deleted (likely non-empty) — remove manually if desired`
+      `    ⚠ bucket ${N.bucket} not deleted${catalogToken ? '' : ' — re-run destroy with CATALOG_TOKEN set to empty it automatically'}`
     );
   }
   console.log('\n✓ Destroy complete (see warnings above, if any).');

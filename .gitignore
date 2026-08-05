@@ -13,3 +13,7 @@ dist
 .doppler.yaml
 .DS_Store
 wrangler.selfhost.toml
+installer/terraform/.terraform
+installer/terraform/.terraform.lock.hcl
+installer/terraform/terraform.tfstate*
+installer/terraform/terraform.tfstate.d

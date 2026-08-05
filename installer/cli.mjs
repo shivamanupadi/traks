@@ -3,33 +3,43 @@
  * Traks self-host installer.
  *
  * Provisions a complete Traks deployment into a Cloudflare account and keeps
- * it updated. Wrangler does the heavy lifting, so auth works with either a
- * `wrangler login` OAuth session or a CLOUDFLARE_API_TOKEN env var.
+ * it updated. The resource layer (D1, KV, R2 + Data Catalog, pipeline
+ * stream/sink) is managed by OpenTofu/Terraform (installer/terraform/main.tf)
+ * — real state, ownership tracking, plan/destroy safety. The app layer
+ * (worker builds + deploys, D1 migrations, secrets) stays with wrangler;
+ * this CLI orchestrates both.
  *
  *   node installer/cli.mjs install   [--instance <name>] [--yes]
  *   node installer/cli.mjs update    [--instance <name>]
  *   node installer/cli.mjs doctor    [--instance <name>]
+ *   node installer/cli.mjs adopt    [--instance <name>]   import an existing
+ *                                    (pre-Terraform) instance into state
  *   node installer/cli.mjs destroy   --instance <name>
  *
  * Requirements:
  *   - Node 20+, repo dependencies installed (`yarn install`)
+ *   - OpenTofu (`brew install opentofu`) or Terraform on PATH
  *   - Cloudflare auth: `npx wrangler login` (or CLOUDFLARE_API_TOKEN)
- *   - CATALOG_TOKEN env var: an R2 API token with "Workers R2 SQL Read" +
- *     "Workers R2 Data Catalog Write" + "Workers R2 Storage Write" (dashboard
- *     shortcut: R2 "Admin Read & Write" account token, plus R2 SQL Read).
- *     It becomes the catalog service credential and the worker's query token.
+ *   - CATALOG_TOKEN env var (install/adopt/destroy): an R2 API token with
+ *     "Workers R2 SQL Read" + "Workers R2 Data Catalog Write" + "Workers R2
+ *     Storage Write". It becomes the catalog service credential and the
+ *     worker's query token.
  *
- * Idempotent: re-running skips resources that exist and never overwrites
- * secrets, so `update` after a `git pull` redeploys code + migrations only.
+ * Ownership: every instance is a Terraform workspace with its own state
+ * file — destroy removes exactly the resources recorded in that state,
+ * never a same-named resource it didn't create. Secrets are never stored
+ * in state (wrangler-managed) and are never overwritten on re-runs.
  */
 import { spawnSync } from 'node:child_process';
 import { randomBytes, createHash, createHmac } from 'node:crypto';
 import { writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { createInterface } from 'node:readline/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const TF_DIR = path.join(ROOT, 'installer/terraform');
 const args = process.argv.slice(2);
 const command = args[0] ?? 'install';
 const flag = name => {
@@ -43,7 +53,7 @@ if (!/^[a-z][a-z0-9-]{2,20}$/.test(INSTANCE)) {
   fail(`--instance must be lowercase alphanumeric/hyphens (got "${INSTANCE}")`);
 }
 
-/** Resource names, all derived from the instance prefix. */
+/** App-layer names (workers stay wrangler-managed; resource names live in main.tf). */
 const N = {
   apiWorker: `${INSTANCE}-api`,
   collectWorker: `${INSTANCE}-collect`,
@@ -70,7 +80,7 @@ function step(msg) {
 }
 
 /** Run wrangler; returns stdout+stderr. ok=false instead of throwing when allowFail. */
-function wrangler(wranglerArgs, { input, allowFail = false, quiet = false } = {}) {
+function wrangler(wranglerArgs, { input, allowFail = false } = {}) {
   const res = spawnSync('npx', ['wrangler', ...wranglerArgs], {
     cwd: ROOT,
     input,
@@ -82,9 +92,6 @@ function wrangler(wranglerArgs, { input, allowFail = false, quiet = false } = {}
   if (res.status !== 0 && !allowFail) {
     console.error(out);
     fail(`wrangler ${wranglerArgs.join(' ')} failed`);
-  }
-  if (!quiet && res.status !== 0 && allowFail) {
-    // caller decides what an acceptable failure looks like
   }
   return { ok: res.status === 0, out };
 }
@@ -127,24 +134,12 @@ function sh(cmd, shArgs) {
   if (res.status !== 0) fail(`${cmd} ${shArgs.join(' ')} failed`);
 }
 
-async function ask(question, { hidden = false } = {}) {
+async function ask(question) {
   if (AUTO_YES) fail(`--yes given but input needed: ${question}`);
   const rl = createInterface({ input: process.stdin, output: process.stdout });
-  const answer = hidden
-    ? await (async () => {
-        process.stdout.write(question);
-        // readline has no native hidden input; fall back to visible with a warning
-        return rl.question('');
-      })()
-    : await rl.question(question);
+  const answer = await rl.question(question);
   rl.close();
   return answer.trim();
-}
-
-async function confirm(question) {
-  if (AUTO_YES) return true;
-  const a = await ask(`${question} [y/N] `);
-  return a.toLowerCase() === 'y' || a.toLowerCase() === 'yes';
 }
 
 /* ── auth + account ──────────────────────────────────────────── */
@@ -177,19 +172,100 @@ async function resolveAccount() {
   return account;
 }
 
+/**
+ * Token for the Terraform provider: an explicit CLOUDFLARE_API_TOKEN, or the
+ * wrangler OAuth session token (refreshed by the resolveAccount whoami call).
+ */
+function resolveProviderToken() {
+  if (process.env.CLOUDFLARE_API_TOKEN) return process.env.CLOUDFLARE_API_TOKEN;
+  const configDir =
+    process.platform === 'darwin'
+      ? path.join(os.homedir(), 'Library/Preferences/.wrangler/config')
+      : path.join(
+          process.env.XDG_CONFIG_HOME ?? path.join(os.homedir(), '.config'),
+          '.wrangler/config'
+        );
+  const configPath = path.join(configDir, 'default.toml');
+  if (existsSync(configPath)) {
+    const m = readFileSync(configPath, 'utf8').match(/oauth_token\s*=\s*"([^"]+)"/);
+    if (m) return m[1];
+  }
+  fail('No Cloudflare token for Terraform. Run `npx wrangler login` or set CLOUDFLARE_API_TOKEN.');
+}
+
+/* ── terraform (resource layer) ──────────────────────────────── */
+
+let TOFU_BIN = null;
+
+function ensureTofu() {
+  for (const bin of ['tofu', 'terraform']) {
+    const res = spawnSync(bin, ['version'], { encoding: 'utf8' });
+    if (res.status === 0) {
+      TOFU_BIN = bin;
+      console.log(`    ✓ ${res.stdout.split('\n')[0]}`);
+      return;
+    }
+  }
+  fail(
+    'OpenTofu (or Terraform) is required but not installed.\n' +
+      '  Install with:  brew install opentofu\n' +
+      '  (or see https://opentofu.org/docs/intro/install/)'
+  );
+}
+
+function tofu(tofuArgs, { allowFail = false, capture = false } = {}) {
+  const res = spawnSync(TOFU_BIN, tofuArgs, {
+    cwd: TF_DIR,
+    encoding: 'utf8',
+    stdio: capture ? undefined : ['inherit', 'inherit', 'inherit'],
+    env: {
+      ...process.env,
+      CLOUDFLARE_API_TOKEN: resolveProviderToken(),
+      TF_VAR_instance: INSTANCE,
+      TF_VAR_account_id: process.env.CLOUDFLARE_ACCOUNT_ID,
+      TF_VAR_catalog_token: process.env.CATALOG_TOKEN ?? '',
+      TF_IN_AUTOMATION: '1',
+    },
+    maxBuffer: 32 * 1024 * 1024,
+  });
+  const out = capture ? `${res.stdout ?? ''}${res.stderr ?? ''}` : '';
+  if (res.status !== 0 && !allowFail) {
+    if (capture) console.error(out);
+    fail(`${TOFU_BIN} ${tofuArgs.join(' ')} failed`);
+  }
+  return { ok: res.status === 0, out };
+}
+
+/** init once, one workspace per instance — that workspace's state IS the ownership record. */
+function tofuPrepare() {
+  if (!existsSync(path.join(TF_DIR, '.terraform'))) {
+    tofu(['init', '-input=false'], { capture: true });
+  }
+  const ws = tofu(['workspace', 'list'], { capture: true });
+  if (!ws.out.split('\n').some(l => l.replace('*', '').trim() === INSTANCE)) {
+    tofu(['workspace', 'new', INSTANCE], { capture: true });
+  }
+  tofu(['workspace', 'select', INSTANCE], { capture: true });
+}
+
+function tofuOutputs() {
+  const res = tofu(['output', '-json'], { capture: true });
+  const start = res.out.indexOf('{');
+  const parsed = JSON.parse(res.out.slice(start));
+  return Object.fromEntries(Object.entries(parsed).map(([k, v]) => [k, v.value]));
+}
+
 /* ── preflight ───────────────────────────────────────────────── */
 
 /**
- * Verify account entitlements before touching anything, so a missing
- * prerequisite fails in seconds with instructions instead of mid-install
- * with a raw API error. Notes on what Traks actually needs:
+ * Verify tooling + account entitlements before touching anything. Notes:
  *   - Workers, D1, KV, SQLite-backed Durable Objects: free plan is fine
- *   - R2: requires a payment method on file (free tier still costs $0)
- *   - Pipelines + R2 Data Catalog / R2 SQL: beta products — entitlement
- *     can vary by account/plan, so probe them directly
+ *   - R2: requires a payment method on file (free tier still bills $0)
+ *   - Pipelines + R2 Data Catalog / R2 SQL: beta — entitlement varies
  */
 function preflight() {
-  step('Preflight: account entitlements');
+  step('Preflight: tooling + account entitlements');
+  ensureTofu();
 
   const r2 = wrangler(['r2', 'bucket', 'list'], { allowFail: true });
   if (!r2.ok) {
@@ -212,152 +288,6 @@ function preflight() {
     );
   }
   console.log('    ✓ Pipelines available');
-}
-
-/* ── resource provisioning (idempotent) ──────────────────────── */
-
-function ensureD1() {
-  step(`D1 database: ${N.d1}`);
-  const dbs = parseJsonArray(wrangler(['d1', 'list', '--json']).out) ?? [];
-  let db = dbs.find(d => d.name === N.d1);
-  if (!db) {
-    wrangler(['d1', 'create', N.d1]);
-    db = (parseJsonArray(wrangler(['d1', 'list', '--json']).out) ?? []).find(d => d.name === N.d1);
-  } else {
-    console.log('    exists — reusing');
-  }
-  if (!db) fail('Could not create/find D1 database');
-  return db.uuid;
-}
-
-function ensureKv() {
-  step(`KV namespace: ${N.kvTitle}`);
-  const namespaces = parseJsonArray(wrangler(['kv', 'namespace', 'list']).out) ?? [];
-  let ns = namespaces.find(n => n.title === N.kvTitle);
-  if (!ns) {
-    wrangler(['kv', 'namespace', 'create', N.kvTitle]);
-    ns = (parseJsonArray(wrangler(['kv', 'namespace', 'list']).out) ?? []).find(
-      n => n.title === N.kvTitle
-    );
-  } else {
-    console.log('    exists — reusing');
-  }
-  if (!ns) fail('Could not create/find KV namespace');
-  return ns.id;
-}
-
-function ensureDataPlatform(catalogToken) {
-  step(`R2 bucket + Data Catalog: ${N.bucket}`);
-  const created = wrangler(['r2', 'bucket', 'create', N.bucket], { allowFail: true });
-  if (!created.ok && !/already exists/i.test(created.out)) {
-    console.error(created.out);
-    fail('R2 bucket creation failed');
-  }
-  if (!created.ok) console.log('    exists — reusing');
-
-  const cat = wrangler(['r2', 'bucket', 'catalog', 'enable', N.bucket], { allowFail: true });
-  if (!cat.ok && !/already (enabled|active)/i.test(cat.out)) {
-    console.error(cat.out);
-    fail('Data Catalog enable failed');
-  }
-
-  wrangler(
-    [
-      'r2',
-      'bucket',
-      'catalog',
-      'compaction',
-      'enable',
-      N.bucket,
-      '--target-size',
-      '128',
-      '--token',
-      catalogToken,
-    ],
-    { allowFail: true }
-  );
-  wrangler(
-    [
-      'r2',
-      'bucket',
-      'catalog',
-      'snapshot-expiration',
-      'enable',
-      N.bucket,
-      '--older-than-days',
-      '30',
-      '--retain-last',
-      '5',
-      '--token',
-      catalogToken,
-    ],
-    { allowFail: true }
-  );
-
-  step(`Pipelines stream → Iceberg sink: ${N.stream} → ${N.sink}`);
-  // Check-first idempotency: the beta `create` commands don't fail uniformly
-  // on duplicates (e.g. re-creating a sink over an existing catalog table
-  // errors with "writing to existing Catalog tables is not yet supported"),
-  // so existence via `get` is the reliable signal.
-  const schemaFile = path.join(ROOT, 'scripts/pipeline-schema.json');
-  if (!wrangler(['pipelines', 'streams', 'get', N.stream], { allowFail: true }).ok) {
-    wrangler([
-      'pipelines',
-      'streams',
-      'create',
-      N.stream,
-      '--schema-file',
-      schemaFile,
-      '--http-enabled',
-      'false',
-    ]);
-  } else {
-    console.log(`    stream exists — reusing`);
-  }
-  const streamGet = wrangler(['pipelines', 'streams', 'get', N.stream]);
-  const streamId = streamGet.out.match(/\b([0-9a-f]{32})\b/)?.[1];
-  if (!streamId) fail(`Could not determine stream ID for ${N.stream}`);
-
-  if (!wrangler(['pipelines', 'sinks', 'get', N.sink], { allowFail: true }).ok) {
-    wrangler([
-      'pipelines',
-      'sinks',
-      'create',
-      N.sink,
-      '--type',
-      'r2-data-catalog',
-      '--bucket',
-      N.bucket,
-      '--namespace',
-      'traks',
-      '--table',
-      'events',
-      '--format',
-      'parquet',
-      '--compression',
-      'zstd',
-      '--roll-interval',
-      '60',
-      '--catalog-token',
-      catalogToken,
-    ]);
-  } else {
-    console.log(`    sink exists — reusing`);
-  }
-
-  if (!wrangler(['pipelines', 'get', N.pipeline], { allowFail: true }).ok) {
-    wrangler([
-      'pipelines',
-      'create',
-      N.pipeline,
-      '--sql',
-      `INSERT INTO ${N.sink} SELECT * FROM ${N.stream}`,
-    ]);
-  } else {
-    console.log(`    pipeline exists — reusing`);
-  }
-
-  return streamId;
 }
 
 /* ── config generation ───────────────────────────────────────── */
@@ -495,37 +425,154 @@ async function smoke(url, path_, expect, { attempts = 7, delayMs = 10_000 } = {}
   return false;
 }
 
+/* ── R2 S3 API (bucket emptying) ─────────────────────────────── */
+//
+// Terraform destroys the bucket resource, but a bucket holding flushed
+// Iceberg data can't be deleted until emptied — and neither wrangler nor
+// the provider does that. S3 credentials derive from the Cloudflare API
+// token per R2 docs: access_key_id = token ID, secret = SHA-256 of the
+// token value — so CATALOG_TOKEN is all destroy needs.
+
+const sha256hex = data => createHash('sha256').update(data).digest('hex');
+const hmacSha256 = (key, data) => createHmac('sha256', key).update(data).digest();
+
+async function s3Request(accountId, accessKeyId, secret, method, path_, query = '') {
+  const host = `${accountId}.r2.cloudflarestorage.com`;
+  const now = new Date();
+  const amzDate = now
+    .toISOString()
+    .replace(/[-:]/g, '')
+    .replace(/\.\d{3}/, '');
+  const datestamp = amzDate.slice(0, 8);
+  const payloadHash = sha256hex('');
+
+  const canonicalQuery = query
+    .split('&')
+    .filter(Boolean)
+    .map(kv => kv.split('=').map(encodeURIComponent).join('='))
+    .sort()
+    .join('&');
+  const canonicalHeaders = `host:${host}\nx-amz-content-sha256:${payloadHash}\nx-amz-date:${amzDate}\n`;
+  const signedHeaders = 'host;x-amz-content-sha256;x-amz-date';
+  const canonicalPath = path_.split('/').map(encodeURIComponent).join('/');
+  const canonicalRequest = [
+    method,
+    canonicalPath,
+    canonicalQuery,
+    canonicalHeaders,
+    signedHeaders,
+    payloadHash,
+  ].join('\n');
+  const scope = `${datestamp}/auto/s3/aws4_request`;
+  const stringToSign = ['AWS4-HMAC-SHA256', amzDate, scope, sha256hex(canonicalRequest)].join('\n');
+  const kSigning = hmacSha256(
+    hmacSha256(hmacSha256(hmacSha256(`AWS4${secret}`, datestamp), 'auto'), 's3'),
+    'aws4_request'
+  );
+  const signature = createHmac('sha256', kSigning).update(stringToSign).digest('hex');
+
+  const res = await fetch(`https://${host}${canonicalPath}${query ? `?${query}` : ''}`, {
+    method,
+    headers: {
+      'x-amz-date': amzDate,
+      'x-amz-content-sha256': payloadHash,
+      Authorization: `AWS4-HMAC-SHA256 Credential=${accessKeyId}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}`,
+    },
+  });
+  return { status: res.status, body: await res.text() };
+}
+
+/** Delete every object in the bucket. Returns the count, or throws. */
+async function emptyBucket(accountId, catalogToken) {
+  const verify = await fetch(
+    `https://api.cloudflare.com/client/v4/accounts/${accountId}/tokens/verify`,
+    { headers: { Authorization: `Bearer ${catalogToken}` } }
+  ).then(r => r.json());
+  const accessKeyId = verify?.result?.id;
+  if (!accessKeyId) throw new Error('could not resolve token ID for S3 access');
+  const secret = sha256hex(catalogToken);
+
+  let total = 0;
+  for (;;) {
+    const list = await s3Request(
+      accountId,
+      accessKeyId,
+      secret,
+      'GET',
+      `/${N.bucket}`,
+      'list-type=2'
+    );
+    if (list.status !== 200) throw new Error(`list objects failed: ${list.status}`);
+    const keys = [...list.body.matchAll(/<Key>([^<]+)<\/Key>/g)].map(m =>
+      m[1]
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+    );
+    if (keys.length === 0) break;
+    for (const key of keys) {
+      const del = await s3Request(accountId, accessKeyId, secret, 'DELETE', `/${N.bucket}/${key}`);
+      if (![200, 204].includes(del.status)) throw new Error(`delete ${key} failed: ${del.status}`);
+      total++;
+    }
+  }
+  return total;
+}
+
 /* ── commands ────────────────────────────────────────────────── */
 
 /**
- * Shared provision pipeline — used by both install and update, so a newer
- * repo version whose code needs a new resource creates it on `update` the
- * same way `install` would. Every step is idempotent: existing resources
- * are reused, existing secrets are never overwritten, and a re-run after a
- * mid-install failure simply continues where it left off.
+ * Shared pipeline — used by install and update. `tofu apply` is inherently
+ * idempotent (it diffs desired vs actual state), and everything wrangler-side
+ * re-checks before acting, so a re-run after any failure just continues.
  */
 async function provision({ catalogToken }) {
   const account = await resolveAccount();
   preflight();
 
-  const d1Id = ensureD1();
-  const kvId = ensureKv();
+  step('Resource layer (tofu apply)');
+  tofuPrepare();
+  tofu(['apply', '-auto-approve', '-input=false']);
+  const outputs = tofuOutputs();
+  const { stream_id: streamId, d1_id: d1Id, kv_id: kvId } = outputs;
+  if (!streamId || !d1Id || !kvId) fail('Terraform outputs incomplete — check tofu state.');
 
-  let streamId;
+  // Catalog maintenance policies aren't Terraform resources yet — wrangler.
   if (catalogToken) {
-    streamId = ensureDataPlatform(catalogToken);
-  } else {
-    // Update without CATALOG_TOKEN: verify the platform exists rather than
-    // silently skipping — the token is only needed when a new version adds
-    // data-platform resources.
-    const res = wrangler(['pipelines', 'streams', 'get', N.stream], { allowFail: true });
-    streamId = res.out.match(/\b([0-9a-f]{32})\b/)?.[1];
-    if (!streamId) {
-      fail(
-        `Stream ${N.stream} not found and no CATALOG_TOKEN provided.\n` +
-          '  Re-run with CATALOG_TOKEN=<token> so the data platform can be provisioned.'
-      );
-    }
+    wrangler(
+      [
+        'r2',
+        'bucket',
+        'catalog',
+        'compaction',
+        'enable',
+        N.bucket,
+        '--target-size',
+        '128',
+        '--token',
+        catalogToken,
+      ],
+      { allowFail: true }
+    );
+    wrangler(
+      [
+        'r2',
+        'bucket',
+        'catalog',
+        'snapshot-expiration',
+        'enable',
+        N.bucket,
+        '--older-than-days',
+        '30',
+        '--retain-last',
+        '5',
+        '--token',
+        catalogToken,
+      ],
+      { allowFail: true }
+    );
   }
 
   // Collect worker must exist before the api worker binds its DO class.
@@ -598,9 +645,10 @@ ${ok ? '✓ Install complete.' : '⚠ Installed, but some smoke tests failed —
 
 async function update() {
   console.log(`Traks update — instance "${INSTANCE}"`);
-  // Same idempotent pipeline as install: existing resources are reused, and
-  // any resource a newer version introduces gets created here. CATALOG_TOKEN
-  // is only required when the new version adds data-platform resources.
+  // Same pipeline as install: tofu apply diffs against state (creating any
+  // resources a newer version introduces), wrangler-side steps re-check
+  // before acting. CATALOG_TOKEN is optional — the sink credential is
+  // lifecycle-ignored, and maintenance-policy tweaks are skipped without it.
   const { ok } = await provision({ catalogToken: process.env.CATALOG_TOKEN ?? '' });
   console.log(
     ok ? '\n✓ Update complete.' : '\n⚠ Updated, but some smoke tests failed — run `doctor`.'
@@ -611,6 +659,7 @@ async function doctor() {
   console.log(`Traks doctor — instance "${INSTANCE}"`);
   if (!existsSync(API_TOML)) fail('No generated configs found — run `install` first.');
   await resolveAccount();
+  ensureTofu();
   const apiToml = readFileSync(API_TOML, 'utf8');
   const collectUrl = apiToml.match(/COLLECT_URL = "([^"]+)"/)?.[1];
   const apiUrl = collectUrl?.replace(`${N.collectWorker}.`, `${N.apiWorker}.`);
@@ -632,105 +681,97 @@ async function doctor() {
       : '    ⚠ pending migrations — run `update`'
   );
 
-  step('Pipeline');
-  const stream = wrangler(['pipelines', 'streams', 'get', N.stream], { allowFail: true });
-  console.log(stream.ok ? `    ✓ stream ${N.stream} exists` : `    ✗ stream ${N.stream} missing`);
-}
-
-/* ── R2 S3 API (bucket emptying) ─────────────────────────────── */
-//
-// Wrangler has no recursive object delete, and a catalog-enabled bucket
-// always holds Iceberg metadata. S3 credentials derive from the Cloudflare
-// API token per R2 docs: access_key_id = token ID, secret = SHA-256 of the
-// token value — so CATALOG_TOKEN is all destroy needs to leave nothing behind.
-
-const sha256hex = data => createHash('sha256').update(data).digest('hex');
-const hmacSha256 = (key, data) => createHmac('sha256', key).update(data).digest();
-
-async function s3Request(accountId, accessKeyId, secret, method, path, query = '') {
-  const host = `${accountId}.r2.cloudflarestorage.com`;
-  const now = new Date();
-  const amzDate = now
-    .toISOString()
-    .replace(/[-:]/g, '')
-    .replace(/\.\d{3}/, '');
-  const datestamp = amzDate.slice(0, 8);
-  const payloadHash = sha256hex('');
-
-  const canonicalQuery = query
-    .split('&')
-    .filter(Boolean)
-    .map(kv => kv.split('=').map(encodeURIComponent).join('='))
-    .sort()
-    .join('&');
-  const canonicalHeaders = `host:${host}\nx-amz-content-sha256:${payloadHash}\nx-amz-date:${amzDate}\n`;
-  const signedHeaders = 'host;x-amz-content-sha256;x-amz-date';
-  const canonicalPath = path.split('/').map(encodeURIComponent).join('/');
-  const canonicalRequest = [
-    method,
-    canonicalPath,
-    canonicalQuery,
-    canonicalHeaders,
-    signedHeaders,
-    payloadHash,
-  ].join('\n');
-  const scope = `${datestamp}/auto/s3/aws4_request`;
-  const stringToSign = ['AWS4-HMAC-SHA256', amzDate, scope, sha256hex(canonicalRequest)].join('\n');
-  const kSigning = hmacSha256(
-    hmacSha256(hmacSha256(hmacSha256(`AWS4${secret}`, datestamp), 'auto'), 's3'),
-    'aws4_request'
-  );
-  const signature = createHmac('sha256', kSigning).update(stringToSign).digest('hex');
-
-  const res = await fetch(`https://${host}${canonicalPath}${query ? `?${query}` : ''}`, {
-    method,
-    headers: {
-      'x-amz-date': amzDate,
-      'x-amz-content-sha256': payloadHash,
-      Authorization: `AWS4-HMAC-SHA256 Credential=${accessKeyId}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}`,
-    },
+  step('Resource layer (tofu plan)');
+  tofuPrepare();
+  const plan = tofu(['plan', '-detailed-exitcode', '-input=false'], {
+    allowFail: true,
+    capture: true,
   });
-  return { status: res.status, body: await res.text() };
+  // -detailed-exitcode: 0 = no drift, 2 = pending changes, 1 = error
+  console.log(
+    plan.ok
+      ? '    ✓ resources match state (no drift)'
+      : /Plan:/.test(plan.out)
+        ? '    ⚠ resource drift detected — run `update`'
+        : '    ✗ plan failed — check tofu state'
+  );
 }
 
-/** Delete every object in the bucket. Returns the count, or throws. */
-async function emptyBucket(accountId, catalogToken) {
-  // The token's ID doubles as the S3 access key; ask Cloudflare for it.
-  const verify = await fetch(
-    `https://api.cloudflare.com/client/v4/accounts/${accountId}/tokens/verify`,
-    { headers: { Authorization: `Bearer ${catalogToken}` } }
-  ).then(r => r.json());
-  const accessKeyId = verify?.result?.id;
-  if (!accessKeyId) throw new Error('could not resolve token ID for S3 access');
-  const secret = sha256hex(catalogToken);
+/**
+ * Import a pre-Terraform (wrangler-provisioned) instance into state, so
+ * update/destroy can manage it. Read-only against Cloudflare: import only
+ * writes local state. Safe to re-run; already-imported resources are skipped.
+ */
+async function adopt() {
+  console.log(`Traks adopt — importing instance "${INSTANCE}" into Terraform state`);
+  const account = await resolveAccount();
+  ensureTofu();
+  tofuPrepare();
 
-  let total = 0;
-  for (;;) {
-    const list = await s3Request(
-      accountId,
-      accessKeyId,
-      secret,
-      'GET',
-      `/${N.bucket}`,
-      'list-type=2'
-    );
-    if (list.status !== 200) throw new Error(`list objects failed: ${list.status}`);
-    const keys = [...list.body.matchAll(/<Key>([^<]+)<\/Key>/g)].map(m =>
-      m[1]
-        .replace(/&amp;/g, '&')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&quot;/g, '"')
-        .replace(/&#39;/g, "'")
-    );
-    if (keys.length === 0) break;
-    for (const key of keys) {
-      const del = await s3Request(accountId, accessKeyId, secret, 'DELETE', `/${N.bucket}/${key}`);
-      if (![200, 204].includes(del.status)) throw new Error(`delete ${key} failed: ${del.status}`);
-      total++;
+  const catalogToken = process.env.CATALOG_TOKEN ?? '';
+
+  // Discover existing resource IDs via wrangler.
+  const d1 = (parseJsonArray(wrangler(['d1', 'list', '--json']).out) ?? []).find(
+    d => d.name === N.d1
+  );
+  const kv = (parseJsonArray(wrangler(['kv', 'namespace', 'list']).out) ?? []).find(
+    n => n.title === N.kvTitle
+  );
+  const streamId = wrangler(['pipelines', 'streams', 'get', N.stream], {
+    allowFail: true,
+  }).out.match(/\b[0-9a-f]{32}\b/)?.[0];
+  const sinkId = wrangler(['pipelines', 'sinks', 'get', N.sink], { allowFail: true }).out.match(
+    /\b[0-9a-f]{32}\b/
+  )?.[0];
+  const pipelineId = wrangler(['pipelines', 'get', N.pipeline], { allowFail: true }).out.match(
+    /\b[0-9a-f]{32}\b/
+  )?.[0];
+
+  const state = tofu(['state', 'list'], { allowFail: true, capture: true }).out;
+  const imports = [
+    ['cloudflare_r2_bucket.events', `${account.id}/${N.bucket}`],
+    ['cloudflare_r2_data_catalog.catalog', `${account.id}/${N.bucket}`],
+    d1 && ['cloudflare_d1_database.db', `${account.id}/${d1.uuid}`],
+    kv && ['cloudflare_workers_kv_namespace.cache', `${account.id}/${kv.id}`],
+    streamId && ['cloudflare_pipeline_stream.events', `${account.id}/${streamId}`],
+    sinkId && ['cloudflare_pipeline_sink.events', `${account.id}/${sinkId}`],
+    pipelineId && ['cloudflare_pipeline.events', `${account.id}/${pipelineId}`],
+  ].filter(Boolean);
+
+  for (const [address, id] of imports) {
+    if (state.includes(address)) {
+      console.log(`    ${address}: already in state — skipping`);
+      continue;
     }
+    const res = tofu(
+      ['import', '-input=false', `-var=catalog_token=${catalogToken}`, address, id],
+      { allowFail: true, capture: true }
+    );
+    console.log(res.ok ? `    ✓ imported ${address}` : `    ✗ ${address}: import failed`);
+    if (!res.ok)
+      console.log(
+        res.out
+          .split('\n')
+          .filter(l => /Error/.test(l))
+          .join('\n')
+      );
   }
-  return total;
+
+  step('Verifying adopted state (tofu plan)');
+  const plan = tofu(['plan', '-detailed-exitcode', '-input=false'], {
+    allowFail: true,
+    capture: true,
+  });
+  if (plan.ok) {
+    console.log('    ✓ state matches reality — instance fully adopted');
+  } else if (/Plan:/.test(plan.out)) {
+    const summary = plan.out.match(/Plan:[^\n]*/)?.[0];
+    console.log(
+      `    ⚠ ${summary ?? 'drift detected'} — review with \`tofu plan\` before running update`
+    );
+  } else {
+    console.log('    ✗ plan failed — review tofu state manually');
+  }
 }
 
 async function destroy() {
@@ -740,47 +781,41 @@ async function destroy() {
   console.log(`This will DELETE workers, database, KV, pipeline, and bucket for "${INSTANCE}".`);
   const typed = AUTO_YES ? INSTANCE : await ask(`Type the instance name to confirm: `);
   if (typed !== INSTANCE) fail('Confirmation did not match.');
-  await resolveAccount();
+  const account = await resolveAccount();
+  ensureTofu();
 
   step('Deleting workers');
-  wrangler(['delete', '--config', API_TOML, '--force'], { allowFail: true });
-  wrangler(['delete', '--config', COLLECT_TOML, '--force'], { allowFail: true });
+  wrangler(['delete', '--name', N.apiWorker, '--force'], { allowFail: true });
+  wrangler(['delete', '--name', N.collectWorker, '--force'], { allowFail: true });
 
-  step('Deleting pipeline plumbing');
-  wrangler(['pipelines', 'delete', N.pipeline, '--force'], { allowFail: true });
-  wrangler(['pipelines', 'sinks', 'delete', N.sink, '--force'], { allowFail: true });
-  wrangler(['pipelines', 'streams', 'delete', N.stream, '--force'], { allowFail: true });
-
-  step('Deleting D1 + KV');
-  wrangler(['d1', 'delete', N.d1, '-y'], { allowFail: true });
-  const list = wrangler(['kv', 'namespace', 'list'], { allowFail: true });
-  const ns = (parseJsonArray(list.out) ?? []).find(n => n.title === N.kvTitle);
-  if (ns) wrangler(['kv', 'namespace', 'delete', '--namespace-id', ns.id], { allowFail: true });
-
-  step('Emptying + deleting R2 bucket');
-  wrangler(['r2', 'bucket', 'catalog', 'disable', N.bucket], { allowFail: true, input: 'y\n' });
+  // Buckets holding flushed Iceberg data can't be deleted until emptied.
   const catalogToken = process.env.CATALOG_TOKEN ?? '';
   if (catalogToken) {
+    step('Emptying events bucket');
     try {
-      const removed = await emptyBucket(process.env.CLOUDFLARE_ACCOUNT_ID, catalogToken);
+      const removed = await emptyBucket(account.id, catalogToken);
       console.log(`    emptied ${N.bucket} (${removed} objects)`);
     } catch (err) {
       console.log(`    ⚠ could not empty bucket: ${err.message}`);
     }
   }
-  const del = wrangler(['r2', 'bucket', 'delete', N.bucket], { allowFail: true });
-  if (!del.ok) {
-    console.log(
-      `    ⚠ bucket ${N.bucket} not deleted${catalogToken ? '' : ' — re-run destroy with CATALOG_TOKEN set to empty it automatically'}`
+
+  step('Destroying resource layer (tofu destroy)');
+  tofuPrepare();
+  const res = tofu(['destroy', '-auto-approve', '-input=false'], { allowFail: true });
+  if (!res.ok) {
+    fail(
+      'tofu destroy failed. If the bucket is non-empty, re-run with CATALOG_TOKEN\n' +
+        '  set so it can be emptied first; otherwise inspect with `tofu plan`.'
     );
   }
-  console.log('\n✓ Destroy complete (see warnings above, if any).');
+  console.log('\n✓ Destroy complete.');
 }
 
 /* ── main ────────────────────────────────────────────────────── */
 
-const commands = { install, update, doctor, destroy };
+const commands = { install, update, doctor, adopt, destroy };
 if (!commands[command]) {
-  fail(`Unknown command "${command}". Use: install | update | doctor | destroy`);
+  fail(`Unknown command "${command}". Use: install | update | doctor | adopt | destroy`);
 }
 await commands[command]();

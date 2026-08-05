@@ -24,7 +24,8 @@
     "prepare": "husky",
     "traks:install": "node installer/cli.mjs install",
     "traks:update": "node installer/cli.mjs update",
-    "traks:doctor": "node installer/cli.mjs doctor"
+    "traks:doctor": "node installer/cli.mjs doctor",
+    "traks:adopt": "node installer/cli.mjs adopt"
   },
   "devDependencies": {
     "husky": "^9.1.7",

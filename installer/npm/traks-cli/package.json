@@ -1,0 +1,12 @@
+{
+  "name": "@traks/cli",
+  "version": "0.0.1",
+  "description": "Management CLI for self-hosted Traks instances (install, update, doctor, destroy). Coming soon.",
+  "bin": { "traks": "index.mjs" },
+  "type": "module",
+  "license": "SEE LICENSE IN https://traks.dev",
+  "homepage": "https://traks.dev",
+  "repository": { "type": "git", "url": "git+https://github.com/shivamanupadi/traks.git" },
+  "keywords": ["analytics", "cloudflare", "self-hosted", "privacy"],
+  "engines": { "node": ">=20" }
+}

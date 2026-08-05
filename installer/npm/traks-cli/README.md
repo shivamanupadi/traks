@@ -1,4 +1,4 @@
-# create-traks
+# traks-cli
 
 [Traks](https://traks.dev) — privacy-first web analytics that deploys into
 **your own Cloudflare account**. No cookies, no consent banners, no event
@@ -15,7 +15,7 @@ npx wrangler login           # authorize your Cloudflare account
 #   R2 → Manage API Tokens → permissions:
 #   Workers R2 SQL Read + Workers R2 Data Catalog Write + Workers R2 Storage Write
 
-CATALOG_TOKEN=<your-token> npm create traks@latest
+CATALOG_TOKEN=<your-token> npx traks-cli install
 ```
 
 The installer provisions everything (D1, KV, R2 + Data Catalog, an event
@@ -26,13 +26,13 @@ sign-up claims the instance.
 ## Manage your instance
 
 ```sh
-npx create-traks@latest update             # after a new release
-npx create-traks doctor                    # health + drift check
-npx create-traks destroy --instance traks  # full teardown (typed confirmation)
+npx traks-cli@latest update             # after a new release
+npx traks-cli doctor                    # health + drift check
+npx traks-cli destroy --instance traks  # full teardown (typed confirmation)
 ```
 
-Or install globally for the short command: `npm i -g create-traks`, then
-`traks update` / `traks doctor` / `traks destroy`.
+Or install globally for the short command: `npm i -g traks-cli`, then
+`traks install` / `traks update` / `traks doctor` / `traks destroy`.
 
 Multiple instances (staging, per-client) via `--instance <name>`. State lives
 in `~/.traks` — the Terraform workspace per instance is the ownership record,

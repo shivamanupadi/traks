@@ -16,7 +16,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const PKG = path.join(ROOT, 'installer/npm/create-traks');
+const PKG = path.join(ROOT, 'installer/npm/traks-cli');
 const DIST = path.join(PKG, 'dist');
 
 function run(cmd, args, cwd = ROOT) {
@@ -85,5 +85,5 @@ run('npm', ['install', '--no-package-lock', '--no-audit', '--no-fund'], PKG);
 
 console.log('\n✓ Package built at installer/npm/traks-cli — run it with:');
 console.log(
-  '  CATALOG_TOKEN=<token> node installer/npm/create-traks/cli.mjs install --instance <name>'
+  '  CATALOG_TOKEN=<token> node installer/npm/traks-cli/cli.mjs install --instance <name>'
 );

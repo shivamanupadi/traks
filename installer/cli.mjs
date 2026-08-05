@@ -309,6 +309,83 @@ function tofuOutputs() {
   return Object.fromEntries(Object.entries(parsed).map(([k, v]) => [k, v.value]));
 }
 
+/* ── catalog-token verification ──────────────────────────────── */
+
+function tokenHelp(accountId) {
+  return (
+    `  Create/edit the token here: https://dash.cloudflare.com/${accountId}/r2/api-tokens\n` +
+    '  Required permissions: Workers R2 SQL Read + Workers R2 Data Catalog Write +\n' +
+    '  Workers R2 Storage Write ("Admin Read & Write" covers the last two).'
+  );
+}
+
+/**
+ * Fail fast on a bad CATALOG_TOKEN: verify it's a live token, then prove the
+ * R2 Storage permission with an S3 ListBuckets using credentials derived from
+ * it. (Catalog + SQL permissions are probed post-provision, once the bucket
+ * exists — see verifyCatalogPermissions.)
+ */
+async function verifyCatalogToken(accountId, token) {
+  step('Verifying CATALOG_TOKEN');
+  let verified = null;
+  for (const url of [
+    `https://api.cloudflare.com/client/v4/accounts/${accountId}/tokens/verify`,
+    'https://api.cloudflare.com/client/v4/user/tokens/verify',
+  ]) {
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } }).then(r =>
+      r.json().catch(() => null)
+    );
+    if (res?.success && res.result?.status === 'active') {
+      verified = res.result;
+      break;
+    }
+  }
+  if (!verified) {
+    fail('CATALOG_TOKEN is not a valid, active Cloudflare API token.\n' + tokenHelp(accountId));
+  }
+  console.log('    ✓ token is valid and active');
+
+  const list = await s3Request(accountId, verified.id, sha256hex(token), 'GET', '/');
+  if (list.status !== 200) {
+    fail(
+      `CATALOG_TOKEN lacks R2 Storage permissions (S3 API returned ${list.status}).\n` +
+        tokenHelp(accountId)
+    );
+  }
+  console.log('    ✓ Workers R2 Storage access confirmed');
+  return verified.id;
+}
+
+/**
+ * Post-provision probes against the real bucket: Data Catalog access via the
+ * Iceberg REST config endpoint, R2 SQL access via a query whose *auth* layer
+ * is what we're testing (missing-table responses still prove authorization).
+ */
+async function verifyCatalogPermissions(accountId, token) {
+  const auth = { Authorization: `Bearer ${token}` };
+  const cat = await fetch(
+    `https://catalog.cloudflarestorage.com/${accountId}/${N.bucket}/v1/config?warehouse=${accountId}_${N.bucket}`,
+    { headers: auth }
+  );
+  if ([401, 403].includes(cat.status)) {
+    fail('CATALOG_TOKEN lacks the "Workers R2 Data Catalog" permission.\n' + tokenHelp(accountId));
+  }
+  console.log('    ✓ Workers R2 Data Catalog access confirmed');
+
+  const sql = await fetch(
+    `https://api.sql.cloudflarestorage.com/api/v1/accounts/${accountId}/r2-sql/query/${N.bucket}`,
+    {
+      method: 'POST',
+      headers: { ...auth, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: 'SELECT COUNT(*) FROM traks.events' }),
+    }
+  );
+  if ([401, 403].includes(sql.status)) {
+    fail('CATALOG_TOKEN lacks the "Workers R2 SQL Read" permission.\n' + tokenHelp(accountId));
+  }
+  console.log('    ✓ Workers R2 SQL access confirmed');
+}
+
 /* ── preflight ───────────────────────────────────────────────── */
 
 /**
@@ -603,6 +680,7 @@ async function emptyBucket(accountId, catalogToken) {
 async function provision({ catalogToken }) {
   const account = await resolveAccount();
   preflight();
+  if (catalogToken) await verifyCatalogToken(account.id, catalogToken);
 
   step('Resource layer (tofu apply)');
   tofuPrepare();
@@ -647,6 +725,11 @@ async function provision({ catalogToken }) {
   const outputs = tofuOutputs();
   const { stream_id: streamId, d1_id: d1Id, kv_id: kvId } = outputs;
   if (!streamId || !d1Id || !kvId) fail('Terraform outputs incomplete — check tofu state.');
+
+  if (catalogToken) {
+    step('Verifying CATALOG_TOKEN catalog + SQL permissions');
+    await verifyCatalogPermissions(account.id, catalogToken);
+  }
 
   // Catalog maintenance policies aren't Terraform resources yet — wrangler.
   if (catalogToken) {
@@ -725,12 +808,14 @@ async function install() {
   const catalogToken = process.env.CATALOG_TOKEN ?? '';
   if (!catalogToken) {
     fail(
-      'CATALOG_TOKEN is required. Create an R2 API token with:\n' +
+      'CATALOG_TOKEN is required. Create an R2 API token here:\n' +
+        '    https://dash.cloudflare.com/?to=/:account/r2/api-tokens\n' +
+        '  with these permissions:\n' +
         '    - Workers R2 SQL Read\n' +
         '    - Workers R2 Data Catalog Write\n' +
         '    - Workers R2 Storage Write\n' +
-        '  (dashboard: R2 → Manage API Tokens → Admin Read & Write covers the last two)\n' +
-        '  then re-run:  CATALOG_TOKEN=<token> traks install'
+        '  ("Admin Read & Write" covers the last two)\n' +
+        '  then re-run:  CATALOG_TOKEN=<token> npx @traks/cli install'
     );
   }
 

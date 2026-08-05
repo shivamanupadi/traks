@@ -59,7 +59,7 @@ if (!existsSync(SRC.tfMain)) {
   console.error(
     '\n✗ Package artifacts missing. If you are developing from the Traks repo,\n' +
       '  build the package first:  node installer/build-package.mjs\n' +
-      '  then run:                 node installer/npm/traks-cli/cli.mjs <command>'
+      '  then run:                 node installer/npm/create-traks/cli.mjs <command>'
   );
   process.exit(1);
 }

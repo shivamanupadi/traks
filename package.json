@@ -22,10 +22,10 @@
     "check:push": "yarn lint && yarn build",
     "check:ci": "yarn format:check && yarn check:push && yarn db:check",
     "prepare": "husky",
-    "traks:install": "node installer/npm/traks-cli/cli.mjs install",
-    "traks:update": "node installer/npm/traks-cli/cli.mjs update",
-    "traks:doctor": "node installer/npm/traks-cli/cli.mjs doctor",
-    "traks:adopt": "node installer/npm/traks-cli/cli.mjs adopt",
+    "traks:install": "node installer/npm/create-traks/cli.mjs install",
+    "traks:update": "node installer/npm/create-traks/cli.mjs update",
+    "traks:doctor": "node installer/npm/create-traks/cli.mjs doctor",
+    "traks:adopt": "node installer/npm/create-traks/cli.mjs adopt",
     "traks:build": "node installer/build-package.mjs"
   },
   "devDependencies": {

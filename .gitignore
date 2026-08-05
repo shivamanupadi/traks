@@ -17,6 +17,6 @@ installer/terraform/.terraform
 installer/terraform/.terraform.lock.hcl
 installer/terraform/terraform.tfstate*
 installer/terraform/terraform.tfstate.d
-installer/npm/traks-cli/dist
-installer/npm/traks-cli/cli.mjs
+installer/npm/create-traks/dist
+installer/npm/create-traks/cli.mjs
 installer/npm/*/node_modules

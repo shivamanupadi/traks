@@ -1,5 +1,6 @@
 import type { ReactElement, ReactNode } from 'react';
 import { createLazyFileRoute } from '@tanstack/react-router';
+import { useCollectUrl } from '@/lib/config';
 import { motion } from 'framer-motion';
 import {
   ArrowRight,
@@ -260,6 +261,7 @@ function NavLink({ id, children }: { id: string; children: ReactNode }): ReactEl
 }
 
 function LandingPage(): ReactElement {
+  const collectUrl = useCollectUrl();
   return (
     <div className="min-h-screen bg-[#FAFAFA] text-[#3D3B4F]">
       {/* dot grid ground */}
@@ -469,9 +471,7 @@ function LandingPage(): ReactElement {
                     {'\n  '}
                     <span className="text-[#93F4CF]">src</span>
                     <span className="text-[#75738C]">=</span>
-                    <span className="text-[#F2B5A4]">
-                      &quot;https://collect.traks.dev/t.js&quot;
-                    </span>
+                    <span className="text-[#F2B5A4]">&quot;{collectUrl}/t.js&quot;</span>
                     <span className="text-[#75738C]">{'>'}</span>
                     {'\n'}
                     <span className="text-[#75738C]">{'</'}</span>

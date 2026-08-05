@@ -9,9 +9,12 @@ export type Bindings = {
   ENVIRONMENT: string;
   /** Better Auth signing secret (Doppler-managed). */
   BETTER_AUTH_SECRET: string;
+  /** Cloudflare account ID — an identifier, not a credential ([vars]). */
   R2_ACCOUNT_ID: string;
   R2_SQL_TOKEN: string;
   R2_BUCKET_NAME: string;
+  /** Public origin of this deployment's collect worker ([vars]). */
+  COLLECT_URL: string;
 };
 
 export type Variables = {

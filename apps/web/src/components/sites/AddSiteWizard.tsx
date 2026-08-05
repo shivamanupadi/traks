@@ -14,8 +14,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { api } from '@/lib/api';
-
-const COLLECT_URL = import.meta.env.VITE_COLLECT_URL || 'https://collect.traks.dev';
+import { useCollectUrl } from '@/lib/config';
 
 type WizardStep = 'details' | 'snippet';
 
@@ -34,6 +33,7 @@ export function AddSiteWizard({
   onOpenChange: (open: boolean) => void;
 }): ReactElement {
   const queryClient = useQueryClient();
+  const collectUrl = useCollectUrl();
   const [step, setStep] = useState<WizardStep>('details');
   const [name, setName] = useState('');
   const [domain, setDomain] = useState('');
@@ -74,7 +74,7 @@ export function AddSiteWizard({
   };
 
   const snippet = createdSite
-    ? `<script defer data-site="${createdSite.key}" src="${COLLECT_URL}/t.js"></script>`
+    ? `<script defer data-site="${createdSite.key}" src="${collectUrl}/t.js"></script>`
     : '';
 
   const handleCopy = async (): Promise<void> => {

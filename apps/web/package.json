@@ -4,9 +4,9 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
-    "dev": "doppler run -p traks-web -c dev -- vite",
+    "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "build:prod": "doppler run -p traks-web -c prd -- yarn build",
+    "build:prod": "yarn build",
     "lint": "eslint . --ext .ts,.tsx --fix",
     "format": "prettier --write .",
     "preview": "vite preview",

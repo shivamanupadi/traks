@@ -20,10 +20,15 @@ app.get('/health', c => c.json({ status: 'ok', timestamp: new Date().toISOString
 app.get('/api/health', c => c.json({ status: 'ok', timestamp: new Date().toISOString() }));
 
 // Better Auth: sign-up/sign-in/sign-out/session under /api/auth/*
-app.on(['GET', 'POST'], '/api/auth/*', c => getAuth(c.env).handler(c.req.raw));
+app.on(['GET', 'POST'], '/api/auth/*', c => getAuth(c.env, c.req.url).handler(c.req.raw));
 
 // Login page switch: first-run claim screen vs sign-in screen.
 app.get('/api/claim-status', async c => c.json({ claimed: await claimStatus(c.env) }));
+
+// Public instance config for the SPA (pre-auth): where the collect worker
+// lives, so install snippets and docs show this deployment's URL rather
+// than a baked-in default.
+app.get('/api/config', c => c.json({ collectUrl: c.env.COLLECT_URL }));
 
 // Routes - chained for Hono RPC type inference
 const routes = app

@@ -12,3 +12,4 @@ dist
 .dev.vars.bak
 .doppler.yaml
 .DS_Store
+wrangler.selfhost.toml

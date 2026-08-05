@@ -6,7 +6,7 @@ export async function requireAuth(
   c: Context<{ Bindings: Bindings; Variables: Variables }>,
   next: Next
 ): Promise<Response | void> {
-  const session = await getAuth(c.env).api.getSession({ headers: c.req.raw.headers });
+  const session = await getAuth(c.env, c.req.url).api.getSession({ headers: c.req.raw.headers });
   if (!session) {
     return c.json({ error: 'Unauthorized' }, 401);
   }

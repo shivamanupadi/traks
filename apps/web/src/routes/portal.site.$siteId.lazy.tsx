@@ -55,8 +55,7 @@ import { GoalsPanel } from '@/components/analytics/GoalsPanel';
 import { FunnelsPanel } from '@/components/analytics/FunnelsPanel';
 import { PeriodPicker } from '@/components/layout/PeriodPicker';
 import { api, type AnalyticsFilters } from '@/lib/api';
-
-const COLLECT_URL = import.meta.env.VITE_COLLECT_URL || 'https://collect.traks.dev';
+import { useCollectUrl } from '@/lib/config';
 
 // Auto-poll only 'today' - it's served live from the site's Durable Object
 // (millisecond queries, zero ingest delay), so a 15s poll gives a live feel
@@ -117,11 +116,12 @@ function InstallModal({
   onOpenChange: (open: boolean) => void;
   site: { domain: string; apiKeys?: { key: string }[] } | null;
 }): ReactElement {
+  const collectUrl = useCollectUrl();
   const [copied, setCopied] = useState(false);
 
   const siteKey = site?.apiKeys?.[0]?.key ?? '';
   const snippet = siteKey
-    ? `<script defer data-site="${siteKey}" src="${COLLECT_URL}/t.js"></script>`
+    ? `<script defer data-site="${siteKey}" src="${collectUrl}/t.js"></script>`
     : '';
 
   const handleCopy = async (): Promise<void> => {

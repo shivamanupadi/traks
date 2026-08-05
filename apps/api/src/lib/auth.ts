@@ -51,15 +51,21 @@ async function adoptLegacyData(
 // Return type deliberately inferred: betterAuth's generic Auth<TOptions> is
 // narrower than Auth<BetterAuthOptions> and there is no stable name for it.
 // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
-function createAuth(env: Bindings) {
+function createAuth(env: Bindings, origin: string) {
   const db = drizzle(env.DB);
-  const isProd = env.ENVIRONMENT === 'production';
 
   return betterAuth({
     secret: env.BETTER_AUTH_SECRET,
-    baseURL: isProd ? 'https://traks.dev' : 'http://localhost:5012',
+    // Domain-agnostic by design: the SPA and API are served by this same
+    // worker, so the origin of the incoming request (request.url — set by the
+    // edge, not attacker-controllable) IS the site's canonical origin. Deriving
+    // baseURL/trustedOrigins from it keeps CSRF semantics intact (cross-site
+    // POSTs carry a mismatched Origin header and are rejected) while letting
+    // any deployment — custom domain or bare workers.dev — authenticate
+    // without per-instance config.
+    baseURL: origin,
     basePath: '/api/auth',
-    trustedOrigins: ['https://traks.dev', 'https://www.traks.dev', 'http://localhost:5012'],
+    trustedOrigins: [origin],
     database: drizzleAdapter(db, {
       provider: 'sqlite',
       schema: {
@@ -104,11 +110,19 @@ function createAuth(env: Bindings) {
   });
 }
 
-let authInstance: ReturnType<typeof createAuth> | null = null;
+// One instance per serving origin (apex, www, workers.dev, localhost — a
+// small bounded set), so per-request calls stay cheap.
+const authInstances = new Map<string, ReturnType<typeof createAuth>>();
 
-export function getAuth(env: Bindings): ReturnType<typeof createAuth> {
-  if (!authInstance) authInstance = createAuth(env);
-  return authInstance;
+export function getAuth(env: Bindings, requestUrl: string): ReturnType<typeof createAuth> {
+  const origin = new URL(requestUrl).origin;
+  let instance = authInstances.get(origin);
+  if (!instance) {
+    if (authInstances.size > 16) authInstances.clear();
+    instance = createAuth(env, origin);
+    authInstances.set(origin, instance);
+  }
+  return instance;
 }
 
 /** Public status for the login page: claim screen vs sign-in screen. */

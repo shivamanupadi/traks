@@ -21,7 +21,10 @@
     "reset": "yarn clean && yarn install",
     "check:push": "yarn lint && yarn build",
     "check:ci": "yarn format:check && yarn check:push && yarn db:check",
-    "prepare": "husky"
+    "prepare": "husky",
+    "traks:install": "node installer/cli.mjs install",
+    "traks:update": "node installer/cli.mjs update",
+    "traks:doctor": "node installer/cli.mjs doctor"
   },
   "devDependencies": {
     "husky": "^9.1.7",

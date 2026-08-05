@@ -135,7 +135,7 @@ function LoginPage(): ReactElement {
         </div>
 
         <p className="mt-7 text-center font-mono text-[10.5px] font-medium uppercase tracking-[0.14em] text-[#B3B1BE]">
-          Self-hosted instance · traks.dev
+          Self-hosted instance · {window.location.host}
         </p>
       </div>
     </div>

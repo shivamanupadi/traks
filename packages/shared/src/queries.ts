@@ -53,6 +53,10 @@ export async function queryR2Sql<T = Record<string, unknown>>(
 
   if (!response.ok) {
     const text = await response.text();
+    // A fresh instance has no Iceberg table until the pipeline sink's first
+    // flush creates it (minutes after the first event) — an absent table
+    // means "no events yet", not a failure. [40010] = iceberg table not found.
+    if (response.status === 404 && text.includes('40010')) return [];
     throw new R2SqlError(`HTTP ${response.status}: ${text.slice(0, 500)}`);
   }
 

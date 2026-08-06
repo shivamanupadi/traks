@@ -17,6 +17,7 @@
  * engine never needs to hash anything at runtime.
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { execSync } from 'node:child_process';
 import { createHash, createHmac } from 'node:crypto';
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -32,9 +33,33 @@ const apiRequire = createRequire(path.join(ROOT, 'apps/platform/api/package.json
 const require = createRequire(apiRequire.resolve('wrangler/package.json'));
 const blake3 = require('blake3-wasm');
 
-const token = process.env.CATALOG_TOKEN;
+// Release-upload credential: env override, else the traks-home Doppler project.
+let token = process.env.CATALOG_TOKEN;
 if (!token) {
-  console.error('CATALOG_TOKEN required (R2 storage write)');
+  try {
+    token = execSync('doppler secrets get CATALOG_TOKEN --plain -p traks-home -c prd', {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch {
+    /* doppler unavailable — fall through to the error below */
+  }
+}
+if (!token) {
+  console.error('CATALOG_TOKEN required (R2 storage write) — set it or log in to Doppler');
+  process.exit(1);
+}
+
+// Version guard: an upload under an unchanged version is invisible to
+// deployed instances (the update banner compares manifest.version).
+const localVersion = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
+const live = await fetch('https://traks.dev/api/deploy/latest-version')
+  .then(r => (r.ok ? r.json() : null))
+  .catch(() => null);
+if (live?.data?.version === localVersion && process.env.FORCE_RELEASE !== '1') {
+  console.error(
+    `✗ version ${localVersion} is already the published release — bump the root package.json version first (or FORCE_RELEASE=1 to overwrite in place)`
+  );
   process.exit(1);
 }
 

@@ -54,6 +54,6 @@ zone_name = "traks.dev"
 pattern = "traks.dev/deploy/callback*"
 zone_name = "traks.dev"
 
-# Secrets (Doppler project traks-api, config prd — synced via
-# `yarn secrets:prod:sync`, filtered to CF_OAUTH_*):
+# Secrets (Doppler project traks-home, config prd — synced via
+# `yarn secrets:prod:sync`):
 #   CF_OAUTH_CLIENT_ID, CF_OAUTH_CLIENT_SECRET

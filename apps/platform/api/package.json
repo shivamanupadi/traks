@@ -10,7 +10,7 @@
     "build": "tsc --noEmit",
     "deploy:dev": "wrangler deploy",
     "worker:prod:deploy": "wrangler deploy --env production",
-    "secrets:prod:sync": "doppler secrets --json -p traks-api -c prd | jq -c 'with_entries(select(.key | test(\"^DOPPLER_|^CF_OAUTH_\") | not) | .value = .value.computed)' | wrangler secret bulk --env production",
+    "secrets:prod:sync": "doppler secrets --json -p traks-api -c prd | jq -c 'with_entries(select(.key | test(\"^DOPPLER_\") | not) | .value = .value.computed)' | wrangler secret bulk --env production",
     "build:web": "yarn workspace @traks/platform-web build:prod",
     "release:prod": "yarn db:migrate:prod && yarn secrets:prod:sync && yarn build:web && yarn worker:prod:deploy",
     "db:generate": "drizzle-kit generate",

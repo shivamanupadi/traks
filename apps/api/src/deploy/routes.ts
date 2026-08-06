@@ -291,10 +291,20 @@ export const deployRoute = app
 
     const steps: StepEvent[] = [];
     const encoder = new TextEncoder();
+    let runPromise: Promise<void> = Promise.resolve();
     const stream = new ReadableStream({
       start: controller => {
-        const send = (payload: unknown): void =>
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
+        let clientGone = false;
+        const send = (payload: unknown): void => {
+          if (clientGone) return;
+          try {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
+          } catch {
+            // Tab refreshed or navigated away — keep provisioning; the row
+            // keeps updating and the wizard reattaches by polling it.
+            clientGone = true;
+          }
+        };
 
         const persist = async (
           status: 'deploying' | 'ready' | 'failed',
@@ -320,9 +330,11 @@ export const deployRoute = app
                 [...crypto.getRandomValues(new Uint8Array(n))]
                   .map(b => b.toString(16).padStart(2, '0'))
                   .join(''),
-              emit: e => {
+              emit: async e => {
                 steps.push(e);
                 send({ type: 'step', ...e });
+                // Persist per event so a refreshed client sees live progress.
+                await persist('deploying').catch(() => undefined);
               },
             });
             await persist('ready', { apiUrl: result.apiUrl, collectUrl: result.collectUrl });
@@ -332,12 +344,23 @@ export const deployRoute = app
             await persist('failed', { error: message });
             send({ type: 'error', message });
           } finally {
-            controller.close();
+            try {
+              controller.close();
+            } catch {
+              /* stream already cancelled by the client */
+            }
           }
         };
-        void run();
+        runPromise = run();
       },
     });
+    // Survive client disconnects: a refresh mid-deploy no longer kills the
+    // run — it finishes in the background and the wizard resumes by polling.
+    try {
+      c.executionCtx.waitUntil(runPromise);
+    } catch {
+      /* executionCtx unavailable (tests) */
+    }
 
     return new Response(stream, {
       headers: {

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import {
+  ArrowLeft,
   ArrowRight,
   Check,
   CheckCircle2,
@@ -71,6 +72,30 @@ interface Account {
 
 type Phase = 'intro' | 'tokens' | 'setup' | 'deploying' | 'done' | 'failed';
 
+interface InstanceRow {
+  status: string;
+  apiUrl?: string;
+  collectUrl?: string;
+  instanceName?: string;
+  steps?: StepEvent[];
+  error?: string;
+  updatedAt?: string;
+}
+
+/** A run that hasn't written a step for this long is considered dead. Generous
+ *  because the smoke-test step can legitimately go ~5 min between writes while
+ *  it waits on DNS + certificates for custom domains. */
+const RUN_STALE_MS = 7 * 60_000;
+
+const runIsFresh = (row: InstanceRow): boolean =>
+  Boolean(row.updatedAt) && Date.now() - new Date(row.updatedAt!).getTime() < RUN_STALE_MS;
+
+const INTERRUPTED_MSG =
+  'The previous deploy was interrupted before it finished. Everything already created is reused — re-enter your tokens and deploy again to pick up where it left off.';
+
+const failedMsg = (detail: string): string =>
+  `The previous deploy failed: ${detail} — fix what it points at, re-enter your tokens, and deploy again; everything already created is reused.`;
+
 const PHASE_INDEX: Record<Phase, number> = {
   intro: 0,
   tokens: 1,
@@ -134,6 +159,19 @@ function PrimaryButton({
   );
 }
 
+function BackButton({ onClick, disabled }: { onClick: () => void; disabled?: boolean }): ReactElement {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="mr-auto inline-flex h-11 items-center gap-1.5 rounded-full px-4 text-[13.5px] font-semibold text-[#6E6C7C] transition-colors hover:bg-[#F4F4F6] hover:text-[#3D3B4F] disabled:pointer-events-none disabled:opacity-40 cursor-pointer"
+    >
+      <ArrowLeft className="h-4 w-4" />
+      Back
+    </button>
+  );
+}
+
 function TokenField({
   id,
   label,
@@ -144,6 +182,7 @@ function TokenField({
   onChange,
   status,
   statusDetail,
+  errorHelp,
 }: {
   id: string;
   label: string;
@@ -154,6 +193,7 @@ function TokenField({
   onChange: (v: string) => void;
   status?: 'checking' | 'ok' | 'bad';
   statusDetail?: string;
+  errorHelp?: string;
 }): ReactElement {
   return (
     <div>
@@ -180,7 +220,10 @@ function TokenField({
               <Check className="h-3 w-3" /> {statusDetail ?? 'Looks good'}
             </span>
           ) : status === 'bad' ? (
-            <span className="text-[#B3402F]">{statusDetail ?? 'Token check failed'}</span>
+            <span className="text-[#B3402F]">
+              {statusDetail ?? 'Token check failed'}
+              {errorHelp && <span className="mt-0.5 block text-[#9B99A6]">{errorHelp}</span>}
+            </span>
           ) : (
             help
           )}
@@ -229,6 +272,42 @@ function DeployWizard(): ReactElement {
   const [steps, setSteps] = useState<StepEvent[]>([]);
   const [result, setResult] = useState<{ apiUrl: string; collectUrl: string } | null>(null);
   const startedRef = useRef(false);
+  const pollRef = useRef<number | undefined>(undefined);
+
+  const stopPolling = (): void => {
+    if (pollRef.current !== undefined) {
+      window.clearInterval(pollRef.current);
+      pollRef.current = undefined;
+    }
+  };
+  useEffect(() => stopPolling, []);
+
+  // Reattach to a deploy that's running server-side (this tab refreshed
+  // mid-run, or another tab owns the SSE stream): watch the instance row.
+  const startPolling = (): void => {
+    stopPolling();
+    pollRef.current = window.setInterval(() => {
+      void fetch(`/api/deploy/instance/${sessionId}`)
+        .then(r => (r.ok ? (r.json() as Promise<{ data: InstanceRow }>) : Promise.reject(r)))
+        .then(({ data }) => {
+          if (data.steps) setSteps(collapse(data.steps));
+          if (data.status === 'ready' && data.apiUrl && data.collectUrl) {
+            stopPolling();
+            setResult({ apiUrl: data.apiUrl, collectUrl: data.collectUrl });
+            setPhase('done');
+          } else if (data.status === 'failed') {
+            stopPolling();
+            setError(data.error ? failedMsg(data.error) : INTERRUPTED_MSG);
+            setPhase('tokens');
+          } else if (!runIsFresh(data)) {
+            stopPolling();
+            setError(INTERRUPTED_MSG);
+            setPhase('tokens');
+          }
+        })
+        .catch(() => undefined);
+    }, 3000);
+  };
 
   // Instance capabilities (is "Sign in with Cloudflare" configured?).
   useEffect(() => {
@@ -269,37 +348,41 @@ function DeployWizard(): ReactElement {
     void (async () => {
       const res = await fetch(`/api/deploy/instance/${sessionId}`);
       if (!res.ok) return;
-      const { data } = (await res.json()) as {
-        data: {
-          status: string;
-          apiUrl?: string;
-          collectUrl?: string;
-          instanceName?: string;
-          steps?: StepEvent[];
-          error?: string;
-        };
-      };
+      const { data } = (await res.json()) as { data: InstanceRow };
       if (data.instanceName) setInstanceName(data.instanceName);
       if (data.steps) setSteps(collapse(data.steps));
       if (data.status === 'ready' && data.apiUrl && data.collectUrl) {
         setResult({ apiUrl: data.apiUrl, collectUrl: data.collectUrl });
         setPhase('done');
+      } else if (data.status === 'deploying' && runIsFresh(data)) {
+        // The run is still going server-side — show it live, no tokens needed.
+        setPhase('deploying');
+        startPolling();
       } else if (data.status === 'failed' || data.status === 'deploying') {
-        // An interrupted or failed run resumes by re-running (idempotent) —
+        // A failed or abandoned run resumes by re-running (idempotent) —
         // tokens are never stored, so ask for them again.
-        setError(data.error ?? '');
+        setError(data.error ? failedMsg(data.error) : INTERRUPTED_MSG);
         setPhase('tokens');
       }
-    })();
+    })().catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
   const begin = async (): Promise<void> => {
+    if (sessionId) {
+      setPhase('tokens');
+      return;
+    }
     setBusy(true);
     try {
       const res = await fetch('/api/deploy/instance', { method: 'POST' });
+      if (!res.ok) throw new Error(`could not start a session (${res.status})`);
       const { data } = (await res.json()) as { data: { id: string } };
       void navigate({ to: '/deploy', search: { instance: data.id }, replace: true });
+      setError('');
       setPhase('tokens');
+    } catch {
+      setError('Could not reach the server to start — check your connection and try again.');
     } finally {
       setBusy(false);
     }
@@ -308,44 +391,84 @@ function DeployWizard(): ReactElement {
   const checkInstaller = async (token: string, session = sessionId): Promise<void> => {
     if (token.trim().length < 20) return;
     setInstallerStatus('checking');
-    const res = await fetch(`/api/deploy/instance/${session}/accounts`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ apiToken: token.trim() }),
-    });
-    const body = (await res.json()) as { data?: Account[]; email?: string; error?: string };
-    if (res.ok && body.data) {
-      setAccounts(body.data);
-      setAccountId(body.data[0].id);
-      if (body.email) setCfEmail(body.email);
-      setInstallerStatus('ok');
-      setInstallerDetail(
-        body.data.length === 1
-          ? `Account: ${body.data[0].name}`
-          : `${body.data.length} accounts available`
-      );
-    } else {
+    try {
+      const res = await fetch(`/api/deploy/instance/${session}/accounts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiToken: token.trim() }),
+      });
+      const body = (await res.json()) as { data?: Account[]; email?: string; error?: string };
+      if (res.ok && body.data) {
+        setAccounts(body.data);
+        setAccountId(body.data[0].id);
+        if (body.email) setCfEmail(body.email);
+        setInstallerStatus('ok');
+        setInstallerDetail(
+          body.data.length === 1
+            ? `Account: ${body.data[0].name}`
+            : `${body.data.length} accounts available`
+        );
+      } else {
+        setInstallerStatus('bad');
+        setInstallerDetail(body.error ?? 'Token check failed');
+      }
+    } catch {
       setInstallerStatus('bad');
-      setInstallerDetail(body.error ?? 'Token check failed');
+      setInstallerDetail('Could not reach the server — check your connection and try again.');
     }
   };
 
   const checkCatalog = async (chosenAccount: string): Promise<boolean> => {
     setCatalogStatus('checking');
-    const res = await fetch(`/api/deploy/instance/${sessionId}/verify-catalog`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ catalogToken: catalogToken.trim(), accountId: chosenAccount }),
-    });
-    const body = (await res.json()) as { data?: { ok: boolean; reason?: string } };
-    if (res.ok && body.data?.ok) {
-      setCatalogStatus('ok');
-      setCatalogDetail('Permissions verified');
-      return true;
+    try {
+      const res = await fetch(`/api/deploy/instance/${sessionId}/verify-catalog`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ catalogToken: catalogToken.trim(), accountId: chosenAccount }),
+      });
+      const body = (await res.json()) as { data?: { ok: boolean; reason?: string } };
+      if (res.ok && body.data?.ok) {
+        setCatalogStatus('ok');
+        setCatalogDetail('Permissions verified');
+        return true;
+      }
+      setCatalogStatus('bad');
+      setCatalogDetail(body.data?.reason ?? 'Token check failed');
+      return false;
+    } catch {
+      setCatalogStatus('bad');
+      setCatalogDetail('Could not reach the server — check your connection and try again.');
+      return false;
     }
-    setCatalogStatus('bad');
-    setCatalogDetail(body.data?.reason ?? 'Token check failed');
-    return false;
+  };
+
+  // Auto-verify tokens shortly after they're pasted — no extra clicks. The
+  // onChange handlers reset status to undefined, which re-arms these.
+  useEffect(() => {
+    if (oauthSignedIn || installerStatus !== undefined || installerToken.trim().length < 20) return;
+    const t = window.setTimeout(() => void checkInstaller(installerToken), 600);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [installerToken, installerStatus, oauthSignedIn]);
+
+  useEffect(() => {
+    if (installerStatus !== 'ok' || !accountId) return;
+    if (catalogStatus !== undefined || catalogToken.trim().length < 20) return;
+    const t = window.setTimeout(() => void checkCatalog(accountId), 600);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [catalogToken, catalogStatus, installerStatus, accountId]);
+
+  const continueFromTokens = async (): Promise<void> => {
+    setBusy(true);
+    try {
+      if (catalogStatus === 'ok' || (await checkCatalog(accountId))) {
+        setError('');
+        setPhase('setup');
+      }
+    } finally {
+      setBusy(false);
+    }
   };
 
   // Domains available for the custom-domain picker (per chosen account).
@@ -365,6 +488,8 @@ function DeployWizard(): ReactElement {
   }, [phase, accountId, sessionId]);
 
   const zoneName = zones.find(z => z.id === zoneId)?.name ?? '';
+  // Mirrors the server's schema so a bad name is caught here, not as a 400.
+  const nameOk = /^[a-z][a-z0-9-]{2,20}$/.test(instanceName.trim());
   const sub = domainSub.trim();
   const subOk = sub === '' || /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(sub);
   const previewApiHost = sub ? `${sub}.${zoneName}` : zoneName;
@@ -389,7 +514,7 @@ function DeployWizard(): ReactElement {
           apiToken: installerToken.trim(),
           catalogToken: catalogToken.trim(),
           accountId,
-          instanceName,
+          instanceName: instanceName.trim(),
           customDomain: zoneId
             ? {
                 zoneId,
@@ -399,6 +524,12 @@ function DeployWizard(): ReactElement {
             : undefined,
         }),
       });
+      if (res.status === 409) {
+        // A run for this instance is already going (e.g. another tab) —
+        // watch it instead of erroring out.
+        startPolling();
+        return;
+      }
       if (!res.ok || !res.body) {
         const body = (await res.json().catch(() => null)) as { error?: string } | null;
         throw new Error(body?.error ?? `deploy request failed (${res.status})`);
@@ -476,6 +607,11 @@ function DeployWizard(): ReactElement {
               Deploy Traks to your Cloudflare account
             </h2>
             <p className="mb-5 text-[13px] text-[#9B99A6]">Here&rsquo;s what will happen</p>
+            {error && (
+              <p className="mb-4 rounded-xl bg-[#F7DCD4] px-4 py-3 text-[12.5px] text-[#8F3B2C]">
+                {error}
+              </p>
+            )}
             <div className="space-y-2.5">
               {[
                 oauthEnabled
@@ -522,13 +658,17 @@ function DeployWizard(): ReactElement {
         {phase === 'tokens' && (
           <Card
             footer={
-              <PrimaryButton
-                onClick={() => setPhase('setup')}
-                disabled={installerStatus !== 'ok' || catalogToken.trim().length < 20}
-              >
-                Continue
-                <ArrowRight className="h-4 w-4" />
-              </PrimaryButton>
+              <>
+                <BackButton onClick={() => setPhase('intro')} disabled={busy} />
+                <PrimaryButton
+                  onClick={() => void continueFromTokens()}
+                  busy={busy}
+                  disabled={installerStatus !== 'ok' || catalogToken.trim().length < 20}
+                >
+                  Continue
+                  <ArrowRight className="h-4 w-4" />
+                </PrimaryButton>
+              </>
             }
           >
             <h2 className="mb-1 text-[16.5px] font-bold text-[#3D3B4F]">
@@ -551,9 +691,8 @@ function DeployWizard(): ReactElement {
               )}
             </p>
             {error && (
-              <p className="mb-4 rounded-xl bg-[#F7DCD4] px-4 py-3 text-[12.5px] text-[#8F3B2C]">
-                Previous attempt: {error} — fix anything needed and deploy again; the install
-                resumes where it left off.
+              <p className="mb-4 rounded-xl bg-[#F7DCD4] px-4 py-3 text-[12.5px] leading-relaxed text-[#8F3B2C]">
+                {error}
               </p>
             )}
             <div className="space-y-5">
@@ -606,30 +745,21 @@ function DeployWizard(): ReactElement {
                 </div>
               ) : null}
               {!oauthSignedIn && (
-                <>
-                  <TokenField
-                    id="installer-token"
-                    label="Installer token"
-                    help="Creates the Workers, database, KV, and pipeline in your account."
-                    linkLabel="Create installer token (pre-filled)"
-                    linkUrl={INSTALLER_TOKEN_URL}
-                    value={installerToken}
-                    onChange={v => {
-                      setInstallerToken(v);
-                      setInstallerStatus(undefined);
-                    }}
-                    status={installerStatus}
-                    statusDetail={installerDetail}
-                  />
-                  {installerToken.trim().length >= 20 && installerStatus === undefined && (
-                    <button
-                      onClick={() => void checkInstaller(installerToken)}
-                      className="rounded-full bg-muted px-4 py-1.5 text-[12px] font-semibold text-[#3D3B4F] hover:bg-[#E4E4E9] transition-colors cursor-pointer"
-                    >
-                      Verify token
-                    </button>
-                  )}
-                </>
+                <TokenField
+                  id="installer-token"
+                  label="Installer token"
+                  help="Creates the Workers, database, KV, and pipeline in your account."
+                  linkLabel="Create installer token (pre-filled)"
+                  linkUrl={INSTALLER_TOKEN_URL}
+                  value={installerToken}
+                  onChange={v => {
+                    setInstallerToken(v);
+                    setInstallerStatus(undefined);
+                  }}
+                  status={installerStatus}
+                  statusDetail={installerDetail}
+                  errorHelp="Recreate it with the pre-filled link — keep all pre-selected permissions, click “Continue to summary”, then “Create Token”, and copy the full value."
+                />
               )}
               {accounts.length > 1 && (
                 <div>
@@ -642,7 +772,11 @@ function DeployWizard(): ReactElement {
                   <select
                     id="deploy-account"
                     value={accountId}
-                    onChange={e => setAccountId(e.target.value)}
+                    onChange={e => {
+                      setAccountId(e.target.value);
+                      setCatalogStatus(undefined);
+                      setCatalogDetail(undefined);
+                    }}
                     className="h-11 w-full cursor-pointer rounded-2xl border-none bg-white px-4 text-[13.5px] text-[#3D3B4F] shadow-[inset_0_0_0_1px_#E5E5EB] focus:shadow-[inset_0_0_0_1.5px_#3D3B4F] focus:outline-none"
                   >
                     {accounts.map(a => (
@@ -670,6 +804,7 @@ function DeployWizard(): ReactElement {
                 }}
                 status={catalogStatus}
                 statusDetail={catalogDetail}
+                errorHelp="Use the pre-filled storage-token link (scoped to the selected account), click “Create Token”, and paste the token value — not the token ID."
               />
             </div>
           </Card>
@@ -678,14 +813,17 @@ function DeployWizard(): ReactElement {
         {phase === 'setup' && (
           <Card
             footer={
-              <PrimaryButton
-                onClick={() => void deploy()}
-                busy={busy}
-                disabled={zoneId !== '' && !subOk}
-              >
-                <Sparkles className="h-4 w-4" />
-                Deploy Traks
-              </PrimaryButton>
+              <>
+                <BackButton onClick={() => setPhase('tokens')} disabled={busy} />
+                <PrimaryButton
+                  onClick={() => void deploy()}
+                  busy={busy}
+                  disabled={!nameOk || (zoneId !== '' && !subOk)}
+                >
+                  <Sparkles className="h-4 w-4" />
+                  Deploy Traks
+                </PrimaryButton>
+              </>
             }
           >
             <h2 className="mb-1 text-[16.5px] font-bold text-[#3D3B4F]">Name your instance</h2>
@@ -716,7 +854,14 @@ function DeployWizard(): ReactElement {
                   className="h-11 w-full rounded-2xl border-none bg-white px-4 text-[13.5px] text-[#3D3B4F] shadow-[inset_0_0_0_1px_#E5E5EB] focus:shadow-[inset_0_0_0_1.5px_#3D3B4F] focus:outline-none"
                 />
                 <p className="mt-1.5 text-[11.5px] text-[#9B99A6]">
-                  Lowercase letters, digits, and dashes — names the resources in your account.
+                  {nameOk ? (
+                    <>Lowercase letters, digits, and dashes — names the resources in your account.</>
+                  ) : (
+                    <span className="text-[#B3402F]">
+                      3–21 characters, starting with a letter — lowercase letters, digits, and
+                      dashes only.
+                    </span>
+                  )}
                 </p>
               </div>
               <div>
@@ -790,10 +935,13 @@ function DeployWizard(): ReactElement {
           <Card
             footer={
               phase === 'failed' ? (
-                <PrimaryButton onClick={() => void deploy()} busy={busy}>
-                  <RotateCw className="h-4 w-4" />
-                  Retry deploy
-                </PrimaryButton>
+                <>
+                  <BackButton onClick={() => setPhase('setup')} disabled={busy} />
+                  <PrimaryButton onClick={() => void deploy()} busy={busy}>
+                    <RotateCw className="h-4 w-4" />
+                    Retry deploy
+                  </PrimaryButton>
+                </>
               ) : undefined
             }
           >

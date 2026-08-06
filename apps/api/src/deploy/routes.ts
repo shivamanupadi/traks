@@ -16,10 +16,13 @@ import { deployInstances } from '../db/schema';
 import {
   provisionInstance,
   listAccounts,
+  listZones,
+  userEmail,
   verifyCatalogToken,
+  type CustomDomain,
   type DeployArtifacts,
   type StepEvent,
-} from '../lib/deploy-engine';
+} from './engine';
 import type { Bindings, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
@@ -43,6 +46,9 @@ const CF_OAUTH_SCOPES = [
   'r2-catalog.write',
   'r2-catalog-sql.read',
   'account-settings.read',
+  'zone.read',
+  'workers-routes.write',
+  'user-details.read',
 ];
 const OAUTH_COOKIE = 'traks_oauth';
 
@@ -101,7 +107,29 @@ const startSchema = z.object({
   catalogToken: tokenSchema,
   accountId: z.string().regex(/^[a-f0-9]{32}$/),
   instanceName: z.string().regex(/^[a-z][a-z0-9-]{2,20}$/, 'lowercase letters, digits, and dashes'),
+  // Optional: deploy onto one of the account's own domains. Hostnames are
+  // derived server-side from zone + subdomain so they can't point elsewhere.
+  customDomain: z
+    .object({
+      zoneId: z.string().regex(/^[a-f0-9]{32}$/),
+      zoneName: z.string().regex(/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?\.[a-z]{2,}$/i),
+      subdomain: z
+        .string()
+        .regex(/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/)
+        .or(z.literal('')),
+    })
+    .optional(),
 });
+
+function resolveCustomDomain(
+  d: NonNullable<z.infer<typeof startSchema>['customDomain']>
+): CustomDomain {
+  const apiHostname = d.subdomain ? `${d.subdomain}.${d.zoneName}` : d.zoneName;
+  const collectHostname = d.subdomain
+    ? `${d.subdomain}-collect.${d.zoneName}`
+    : `collect.${d.zoneName}`;
+  return { zoneId: d.zoneId, apiHostname, collectHostname };
+}
 
 async function loadArtifacts(releases: R2Bucket): Promise<DeployArtifacts> {
   const manifestObj = await releases.get('current/manifest.json');
@@ -192,13 +220,35 @@ export const deployRoute = app
     zValidator('json', z.object({ apiToken: tokenSchema })),
     async c => {
       try {
-        const accounts = await listAccounts(c.req.valid('json').apiToken);
+        const token = c.req.valid('json').apiToken;
+        const accounts = await listAccounts(token);
         if (accounts.length === 0) {
           return c.json({ error: 'This token cannot access any Cloudflare account' }, 400);
         }
-        return c.json({ data: accounts });
+        // OAuth sign-ins can also tell us who this is — the instance's owner
+        // account gets pinned to this email at deploy time.
+        return c.json({ data: accounts, email: await userEmail(token) });
       } catch (err) {
         const message = err instanceof Error ? err.message : 'token check failed';
+        return c.json({ error: message }, 400);
+      }
+    }
+  )
+
+  // List the chosen account's domains for the custom-domain picker. Token is
+  // used for this one upstream call and discarded.
+  .post(
+    '/instance/:id/zones',
+    zValidator(
+      'json',
+      z.object({ apiToken: tokenSchema, accountId: z.string().regex(/^[a-f0-9]{32}$/) })
+    ),
+    async c => {
+      const { apiToken, accountId } = c.req.valid('json');
+      try {
+        return c.json({ data: await listZones(apiToken, accountId) });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'zone list failed';
         return c.json({ error: message }, 400);
       }
     }
@@ -236,7 +286,7 @@ export const deployRoute = app
       return c.json({ error: 'Deploy already running' }, 409);
     }
 
-    const { apiToken, catalogToken, accountId, instanceName } = c.req.valid('json');
+    const { apiToken, catalogToken, accountId, instanceName, customDomain } = c.req.valid('json');
     const artifacts = await loadArtifacts(c.env.RELEASES);
 
     const steps: StepEvent[] = [];
@@ -265,6 +315,7 @@ export const deployRoute = app
               instance: instanceName,
               catalogToken,
               artifacts,
+              customDomain: customDomain && resolveCustomDomain(customDomain),
               randomHex: n =>
                 [...crypto.getRandomValues(new Uint8Array(n))]
                   .map(b => b.toString(16).padStart(2, '0'))

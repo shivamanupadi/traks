@@ -21,6 +21,10 @@ export type Bindings = {
    *  absent means the wizard falls back to token paste). */
   CF_OAUTH_CLIENT_ID?: string;
   CF_OAUTH_CLIENT_SECRET?: string;
+  /** Set by the deploy wizard on user instances: the Cloudflare account email
+   *  the instance was deployed with. When present, only this email can claim
+   *  the instance (first sign-up), and the claim screen locks the field. */
+  OWNER_EMAIL?: string;
 };
 
 export type Variables = {

@@ -1,5 +1,5 @@
 /**
- * Web-installer provisioning engine (worker port of installer/web/engine.mjs).
+ * Web-installer provisioning engine.
  *
  * Pure fetch against the Cloudflare REST API — provisions a complete Traks
  * instance into a USER'S account using tokens they supply, which live only
@@ -11,7 +11,7 @@
  * for are ever read.
  *
  * Endpoint shapes were mined from wrangler's source and proven end-to-end
- * by the node harness (installer/web/test-engine.mjs) before this port.
+ * against real accounts (installer/test-engine.mjs is the local harness).
  */
 
 const API = 'https://api.cloudflare.com/client/v4';
@@ -37,12 +37,22 @@ export interface DeployArtifacts {
   schema: { fields: unknown[] };
 }
 
+export interface CustomDomain {
+  zoneId: string;
+  /** Dashboard hostname (e.g. analytics.example.com, or the apex). */
+  apiHostname: string;
+  /** Collect-worker hostname (e.g. analytics-collect.example.com). */
+  collectHostname: string;
+}
+
 export interface EngineCtx {
   apiToken: string;
   accountId: string;
   instance: string;
   catalogToken: string;
   artifacts: DeployArtifacts;
+  /** Deploy onto one of the account's own domains instead of workers.dev. */
+  customDomain?: CustomDomain;
   randomHex: (bytes: number) => string;
   emit: (e: StepEvent) => void | Promise<void>;
 }
@@ -74,7 +84,7 @@ type Cf = (
   opts?: { jwt?: string; formData?: FormData; tolerate?: number[] }
 ) => Promise<any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
-function makeApi(ctx: EngineCtx): Cf {
+function makeApi(ctx: { apiToken: string }): Cf {
   return async function cf(method, path, body, { jwt, formData, tolerate = [] } = {}) {
     const headers: Record<string, string> = { Authorization: `Bearer ${jwt ?? ctx.apiToken}` };
     let payload: BodyInit | undefined;
@@ -112,7 +122,7 @@ class StepFailure extends Error {
 }
 
 async function step<T>(
-  ctx: EngineCtx,
+  ctx: { emit: EngineCtx['emit'] },
   stepId: string,
   label: string,
   fn: () => Promise<T>
@@ -132,7 +142,7 @@ async function step<T>(
 const sleep = (ms: number): Promise<void> => new Promise(r => setTimeout(r, ms));
 
 async function withRetry<T>(
-  ctx: EngineCtx,
+  ctx: { emit: EngineCtx['emit'] },
   stepId: string,
   label: string,
   fn: () => Promise<T>,
@@ -449,8 +459,12 @@ export async function provisionInstance(ctx: EngineCtx): Promise<ProvisionResult
   const subdomain = await step(ctx, 'preflight', 'Check account readiness', () =>
     workersSubdomain(ctx, cf)
   );
-  const collectUrl = `https://${N.collectWorker}.${subdomain}.workers.dev`;
-  const apiUrl = `https://${N.apiWorker}.${subdomain}.workers.dev`;
+  const collectUrl = ctx.customDomain
+    ? `https://${ctx.customDomain.collectHostname}`
+    : `https://${N.collectWorker}.${subdomain}.workers.dev`;
+  const apiUrl = ctx.customDomain
+    ? `https://${ctx.customDomain.apiHostname}`
+    : `https://${N.apiWorker}.${subdomain}.workers.dev`;
 
   const d1Id = await ensureD1(ctx, cf, N.d1);
   await applyMigrations(ctx, cf, d1Id);
@@ -483,6 +497,10 @@ export async function provisionInstance(ctx: EngineCtx): Promise<ProvisionResult
 
   const assetsJwt = await uploadAssets(ctx, cf, N.apiWorker);
 
+  // Pin instance ownership to the deploying identity when the token can
+  // reveal it (OAuth sign-in). Token-paste installs leave the claim open.
+  const ownerEmail = await userEmail(ctx.apiToken);
+
   await step(ctx, 'api-worker', 'Deploy dashboard worker', async () => {
     await uploadWorker(ctx, cf, N.apiWorker, await ctx.artifacts.apiWorker(), {
       main_module: 'worker.js',
@@ -502,6 +520,7 @@ export async function provisionInstance(ctx: EngineCtx): Promise<ProvisionResult
         { type: 'plain_text', name: 'R2_BUCKET_NAME', text: N.bucket },
         { type: 'plain_text', name: 'R2_ACCOUNT_ID', text: ctx.accountId },
         { type: 'plain_text', name: 'COLLECT_URL', text: collectUrl },
+        ...(ownerEmail ? [{ type: 'plain_text', name: 'OWNER_EMAIL', text: ownerEmail }] : []),
       ],
       assets: {
         jwt: assetsJwt,
@@ -515,9 +534,30 @@ export async function provisionInstance(ctx: EngineCtx): Promise<ProvisionResult
 
   await ensureSecrets(ctx, cf, N);
 
+  if (ctx.customDomain) {
+    const { zoneId, apiHostname, collectHostname } = ctx.customDomain;
+    await step(ctx, 'custom-domain', `Attach ${apiHostname}`, async () => {
+      // Same call wrangler makes for `custom_domain = true` routes: Cloudflare
+      // creates the DNS record and edge certificate itself. Overrides make
+      // re-runs (and re-pointing a stale record) idempotent.
+      const attach = (script: string, hostname: string): Promise<unknown> =>
+        cf('PUT', `/accounts/${ctx.accountId}/workers/scripts/${script}/domains/records`, {
+          override_scope: true,
+          override_existing_origin: true,
+          override_existing_dns_record: true,
+          origins: [{ hostname, zone_id: zoneId }],
+        });
+      await attach(N.apiWorker, apiHostname);
+      await attach(N.collectWorker, collectHostname);
+    });
+  }
+
   await step(ctx, 'smoke', 'Verify the deployment', async () => {
+    // Custom domains wait on DNS propagation + edge cert issuance (usually
+    // well under a minute, occasionally a few).
+    const attempts = ctx.customDomain ? 30 : 9;
     const probe = async (url: string, path: string, expect: string): Promise<void> => {
-      for (let i = 0; i < 9; i++) {
+      for (let i = 0; i < attempts; i++) {
         try {
           const res = await fetch(url + path);
           const body = await res.text();
@@ -535,6 +575,124 @@ export async function provisionInstance(ctx: EngineCtx): Promise<ProvisionResult
   });
 
   return { apiUrl, collectUrl };
+}
+
+/**
+ * The email behind the token, when it can tell us (OAuth sign-in with
+ * User Details Read; account-scoped API tokens can't call /user → undefined).
+ */
+export async function userEmail(apiToken: string): Promise<string | undefined> {
+  try {
+    const res = await fetch(`${API}/user`, {
+      headers: { Authorization: `Bearer ${apiToken}` },
+    });
+    const data: any = await res.json(); // eslint-disable-line @typescript-eslint/no-explicit-any
+    if (!res.ok || data?.success === false) return undefined;
+    const email = data?.result?.email;
+    return typeof email === 'string' && email.includes('@') ? email : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export interface DestroyCtx {
+  apiToken: string;
+  accountId: string;
+  instance: string;
+  emit: (e: StepEvent) => void | Promise<void>;
+  /** R2 objects only die via the S3 API — callers that can sign SigV4 supply
+   *  an emptier; without one, a non-empty bucket fails its delete. */
+  emptyBucket?: (bucket: string) => Promise<void>;
+}
+
+/** Tear down everything provisionInstance created. Idempotent — every delete
+ *  tolerates already-gone resources, so partial teardowns can be re-run. */
+export async function destroyInstance(ctx: DestroyCtx): Promise<void> {
+  const cf = makeApi(ctx);
+  const N = instanceNames(ctx.instance);
+  const base = `/accounts/${ctx.accountId}/pipelines/v1`;
+  const gone = [10007, 10000, 7003, 1000]; // not-found flavors
+
+  await step(ctx, 'workers', 'Delete workers', async () => {
+    for (const name of [N.apiWorker, N.collectWorker]) {
+      await cf(
+        'DELETE',
+        `/accounts/${ctx.accountId}/workers/scripts/${name}?force=true`,
+        undefined,
+        { tolerate: gone }
+      ).catch(() => {});
+    }
+  });
+
+  await step(ctx, 'pipeline-teardown', 'Delete pipeline, sink, stream', async () => {
+    const del = async (kind: string, name: string): Promise<void> => {
+      const list = await cf('GET', `${base}/${kind}?per_page=100`).catch(() => []);
+      const hit = ((list ?? []) as { id: string; name: string }[]).find(x => x.name === name);
+      if (hit) await cf('DELETE', `${base}/${kind}/${hit.id}`, undefined, { tolerate: gone });
+    };
+    await del('pipelines', N.pipeline);
+    await del('sinks', N.sink);
+    await del('streams', N.stream);
+  });
+
+  await step(ctx, 'catalog-teardown', 'Disable catalog, empty and delete bucket', async () => {
+    await cf('POST', `/accounts/${ctx.accountId}/r2-catalog/${N.bucket}/disable`, undefined, {
+      tolerate: gone,
+    }).catch(() => {});
+    if (ctx.emptyBucket) await ctx.emptyBucket(N.bucket);
+    await cf('DELETE', `/accounts/${ctx.accountId}/r2/buckets/${N.bucket}`, undefined, {
+      tolerate: gone,
+    }).catch(() => {});
+  });
+
+  await step(ctx, 'storage-teardown', 'Delete database and KV', async () => {
+    const list = await cf(
+      'GET',
+      `/accounts/${ctx.accountId}/d1/database?name=${N.d1}&per_page=100`
+    );
+    const db = ((Array.isArray(list) ? list : []) as { uuid: string; name: string }[]).find(
+      d => d.name === N.d1
+    );
+    if (db) {
+      await cf('DELETE', `/accounts/${ctx.accountId}/d1/database/${db.uuid}`, undefined, {
+        tolerate: gone,
+      });
+    }
+    for (let page = 1; ; page++) {
+      const kvList = (await cf(
+        'GET',
+        `/accounts/${ctx.accountId}/storage/kv/namespaces?per_page=100&page=${page}`
+      )) as { id: string; title: string }[] | null;
+      const kv = (kvList ?? []).find(n => n.title === N.kvTitle);
+      if (kv) {
+        await cf('DELETE', `/accounts/${ctx.accountId}/storage/kv/namespaces/${kv.id}`, undefined, {
+          tolerate: gone,
+        });
+        break;
+      }
+      if (!kvList || kvList.length < 100) break;
+    }
+  });
+}
+
+/** List the account's active zones, for the custom-domain picker (token never stored). */
+export async function listZones(
+  apiToken: string,
+  accountId: string
+): Promise<{ id: string; name: string }[]> {
+  const res = await fetch(`${API}/zones?account.id=${accountId}&status=active&per_page=50`, {
+    headers: { Authorization: `Bearer ${apiToken}` },
+  });
+  const data: any = await res.json().catch(() => null); // eslint-disable-line @typescript-eslint/no-explicit-any
+  if (!res.ok || data?.success === false) {
+    const msg =
+      data?.errors?.map((e: { message: string }) => e.message).join('; ') ?? res.statusText;
+    throw new Error(msg);
+  }
+  return (data.result ?? []).map((z: { id: string; name: string }) => ({
+    id: z.id,
+    name: z.name,
+  }));
 }
 
 /** List the accounts a token can act on (never stored). */

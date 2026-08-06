@@ -95,6 +95,13 @@ function createAuth(env: Bindings, origin: string) {
           throw new APIError('FORBIDDEN', { message: 'This instance is already claimed' });
         }
         const email = (ctx.body as { email?: string })?.email?.toLowerCase();
+        // Wizard-deployed instances are pinned to the Cloudflare account email
+        // captured at deploy time — the owner identity isn't chosen at claim.
+        if (env.OWNER_EMAIL && email !== env.OWNER_EMAIL.toLowerCase()) {
+          throw new APIError('FORBIDDEN', {
+            message: 'This instance can only be claimed by the email it was deployed with',
+          });
+        }
         if (email) await stashLegacyUser(db, email);
       }),
     },

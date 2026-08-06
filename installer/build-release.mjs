@@ -7,7 +7,7 @@
  *
  * Output: installer/dist/{api,collect,web,migrations}
  * Worker bundles come from `wrangler deploy --dry-run --outdir` (the same
- * esbuild pipeline a real deploy uses). Upload with installer/web/upload-release.mjs.
+ * esbuild pipeline a real deploy uses). Upload with installer/upload-release.mjs.
  */
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, rmSync, copyFileSync, cpSync, readdirSync, statSync } from 'node:fs';
@@ -68,4 +68,4 @@ for (const f of readdirSync(path.join(ROOT, 'apps/api/src/db/migrations'))) {
 }
 
 console.log('\n✓ Release built at installer/dist — upload with:');
-console.log('  CATALOG_TOKEN=<token> node installer/web/upload-release.mjs');
+console.log('  CATALOG_TOKEN=<token> node installer/upload-release.mjs');

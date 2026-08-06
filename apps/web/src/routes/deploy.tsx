@@ -24,10 +24,10 @@ export const Route = createFileRoute('/deploy')({
 
 /* ── pre-filled Cloudflare token URLs (keys mined from permission labels) ── */
 
-const tokenUrl = (name: string, keys: { key: string; type: string }[]): string =>
+const tokenUrl = (name: string, keys: { key: string; type: string }[], accountId = '*'): string =>
   `https://dash.cloudflare.com/profile/api-tokens?permissionGroupKeys=${encodeURIComponent(
     JSON.stringify(keys)
-  )}&name=${encodeURIComponent(name)}&accountId=*`;
+  )}&name=${encodeURIComponent(name)}&accountId=${accountId}`;
 
 const INSTALLER_TOKEN_URL = tokenUrl('Traks Installer', [
   { key: 'workers_scripts', type: 'edit' },
@@ -37,13 +37,23 @@ const INSTALLER_TOKEN_URL = tokenUrl('Traks Installer', [
   { key: 'workers_r2', type: 'edit' },
   { key: 'r2_catalog', type: 'edit' },
   { key: 'account_settings', type: 'read' },
+  { key: 'zone', type: 'read' },
+  { key: 'workers_routes', type: 'edit' },
+  { key: 'user_details', type: 'read' },
 ]);
 
-const CATALOG_TOKEN_URL = tokenUrl('Traks Catalog Token', [
-  { key: 'workers_r2', type: 'edit' },
-  { key: 'r2_catalog', type: 'edit' },
-  { key: 'r2_catalog_sql', type: 'read' },
-]);
+// Once the account is known (OAuth sign-in or installer-token verify), the
+// link pre-selects it under Account Resources instead of "All accounts".
+const catalogTokenUrl = (accountId?: string): string =>
+  tokenUrl(
+    'Traks Catalog Token',
+    [
+      { key: 'workers_r2', type: 'edit' },
+      { key: 'r2_catalog', type: 'edit' },
+      { key: 'r2_catalog_sql', type: 'read' },
+    ],
+    accountId || '*'
+  );
 
 /* ── types ──────────────────────────────────────────────────── */
 
@@ -211,6 +221,10 @@ function DeployWizard(): ReactElement {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [accountId, setAccountId] = useState('');
   const [instanceName, setInstanceName] = useState('traks');
+  const [zones, setZones] = useState<Account[]>([]);
+  const [zoneId, setZoneId] = useState('');
+  const [domainSub, setDomainSub] = useState('analytics');
+  const [cfEmail, setCfEmail] = useState('');
 
   const [steps, setSteps] = useState<StepEvent[]>([]);
   const [result, setResult] = useState<{ apiUrl: string; collectUrl: string } | null>(null);
@@ -299,10 +313,11 @@ function DeployWizard(): ReactElement {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ apiToken: token.trim() }),
     });
-    const body = (await res.json()) as { data?: Account[]; error?: string };
+    const body = (await res.json()) as { data?: Account[]; email?: string; error?: string };
     if (res.ok && body.data) {
       setAccounts(body.data);
       setAccountId(body.data[0].id);
+      if (body.email) setCfEmail(body.email);
       setInstallerStatus('ok');
       setInstallerDetail(
         body.data.length === 1
@@ -333,6 +348,28 @@ function DeployWizard(): ReactElement {
     return false;
   };
 
+  // Domains available for the custom-domain picker (per chosen account).
+  useEffect(() => {
+    if (phase !== 'setup' || !accountId || !sessionId) return;
+    setZones([]);
+    setZoneId('');
+    void fetch(`/api/deploy/instance/${sessionId}/zones`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apiToken: installerToken.trim(), accountId }),
+    })
+      .then(r => (r.ok ? (r.json() as Promise<{ data: Account[] }>) : Promise.reject(r)))
+      .then(({ data }) => setZones(data))
+      .catch(() => setZones([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, accountId, sessionId]);
+
+  const zoneName = zones.find(z => z.id === zoneId)?.name ?? '';
+  const sub = domainSub.trim();
+  const subOk = sub === '' || /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(sub);
+  const previewApiHost = sub ? `${sub}.${zoneName}` : zoneName;
+  const previewCollectHost = sub ? `${sub}-collect.${zoneName}` : `collect.${zoneName}`;
+
   const deploy = async (): Promise<void> => {
     setBusy(true);
     setError('');
@@ -353,6 +390,13 @@ function DeployWizard(): ReactElement {
           catalogToken: catalogToken.trim(),
           accountId,
           instanceName,
+          customDomain: zoneId
+            ? {
+                zoneId,
+                zoneName: zones.find(z => z.id === zoneId)?.name ?? '',
+                subdomain: domainSub.trim(),
+              }
+            : undefined,
         }),
       });
       if (!res.ok || !res.body) {
@@ -519,7 +563,7 @@ function DeployWizard(): ReactElement {
                     <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-mint/15">
                       <Check className="h-4 w-4 text-[#0E9F6E]" strokeWidth={2.4} />
                     </span>
-                    Signed in with Cloudflare
+                    {cfEmail ? `Signed in as ${cfEmail}` : 'Signed in with Cloudflare'}
                   </p>
                   <p className="text-[11.5px] text-[#9B99A6]">
                     {installerStatus === 'checking' ? (
@@ -587,12 +631,38 @@ function DeployWizard(): ReactElement {
                   )}
                 </>
               )}
+              {accounts.length > 1 && (
+                <div>
+                  <label
+                    htmlFor="deploy-account"
+                    className="mb-1.5 block text-[12.5px] font-semibold text-[#3D3B4F]"
+                  >
+                    Cloudflare account
+                  </label>
+                  <select
+                    id="deploy-account"
+                    value={accountId}
+                    onChange={e => setAccountId(e.target.value)}
+                    className="h-11 w-full cursor-pointer rounded-2xl border-none bg-white px-4 text-[13.5px] text-[#3D3B4F] shadow-[inset_0_0_0_1px_#E5E5EB] focus:shadow-[inset_0_0_0_1.5px_#3D3B4F] focus:outline-none"
+                  >
+                    {accounts.map(a => (
+                      <option key={a.id} value={a.id}>
+                        {a.name}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1.5 text-[11.5px] text-[#9B99A6]">
+                    You have access to more than one account; Traks deploys into this one, and the
+                    storage-token link below is scoped to it.
+                  </p>
+                </div>
+              )}
               <TokenField
                 id="catalog-token"
                 label="Analytics storage token"
                 help="Stays with your instance as its data-warehouse credential."
                 linkLabel="Create storage token (pre-filled)"
-                linkUrl={CATALOG_TOKEN_URL}
+                linkUrl={catalogTokenUrl(accountId)}
                 value={catalogToken}
                 onChange={v => {
                   setCatalogToken(v);
@@ -608,7 +678,11 @@ function DeployWizard(): ReactElement {
         {phase === 'setup' && (
           <Card
             footer={
-              <PrimaryButton onClick={() => void deploy()} busy={busy}>
+              <PrimaryButton
+                onClick={() => void deploy()}
+                busy={busy}
+                disabled={zoneId !== '' && !subOk}
+              >
                 <Sparkles className="h-4 w-4" />
                 Deploy Traks
               </PrimaryButton>
@@ -619,31 +693,12 @@ function DeployWizard(): ReactElement {
               Where Traks deploys and what its resources are called
             </p>
             <div className="space-y-4">
-              {accounts.length > 1 && (
-                <div>
-                  <label className="mb-1.5 block text-[12.5px] font-semibold text-[#3D3B4F]">
-                    Cloudflare account
-                  </label>
-                  <select
-                    value={accountId}
-                    onChange={e => setAccountId(e.target.value)}
-                    className="h-11 w-full cursor-pointer rounded-2xl border-none bg-white px-4 text-[13.5px] text-[#3D3B4F] shadow-[inset_0_0_0_1px_#E5E5EB] focus:shadow-[inset_0_0_0_1.5px_#3D3B4F] focus:outline-none"
-                  >
-                    {accounts.map(a => (
-                      <option key={a.id} value={a.id}>
-                        {a.name}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="mt-1.5 text-[11.5px] text-[#9B99A6]">
-                    Your token covers more than one account; Traks deploys into this one.
-                  </p>
-                </div>
-              )}
-              {accounts.length === 1 && (
+              {accounts.length > 0 && (
                 <p className="rounded-xl bg-[#F4F4F6] px-4 py-3 text-[12.5px] text-[#6E6C7C]">
                   Deploying into{' '}
-                  <span className="font-semibold text-[#3D3B4F]">{accounts[0].name}</span>
+                  <span className="font-semibold text-[#3D3B4F]">
+                    {accounts.find(a => a.id === accountId)?.name}
+                  </span>
                 </p>
               )}
               <div>
@@ -661,12 +716,71 @@ function DeployWizard(): ReactElement {
                   className="h-11 w-full rounded-2xl border-none bg-white px-4 text-[13.5px] text-[#3D3B4F] shadow-[inset_0_0_0_1px_#E5E5EB] focus:shadow-[inset_0_0_0_1.5px_#3D3B4F] focus:outline-none"
                 />
                 <p className="mt-1.5 text-[11.5px] text-[#9B99A6]">
-                  Lowercase letters, digits, and dashes. Your dashboard will live at{' '}
-                  <span className="font-mono text-[#6E6C7C]">
-                    {/^[a-z][a-z0-9-]{2,20}$/.test(instanceName) ? instanceName : 'traks'}
-                    -api.&lt;your-subdomain&gt;.workers.dev
-                  </span>
+                  Lowercase letters, digits, and dashes — names the resources in your account.
                 </p>
+              </div>
+              <div>
+                <label
+                  htmlFor="deploy-domain"
+                  className="mb-1.5 block text-[12.5px] font-semibold text-[#3D3B4F]"
+                >
+                  Domain
+                </label>
+                <select
+                  id="deploy-domain"
+                  value={zoneId}
+                  onChange={e => setZoneId(e.target.value)}
+                  className="h-11 w-full cursor-pointer rounded-2xl border-none bg-white px-4 text-[13.5px] text-[#3D3B4F] shadow-[inset_0_0_0_1px_#E5E5EB] focus:shadow-[inset_0_0_0_1.5px_#3D3B4F] focus:outline-none"
+                >
+                  <option value="">workers.dev (default, no setup)</option>
+                  {zones.map(z => (
+                    <option key={z.id} value={z.id}>
+                      {z.name}
+                    </option>
+                  ))}
+                </select>
+                {zoneId ? (
+                  <div className="mt-3">
+                    <div className="flex items-center gap-2">
+                      <input
+                        id="domain-sub"
+                        value={domainSub}
+                        onChange={e => setDomainSub(e.target.value)}
+                        placeholder="analytics"
+                        className="h-11 w-40 rounded-2xl border-none bg-white px-4 text-[13.5px] text-[#3D3B4F] shadow-[inset_0_0_0_1px_#E5E5EB] focus:shadow-[inset_0_0_0_1.5px_#3D3B4F] focus:outline-none"
+                      />
+                      <span className="text-[13.5px] text-[#6E6C7C]">
+                        .{zones.find(z => z.id === zoneId)?.name}
+                      </span>
+                    </div>
+                    <p className="mt-1.5 text-[11.5px] leading-relaxed text-[#9B99A6]">
+                      {subOk ? (
+                        <>
+                          Dashboard at{' '}
+                          <span className="font-mono text-[#6E6C7C]">{previewApiHost}</span>,
+                          tracker served from{' '}
+                          <span className="font-mono text-[#6E6C7C]">{previewCollectHost}</span>.
+                          DNS records and certificates are created automatically — leave the box
+                          empty to use the domain itself.
+                        </>
+                      ) : (
+                        <span className="text-[#B3402F]">
+                          Subdomain: lowercase letters, digits, and dashes (or empty for the root
+                          domain).
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="mt-1.5 text-[11.5px] text-[#9B99A6]">
+                    Your dashboard will live at{' '}
+                    <span className="font-mono text-[#6E6C7C]">
+                      {/^[a-z][a-z0-9-]{2,20}$/.test(instanceName) ? instanceName : 'traks'}
+                      -api.&lt;your-subdomain&gt;.workers.dev
+                    </span>
+                    {zones.length === 0 && ' — add a domain to Cloudflare to use your own.'}
+                  </p>
+                )}
               </div>
             </div>
           </Card>
@@ -773,9 +887,20 @@ function DeployWizard(): ReactElement {
                   Claim your instance
                 </p>
                 <p className="mt-1 text-[12.5px] leading-relaxed text-[#9B99A6]">
-                  Open it and create your owner account — the first sign-up claims the instance and
-                  sign-ups close afterwards. Then add your site and paste the tracking snippet it
-                  gives you.
+                  {cfEmail ? (
+                    <>
+                      Open it and pick a password —{' '}
+                      <span className="font-medium text-[#6E6C7C]">{cfEmail}</span> is already set
+                      as the owner, and only that email can claim the instance. Then add your site
+                      and paste the tracking snippet it gives you.
+                    </>
+                  ) : (
+                    <>
+                      Open it and create your owner account — the first sign-up claims the instance
+                      and sign-ups close afterwards. Then add your site and paste the tracking
+                      snippet it gives you.
+                    </>
+                  )}
                 </p>
               </div>
             </div>

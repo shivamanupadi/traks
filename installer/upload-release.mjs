@@ -3,7 +3,7 @@
  * Upload the built package artifacts to the traks-releases R2 bucket, which
  * the traks.dev/deploy wizard worker reads when provisioning user instances.
  *
- *   CATALOG_TOKEN=<r2-token> node installer/web/upload-release.mjs
+ *   CATALOG_TOKEN=<r2-token> node installer/upload-release.mjs
  *
  * Layout in the bucket (single "current" channel for now):
  *   current/manifest.json      { version, assets: [{path,hash,size,contentType}], migrations: [names] }
@@ -22,7 +22,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = path.join(ROOT, 'installer/dist');
 const BUCKET = 'traks-releases';
 const ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID ?? '4cf68c768770ccda55d287d6ecbdeb4f';

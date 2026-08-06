@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 /**
- * Node harness for the web-installer engine — proves the pure-REST path
- * (no wrangler, no terraform) against a real Cloudflare account before the
- * engine is embedded in the wizard Worker.
+ * Node harness for the deploy engine — runs the SAME TypeScript engine the
+ * wizard worker uses (apps/api/src/deploy/engine.ts, via Node's native type
+ * stripping) against a real Cloudflare account. One engine, no drift.
  *
- *   CATALOG_TOKEN=<r2-token> node installer/web/test-engine.mjs provision <instance>
- *   CATALOG_TOKEN=<r2-token> node installer/web/test-engine.mjs destroy <instance>
+ *   CATALOG_TOKEN=<r2-token> node installer/test-engine.mjs provision <instance>
+ *   CATALOG_TOKEN=<r2-token> node installer/test-engine.mjs destroy <instance>
  *
+ * Optional custom-domain provision: CD_ZONE_ID, CD_ZONE_NAME, CD_SUB env vars.
  * Auth: CLOUDFLARE_API_TOKEN or the local wrangler OAuth session.
  * Artifacts come from the built release (yarn traks:build first).
  */
@@ -16,9 +17,9 @@ import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { provisionInstance, destroyInstance, names } from './engine.mjs';
+import { provisionInstance, destroyInstance } from '../apps/api/src/deploy/engine.ts';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = path.join(ROOT, 'installer/dist');
 const apiRequire = createRequire(path.join(ROOT, 'apps/api/package.json'));
 const require = createRequire(apiRequire.resolve('wrangler/package.json'));
@@ -51,6 +52,13 @@ const MIME = {
   webmanifest: 'application/manifest+json',
 };
 
+const hashAsset = (bytes, ext) =>
+  blake3
+    .hash(Buffer.from(bytes).toString('base64') + ext)
+    .toString('hex')
+    .slice(0, 32);
+
+/** Build a DeployArtifacts (the worker engine's shape) from installer/dist. */
 function loadArtifacts() {
   const webAssets = [];
   const walk = (dir, prefix) => {
@@ -58,11 +66,14 @@ function loadArtifacts() {
       const full = path.join(dir, entry);
       if (statSync(full).isDirectory()) walk(full, `${prefix}/${entry}`);
       else {
+        const content = new Uint8Array(readFileSync(full));
         const ext = entry.includes('.') ? entry.split('.').pop() : '';
         webAssets.push({
           path: `${prefix}/${entry}`,
-          content: new Uint8Array(readFileSync(full)),
-          contentType: MIME[ext],
+          hash: hashAsset(content, ext),
+          size: content.length,
+          contentType: MIME[ext] ?? null,
+          getContent: async () => content,
         });
       }
     }
@@ -71,17 +82,22 @@ function loadArtifacts() {
   const migrations = readdirSync(path.join(DIST, 'migrations'))
     .filter(f => f.endsWith('.sql'))
     .sort()
-    .map(name => ({ name, sql: readFileSync(path.join(DIST, 'migrations', name), 'utf8') }));
+    .map(name => ({
+      name,
+      getSql: async () => readFileSync(path.join(DIST, 'migrations', name), 'utf8'),
+    }));
+  const apiWorker = () => new Uint8Array(readFileSync(path.join(DIST, 'api/worker.js')));
+  const collectWorker = () => new Uint8Array(readFileSync(path.join(DIST, 'collect/worker.js')));
   return {
-    apiWorker: new Uint8Array(readFileSync(path.join(DIST, 'api/worker.js'))),
-    collectWorker: new Uint8Array(readFileSync(path.join(DIST, 'collect/worker.js'))),
+    apiWorker: async () => apiWorker(),
+    collectWorker: async () => collectWorker(),
     webAssets,
     migrations,
     schema: JSON.parse(readFileSync(path.join(ROOT, 'scripts/pipeline-schema.json'), 'utf8')),
   };
 }
 
-/* S3-based bucket emptier for destroy (same derivation as the CLI). */
+/* S3-based bucket emptier for destroy (credentials derived from the token). */
 const sha256hex = d => createHash('sha256').update(d).digest('hex');
 async function makeEmptyBucket(catalogToken) {
   const verify = await fetch(
@@ -95,20 +111,36 @@ async function makeEmptyBucket(catalogToken) {
     const host = `${ACCOUNT_ID}.r2.cloudflarestorage.com`;
     const sign = (method, pathname, query) => {
       const now = new Date();
-      const amzDate = now.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+      const amzDate = now
+        .toISOString()
+        .replace(/[-:]/g, '')
+        .replace(/\.\d{3}/, '');
       const datestamp = amzDate.slice(0, 8);
       const payloadHash = sha256hex('');
       const canonicalQuery = query
-        .split('&').filter(Boolean)
-        .map(kv => kv.split('=').map(encodeURIComponent).join('=')).sort().join('&');
+        .split('&')
+        .filter(Boolean)
+        .map(kv => kv.split('=').map(encodeURIComponent).join('='))
+        .sort()
+        .join('&');
       const canonicalHeaders = `host:${host}\nx-amz-content-sha256:${payloadHash}\nx-amz-date:${amzDate}\n`;
       const signedHeaders = 'host;x-amz-content-sha256;x-amz-date';
       const canonicalPath = pathname.split('/').map(encodeURIComponent).join('/');
-      const canonicalRequest = [method, canonicalPath, canonicalQuery, canonicalHeaders, signedHeaders, payloadHash].join('\n');
+      const canonicalRequest = [
+        method,
+        canonicalPath,
+        canonicalQuery,
+        canonicalHeaders,
+        signedHeaders,
+        payloadHash,
+      ].join('\n');
       const scope = `${datestamp}/auto/s3/aws4_request`;
       const sts = ['AWS4-HMAC-SHA256', amzDate, scope, sha256hex(canonicalRequest)].join('\n');
       const hmac = (k, d) => createHmac('sha256', k).update(d).digest();
-      const kSigning = hmac(hmac(hmac(hmac(`AWS4${secret}`, datestamp), 'auto'), 's3'), 'aws4_request');
+      const kSigning = hmac(
+        hmac(hmac(hmac(`AWS4${secret}`, datestamp), 'auto'), 's3'),
+        'aws4_request'
+      );
       const signature = createHmac('sha256', kSigning).update(sts).digest('hex');
       return {
         url: `https://${host}${canonicalPath}${query ? `?${query}` : ''}`,
@@ -139,38 +171,57 @@ if (!catalogToken) {
   process.exit(1);
 }
 
+const customDomain =
+  process.env.CD_ZONE_ID && process.env.CD_ZONE_NAME
+    ? {
+        zoneId: process.env.CD_ZONE_ID,
+        apiHostname: process.env.CD_SUB
+          ? `${process.env.CD_SUB}.${process.env.CD_ZONE_NAME}`
+          : process.env.CD_ZONE_NAME,
+        collectHostname: process.env.CD_SUB
+          ? `${process.env.CD_SUB}-collect.${process.env.CD_ZONE_NAME}`
+          : `collect.${process.env.CD_ZONE_NAME}`,
+      }
+    : undefined;
+
 const started = new Map();
-const ctx = {
-  apiToken: apiToken(),
-  accountId: ACCOUNT_ID,
-  instance,
-  catalogToken,
-  artifacts: existsSync(DIST) ? loadArtifacts() : null,
-  hashAsset: (bytes, ext) =>
-    blake3.hash(Buffer.from(bytes).toString('base64') + ext).toString('hex').slice(0, 32),
-  randomHex: n => randomBytes(n).toString('hex'),
-  emptyBucket: await makeEmptyBucket(catalogToken),
-  emit: e => {
-    if (e.status === 'start') {
-      started.set(e.stepId, Date.now());
-      process.stdout.write(`  … ${e.label}`);
-    } else {
-      const ms = Date.now() - (started.get(e.stepId) ?? Date.now());
-      const mark = e.status === 'ok' ? '✓' : e.status === 'retry' ? '↻' : '✗';
-      process.stdout.write(`\r  ${mark} ${e.label} (${(ms / 1000).toFixed(1)}s)${e.detail ? ` — ${e.detail}` : ''}\n`);
-      if (e.status === 'retry') process.stdout.write(`  … ${e.label}`);
-    }
-  },
+const emit = e => {
+  if (e.status === 'start') {
+    started.set(e.stepId, Date.now());
+    process.stdout.write(`  … ${e.label}`);
+  } else {
+    const ms = Date.now() - (started.get(e.stepId) ?? Date.now());
+    const mark = e.status === 'ok' ? '✓' : e.status === 'retry' ? '↻' : '✗';
+    process.stdout.write(
+      `\r  ${mark} ${e.label} (${(ms / 1000).toFixed(1)}s)${e.detail ? ` — ${e.detail}` : ''}\n`
+    );
+    if (e.status === 'retry') process.stdout.write(`  … ${e.label}`);
+  }
 };
 
 console.log(`engine ${command} — instance "${instance}" (account ${ACCOUNT_ID})`);
 if (command === 'provision') {
-  const out = await provisionInstance(ctx);
-  console.log(`\n✓ provisioned via pure REST — no wrangler, no terraform`);
+  const out = await provisionInstance({
+    apiToken: apiToken(),
+    accountId: ACCOUNT_ID,
+    instance,
+    catalogToken,
+    artifacts: existsSync(DIST) ? loadArtifacts() : null,
+    customDomain,
+    randomHex: n => randomBytes(n).toString('hex'),
+    emit,
+  });
+  console.log(`\n✓ provisioned via the worker engine`);
   console.log(`  dashboard: ${out.apiUrl}`);
   console.log(`  collect:   ${out.collectUrl}`);
 } else if (command === 'destroy') {
-  await destroyInstance(ctx);
+  await destroyInstance({
+    apiToken: apiToken(),
+    accountId: ACCOUNT_ID,
+    instance,
+    emit,
+    emptyBucket: await makeEmptyBucket(catalogToken),
+  });
   console.log('\n✓ destroyed');
 } else {
   console.error(`unknown command ${command}`);

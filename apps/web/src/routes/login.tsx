@@ -13,6 +13,7 @@ function LoginPage(): ReactElement {
   const { data: session, isPending } = authClient.useSession();
   // null = loading; false = claimed (sign in); true = first run (create owner)
   const [firstRun, setFirstRun] = useState<boolean | null>(null);
+  const [ownerEmail, setOwnerEmail] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -26,8 +27,14 @@ function LoginPage(): ReactElement {
 
   useEffect(() => {
     fetch('/api/claim-status')
-      .then(res => res.json() as Promise<{ claimed: boolean }>)
-      .then(data => setFirstRun(!data.claimed))
+      .then(res => res.json() as Promise<{ claimed: boolean; ownerEmail?: string }>)
+      .then(data => {
+        setFirstRun(!data.claimed);
+        if (!data.claimed && data.ownerEmail) {
+          setOwnerEmail(data.ownerEmail);
+          setEmail(data.ownerEmail);
+        }
+      })
       .catch(() => setFirstRun(false));
   }, []);
 
@@ -97,9 +104,17 @@ function LoginPage(): ReactElement {
                     autoComplete="email"
                     value={email}
                     onChange={e => setEmail(e.target.value)}
-                    className="h-11 px-4 text-[14px]"
-                    autoFocus
+                    readOnly={firstRun && ownerEmail !== ''}
+                    className={`h-11 px-4 text-[14px] ${
+                      firstRun && ownerEmail ? 'bg-[#F4F4F6] text-[#6E6C7C]' : ''
+                    }`}
+                    autoFocus={!(firstRun && ownerEmail)}
                   />
+                  {firstRun && ownerEmail && (
+                    <p className="mt-1.5 text-[12px] text-[#B3B1BE]">
+                      Your Cloudflare account email — fixed when this instance was deployed.
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="mb-1.5 block text-[12.5px] font-semibold text-[#3D3B4F]">

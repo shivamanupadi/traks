@@ -23,8 +23,8 @@
     "check:ci": "yarn format:check && yarn check:push && yarn db:check",
     "prepare": "husky",
     "traks:build": "node installer/build-release.mjs",
-    "traks:upload-release": "node installer/web/upload-release.mjs",
-    "traks:release": "node installer/build-release.mjs && node installer/web/upload-release.mjs"
+    "traks:upload-release": "node installer/upload-release.mjs",
+    "traks:release": "node installer/build-release.mjs && node installer/upload-release.mjs"
   },
   "devDependencies": {
     "husky": "^9.1.7",

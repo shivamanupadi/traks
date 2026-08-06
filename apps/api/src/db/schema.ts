@@ -185,10 +185,7 @@ export const deployInstances = sqliteTable('deploy_instances', {
   id: text('id')
     .primaryKey()
     .$defaultFn(() => createId()),
-  status: text('status')
-    .$type<'new' | 'deploying' | 'ready' | 'failed'>()
-    .default('new')
-    .notNull(),
+  status: text('status').$type<'new' | 'deploying' | 'ready' | 'failed'>().default('new').notNull(),
   accountId: text('account_id'),
   instanceName: text('instance_name'),
   apiUrl: text('api_url'),

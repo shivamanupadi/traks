@@ -278,6 +278,35 @@ async function ensureBucketAndCatalog(ctx: EngineCtx, cf: Cf, bucket: string): P
   });
 }
 
+/**
+ * Drop a table from the bucket's Iceberg REST catalog. The catalog service
+ * remembers tables per warehouse (account_bucket) even across bucket
+ * delete/recreate, and Pipelines sinks refuse to write to existing tables —
+ * so both destroy and reinstall need to be able to clear stale registrations.
+ */
+async function dropCatalogTable(
+  accountId: string,
+  bucket: string,
+  token: string,
+  namespace: string,
+  table: string
+): Promise<void> {
+  const base = `https://catalog.cloudflarestorage.com/${accountId}/${bucket}`;
+  const headers = { Authorization: `Bearer ${token}` };
+  let prefix = '';
+  const cfg = await fetch(`${base}/v1/config?warehouse=${accountId}_${bucket}`, { headers })
+    .then(r => (r.ok ? (r.json() as Promise<any>) : null)) // eslint-disable-line @typescript-eslint/no-explicit-any
+    .catch(() => null);
+  if (cfg?.overrides?.prefix) prefix = `${encodeURIComponent(cfg.overrides.prefix)}/`;
+  const res = await fetch(
+    `${base}/v1/${prefix}namespaces/${encodeURIComponent(namespace)}/tables/${encodeURIComponent(table)}`,
+    { method: 'DELETE', headers }
+  );
+  if (!res.ok && res.status !== 404) {
+    throw new Error(`catalog table drop failed (${res.status}: ${await res.text().catch(() => '')})`);
+  }
+}
+
 async function ensurePipeline(
   ctx: EngineCtx,
   cf: Cf,
@@ -317,27 +346,46 @@ async function ensurePipeline(
       if (pipe) await cf('DELETE', `${base}/pipelines/${pipe.id}`);
       await cf('DELETE', `${base}/sinks/${existing.id}`);
     }
+    const isExistingTable = (err: CfError): boolean =>
+      Boolean(err.codes?.includes(1012)) && /existing catalog table/i.test(err.message);
+    const createSink = (): Promise<unknown> =>
+      cf('POST', `${base}/sinks`, {
+        name: N.sink,
+        type: 'r2_data_catalog',
+        format: { type: 'parquet' },
+        config: {
+          account_id: ctx.accountId,
+          bucket: N.bucket,
+          namespace: 'traks',
+          table_name: 'events',
+          token: ctx.catalogToken,
+        },
+      });
     await withRetry(
       ctx,
       'sink',
       'Create Iceberg sink',
-      () =>
-        cf('POST', `${base}/sinks`, {
-          name: N.sink,
-          type: 'r2_data_catalog',
-          format: { type: 'parquet' },
-          config: {
-            account_id: ctx.accountId,
-            bucket: N.bucket,
-            namespace: 'traks',
-            table_name: 'events',
-            token: ctx.catalogToken,
-          },
-        }),
+      async () => {
+        try {
+          return await createSink();
+        } catch (raw) {
+          // Reinstall after destroy: the catalog remembered the previous
+          // bucket's table — drop the stale registration and try once more.
+          if (isExistingTable(raw as CfError)) {
+            await dropCatalogTable(ctx.accountId, N.bucket, ctx.catalogToken, 'traks', 'events');
+            return createSink();
+          }
+          throw raw;
+        }
+      },
       {
         attempts: 6,
         delayMs: 60_000,
-        transient: err => err.codes?.includes(1012) || [429, 500].includes(err.status ?? 0),
+        // 1012 also means "catalog not ready yet" on fresh installs — retry
+        // that, but not the existing-table flavor (permanent until dropped).
+        transient: err =>
+          (Boolean(err.codes?.includes(1012)) && !isExistingTable(err)) ||
+          [429, 500].includes(err.status ?? 0),
       }
     );
   });
@@ -776,6 +824,16 @@ export async function destroyInstance(ctx: DestroyCtx): Promise<void> {
   });
 
   await step(ctx, 'catalog-teardown', 'Disable catalog, empty and delete bucket', async () => {
+    // Drop table registrations first (needs the catalog still enabled): the
+    // catalog remembers tables per warehouse name even across bucket
+    // delete/recreate, which would break a later reinstall under this name.
+    // Both the proper table and the misnamespaced one from the old sink bug.
+    await dropCatalogTable(ctx.accountId, N.bucket, ctx.apiToken, 'traks', 'events').catch(
+      () => {}
+    );
+    await dropCatalogTable(ctx.accountId, N.bucket, ctx.apiToken, 'default', 'traks.events').catch(
+      () => {}
+    );
     await cf('POST', `/accounts/${ctx.accountId}/r2-catalog/${N.bucket}/disable`, undefined, {
       tolerate: gone,
     }).catch(() => {});

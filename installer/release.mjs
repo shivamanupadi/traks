@@ -43,7 +43,9 @@ const bump = (v, lvl) => {
 };
 
 const pkg = JSON.parse(readFileSync(PKG, 'utf8'));
-const live = await fetch('https://traks.dev/api/deploy/latest-version')
+// Cache-buster: the endpoint is edge-cached 5 min for instance banners, but
+// the release anchor must read the origin's current truth.
+const live = await fetch(`https://traks.dev/api/deploy/latest-version?bust=${Date.now()}`)
   .then(r => (r.ok ? r.json() : null))
   .catch(() => null);
 const liveVersion = live?.data?.version;

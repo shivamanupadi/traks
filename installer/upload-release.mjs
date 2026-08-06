@@ -53,7 +53,8 @@ if (!token) {
 // Version guard: an upload under an unchanged version is invisible to
 // deployed instances (the update banner compares manifest.version).
 const localVersion = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
-const live = await fetch('https://traks.dev/api/deploy/latest-version')
+// Cache-buster: must see the origin's current truth, not the 5-min edge cache.
+const live = await fetch(`https://traks.dev/api/deploy/latest-version?bust=${Date.now()}`)
   .then(r => (r.ok ? r.json() : null))
   .catch(() => null);
 if (live?.data?.version === localVersion && process.env.FORCE_RELEASE !== '1') {

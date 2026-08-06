@@ -441,7 +441,10 @@ export const deployRoute = app
       'json',
       z.object({
         apiToken: tokenSchema,
-        catalogToken: tokenSchema,
+        // Only needed for OAuth sign-ins: pasted installer tokens carry R2
+        // storage write themselves, but OAuth access tokens can't derive S3
+        // credentials for the bucket purge.
+        catalogToken: tokenSchema.optional(),
         accountId: z.string().regex(/^[a-f0-9]{32}$/),
         instanceName: z.string().regex(/^[a-z][a-z0-9-]{2,20}$/),
         confirmName: z.string().max(64),
@@ -479,7 +482,7 @@ export const deployRoute = app
                 accountId,
                 instance: instanceName,
                 emptyBucket: async bucket => {
-                  await emptyBucket(accountId, catalogToken, bucket);
+                  await emptyBucket(accountId, catalogToken ?? apiToken, bucket);
                 },
                 emit: async e => {
                   steps.push(e);

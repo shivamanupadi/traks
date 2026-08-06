@@ -555,7 +555,7 @@ function DeployWizard(): ReactElement {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           apiToken: installerToken.trim(),
-          catalogToken: catalogToken.trim(),
+          ...(catalogToken.trim().length >= 20 ? { catalogToken: catalogToken.trim() } : {}),
           accountId: destroyTarget.accountId,
           instanceName: destroyTarget.instanceName,
           confirmName: confirmName.trim(),
@@ -1363,7 +1363,7 @@ function DeployWizard(): ReactElement {
                   disabled={
                     busy ||
                     confirmName.trim() !== destroyTarget.instanceName ||
-                    catalogToken.trim().length < 20
+                    (oauthSignedIn && catalogToken.trim().length < 20)
                   }
                   className="inline-flex h-11 items-center gap-2 rounded-full bg-[#B3402F] px-6 text-[13.5px] font-semibold text-white transition-all hover:-translate-y-px hover:bg-[#96331F] hover:shadow-md disabled:pointer-events-none disabled:opacity-40 cursor-pointer"
                 >
@@ -1408,10 +1408,10 @@ function DeployWizard(): ReactElement {
                 within 90 days.
               </p>
             </div>
-            {catalogToken.trim().length < 20 && (
+            {oauthSignedIn && catalogToken.trim().length < 20 && (
               <p className="mb-4 rounded-xl bg-[#F7DCD4] px-4 py-3 text-[12.5px] leading-relaxed text-[#8F3B2C]">
-                Destroying needs your storage token too (it empties the events bucket) — go back
-                and paste it first.
+                With Cloudflare sign-in, destroying also needs your storage token (it empties the
+                events bucket) — go back and paste it first.
               </p>
             )}
             <label

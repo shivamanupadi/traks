@@ -392,7 +392,11 @@ export const deployRoute = app
                 await persist('deploying').catch(() => undefined);
               },
             });
-            await persist('ready', { apiUrl: result.apiUrl, collectUrl: result.collectUrl });
+            await persist('ready', {
+              apiUrl: result.apiUrl,
+              collectUrl: result.collectUrl,
+              deployedVersion: artifacts.version ?? null,
+            });
             send({ type: 'done', ...result });
           } catch (err) {
             const message = err instanceof Error ? err.message : 'deploy failed';

@@ -300,7 +300,23 @@ async function ensurePipeline(
 
   await step(ctx, 'sink', 'Create Iceberg sink', async () => {
     const list = await cf('GET', `${base}/sinks?per_page=100`);
-    if ((list ?? []).some((sk: { name: string }) => sk.name === N.sink)) return;
+    const existing = ((list ?? []) as { id: string; name: string; config?: Record<string, unknown> }[]).find(
+      sk => sk.name === N.sink
+    );
+    if (existing) {
+      const cfg = existing.config ?? {};
+      if (cfg.namespace === 'traks' && cfg.table_name === 'events') return;
+      // Misconfigured sink from an earlier engine bug: table_name held the
+      // full "traks.events" with no namespace, so the table landed in the
+      // "default" namespace where dashboard queries never find it. Recreate
+      // (pipeline first — it references the sink).
+      const pipes = await cf('GET', `${base}/pipelines?per_page=100`);
+      const pipe = ((pipes ?? []) as { id: string; name: string }[]).find(
+        pl => pl.name === N.pipeline
+      );
+      if (pipe) await cf('DELETE', `${base}/pipelines/${pipe.id}`);
+      await cf('DELETE', `${base}/sinks/${existing.id}`);
+    }
     await withRetry(
       ctx,
       'sink',
@@ -313,7 +329,8 @@ async function ensurePipeline(
           config: {
             account_id: ctx.accountId,
             bucket: N.bucket,
-            table_name: 'traks.events',
+            namespace: 'traks',
+            table_name: 'events',
             token: ctx.catalogToken,
           },
         }),

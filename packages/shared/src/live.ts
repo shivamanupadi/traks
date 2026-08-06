@@ -91,6 +91,13 @@ export interface LiveRealtimeRow {
   visitors: number;
 }
 
+/** Realtime window result: per-page rows plus the TRUE overall distinct
+ *  visitor count — summing per-page rows double-counts multi-page visitors. */
+export interface LiveRealtime {
+  total: number;
+  rows: LiveRealtimeRow[];
+}
+
 export interface LiveCustomEventRow {
   name: string;
   count: number;
@@ -144,7 +151,7 @@ export interface LiveStoreApi {
     limit: number,
     filters?: LiveFilters
   ): Promise<LiveTopListRow[]>;
-  realtime(nowMs: number): Promise<LiveRealtimeRow[]>;
+  realtime(nowMs: number): Promise<LiveRealtime>;
   /** Conversion counts for goal targets (event names + pathnames). */
   goalStats(
     fromMs: number,

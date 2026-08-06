@@ -17,6 +17,7 @@ export {
   buildScreenSizesQuery,
   buildEventMetaQuery,
   buildRealtimeQuery,
+  buildRealtimeTotalQuery,
   buildEventsQuery,
   buildEngagementStatsQuery,
   buildGoalEventsQuery,

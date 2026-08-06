@@ -33,6 +33,7 @@ import {
   buildDevicesQuery,
   buildScreenSizesQuery,
   buildEventMetaQuery,
+  buildRealtimeTotalQuery,
   buildRealtimeQuery,
   buildEventsQuery,
   buildEngagementStatsQuery,
@@ -1291,11 +1292,11 @@ export const analyticsRoute = appWithBatch
     // Realtime is the DO's home turf: events are queryable the moment they
     // arrive, vs waiting out the Iceberg sink roll on the fallback path.
     try {
-      const rows = await liveStore(c, site.key).realtime(Date.now());
+      const live = await liveStore(c, site.key).realtime(Date.now());
       return c.json({
         data: {
-          currentVisitors: rows.reduce((s, r) => s + r.visitors, 0),
-          topPages: rows.map(r => ({ path: r.pathname, visitors: r.visitors })),
+          currentVisitors: live.total,
+          topPages: live.rows.map(r => ({ path: r.pathname, visitors: r.visitors })),
         },
       });
     } catch (err) {
@@ -1311,10 +1312,13 @@ export const analyticsRoute = appWithBatch
     );
     if (outcome instanceof Response) return outcome;
 
-    const currentVisitors = outcome.reduce((s, r) => s + toNumber(r.visitors), 0);
+    const totalOutcome = await runQueries(c, () =>
+      cachedR2Sql<{ visitors: unknown }>(c, 30, buildRealtimeTotalQuery(site.key, queryTime()))
+    );
+    if (totalOutcome instanceof Response) return totalOutcome;
     return c.json({
       data: {
-        currentVisitors,
+        currentVisitors: toNumber(totalOutcome[0]?.visitors),
         topPages: outcome.map(r => ({ path: r.pathname, visitors: toNumber(r.visitors) })),
       },
     });

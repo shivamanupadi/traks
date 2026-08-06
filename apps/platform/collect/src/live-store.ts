@@ -8,7 +8,7 @@ import type {
   LiveDimension,
   LiveTimeseriesRow,
   LiveTopListRow,
-  LiveRealtimeRow,
+  LiveRealtime,
   LiveCustomEventRow,
   LiveLinkRow,
   LiveEntryPageRow,
@@ -490,9 +490,23 @@ export class SiteLiveStore extends DurableObject<unknown> {
     );
   }
 
-  async realtime(nowMs: number): Promise<LiveRealtimeRow[]> {
-    return this.memoized(`realtime:${SiteLiveStore.q(nowMs)}`, MEMO_TTL_REALTIME_MS, () =>
-      this.sql
+  async realtime(nowMs: number): Promise<LiveRealtime> {
+    return this.memoized(`realtime:${SiteLiveStore.q(nowMs)}`, MEMO_TTL_REALTIME_MS, () => {
+      const from = nowMs - 5 * 60 * 1000;
+      // Distinct across ALL pages — a visitor on 3 pages is still 1 visitor
+      // (and the per-page top-10 below can't be summed to get this).
+      const total = n(
+        this.sql
+          .exec(
+            `SELECT COUNT(DISTINCT visitor_id) AS c
+             FROM events
+             WHERE event_type = 'pageview' AND ts >= ? AND ts < ?`,
+            from,
+            nowMs
+          )
+          .toArray()[0]?.c
+      );
+      const rows = this.sql
         .exec(
           `SELECT pathname, COUNT(DISTINCT visitor_id) AS visitors
            FROM events
@@ -500,12 +514,13 @@ export class SiteLiveStore extends DurableObject<unknown> {
            GROUP BY pathname
            ORDER BY visitors DESC
            LIMIT 10`,
-          nowMs - 5 * 60 * 1000,
+          from,
           nowMs
         )
         .toArray()
-        .map(r => ({ pathname: String(r.pathname), visitors: n(r.visitors) }))
-    );
+        .map(r => ({ pathname: String(r.pathname), visitors: n(r.visitors) }));
+      return { total, rows };
+    });
   }
 
   async goalStats(

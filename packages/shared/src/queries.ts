@@ -737,6 +737,20 @@ export function buildEventMetaQuery(
  * (60s in our setup script — the documented minimum, safe alongside automatic
  * compaction), not this query.
  */
+/** Overall distinct visitors in the 5-min window — per-page rows can't be
+ *  summed for this (multi-page visitors would double-count). */
+export function buildRealtimeTotalQuery(siteKey: string, now: Date) {
+  const range = {
+    from: new Date(now.getTime() - 5 * 60 * 1000).toISOString(),
+    to: now.toISOString(),
+  };
+  return (table: string) => `
+    SELECT approx_distinct(visitor_id) AS visitors
+    FROM ${table}
+    WHERE ${whereSiteAndRange(siteKey, range)}
+  `;
+}
+
 export function buildRealtimeQuery(siteKey: string, now: Date) {
   const range = {
     from: new Date(now.getTime() - 5 * 60 * 1000).toISOString(),

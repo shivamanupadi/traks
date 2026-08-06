@@ -60,6 +60,13 @@ interface SiteRecord {
 const SITE_CACHE_TTL_MS = 60_000;
 const siteCache = new Map<string, { site: SiteRecord; expires: number }>();
 
+/** Drop cached lookups for a site (deletion, key revocation, settings change). */
+export function invalidateSiteCache(siteId: string): void {
+  for (const key of siteCache.keys()) {
+    if (key.endsWith(`:${siteId}`)) siteCache.delete(key);
+  }
+}
+
 async function getSite(c: AppContext, siteId: string, userId: string): Promise<SiteRecord | null> {
   const cacheKey = `${userId}:${siteId}`;
   const cached = siteCache.get(cacheKey);
@@ -349,7 +356,7 @@ interface EngagementStatsRow {
 /** Build the MainStats payload from current/previous totals (either path). */
 function mainStatsPayload(cur: LiveTotals, prev: LiveTotals) {
   const rate = (t: LiveTotals): number =>
-    t.sessions > 0 ? Math.round((t.bounces / t.sessions) * 100) : 0;
+    t.sessions > 0 ? Math.min(100, Math.round((t.bounces / t.sessions) * 100)) : 0;
   const duration = (t: LiveTotals): number =>
     t.sessions > 0 ? Math.round(t.engagedSeconds / t.sessions) : 0;
   const curBounce = rate(cur);
@@ -385,10 +392,15 @@ function assembleMainStats(
     const stat = statRows.find(r => r.period === period);
     const session = sessionRows.find(r => r.period === period);
     const engagement = engagementRows.find(r => r.period === period);
+    // Sessions come from the session scan's exact COUNT(*), not the stats
+    // scan's approx_distinct: bounces are exact, and dividing an exact
+    // numerator by an estimated denominator can push bounce rate past 100%.
+    // Fall back to the estimate only if the session scan returned no row.
+    const exactSessions = toNumber(session?.sessions);
     return {
       pageviews: toNumber(stat?.pageviews),
       visitors: toNumber(stat?.visitors),
-      sessions: toNumber(stat?.sessions),
+      sessions: exactSessions || toNumber(stat?.sessions),
       bounces: toNumber(session?.bounces),
       engagedSeconds: toNumber(engagement?.engaged),
     };
@@ -701,7 +713,17 @@ export const analyticsRoute = appWithBatch
   .get('/:siteId/stats/all', requireAuth, zValidator('query', periodQuery), async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('siteId');
-    const { period } = c.req.valid('query');
+    const query = c.req.valid('query');
+    const { period } = query;
+    // This route serves the whole unfiltered dashboard in one scan and has no
+    // filtered variant. Accepting filter params and ignoring them would return
+    // site-wide numbers under a filter chip — refuse instead.
+    if (Object.keys(parseFilters(query) ?? {}).length > 0) {
+      return c.json(
+        { error: 'stats/all does not support filters — use the per-panel endpoints' },
+        400
+      );
+    }
 
     const site = await getSite(c, siteId, userId);
     if (!site) return c.json({ error: 'Not found' }, 404);

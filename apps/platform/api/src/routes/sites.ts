@@ -11,6 +11,7 @@ import {
   createSegmentSchema,
 } from '@traks/shared';
 import { requireAuth } from '../middleware/auth';
+import { invalidateSiteCache } from './analytics';
 import { sites, apiKeys, goals, funnels, segments } from '../db/schema';
 import type { Bindings, Variables } from '../types';
 
@@ -36,27 +37,30 @@ export const sitesRoute = app
     const siteId = createId();
     const siteKey = `pb_live_${createId()}`;
 
+    // One atomic batch: a site whose key insert failed separately would be
+    // listed in the UI yet unusable for ingest, with no way to repair it.
     try {
-      await db.insert(sites).values({
-        id: siteId,
-        userId,
-        name: body.name,
-        domain: body.domain,
-        timezone: body.timezone,
-      });
+      await db.batch([
+        db.insert(sites).values({
+          id: siteId,
+          userId,
+          name: body.name,
+          domain: body.domain,
+          timezone: body.timezone,
+        }),
+        db.insert(apiKeys).values({
+          siteId,
+          userId,
+          key: siteKey,
+          name: 'Default',
+        }),
+      ]);
     } catch (err: any) {
       if (err?.message?.includes('UNIQUE constraint failed')) {
         return c.json({ error: 'A site for this domain already exists' }, 409);
       }
       throw err;
     }
-
-    await db.insert(apiKeys).values({
-      siteId,
-      userId,
-      key: siteKey,
-      name: 'Default',
-    });
 
     const [site] = await db.select().from(sites).where(eq(sites.id, siteId));
 
@@ -347,6 +351,7 @@ export const sitesRoute = app
     }
 
     await db.delete(sites).where(eq(sites.id, siteId));
+    invalidateSiteCache(siteId);
 
     c.executionCtx.waitUntil(
       (async () => {

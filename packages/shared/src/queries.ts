@@ -124,6 +124,21 @@ function addUTCDays(d: Date, n: number): Date {
   return out;
 }
 
+/**
+ * Local midnight `n` calendar days from `date` in `tz`.
+ *
+ * Adding n*24h to a local-midnight instant is wrong across a DST transition:
+ * the result lands an hour early or late, so the SQL window boundary drifts
+ * off the day boundary the buckets are built on (one day silently gains or
+ * loses an hour, and the comparison period inherits the skew). Stepping to
+ * roughly local NOON of the target day and re-snapping to that day's midnight
+ * is immune, because noon is never within an hour of a transition.
+ */
+function startOfDayNDays(date: Date, tz: string, n: number): Date {
+  const noonish = new Date(startOfDayInTz(date, tz).getTime() + n * 86_400_000 + 12 * 3_600_000);
+  return startOfDayInTz(noonish, tz);
+}
+
 function pad2(n: number): string {
   return String(n).padStart(2, '0');
 }
@@ -176,27 +191,27 @@ export function resolvePeriod(period: Period, now: Date, tz: string): PeriodRang
       break;
     case 'yesterday':
       to = startOfDayInTz(now, tz);
-      from = addUTCDays(to, -1);
+      from = startOfDayNDays(now, tz, -1);
       granularity = 'hour';
       break;
     case '7d':
-      from = addUTCDays(startOfDayInTz(now, tz), -6);
+      from = startOfDayNDays(now, tz, -6);
       granularity = 'day';
       break;
     case '30d':
-      from = addUTCDays(startOfDayInTz(now, tz), -29);
+      from = startOfDayNDays(now, tz, -29);
       granularity = 'day';
       break;
     case '90d':
-      from = addUTCDays(startOfDayInTz(now, tz), -89);
+      from = startOfDayNDays(now, tz, -89);
       granularity = 'day';
       break;
     case '6m':
-      from = addUTCDays(startOfDayInTz(now, tz), -179);
+      from = startOfDayNDays(now, tz, -179);
       granularity = 'day';
       break;
     case '1y':
-      from = addUTCDays(startOfDayInTz(now, tz), -364);
+      from = startOfDayNDays(now, tz, -364);
       granularity = 'week';
       break;
     case 'all':

@@ -56,14 +56,6 @@ const DIMENSION_COLUMNS: Record<LiveDimension, string> = {
   utm_campaign: 'utm_campaign',
 };
 
-const EMPTY_TOTALS: LiveTotals = {
-  pageviews: 0,
-  visitors: 0,
-  sessions: 0,
-  bounces: 0,
-  engagedSeconds: 0,
-};
-
 const n = (v: unknown): number => Number(v ?? 0) || 0;
 
 /**
@@ -231,12 +223,18 @@ export class SiteLiveStore extends DurableObject<unknown> {
   }
 
   /** Stable memo-key fragment for a filter set. */
+  /** Percent-escape the key separators so two different filter sets can never
+   *  serialize to the same memo key ({os:'a&b=c'} vs {os:'a', b:'c'}). */
+  private static esc(v: string): string {
+    return v.replace(/%/g, '%25').replace(/&/g, '%26').replace(/=/g, '%3D');
+  }
+
   private static filterKey(filters?: LiveFilters): string {
     if (!filters) return '';
     return Object.entries(filters)
       .filter(([, v]) => typeof v === 'string')
       .sort(([a], [b]) => (a < b ? -1 : 1))
-      .map(([k, v]) => `${k}=${v}`)
+      .map(([k, v]) => `${k}=${SiteLiveStore.esc(v as string)}`)
       .join('&');
   }
 
@@ -392,11 +390,13 @@ export class SiteLiveStore extends DurableObject<unknown> {
           const stat = statRows.find(r => r.period === period);
           const bounce = bounceRows.find(r => r.period === period);
           const engagement = engagementRows.find(r => r.period === period);
-          if (!stat) return { ...EMPTY_TOTALS };
+          // No pageview row does NOT mean an empty period: engagement events
+          // can exist without one, and discarding them reported a false 100%
+          // drop in visit duration against the comparison window.
           return {
-            pageviews: n(stat.pageviews),
-            visitors: n(stat.visitors),
-            sessions: n(stat.sessions),
+            pageviews: n(stat?.pageviews),
+            visitors: n(stat?.visitors),
+            sessions: n(stat?.sessions),
             bounces: n(bounce?.bounces),
             engagedSeconds: n(engagement?.engaged),
           };
@@ -650,7 +650,7 @@ export class SiteLiveStore extends DurableObject<unknown> {
     const boundedLimit = Math.max(1, Math.min(500, limit));
     const f = SiteLiveStore.filterSql(filters);
     return this.memoized(
-      `eventMeta:${eventName}:${SiteLiveStore.q(fromMs)}:${SiteLiveStore.q(toMs)}:${boundedLimit}:${SiteLiveStore.filterKey(filters)}`,
+      `eventMeta:${SiteLiveStore.esc(eventName)}:${SiteLiveStore.q(fromMs)}:${SiteLiveStore.q(toMs)}:${boundedLimit}:${SiteLiveStore.filterKey(filters)}`,
       MEMO_TTL_MS,
       () =>
         this.sql
@@ -683,7 +683,7 @@ export class SiteLiveStore extends DurableObject<unknown> {
     const boundedLimit = Math.max(1, Math.min(100, limit));
     const f = SiteLiveStore.filterSql(filters);
     return this.memoized(
-      `linkClicks:${eventName}:${SiteLiveStore.q(fromMs)}:${SiteLiveStore.q(toMs)}:${boundedLimit}:${SiteLiveStore.filterKey(filters)}`,
+      `linkClicks:${SiteLiveStore.esc(eventName)}:${SiteLiveStore.q(fromMs)}:${SiteLiveStore.q(toMs)}:${boundedLimit}:${SiteLiveStore.filterKey(filters)}`,
       MEMO_TTL_MS,
       () =>
         this.sql

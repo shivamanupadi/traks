@@ -243,10 +243,12 @@
     page();
   }
 
-  // Handle bfcache (back/forward navigation restoring cached page)
+  // Handle bfcache (back/forward navigation restoring cached page). Flagged as
+  // an SPA navigation so the lastPage dedup applies: popstate can fire first on
+  // a bfcache restore, and an unflagged call would then double-count the view.
   window.addEventListener('pageshow', function (event) {
     if (event.persisted) {
-      page();
+      page(true);
     }
   });
 })();

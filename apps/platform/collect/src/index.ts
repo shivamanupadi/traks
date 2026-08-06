@@ -61,6 +61,10 @@ app.get('/t.js', c => {
 interface SiteAuth {
   valid: boolean;
   timezone: string;
+  /** Stable site id. This — never the API key — is the analytics identity:
+   *  the Iceberg partition value and the live DO name. Keys can be rotated or
+   *  revoked; the id cannot, so history survives a key change. */
+  siteId: string;
 }
 
 // Isolate-level auth cache: without it every event costs a D1 read (50M
@@ -80,18 +84,18 @@ async function authenticateSite(db: D1Database, siteKey: string): Promise<SiteAu
 
   const row = await db
     .prepare(
-      `SELECT sites.timezone AS tz
+      `SELECT sites.timezone AS tz, sites.id AS site_id
        FROM api_keys
        INNER JOIN sites ON sites.id = api_keys.site_id
        WHERE api_keys.key = ? AND api_keys.revoked_at IS NULL
        LIMIT 1`
     )
     .bind(siteKey)
-    .first<{ tz: string | null }>();
+    .first<{ tz: string | null; site_id: string }>();
 
   const auth: SiteAuth = row
-    ? { valid: true, timezone: row.tz || 'UTC' }
-    : { valid: false, timezone: 'UTC' };
+    ? { valid: true, timezone: row.tz || 'UTC', siteId: row.site_id }
+    : { valid: false, timezone: 'UTC', siteId: '' };
 
   if (authCache.size > 10_000) authCache.clear();
   authCache.set(siteKey, { auth, expires: Date.now() + AUTH_CACHE_TTL_MS });
@@ -227,7 +231,7 @@ app.post('/api/event', async c => {
   }
 
   const record = {
-    site_id: event.s,
+    site_id: site.siteId,
     ts: now.getTime(),
     date_key: dateKey,
     hour_key: hourKey,
@@ -257,7 +261,7 @@ app.post('/api/event', async c => {
   // Dual write: the Pipelines stream feeds the durable Iceberg table (system
   // of record, historical queries); the site's Durable Object serves "today"
   // and realtime dashboards instantly. Each leg fails independently.
-  const liveStub = c.env.LIVE.get(c.env.LIVE.idFromName(event.s));
+  const liveStub = c.env.LIVE.get(c.env.LIVE.idFromName(site.siteId));
   c.executionCtx.waitUntil(
     Promise.all([
       c.env.EVENTS.send([record]).catch(err => {

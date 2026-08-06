@@ -25,23 +25,46 @@
     return useHash ? location.pathname + location.hash : location.pathname;
   }
 
-  // Random session ID via sessionStorage (not a fingerprint - just a random token)
+  // Random session ID via sessionStorage (not a fingerprint - just a random
+  // token). Storage access THROWS in partitioned iframes, Safari Lockdown
+  // Mode, and when site data is blocked — so every access is guarded and we
+  // fall back to an in-memory id. Losing session continuity is acceptable;
+  // losing every event from that visitor is not.
+  let memorySession = '';
+  function newSessionId(): string {
+    return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+  }
   function getSessionId(): string {
     const key = '_pb_s';
     const now = Date.now();
-    const stored = sessionStorage.getItem(key);
-    if (stored) {
-      const sep = stored.lastIndexOf(':');
-      const existingId = stored.slice(0, sep);
-      const ts = parseInt(stored.slice(sep + 1));
-      if (now - ts < 30 * 60 * 1000) {
-        sessionStorage.setItem(key, existingId + ':' + now);
-        return existingId;
-      }
+    let store: Storage | null = null;
+    try {
+      store = window.sessionStorage;
+    } catch {
+      store = null;
     }
-    const id = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
-    sessionStorage.setItem(key, id + ':' + now);
-    return id;
+    if (!store) {
+      if (!memorySession) memorySession = newSessionId();
+      return memorySession;
+    }
+    try {
+      const stored = store.getItem(key);
+      if (stored) {
+        const sep = stored.lastIndexOf(':');
+        const existingId = stored.slice(0, sep);
+        const ts = parseInt(stored.slice(sep + 1));
+        if (now - ts < 30 * 60 * 1000) {
+          store.setItem(key, existingId + ':' + now);
+          return existingId;
+        }
+      }
+      const id = newSessionId();
+      store.setItem(key, id + ':' + now);
+      return id;
+    } catch {
+      if (!memorySession) memorySession = newSessionId();
+      return memorySession;
+    }
   }
 
   // Send event via fetch (Plausible uses fetch, not sendBeacon)

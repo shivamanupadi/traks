@@ -22,14 +22,13 @@ import { SCREEN_SIZE_CASE } from '@traks/shared';
 const RETENTION_MS = 50 * 60 * 60 * 1000;
 const PRUNE_INTERVAL_MS = 60 * 60 * 1000;
 
-// Write batching: buffer incoming events in memory and flush to SQLite in one
-// synchronous burst. record() then returns without a pending storage write,
-// so the output gate doesn't hold the RPC response on a commit - much higher
-// per-object ingest throughput. Bounded loss window: if the isolate dies
-// before a flush, at most FLUSH_MAX events (or ~1s) of *hot-path* data are
-// lost; the Pipelines->Iceberg leg (system of record) is unaffected.
-const FLUSH_MAX = 64;
-const FLUSH_DELAY_MS = 1000;
+// Writes go to SQLite on the same tick they arrive. An earlier version held
+// events in memory behind a 1s timer to batch inserts, but a pending timer
+// does not keep a Durable Object alive: on eviction the buffer was dropped.
+// For a low-traffic site — never reaching the batch size, so ALWAYS flushing
+// on the timer — that meant losing a batch on every eviction, leaving live
+// stats permanently short of the Iceberg system of record. The buffer remains
+// only as the insert path's staging array, drained on every record().
 
 // Read memoization: dashboards poll every 15-30s per open viewer, each poll
 // fanning into ~7 scan queries. Memoizing results for a few seconds makes
@@ -79,7 +78,6 @@ const n = (v: unknown): number => Number(v ?? 0) || 0;
 export class SiteLiveStore extends DurableObject<unknown> {
   private sql: SqlStorage;
   private buffer: LiveEvent[] = [];
-  private flushTimer: ReturnType<typeof setTimeout> | null = null;
   /** In-memory running monthly counters (authoritative between flushes). */
   private monthCounts = new Map<string, number>();
   private memo = new Map<string, { expires: number; value: unknown }>();
@@ -144,10 +142,6 @@ export class SiteLiveStore extends DurableObject<unknown> {
    * flush at the top of a read can never interleave with a record().
    */
   private flushBuffer(): void {
-    if (this.flushTimer !== null) {
-      clearTimeout(this.flushTimer);
-      this.flushTimer = null;
-    }
     if (this.buffer.length === 0) return;
     const events = this.buffer;
     this.buffer = [];
@@ -262,29 +256,28 @@ export class SiteLiveStore extends DurableObject<unknown> {
     count += 1;
     this.monthCounts.set(month, count);
 
-    if (this.buffer.length >= FLUSH_MAX) {
-      this.flushBuffer();
-    } else if (this.flushTimer === null) {
-      this.flushTimer = setTimeout(() => {
-        this.flushTimer = null;
-        this.flushBuffer();
-      }, FLUSH_DELAY_MS);
-    }
+    // Durability over batching: persist on arrival (see the note on FLUSH_MAX).
+    this.flushBuffer();
 
+    // Arm the retention alarm. The flag is only latched AFTER the alarm is
+    // actually scheduled — setting it first meant one failed setAlarm() (or an
+    // alarm handler that exhausted its retries) permanently disarmed pruning
+    // for the life of the instance, and rows then grew without bound.
     if (!this.alarmArmed) {
-      this.alarmArmed = true;
-      if ((await this.ctx.storage.getAlarm()) === null) {
-        await this.ctx.storage.setAlarm(Date.now() + PRUNE_INTERVAL_MS);
+      try {
+        if ((await this.ctx.storage.getAlarm()) === null) {
+          await this.ctx.storage.setAlarm(Date.now() + PRUNE_INTERVAL_MS);
+        }
+        this.alarmArmed = true;
+      } catch (err) {
+        this.alarmArmed = false; // retry on the next event
+        console.error('[live-store] failed to arm prune alarm:', err);
       }
     }
     return count;
   }
 
   async purge(): Promise<void> {
-    if (this.flushTimer !== null) {
-      clearTimeout(this.flushTimer);
-      this.flushTimer = null;
-    }
     this.buffer = [];
     this.monthCounts.clear();
     this.memo.clear();

@@ -346,23 +346,15 @@ export const sitesRoute = app
       return c.json({ error: 'Not found' }, 404);
     }
 
-    // Grab keys before the cascade delete removes them.
-    const keys = await db
-      .select({ key: apiKeys.key })
-      .from(apiKeys)
-      .where(eq(apiKeys.siteId, siteId));
-
     await db.delete(sites).where(eq(sites.id, siteId));
 
     c.executionCtx.waitUntil(
       (async () => {
-        // Wipe the site's live DO storage (one DO per key).
-        for (const { key } of keys) {
-          const stub = c.env.LIVE.get(c.env.LIVE.idFromName(key)) as unknown as {
-            purge: () => Promise<void>;
-          };
-          await stub.purge().catch(err => console.error('[sites] DO purge failed:', err));
-        }
+        // Wipe the site's live DO storage (one DO per site id).
+        const stub = c.env.LIVE.get(c.env.LIVE.idFromName(siteId)) as unknown as {
+          purge: () => Promise<void>;
+        };
+        await stub.purge().catch(err => console.error('[sites] DO purge failed:', err));
       })().catch(err => console.error('[sites] cleanup failed:', err))
     );
 

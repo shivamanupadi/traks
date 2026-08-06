@@ -50,7 +50,6 @@ const app = new Hono<Env>();
 
 interface SiteRecord {
   siteId: string;
-  key: string;
   timezone: string;
 }
 
@@ -68,10 +67,9 @@ async function getSite(c: AppContext, siteId: string, userId: string): Promise<S
 
   const db = c.get('db')!;
   const [result] = await db
-    .select({ siteId: sites.id, key: apiKeys.key, timezone: sites.timezone })
+    .select({ siteId: sites.id, timezone: sites.timezone })
     .from(sites)
-    .innerJoin(apiKeys, eq(sites.id, apiKeys.siteId))
-    .where(and(eq(sites.id, siteId), eq(sites.userId, userId), isNull(apiKeys.revokedAt)))
+    .where(and(eq(sites.id, siteId), eq(sites.userId, userId)))
     .limit(1);
 
   if (result) {
@@ -405,9 +403,9 @@ function assembleMainStats(
 // today-branch is wrapped in try/catch: on any failure the route falls
 // through to the Iceberg/R2 SQL cold path below it.
 
-function liveStore(c: AppContext, siteKey: string): LiveStoreApi {
+function liveStore(c: AppContext, siteId: string): LiveStoreApi {
   const ns = c.env.LIVE;
-  return ns.get(ns.idFromName(siteKey)) as unknown as LiveStoreApi;
+  return ns.get(ns.idFromName(siteId)) as unknown as LiveStoreApi;
 }
 
 const ms = (iso: string): number => Date.parse(iso);
@@ -580,7 +578,7 @@ export async function fetchDashboard(
     try {
       const range = resolvePeriod('today', new Date(), site.timezone);
       const prev = previousRange(range);
-      const live = liveStore(c, site.key);
+      const live = liveStore(c, site.siteId);
       const from = ms(range.from);
       const to = ms(range.to);
       const [main, timeseriesRows, pages, referrers, locations, browsers, osList] =
@@ -616,38 +614,38 @@ export async function fetchDashboard(
 
   const outcome = await runQueries(c, () =>
     Promise.all([
-      cachedR2Sql<PeriodStatsRow>(c, ttl, buildStatsWithComparisonQuery(site.key, range)),
-      cachedR2Sql<SessionStatsRow>(c, ttl, buildSessionStatsQuery(site.key, range)),
-      cachedR2Sql<EngagementStatsRow>(c, ttl, buildEngagementStatsQuery(site.key, range)),
+      cachedR2Sql<PeriodStatsRow>(c, ttl, buildStatsWithComparisonQuery(site.siteId, range)),
+      cachedR2Sql<SessionStatsRow>(c, ttl, buildSessionStatsQuery(site.siteId, range)),
+      cachedR2Sql<EngagementStatsRow>(c, ttl, buildEngagementStatsQuery(site.siteId, range)),
       cachedR2Sql<{ t: string; visitors: unknown; pageviews: unknown; sessions: unknown }>(
         c,
         ttl,
-        buildTimeseriesQuery(site.key, range)
+        buildTimeseriesQuery(site.siteId, range)
       ),
       cachedR2Sql<{ pathname: string; visitors: unknown; pageviews: unknown }>(
         c,
         ttl,
-        buildTopPagesQuery(site.key, range)
+        buildTopPagesQuery(site.siteId, range)
       ),
       cachedR2Sql<{ source: string; visitors: unknown }>(
         c,
         ttl,
-        buildTopReferrersQuery(site.key, range)
+        buildTopReferrersQuery(site.siteId, range)
       ),
       cachedR2Sql<{ name: string; visitors: unknown }>(
         c,
         ttl,
-        buildLocationsQuery(site.key, range, 'country')
+        buildLocationsQuery(site.siteId, range, 'country')
       ),
       cachedR2Sql<{ name: string; visitors: unknown }>(
         c,
         ttl,
-        buildDevicesQuery(site.key, range, 'browser')
+        buildDevicesQuery(site.siteId, range, 'browser')
       ),
       cachedR2Sql<{ name: string; visitors: unknown }>(
         c,
         ttl,
-        buildDevicesQuery(site.key, range, 'os')
+        buildDevicesQuery(site.siteId, range, 'os')
       ),
     ])
   );
@@ -727,7 +725,7 @@ export const analyticsRoute = appWithBatch
       try {
         const range = resolvePeriod('today', new Date(), site.timezone);
         const prev = previousRange(range);
-        const { current, previous } = await liveStore(c, site.key).mainStats(
+        const { current, previous } = await liveStore(c, site.siteId).mainStats(
           ms(prev.from),
           ms(range.from),
           ms(range.to),
@@ -747,13 +745,13 @@ export const analyticsRoute = appWithBatch
         cachedR2Sql<PeriodStatsRow>(
           c,
           ttl,
-          buildStatsWithComparisonQuery(site.key, range, filters)
+          buildStatsWithComparisonQuery(site.siteId, range, filters)
         ),
-        cachedR2Sql<SessionStatsRow>(c, ttl, buildSessionStatsQuery(site.key, range, filters)),
+        cachedR2Sql<SessionStatsRow>(c, ttl, buildSessionStatsQuery(site.siteId, range, filters)),
         cachedR2Sql<EngagementStatsRow>(
           c,
           ttl,
-          buildEngagementStatsQuery(site.key, range, filters)
+          buildEngagementStatsQuery(site.siteId, range, filters)
         ),
       ])
     );
@@ -776,7 +774,11 @@ export const analyticsRoute = appWithBatch
     if (period === 'today') {
       try {
         const range = resolvePeriod('today', new Date(), site.timezone);
-        const rows = await liveStore(c, site.key).timeseries(ms(range.from), ms(range.to), filters);
+        const rows = await liveStore(c, site.siteId).timeseries(
+          ms(range.from),
+          ms(range.to),
+          filters
+        );
         return c.json({ data: fillTimeseries(rows, range) });
       } catch (err) {
         logLiveFallback(err);
@@ -790,7 +792,7 @@ export const analyticsRoute = appWithBatch
       cachedR2Sql<{ t: string; visitors: unknown; pageviews: unknown; sessions: unknown }>(
         c,
         ttl,
-        buildTimeseriesQuery(site.key, range, filters)
+        buildTimeseriesQuery(site.siteId, range, filters)
       )
     );
     if (outcome instanceof Response) return outcome;
@@ -822,7 +824,7 @@ export const analyticsRoute = appWithBatch
       try {
         const range = resolvePeriod('today', new Date(), site.timezone);
         if (type === 'top') {
-          const rows = await liveStore(c, site.key).topList(
+          const rows = await liveStore(c, site.siteId).topList(
             'pathname',
             ms(range.from),
             ms(range.to),
@@ -833,7 +835,7 @@ export const analyticsRoute = appWithBatch
             data: rows.map(r => ({ name: r.name, visitors: r.visitors, pageviews: r.pageviews })),
           });
         }
-        const rows = await liveStore(c, site.key).entryExitPages(
+        const rows = await liveStore(c, site.siteId).entryExitPages(
           type,
           ms(range.from),
           ms(range.to),
@@ -856,7 +858,7 @@ export const analyticsRoute = appWithBatch
         cachedR2Sql<{ pathname: string; visitors: unknown; sessions: unknown }>(
           c,
           ttl,
-          buildEntryExitPagesQuery(site.key, range, type, filters)
+          buildEntryExitPagesQuery(site.siteId, range, type, filters)
         )
       );
       if (outcome instanceof Response) return outcome;
@@ -874,7 +876,7 @@ export const analyticsRoute = appWithBatch
       cachedR2Sql<{ pathname: string; visitors: unknown; pageviews: unknown }>(
         c,
         ttl,
-        buildTopPagesQuery(site.key, range, filters)
+        buildTopPagesQuery(site.siteId, range, filters)
       )
     );
     if (outcome instanceof Response) return outcome;
@@ -902,7 +904,7 @@ export const analyticsRoute = appWithBatch
     if (period === 'today') {
       try {
         const range = resolvePeriod('today', new Date(), site.timezone);
-        const rows = await liveStore(c, site.key).linkClicks(
+        const rows = await liveStore(c, site.siteId).linkClicks(
           eventName,
           ms(range.from),
           ms(range.to),
@@ -924,7 +926,7 @@ export const analyticsRoute = appWithBatch
       cachedR2Sql<{ meta: string; clicks: unknown; visitors: unknown }>(
         c,
         ttl,
-        buildLinkEventsQuery(site.key, range, eventName, filters)
+        buildLinkEventsQuery(site.siteId, range, eventName, filters)
       )
     );
     if (outcome instanceof Response) return outcome;
@@ -951,7 +953,7 @@ export const analyticsRoute = appWithBatch
     if (period === 'today') {
       try {
         const range = resolvePeriod('today', new Date(), site.timezone);
-        const rows = await liveStore(c, site.key).topList(
+        const rows = await liveStore(c, site.siteId).topList(
           'referrer_hostname',
           ms(range.from),
           ms(range.to),
@@ -971,7 +973,7 @@ export const analyticsRoute = appWithBatch
       cachedR2Sql<{ source: string; visitors: unknown }>(
         c,
         ttl,
-        buildTopReferrersQuery(site.key, range, filters)
+        buildTopReferrersQuery(site.siteId, range, filters)
       )
     );
     if (outcome instanceof Response) return outcome;
@@ -996,7 +998,7 @@ export const analyticsRoute = appWithBatch
         const range = resolvePeriod('today', new Date(), site.timezone);
         const dimension =
           type === 'source' ? 'utm_source' : type === 'medium' ? 'utm_medium' : 'utm_campaign';
-        const rows = await liveStore(c, site.key).topList(
+        const rows = await liveStore(c, site.siteId).topList(
           dimension,
           ms(range.from),
           ms(range.to),
@@ -1018,7 +1020,7 @@ export const analyticsRoute = appWithBatch
       cachedR2Sql<{ value: string; visitors: unknown; sessions: unknown }>(
         c,
         ttl,
-        buildUtmQuery(site.key, range, type, filters)
+        buildUtmQuery(site.siteId, range, type, filters)
       )
     );
     if (outcome instanceof Response) return outcome;
@@ -1045,7 +1047,7 @@ export const analyticsRoute = appWithBatch
     if (period === 'today') {
       try {
         const range = resolvePeriod('today', new Date(), site.timezone);
-        const rows = await liveStore(c, site.key).topList(
+        const rows = await liveStore(c, site.siteId).topList(
           type,
           ms(range.from),
           ms(range.to),
@@ -1067,7 +1069,7 @@ export const analyticsRoute = appWithBatch
       cachedR2Sql<{ name: string; visitors: unknown }>(
         c,
         ttl,
-        buildLocationsQuery(site.key, range, type, filters)
+        buildLocationsQuery(site.siteId, range, type, filters)
       )
     );
     if (outcome instanceof Response) return outcome;
@@ -1092,10 +1094,10 @@ export const analyticsRoute = appWithBatch
         const range = resolvePeriod('today', new Date(), site.timezone);
         let rows: { name: string; visitors: number }[];
         if (type === 'size') {
-          rows = await liveStore(c, site.key).screenSizes(ms(range.from), ms(range.to), filters);
+          rows = await liveStore(c, site.siteId).screenSizes(ms(range.from), ms(range.to), filters);
         } else {
           const dimension = type === 'browser' ? 'browser' : type === 'os' ? 'os' : 'device_type';
-          rows = await liveStore(c, site.key).topList(
+          rows = await liveStore(c, site.siteId).topList(
             dimension,
             ms(range.from),
             ms(range.to),
@@ -1119,8 +1121,8 @@ export const analyticsRoute = appWithBatch
         c,
         ttl,
         type === 'size'
-          ? buildScreenSizesQuery(site.key, range, filters)
-          : buildDevicesQuery(site.key, range, type, filters)
+          ? buildScreenSizesQuery(site.siteId, range, filters)
+          : buildDevicesQuery(site.siteId, range, type, filters)
       )
     );
     if (outcome instanceof Response) return outcome;
@@ -1175,7 +1177,7 @@ export const analyticsRoute = appWithBatch
     if (period === 'today') {
       try {
         const range = resolvePeriod('today', new Date(), site.timezone);
-        const live = liveStore(c, site.key);
+        const live = liveStore(c, site.siteId);
         const [rows, totals] = await Promise.all([
           live.goalStats(ms(range.from), ms(range.to), eventNames, pathnames, filters),
           live.totals(ms(range.from), ms(range.to), filters),
@@ -1195,20 +1197,20 @@ export const analyticsRoute = appWithBatch
         cachedR2Sql<PeriodStatsRow>(
           c,
           ttl,
-          buildStatsWithComparisonQuery(site.key, range, filters)
+          buildStatsWithComparisonQuery(site.siteId, range, filters)
         ),
         eventNames.length > 0
           ? cachedR2Sql<{ target: string; events: unknown; visitors: unknown }>(
               c,
               ttl,
-              buildGoalEventsQuery(site.key, range, eventNames, filters)
+              buildGoalEventsQuery(site.siteId, range, eventNames, filters)
             )
           : Promise.resolve([]),
         pathnames.length > 0
           ? cachedR2Sql<{ target: string; events: unknown; visitors: unknown }>(
               c,
               ttl,
-              buildGoalPagesQuery(site.key, range, pathnames, filters)
+              buildGoalPagesQuery(site.siteId, range, pathnames, filters)
             )
           : Promise.resolve([]),
       ])
@@ -1261,7 +1263,7 @@ export const analyticsRoute = appWithBatch
         cachedR2Sql<Record<string, unknown>>(
           c,
           cacheTtlSeconds(period),
-          buildFunnelQuery(site.key, range, funnel.steps, filters)
+          buildFunnelQuery(site.siteId, range, funnel.steps, filters)
         )
       );
       if (outcome instanceof Response) return outcome;
@@ -1297,7 +1299,7 @@ export const analyticsRoute = appWithBatch
     // Realtime is the DO's home turf: events are queryable the moment they
     // arrive, vs waiting out the Iceberg sink roll on the fallback path.
     try {
-      const live = await liveStore(c, site.key).realtime(Date.now());
+      const live = await liveStore(c, site.siteId).realtime(Date.now());
       return c.json({
         data: {
           currentVisitors: live.total,
@@ -1312,13 +1314,13 @@ export const analyticsRoute = appWithBatch
       cachedR2Sql<{ visitors: unknown; pathname: string }>(
         c,
         30,
-        buildRealtimeQuery(site.key, queryTime())
+        buildRealtimeQuery(site.siteId, queryTime())
       )
     );
     if (outcome instanceof Response) return outcome;
 
     const totalOutcome = await runQueries(c, () =>
-      cachedR2Sql<{ visitors: unknown }>(c, 30, buildRealtimeTotalQuery(site.key, queryTime()))
+      cachedR2Sql<{ visitors: unknown }>(c, 30, buildRealtimeTotalQuery(site.siteId, queryTime()))
     );
     if (totalOutcome instanceof Response) return totalOutcome;
     return c.json({
@@ -1342,7 +1344,7 @@ export const analyticsRoute = appWithBatch
     if (period === 'today') {
       try {
         const range = resolvePeriod('today', new Date(), site.timezone);
-        const rows = await liveStore(c, site.key).customEvents(
+        const rows = await liveStore(c, site.siteId).customEvents(
           ms(range.from),
           ms(range.to),
           20,
@@ -1363,7 +1365,7 @@ export const analyticsRoute = appWithBatch
       cachedR2Sql<{ name: string; count: unknown; total_value: unknown }>(
         c,
         ttl,
-        buildEventsQuery(site.key, range, filters)
+        buildEventsQuery(site.siteId, range, filters)
       )
     );
     if (outcome instanceof Response) return outcome;
@@ -1390,7 +1392,7 @@ export const analyticsRoute = appWithBatch
     if (period === 'today') {
       try {
         const range = resolvePeriod('today', new Date(), site.timezone);
-        const rows = await liveStore(c, site.key).eventMetaGroups(
+        const rows = await liveStore(c, site.siteId).eventMetaGroups(
           event,
           ms(range.from),
           ms(range.to),
@@ -1410,7 +1412,7 @@ export const analyticsRoute = appWithBatch
       cachedR2Sql<{ meta: string; events: unknown }>(
         c,
         ttl,
-        buildEventMetaQuery(site.key, range, event, filters)
+        buildEventMetaQuery(site.siteId, range, event, filters)
       )
     );
     if (outcome instanceof Response) return outcome;

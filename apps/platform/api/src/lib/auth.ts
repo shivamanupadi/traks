@@ -8,8 +8,11 @@ import type { Bindings } from '../types';
 
 // Once the instance is claimed it stays claimed — skip the D1 count.
 let claimedCache = false;
-// email -> legacy user id, bridging the sign-up before/after hooks.
-const pendingAdoptions = new Map<string, string>();
+// Marker for a legacy row whose email was freed for an in-flight claim. The
+// pairing lives in the DATABASE, not an isolate-local Map: the before- and
+// after-hooks can run in different isolates, and a lost pairing meant the
+// owner claimed the instance and found none of their sites.
+const STASH_SUFFIX = '@claim-pending.invalid';
 
 async function isClaimed(db: DrizzleD1Database): Promise<boolean> {
   if (claimedCache) return true;
@@ -23,29 +26,41 @@ async function isClaimed(db: DrizzleD1Database): Promise<boolean> {
 
 /**
  * First-run claim support: a pre-Better-Auth `users` row (Clerk-era owner, or
- * a recovery re-claim) holds the email the owner signs up with. Free the email
- * before sign-up creates the new row, then transfer site ownership after.
+ * a recovery re-claim) holds the email the owner signs up with. The unique
+ * email index means sign-up cannot insert the new row until that email is
+ * freed, so it is parked under a marker address that ENCODES the original —
+ * making it discoverable from any isolate and recoverable on retry if the
+ * sign-up it was made for fails. Everything that can cheaply invalidate a
+ * sign-up (claimed instance, wrong owner email, short password) is checked
+ * BEFORE this runs, so the rename is only reached by a request expected to
+ * succeed.
  */
 async function stashLegacyUser(db: DrizzleD1Database, email: string): Promise<void> {
   const [legacy] = await db.select({ id: users.id }).from(users).where(eq(users.email, email));
+  // Already parked by an earlier attempt that failed downstream — nothing to
+  // do, and the retry will still find it by marker. The stash is therefore
+  // idempotent and self-healing rather than one-shot destructive.
   if (!legacy) return;
   await db
     .update(users)
-    .set({ email: `legacy-${legacy.id}@migrated.invalid` })
+    .set({ email: `${email}${STASH_SUFFIX}` })
     .where(eq(users.id, legacy.id));
-  pendingAdoptions.set(email, legacy.id);
 }
 
 async function adoptLegacyData(
   db: DrizzleD1Database,
   newUser: { id: string; email: string }
 ): Promise<void> {
-  const legacyId = pendingAdoptions.get(newUser.email);
-  if (!legacyId || legacyId === newUser.id) return;
-  pendingAdoptions.delete(newUser.email);
-  await db.update(sites).set({ userId: newUser.id }).where(eq(sites.userId, legacyId));
-  await db.update(apiKeys).set({ userId: newUser.id }).where(eq(apiKeys.userId, legacyId));
-  await db.delete(users).where(and(eq(users.id, legacyId), ne(users.id, newUser.id)));
+  // Look the pairing up by the marker address rather than an in-memory map, so
+  // it survives the before/after hooks landing in different isolates.
+  const [legacy] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.email, `${newUser.email}${STASH_SUFFIX}`));
+  if (!legacy || legacy.id === newUser.id) return;
+  await db.update(sites).set({ userId: newUser.id }).where(eq(sites.userId, legacy.id));
+  await db.update(apiKeys).set({ userId: newUser.id }).where(eq(apiKeys.userId, legacy.id));
+  await db.delete(users).where(and(eq(users.id, legacy.id), ne(users.id, newUser.id)));
 }
 
 // Return type deliberately inferred: betterAuth's generic Auth<TOptions> is
@@ -91,6 +106,10 @@ function createAuth(env: Bindings, origin: string) {
         if (ctx.path !== '/sign-up/email') return;
         // Single-owner instance: the first account claims it, then sign-up
         // closes forever (recovery = delete the accounts row, re-claim).
+        // Fast path only: the authoritative guarantee is the partial unique
+        // index on accounts(provider_id) WHERE provider_id = 'credential'
+        // (migration 0018), which makes a second credential account impossible
+        // even when two sign-ups race past this check.
         if (await isClaimed(db)) {
           throw new APIError('FORBIDDEN', { message: 'This instance is already claimed' });
         }
@@ -102,7 +121,17 @@ function createAuth(env: Bindings, origin: string) {
             message: 'This instance can only be claimed by the email it was deployed with',
           });
         }
-        if (email) await stashLegacyUser(db, email);
+        if (!email) return;
+        // Validate BEFORE touching the legacy row: this hook runs ahead of
+        // Better Auth's own body validation, so an obviously-doomed sign-up
+        // (short password) must not be allowed to rename anything.
+        const password = (ctx.body as { password?: string })?.password ?? '';
+        if (password.length < 8) {
+          throw new APIError('BAD_REQUEST', {
+            message: 'Password must be at least 8 characters',
+          });
+        }
+        await stashLegacyUser(db, email);
       }),
     },
     databaseHooks: {

@@ -17,6 +17,7 @@ Therefore every migration must be **expand-contract**:
 
 Also: releases are stamped with the root `package.json` version
 (`installer/upload-release.mjs` → `manifest.version`), which drives the
-update-available banner on customer instances. **Bump the root version with
-every `yarn traks:release`** — re-uploading under an unchanged version means
-existing instances won't know an update exists.
+update-available banner on customer instances. `yarn traks:release` bumps it
+automatically (patch by default; pass `minor`/`major`), anchored to the
+currently published version — re-uploading under an unchanged version would be
+invisible to instances, and the upload script refuses it.

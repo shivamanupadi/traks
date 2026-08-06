@@ -13,7 +13,7 @@ compatibility_flags = ["nodejs_compat"]
 [[d1_databases]]
 binding = "DB"
 database_name = "traks-home-db-dev"
-database_id = "e4bddd79-ebe8-42bd-83cc-63dd67961c46"
+database_id = "884e81ce-ad87-41b5-b6fa-74dff8bc6115"
 migrations_dir = "src/db/migrations"
 
 # Release artifacts consumed by the /deploy web installer (shared with prod:
@@ -33,7 +33,7 @@ name = "traks-home-api"
 [[env.production.d1_databases]]
 binding = "DB"
 database_name = "traks-home-db"
-database_id = "bb63140c-a95b-4812-b8b8-e84f849e0f46"
+database_id = "6dcb69eb-8854-4d4c-a95a-9a2bfc36225e"
 migrations_dir = "src/db/migrations"
 
 [[env.production.r2_buckets]]

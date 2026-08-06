@@ -1,14 +1,12 @@
 # Migration rules
 
-These migrations run in two very different places:
-
-1. **Our hosted DB** (`yarn db:migrate:prod`) — applied before the new worker
-   deploys, standard flow.
-2. **Every customer instance**, applied by the deploy-wizard engine
-   (`apps/home/api/src/deploy/engine.ts` → `applyMigrations`) **before** the new
-   worker code is uploaded. If an update fails between those steps, the
-   instance runs the *previous* app version against the *new* schema until the
-   user retries.
+These migrations run on **every customer instance** (our own included — it is
+installed through the wizard like any other customer), applied by the
+deploy-wizard engine (`apps/home/api/src/deploy/engine.ts` → `applyMigrations`)
+**before** the new worker code is uploaded. If an update fails between those
+steps, the instance runs the *previous* app version against the *new* schema
+until the user retries. There is no wrangler prod deploy of the platform; dev
+uses `yarn db:migrate:dev`.
 
 Therefore every migration must be **expand-contract**:
 

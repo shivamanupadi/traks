@@ -50,42 +50,7 @@ custom_domain = true
 [vars]
 ENVIRONMENT = "development"
 
-# --- Production: wrangler deploy --env production ---
-
-[env.production]
-name = "traks-collect"
-
-[[env.production.d1_databases]]
-binding = "DB"
-database_name = "traks-db-prod"
-database_id = "7a19029a-d3a0-4ebf-b7f7-3a0237cf4c1e"
-
-[[env.production.unsafe.bindings]]
-name = "RATE_LIMIT"
-type = "ratelimit"
-namespace_id = "1003"
-simple = { limit = 6000, period = 60 }
-
-[[env.production.analytics_engine_datasets]]
-binding = "METRICS"
-dataset = "traks_collect_metrics"
-
-[[env.production.durable_objects.bindings]]
-name = "LIVE"
-class_name = "SiteLiveStore"
-
-[[env.production.pipelines]]
-binding = "EVENTS"
-stream = "5e05e573671949848561ed0d31397743" # traks_events_stream (prod)
-
-[[env.production.routes]]
-pattern = "collect.traks.dev"
-custom_domain = true
-
-[env.production.vars]
-ENVIRONMENT = "production"
-
-# Secrets managed via Doppler (project: traks-collect, configs: dev / prd).
-# Dev:     `yarn dev` pulls Doppler dev config into .dev.vars.doppler.
-# Prod:    `yarn release:prod` runs `doppler secrets --json -c prd | wrangler secret bulk --env production`.
-# Required keys: VISITOR_HASH_SECRET.
+# The platform ships to customers as a release bundle; the ONLY install path
+# is the traks.dev deploy wizard. There is no wrangler prod deploy — our own
+# instance (and any staging one) is installed through the wizard like any
+# other customer. Dev config above is for local iteration only.

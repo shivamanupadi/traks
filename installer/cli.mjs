@@ -312,10 +312,11 @@ function tofuOutputs() {
 /* ── catalog-token verification ──────────────────────────────── */
 
 function tokenHelp(accountId) {
+  void accountId;
   return (
-    `  Create/edit the token here: https://dash.cloudflare.com/${accountId}/r2/api-tokens\n` +
-    '  Required permissions: Workers R2 SQL Read + Workers R2 Data Catalog Write +\n' +
-    '  Workers R2 Storage Write ("Admin Read & Write" covers the last two).'
+    '  Create a correct token in one click — this link pre-fills all three\n' +
+    '  required permissions (R2 Storage Write, Data Catalog Write, SQL Read):\n' +
+    '    https://dash.cloudflare.com/profile/api-tokens?permissionGroupKeys=%5B%7B%22key%22%3A%22workers_r2%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22r2_catalog%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22r2_catalog_sql%22%2C%22type%22%3A%22read%22%7D%5D&name=Traks%20Catalog%20Token&accountId=%2A'
   );
 }
 
@@ -808,13 +809,10 @@ async function install() {
   const catalogToken = process.env.CATALOG_TOKEN ?? '';
   if (!catalogToken) {
     fail(
-      'CATALOG_TOKEN is required. Create an R2 API token here:\n' +
-        '    https://dash.cloudflare.com/?to=/:account/r2/api-tokens\n' +
-        '  with these permissions:\n' +
-        '    - Workers R2 SQL Read\n' +
-        '    - Workers R2 Data Catalog Write\n' +
-        '    - Workers R2 Storage Write\n' +
-        '  ("Admin Read & Write" covers the last two)\n' +
+      'CATALOG_TOKEN is required. Open this link — the token form arrives\n' +
+        '  pre-filled with the three required permissions; just click\n' +
+        '  "Continue to summary" then "Create Token":\n' +
+        '    https://dash.cloudflare.com/profile/api-tokens?permissionGroupKeys=%5B%7B%22key%22%3A%22workers_r2%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22r2_catalog%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22r2_catalog_sql%22%2C%22type%22%3A%22read%22%7D%5D&name=Traks%20Catalog%20Token&accountId=%2A\n' +
         '  then re-run:  CATALOG_TOKEN=<token> npx @traks/cli install'
     );
   }

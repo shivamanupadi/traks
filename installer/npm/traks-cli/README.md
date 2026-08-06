@@ -11,10 +11,10 @@ caps; your traffic data never leaves your account.
 brew install opentofu        # or: https://opentofu.org/docs/intro/install/
 npx wrangler login           # authorize your Cloudflare account
 
-# create an R2 API token (the installer verifies its permissions before
-# touching anything): https://dash.cloudflare.com/?to=/:account/r2/api-tokens
-#   permissions: Workers R2 SQL Read + Workers R2 Data Catalog Write +
-#   Workers R2 Storage Write ("Admin Read & Write" covers the last two)
+# create the API token — this link PRE-FILLS all three required permissions
+# (R2 Storage Write, Data Catalog Write, SQL Read); just click through and copy:
+#   https://dash.cloudflare.com/profile/api-tokens?permissionGroupKeys=%5B%7B%22key%22%3A%22workers_r2%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22r2_catalog%22%2C%22type%22%3A%22edit%22%7D%2C%7B%22key%22%3A%22r2_catalog_sql%22%2C%22type%22%3A%22read%22%7D%5D&name=Traks%20Catalog%20Token&accountId=%2A
+# (the installer verifies the token's permissions before touching anything)
 
 CATALOG_TOKEN=<your-token> npx @traks/cli install
 ```

@@ -61,6 +61,8 @@ app.get('/t.js', c => {
 interface SiteAuth {
   valid: boolean;
   timezone: string;
+  /** Registered domain, used to reject events forged from other origins. */
+  domain: string;
   /** Stable site id. This — never the API key — is the analytics identity:
    *  the Iceberg partition value and the live DO name. Keys can be rotated or
    *  revoked; the id cannot, so history survives a key change. */
@@ -84,18 +86,23 @@ async function authenticateSite(db: D1Database, siteKey: string): Promise<SiteAu
 
   const row = await db
     .prepare(
-      `SELECT sites.timezone AS tz, sites.id AS site_id
+      `SELECT sites.timezone AS tz, sites.id AS site_id, sites.domain AS domain
        FROM api_keys
        INNER JOIN sites ON sites.id = api_keys.site_id
        WHERE api_keys.key = ? AND api_keys.revoked_at IS NULL
        LIMIT 1`
     )
     .bind(siteKey)
-    .first<{ tz: string | null; site_id: string }>();
+    .first<{ tz: string | null; site_id: string; domain: string | null }>();
 
   const auth: SiteAuth = row
-    ? { valid: true, timezone: row.tz || 'UTC', siteId: row.site_id }
-    : { valid: false, timezone: 'UTC', siteId: '' };
+    ? {
+        valid: true,
+        timezone: row.tz || 'UTC',
+        siteId: row.site_id,
+        domain: (row.domain || '').toLowerCase(),
+      }
+    : { valid: false, timezone: 'UTC', siteId: '', domain: '' };
 
   if (authCache.size > 10_000) authCache.clear();
   authCache.set(siteKey, { auth, expires: Date.now() + AUTH_CACHE_TTL_MS });
@@ -152,6 +159,25 @@ async function generateVisitorId(
   return hex;
 }
 
+/**
+ * Does a browser Origin belong to the site that owns the key? The site key is
+ * public (it sits in the page source), so without this anyone could inject
+ * events into someone else's dashboard. Deliberately permissive where it must
+ * be: subdomains count, and local development is allowed.
+ */
+function originAllowed(origin: string, domain: string): boolean {
+  if (!origin || !domain) return true; // no Origin (server-side) or no domain on file
+  let host: string;
+  try {
+    host = new URL(origin).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  if (host === 'localhost' || host === '127.0.0.1' || host.endsWith('.localhost')) return true;
+  const site = domain.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+  return host === site || host.endsWith(`.${site}`);
+}
+
 // Bodies are a few hundred bytes; anything larger is malformed or hostile and
 // must be rejected before it is parsed into the isolate heap.
 const MAX_BODY_BYTES = 8 * 1024;
@@ -185,10 +211,15 @@ app.post('/api/event', async c => {
   const { success } = await c.env.RATE_LIMIT.limit({ key: event.s });
   if (!success) return c.json({ error: 'rate limited' }, 429);
 
-  // Site key validation + timezone/plan fetch (isolate-cached, one D1 query/min).
+  // Site key validation + timezone/domain fetch (isolate-cached, one D1 query/min).
   const site = await authenticateSite(c.env.DB, event.s);
   if (!site.valid) {
     return c.json({ error: 'unknown site' }, 403);
+  }
+
+  // The key is public, so the origin is what ties an event to its site.
+  if (!originAllowed(c.req.header('origin') || '', site.domain)) {
+    return c.json({ error: 'origin not allowed for this site' }, 403);
   }
 
   const ip = c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for') || '0.0.0.0';

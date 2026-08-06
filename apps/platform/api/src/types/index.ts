@@ -15,6 +15,8 @@ export type Bindings = {
   R2_BUCKET_NAME: string;
   /** Public origin of this deployment's collect worker ([vars]). */
   COLLECT_URL: string;
+  /** IP-scoped brute-force guard on /api/auth/* (see wrangler.toml). */
+  AUTH_LIMIT?: { limit(o: { key: string }): Promise<{ success: boolean }> };
   /** Set by the deploy wizard on user instances: the Cloudflare account email
    *  the instance was deployed with. When present, only this email can claim
    *  the instance (first sign-up), and the claim screen locks the field. */

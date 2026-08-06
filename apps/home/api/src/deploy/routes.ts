@@ -79,9 +79,19 @@ export async function oauthCallback(
 
   const code = url.searchParams.get('code');
   const cookie = getCookie(c, OAUTH_COOKIE) ?? '';
-  const [cookieNonce, verifier] = cookie.split('.');
+  const [cookieNonce, verifier, cookieInstance] = cookie.split('.');
   deleteCookie(c, OAUTH_COOKIE, { path: '/' });
-  if (!code || !instanceId || !nonce || nonce !== cookieNonce || !verifier) {
+  // The instance id is bound to the cookie, not just carried in `state`:
+  // otherwise a crafted start URL could land a victim's completed sign-in on
+  // a session row chosen by someone else.
+  if (
+    !code ||
+    !instanceId ||
+    !nonce ||
+    nonce !== cookieNonce ||
+    !verifier ||
+    instanceId !== cookieInstance
+  ) {
     return back('&oauth_error=state_mismatch');
   }
 
@@ -170,7 +180,6 @@ async function loadArtifacts(releases: R2Bucket): Promise<DeployArtifacts> {
   };
 }
 
-
 /**
  * Authorize a provision/destroy call against a registry row.
  *
@@ -204,6 +213,19 @@ async function authorizeRow(
   return null;
 }
 
+const clientIp = (c: Context): string =>
+  c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for') || 'unknown';
+
+/** Apply an IP-scoped limiter; returns a 429 response when exhausted. */
+async function limited(
+  c: Context<{ Bindings: Bindings; Variables: Variables }>,
+  limiter: { limit(o: { key: string }): Promise<{ success: boolean }> } | undefined
+): Promise<Response | null> {
+  if (!limiter) return null; // binding absent (local dev)
+  const { success } = await limiter.limit({ key: clientIp(c) });
+  return success ? null : c.json({ error: 'Too many requests — try again shortly' }, 429);
+}
+
 export const deployRoute = app
   // Kick off "Sign in with Cloudflare": stash nonce + PKCE verifier in a
   // short-lived cookie and bounce to the dashboard consent screen.
@@ -218,7 +240,7 @@ export const deployRoute = app
     const challenge = b64url(
       await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))
     );
-    setCookie(c, OAUTH_COOKIE, `${nonce}.${verifier}`, {
+    setCookie(c, OAUTH_COOKIE, `${nonce}.${verifier}.${instanceId}`, {
       path: '/',
       httpOnly: true,
       secure: true,
@@ -238,6 +260,8 @@ export const deployRoute = app
 
   // Create a wizard session.
   .post('/instance', async c => {
+    const capped = await limited(c, c.env.SESSION_LIMIT);
+    if (capped) return capped;
     const db = c.get('db')!;
     const [row] = await db.insert(deployInstances).values({}).returning();
     return c.json({ data: { id: row.id, status: row.status } });
@@ -282,6 +306,14 @@ export const deployRoute = app
     '/instance/:id/accounts',
     zValidator('json', z.object({ apiToken: tokenSchema })),
     async c => {
+      const capped = await limited(c, c.env.VERIFY_LIMIT);
+      if (capped) return capped;
+      const db = c.get('db')!;
+      const [session] = await db
+        .select({ id: deployInstances.id })
+        .from(deployInstances)
+        .where(eq(deployInstances.id, c.req.param('id')));
+      if (!session) return c.json({ error: 'Not found' }, 404);
       try {
         const token = c.req.valid('json').apiToken;
         const accounts = await listAccounts(token);
@@ -343,6 +375,14 @@ export const deployRoute = app
       z.object({ apiToken: tokenSchema, accountId: z.string().regex(/^[a-f0-9]{32}$/) })
     ),
     async c => {
+      const capped = await limited(c, c.env.VERIFY_LIMIT);
+      if (capped) return capped;
+      const db = c.get('db')!;
+      const [session] = await db
+        .select({ id: deployInstances.id })
+        .from(deployInstances)
+        .where(eq(deployInstances.id, c.req.param('id')));
+      if (!session) return c.json({ error: 'Not found' }, 404);
       const { apiToken, accountId } = c.req.valid('json');
       try {
         return c.json({ data: await listZones(apiToken, accountId) });
@@ -372,6 +412,14 @@ export const deployRoute = app
       z.object({ catalogToken: tokenSchema, accountId: z.string().regex(/^[a-f0-9]{32}$/) })
     ),
     async c => {
+      const capped = await limited(c, c.env.VERIFY_LIMIT);
+      if (capped) return capped;
+      const db = c.get('db')!;
+      const [session] = await db
+        .select({ id: deployInstances.id })
+        .from(deployInstances)
+        .where(eq(deployInstances.id, c.req.param('id')));
+      if (!session) return c.json({ error: 'Not found' }, 404);
       const { catalogToken, accountId } = c.req.valid('json');
       const result = await verifyCatalogToken(accountId, catalogToken);
       return c.json({ data: result }, result.ok ? 200 : 400);

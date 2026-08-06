@@ -20,7 +20,21 @@ app.get('/health', c => c.json({ status: 'ok', timestamp: new Date().toISOString
 app.get('/api/health', c => c.json({ status: 'ok', timestamp: new Date().toISOString() }));
 
 // Better Auth: sign-up/sign-in/sign-out/session under /api/auth/*
-app.on(['GET', 'POST'], '/api/auth/*', c => getAuth(c.env, c.req.url).handler(c.req.raw));
+// Credential attempts are IP-throttled first — reads (session lookups) are
+// left alone so an open dashboard is never throttled out of its own session.
+app.on(['GET', 'POST'], '/api/auth/*', async c => {
+  const path = new URL(c.req.url).pathname;
+  const isCredentialAttempt =
+    c.req.method === 'POST' && (path.includes('/sign-in') || path.includes('/sign-up'));
+  if (isCredentialAttempt && c.env.AUTH_LIMIT) {
+    const ip = c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for') || 'unknown';
+    const { success } = await c.env.AUTH_LIMIT.limit({ key: ip });
+    if (!success) {
+      return c.json({ error: 'Too many attempts — try again in a minute' }, 429);
+    }
+  }
+  return getAuth(c.env, c.req.url).handler(c.req.raw);
+});
 
 // Login page switch: first-run claim screen vs sign-in screen. On unclaimed
 // wizard-deployed instances the owner email is fixed at deploy time — expose

@@ -303,7 +303,9 @@ async function dropCatalogTable(
     { method: 'DELETE', headers }
   );
   if (!res.ok && res.status !== 404) {
-    throw new Error(`catalog table drop failed (${res.status}: ${await res.text().catch(() => '')})`);
+    throw new Error(
+      `catalog table drop failed (${res.status}: ${await res.text().catch(() => '')})`
+    );
   }
 }
 
@@ -329,9 +331,9 @@ async function ensurePipeline(
 
   await step(ctx, 'sink', 'Create Iceberg sink', async () => {
     const list = await cf('GET', `${base}/sinks?per_page=100`);
-    const existing = ((list ?? []) as { id: string; name: string; config?: Record<string, unknown> }[]).find(
-      sk => sk.name === N.sink
-    );
+    const existing = (
+      (list ?? []) as { id: string; name: string; config?: Record<string, unknown> }[]
+    ).find(sk => sk.name === N.sink);
     if (existing) {
       const cfg = existing.config ?? {};
       if (cfg.namespace === 'traks' && cfg.table_name === 'events') return;
@@ -579,6 +581,14 @@ export async function provisionInstance(ctx: EngineCtx): Promise<ProvisionResult
       bindings: [
         { type: 'd1', name: 'DB', id: d1Id },
         { type: 'kv_namespace', name: 'R2SQL_CACHE', namespace_id: kvId },
+        // Brute-force guard on /api/auth/* — Better Auth's own limiter is
+        // in-memory, i.e. per-isolate and therefore absent on Workers.
+        {
+          type: 'ratelimit',
+          name: 'AUTH_LIMIT',
+          namespace_id: '1004',
+          simple: { limit: 20, period: 60 },
+        },
         {
           type: 'durable_object_namespace',
           name: 'LIVE',
@@ -686,9 +696,13 @@ const sha256Hex = async (s: string | Uint8Array): Promise<string> =>
     .join('');
 
 const hmacSha256 = async (key: ArrayBuffer | Uint8Array, data: string): Promise<ArrayBuffer> => {
-  const k = await crypto.subtle.importKey('raw', key as BufferSource, { name: 'HMAC', hash: 'SHA-256' }, false, [
-    'sign',
-  ]);
+  const k = await crypto.subtle.importKey(
+    'raw',
+    key as BufferSource,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
   return crypto.subtle.sign('HMAC', k, new TextEncoder().encode(data));
 };
 
@@ -733,7 +747,14 @@ export async function emptyBucket(
     const canonicalPath = path.split('/').map(encodeURIComponent).join('/');
     const canonicalHeaders = `host:${host}\nx-amz-content-sha256:${payloadHash}\nx-amz-date:${amzDate}\n`;
     const signedHeaders = 'host;x-amz-content-sha256;x-amz-date';
-    const canonicalRequest = [method, canonicalPath, query, canonicalHeaders, signedHeaders, payloadHash].join('\n');
+    const canonicalRequest = [
+      method,
+      canonicalPath,
+      query,
+      canonicalHeaders,
+      signedHeaders,
+      payloadHash,
+    ].join('\n');
     const scope = `${datestamp}/auto/s3/aws4_request`;
     const sts = ['AWS4-HMAC-SHA256', amzDate, scope, await sha256Hex(canonicalRequest)].join('\n');
     let key = await hmacSha256(new TextEncoder().encode(`AWS4${secret}`), datestamp);

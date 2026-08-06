@@ -30,6 +30,16 @@ id = "fc5eb93cfb8f4cb18969af2ccd4f9ea5"
 
 # No cron triggers; explicit empty list so deploys delete any previously
 # registered schedules (omitting [triggers] would leave them in place).
+# Brute-force guard on the auth surface, keyed by client IP. Better Auth's
+# built-in limiter is in-memory — per-isolate on Workers, so effectively no
+# limiter at all. A single-owner instance has one known account, so this is
+# the only thing standing between it and offline-speed guessing.
+[[unsafe.bindings]]
+name = "AUTH_LIMIT"
+type = "ratelimit"
+namespace_id = "1004"
+simple = { limit = 20, period = 60 }
+
 [triggers]
 crons = []
 

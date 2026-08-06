@@ -22,6 +22,27 @@ migrations_dir = "src/db/migrations"
 binding = "RELEASES"
 bucket_name = "traks-releases"
 
+# Abuse guards for the public, unauthenticated wizard API. Namespaces are
+# per-limiter; both are keyed by client IP.
+#   1002 — token-verification endpoints (accounts/zones/verify-catalog): these
+#          relay caller-supplied credentials to Cloudflare, so without a cap
+#          traks.dev would be a free credential-validation oracle.
+#   1003 — session creation (POST /instance), which writes a registry row.
+[[unsafe.bindings]]
+name = "VERIFY_LIMIT"
+type = "ratelimit"
+namespace_id = "1002"
+simple = { limit = 30, period = 60 }
+
+[[unsafe.bindings]]
+name = "SESSION_LIMIT"
+type = "ratelimit"
+namespace_id = "1003"
+simple = { limit = 10, period = 60 }
+
+[triggers]
+crons = ["17 3 * * *"]
+
 [vars]
 ENVIRONMENT = "development"
 
@@ -39,6 +60,28 @@ migrations_dir = "src/db/migrations"
 [[env.production.r2_buckets]]
 binding = "RELEASES"
 bucket_name = "traks-releases"
+
+# Abuse guards for the public, unauthenticated wizard API. Namespaces are
+# per-limiter; both are keyed by client IP.
+#   1002 — token-verification endpoints (accounts/zones/verify-catalog): these
+#          relay caller-supplied credentials to Cloudflare, so without a cap
+#          traks.dev would be a free credential-validation oracle.
+#   1003 — session creation (POST /instance), which writes a registry row.
+[[env.production.unsafe.bindings]]
+name = "VERIFY_LIMIT"
+type = "ratelimit"
+namespace_id = "1002"
+simple = { limit = 30, period = 60 }
+
+[[env.production.unsafe.bindings]]
+name = "SESSION_LIMIT"
+type = "ratelimit"
+namespace_id = "1003"
+simple = { limit = 10, period = 60 }
+
+# Nightly sweep of abandoned ('new') wizard sessions.
+[env.production.triggers]
+crons = ["17 3 * * *"]
 
 [env.production.vars]
 ENVIRONMENT = "production"

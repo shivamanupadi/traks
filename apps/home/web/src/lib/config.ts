@@ -1,29 +1,21 @@
 import { useQuery } from '@tanstack/react-query';
 
-/**
- * Instance config served by the api worker (/api/config). Runtime, not
- * build-time: the same prebuilt SPA bundle works on any deployment —
- * custom domain or bare workers.dev — because the worker tells it where
- * the collect endpoint lives.
- */
-interface InstanceConfig {
-  collectUrl: string;
-}
+/** Example collect hostname for docs/marketing snippets — every install gets
+ *  its own (wizard: `<sub>-collect.<domain>` or `<name>-collect.workers.dev`). */
+export const EXAMPLE_COLLECT_URL = 'https://analytics-collect.your-domain.com';
 
-/** Shown only for the instant before /api/config resolves. */
-const FALLBACK_COLLECT_URL = 'https://collect.traks.dev';
-
-export function useCollectUrl(): string {
+/** Latest published platform release (home api → releases manifest). */
+export function useLatestVersion(): string | undefined {
   const { data } = useQuery({
-    queryKey: ['instance-config'],
-    queryFn: async (): Promise<InstanceConfig> => {
-      const res = await fetch('/api/config');
-      if (!res.ok) throw new Error(`config fetch failed: ${res.status}`);
-      return (await res.json()) as InstanceConfig;
+    queryKey: ['latest-version'],
+    queryFn: async (): Promise<string | undefined> => {
+      const res = await fetch('/api/deploy/latest-version');
+      if (!res.ok) throw new Error(`latest-version fetch failed: ${res.status}`);
+      const body = (await res.json()) as { data?: { version?: string } };
+      return body.data?.version;
     },
-    staleTime: Infinity,
-    gcTime: Infinity,
-    retry: 2,
+    staleTime: 60 * 60 * 1000,
+    retry: 1,
   });
-  return data?.collectUrl ?? FALLBACK_COLLECT_URL;
+  return data;
 }

@@ -1,6 +1,6 @@
 import type { ReactElement, ReactNode } from 'react';
 import { createLazyFileRoute } from '@tanstack/react-router';
-import { useCollectUrl } from '@/lib/config';
+import { EXAMPLE_COLLECT_URL, useLatestVersion } from '@/lib/config';
 import { motion } from 'framer-motion';
 import {
   ArrowRight,
@@ -261,7 +261,7 @@ function NavLink({ id, children }: { id: string; children: ReactNode }): ReactEl
 }
 
 function LandingPage(): ReactElement {
-  const collectUrl = useCollectUrl();
+  const latestVersion = useLatestVersion();
   return (
     <div className="min-h-screen bg-[#FAFAFA] text-[#3D3B4F]">
       {/* dot grid ground */}
@@ -470,7 +470,7 @@ function LandingPage(): ReactElement {
                     {'\n  '}
                     <span className="text-[#93F4CF]">src</span>
                     <span className="text-[#75738C]">=</span>
-                    <span className="text-[#F2B5A4]">&quot;{collectUrl}/t.js&quot;</span>
+                    <span className="text-[#F2B5A4]">&quot;{EXAMPLE_COLLECT_URL}/t.js&quot;</span>
                     <span className="text-[#75738C]">{'>'}</span>
                     {'\n'}
                     <span className="text-[#75738C]">{'</'}</span>
@@ -591,6 +591,11 @@ function LandingPage(): ReactElement {
           <div className="flex items-center gap-2">
             <img src="/logo.svg" alt="Traks" className="h-5 w-5" />
             <span className="text-[13px] font-semibold">Traks</span>
+            {latestVersion && (
+              <span className="ml-1 rounded-full bg-[#F4F4F6] px-2 py-0.5 font-mono text-[10.5px] font-medium text-[#8C8A99]">
+                v{latestVersion}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-6">
             <a

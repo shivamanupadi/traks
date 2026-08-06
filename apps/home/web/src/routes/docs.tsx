@@ -1,6 +1,6 @@
 import type { ReactElement, ReactNode } from 'react';
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { useCollectUrl } from '@/lib/config';
+import { EXAMPLE_COLLECT_URL } from '@/lib/config';
 
 export const Route = createFileRoute('/docs')({
   component: DocsPage,
@@ -24,7 +24,6 @@ function Section({ title, children }: { title: string; children: ReactNode }): R
 }
 
 function DocsPage(): ReactElement {
-  const collectUrl = useCollectUrl();
   return (
     <div className="min-h-screen bg-[#fafafa]">
       <main className="max-w-3xl mx-auto px-4 sm:px-6 py-12">
@@ -47,7 +46,7 @@ function DocsPage(): ReactElement {
             the <code>Outbound Link: Click</code> / <code>File Download</code> events, usable as
             goals).
           </p>
-          <Code>{`<script defer data-site="YOUR_SITE_KEY" src="${collectUrl}/t.js"></script>`}</Code>
+          <Code>{`<script defer data-site="YOUR_SITE_KEY" src="${EXAMPLE_COLLECT_URL}/t.js"></script>`}</Code>
           <p>
             Optional attributes: add <code>data-hash</code> if your app uses hash-based routing (
             <code>#/route</code> becomes part of the page path), and put <code>data-404</code> on

@@ -35,3 +35,24 @@ export function useInstanceConfig(): InstanceConfig | undefined {
 export function useCollectUrl(): string {
   return useInstanceConfig()?.collectUrl ?? FALLBACK_COLLECT_URL;
 }
+
+/**
+ * Latest published release, from traks.dev's public CORS-open endpoint.
+ * Only queried on wizard-deployed instances (version + deployInstanceId set).
+ */
+export function useLatestVersion(): string | undefined {
+  const config = useInstanceConfig();
+  const { data } = useQuery({
+    queryKey: ['latest-version'],
+    enabled: Boolean(config?.version && config?.deployInstanceId),
+    queryFn: async (): Promise<string | undefined> => {
+      const res = await fetch('https://traks.dev/api/deploy/latest-version');
+      if (!res.ok) throw new Error(`latest-version fetch failed: ${res.status}`);
+      const body = (await res.json()) as { data?: { version?: string } };
+      return body.data?.version;
+    },
+    staleTime: 60 * 60 * 1000,
+    retry: 1,
+  });
+  return data;
+}

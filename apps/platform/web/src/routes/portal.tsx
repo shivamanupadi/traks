@@ -1,9 +1,8 @@
 import { createFileRoute, useNavigate, useLocation, Link, Outlet } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { LayoutGrid, Settings, User, ChevronDown, LogOut, ArrowUpCircle, X } from 'lucide-react';
 import { authClient } from '@/lib/auth-client';
-import { useInstanceConfig } from '@/lib/config';
+import { useInstanceConfig, useLatestVersion } from '@/lib/config';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -102,18 +101,7 @@ function PortalLayout(): React.ReactNode {
  */
 function UpdateBanner(): React.ReactNode {
   const config = useInstanceConfig();
-  const { data: latest } = useQuery({
-    queryKey: ['latest-version'],
-    enabled: Boolean(config?.version && config?.deployInstanceId),
-    queryFn: async (): Promise<string | undefined> => {
-      const res = await fetch('https://traks.dev/api/deploy/latest-version');
-      if (!res.ok) throw new Error(`latest-version fetch failed: ${res.status}`);
-      const body = (await res.json()) as { data?: { version?: string } };
-      return body.data?.version;
-    },
-    staleTime: 60 * 60 * 1000,
-    retry: 1,
-  });
+  const latest = useLatestVersion();
   const dismissKey = `traks-update-dismissed-${latest ?? ''}`;
   const [dismissed, setDismissed] = useState(false);
   useEffect(() => {
@@ -220,6 +208,8 @@ function NavIcon({ type }: { type: 'sites' | 'settings' }): React.ReactNode {
 
 function UserMenu(): React.ReactNode {
   const { data: session } = authClient.useSession();
+  const config = useInstanceConfig();
+  const latest = useLatestVersion();
 
   const email: string | undefined = session?.user?.email;
   const displayName = session?.user?.name || email?.split('@')[0] || 'User';
@@ -280,6 +270,21 @@ function UserMenu(): React.ReactNode {
           <LogOut className="w-4 h-4" />
           Sign out
         </DropdownMenuItem>
+
+        {config?.version && (
+          <>
+            <DropdownMenuSeparator />
+            <p className="px-4 py-2 font-mono text-[10.5px] text-[#9B9590]">
+              Traks v{config.version}
+              {latest &&
+                (latest === config.version ? (
+                  <span> · up to date</span>
+                ) : (
+                  <span className="font-semibold text-[#3D3B4F]"> · v{latest} available</span>
+                ))}
+            </p>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -189,7 +189,6 @@ app.post('/api/event', async c => {
 
   const ip = c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for') || '0.0.0.0';
 
-
   // Geo from Cloudflare request
   const cf = (c.req.raw as unknown as { cf?: Record<string, string | undefined> }).cf || {};
   const country = cf.country || '';
@@ -208,13 +207,7 @@ app.post('/api/event', async c => {
   const { dateKey, hourKey, weekKey } = computeBucketKeys(now, site.timezone);
 
   // Visitor ID rotates on the same site-local day boundary as the buckets.
-  const visitorId = await generateVisitorId(
-    c.env.VISITOR_HASH_SECRET,
-    ip,
-    ua,
-    event.s,
-    dateKey
-  );
+  const visitorId = await generateVisitorId(c.env.VISITOR_HASH_SECRET, ip, ua, event.s, dateKey);
 
   // Auto link events (outbound / download): re-serialize props to the exact
   // canonical form '{"url":"..."}' so link panels can GROUP BY the raw

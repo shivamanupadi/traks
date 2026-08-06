@@ -8,7 +8,7 @@
  *   CATALOG_TOKEN=<r2-token> node installer/web/test-engine.mjs destroy <instance>
  *
  * Auth: CLOUDFLARE_API_TOKEN or the local wrangler OAuth session.
- * Artifacts come from the built package (yarn traks:build first).
+ * Artifacts come from the built release (yarn traks:build first).
  */
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { randomBytes, createHash, createHmac } from 'node:crypto';
@@ -19,10 +19,9 @@ import { fileURLToPath } from 'node:url';
 import { provisionInstance, destroyInstance, names } from './engine.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const DIST = path.join(ROOT, 'installer/npm/traks-cli/dist');
-const require = createRequire(
-  path.join(ROOT, 'installer/npm/traks-cli/node_modules/wrangler/package.json')
-);
+const DIST = path.join(ROOT, 'installer/dist');
+const apiRequire = createRequire(path.join(ROOT, 'apps/api/package.json'));
+const require = createRequire(apiRequire.resolve('wrangler/package.json'));
 const blake3 = require('blake3-wasm');
 
 const ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID ?? '4cf68c768770ccda55d287d6ecbdeb4f';
@@ -78,7 +77,7 @@ function loadArtifacts() {
     collectWorker: new Uint8Array(readFileSync(path.join(DIST, 'collect/worker.js'))),
     webAssets,
     migrations,
-    schema: JSON.parse(readFileSync(path.join(DIST, 'terraform/pipeline-schema.json'), 'utf8')),
+    schema: JSON.parse(readFileSync(path.join(ROOT, 'scripts/pipeline-schema.json'), 'utf8')),
   };
 }
 

@@ -22,13 +22,9 @@
     "check:push": "yarn lint && yarn build",
     "check:ci": "yarn format:check && yarn check:push && yarn db:check",
     "prepare": "husky",
-    "traks:install": "node installer/npm/traks-cli/cli.mjs install",
-    "traks:update": "node installer/npm/traks-cli/cli.mjs update",
-    "traks:doctor": "node installer/npm/traks-cli/cli.mjs doctor",
-    "traks:adopt": "node installer/npm/traks-cli/cli.mjs adopt",
-    "traks:build": "node installer/build-package.mjs",
-    "traks:release": "node installer/build-package.mjs && cd installer/npm/traks-cli && npm version patch --no-git-tag-version && npm publish --access public",
-    "traks:upload-release": "node installer/web/upload-release.mjs"
+    "traks:build": "node installer/build-release.mjs",
+    "traks:upload-release": "node installer/web/upload-release.mjs",
+    "traks:release": "node installer/build-release.mjs && node installer/web/upload-release.mjs"
   },
   "devDependencies": {
     "husky": "^9.1.7",

@@ -782,9 +782,6 @@ function DeployWizard(): ReactElement {
           </Card>
         )}
 
-        <p className="mt-8 text-center font-mono text-[10.5px] font-medium uppercase tracking-[0.14em] text-[#B3B1BE]">
-          Prefer a terminal?&ensp;npx @traks/cli install
-        </p>
       </div>
     </div>
   );

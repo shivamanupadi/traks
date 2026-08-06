@@ -23,12 +23,13 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const DIST = path.join(ROOT, 'installer/npm/traks-cli/dist');
+const DIST = path.join(ROOT, 'installer/dist');
 const BUCKET = 'traks-releases';
 const ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID ?? '4cf68c768770ccda55d287d6ecbdeb4f';
-const require = createRequire(
-  path.join(ROOT, 'installer/npm/traks-cli/node_modules/wrangler/package.json')
-);
+// blake3-wasm ships inside wrangler (resolved via the api workspace) — the
+// same implementation wrangler uses for asset hashes, which must match.
+const apiRequire = createRequire(path.join(ROOT, 'apps/api/package.json'));
+const require = createRequire(apiRequire.resolve('wrangler/package.json'));
 const blake3 = require('blake3-wasm');
 
 const token = process.env.CATALOG_TOKEN;
@@ -99,9 +100,7 @@ const MIME = {
   webmanifest: 'application/manifest+json',
 };
 
-const version = JSON.parse(
-  readFileSync(path.join(ROOT, 'installer/npm/traks-cli/package.json'), 'utf8')
-).version;
+const version = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
 
 console.log(`uploading release ${version} → r2://${BUCKET}/current/`);
 

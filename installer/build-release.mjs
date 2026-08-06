@@ -1,14 +1,13 @@
 #!/usr/bin/env node
 /**
- * Build the publishable @traks/cli package: prebuilt worker bundles, web
- * dist, migrations, and Terraform config — everything the packaged-mode
- * installer deploys, so buyers never need this repo.
+ * Build the release artifacts the traks.dev/deploy wizard provisions from:
+ * prebuilt worker bundles, the web dist, and D1 migrations.
  *
- *   node installer/build-package.mjs
+ *   node installer/build-release.mjs
  *
- * Output: installer/npm/traks-cli/{cli.mjs, dist/**}
+ * Output: installer/dist/{api,collect,web,migrations}
  * Worker bundles come from `wrangler deploy --dry-run --outdir` (the same
- * esbuild pipeline a real deploy uses).
+ * esbuild pipeline a real deploy uses). Upload with installer/web/upload-release.mjs.
  */
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, rmSync, copyFileSync, cpSync, readdirSync, statSync } from 'node:fs';
@@ -16,8 +15,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const PKG = path.join(ROOT, 'installer/npm/traks-cli');
-const DIST = path.join(PKG, 'dist');
+const DIST = path.join(ROOT, 'installer/dist');
 
 function run(cmd, args, cwd = ROOT) {
   const res = spawnSync(cmd, args, { cwd, stdio: 'inherit' });
@@ -69,21 +67,5 @@ for (const f of readdirSync(path.join(ROOT, 'apps/api/src/db/migrations'))) {
   }
 }
 
-console.log('==> Terraform config + schema');
-mkdirSync(path.join(DIST, 'terraform'), { recursive: true });
-copyFileSync(path.join(ROOT, 'installer/terraform/main.tf'), path.join(DIST, 'terraform/main.tf'));
-copyFileSync(
-  path.join(ROOT, 'scripts/pipeline-schema.json'),
-  path.join(DIST, 'terraform/pipeline-schema.json')
-);
-
-console.log('==> CLI');
-copyFileSync(path.join(ROOT, 'installer/cli.mjs'), path.join(PKG, 'cli.mjs'));
-
-console.log('==> Package dependencies (pinned wrangler)');
-run('npm', ['install', '--no-package-lock', '--no-audit', '--no-fund'], PKG);
-
-console.log('\n✓ Package built at installer/npm/traks-cli — run it with:');
-console.log(
-  '  CATALOG_TOKEN=<token> node installer/npm/traks-cli/cli.mjs install --instance <name>'
-);
+console.log('\n✓ Release built at installer/dist — upload with:');
+console.log('  CATALOG_TOKEN=<token> node installer/web/upload-release.mjs');

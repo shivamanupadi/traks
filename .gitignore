@@ -13,10 +13,4 @@ dist
 .doppler.yaml
 .DS_Store
 wrangler.selfhost.toml
-installer/terraform/.terraform
-installer/terraform/.terraform.lock.hcl
-installer/terraform/terraform.tfstate*
-installer/terraform/terraform.tfstate.d
-installer/npm/traks-cli/dist
-installer/npm/traks-cli/cli.mjs
-installer/npm/*/node_modules
+installer/dist

@@ -113,6 +113,13 @@
       "when": 1785978391282,
       "tag": "0015_deploy_instances",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1785991848924,
+      "tag": "0016_deploy_registry_version",
+      "breakpoints": true
     }
   ]
 }

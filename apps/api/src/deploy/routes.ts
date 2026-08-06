@@ -135,6 +135,7 @@ async function loadArtifacts(releases: R2Bucket): Promise<DeployArtifacts> {
   const manifestObj = await releases.get('current/manifest.json');
   if (!manifestObj) throw new Error('release artifacts missing — run upload-release');
   const manifest = (await manifestObj.json()) as {
+    version?: string;
     assets: { path: string; hash: string; size: number; contentType: string | null }[];
     migrations: string[];
   };
@@ -160,10 +161,19 @@ async function loadArtifacts(releases: R2Bucket): Promise<DeployArtifacts> {
       getSql: () => text(`current/migrations/${name}`),
     })),
     schema: JSON.parse(await text('current/pipeline-schema.json')) as { fields: unknown[] },
+    version: manifest.version,
   };
 }
 
 export const deployRoute = app
+  // Hub-only guard: this router serves traks.dev. The identical bundle ships
+  // inside every customer instance (one codebase), where the RELEASES binding
+  // is absent — hard-404 everything there so user instances never act as
+  // deploy backends (no registry writes, no token-verification oracle).
+  .use('*', async (c, next) => {
+    if (!c.env.RELEASES) return c.json({ error: 'Not found' }, 404);
+    await next();
+  })
   // Kick off "Sign in with Cloudflare": stash nonce + PKCE verifier in a
   // short-lived cookie and bounce to the dashboard consent screen.
   .get('/oauth/start', async c => {
@@ -254,6 +264,18 @@ export const deployRoute = app
     }
   )
 
+  // Latest published release, for update-available checks. CORS-open: user
+  // instances' dashboards call this cross-origin from their own domains.
+  .get('/latest-version', async c => {
+    if (!c.env.RELEASES) return c.json({ error: 'Not found' }, 404);
+    const obj = await c.env.RELEASES.get('current/manifest.json');
+    if (!obj) return c.json({ error: 'No release published' }, 404);
+    const manifest = (await obj.json()) as { version?: string; uploadedAt?: string };
+    c.header('Access-Control-Allow-Origin', '*');
+    c.header('Cache-Control', 'public, max-age=300');
+    return c.json({ data: { version: manifest.version, uploadedAt: manifest.uploadedAt } });
+  })
+
   // Verify the catalog token against the chosen account.
   .post(
     '/instance/:id/verify-catalog',
@@ -317,7 +339,12 @@ export const deployRoute = app
         };
 
         const run = async (): Promise<void> => {
-          await persist('deploying', { error: null, apiUrl: null, collectUrl: null });
+          await persist('deploying', {
+            error: null,
+            apiUrl: null,
+            collectUrl: null,
+            customDomain: customDomain ?? null,
+          });
           try {
             const result = await provisionInstance({
               apiToken,
@@ -326,6 +353,7 @@ export const deployRoute = app
               catalogToken,
               artifacts,
               customDomain: customDomain && resolveCustomDomain(customDomain),
+              deploySessionId: id,
               randomHex: n =>
                 [...crypto.getRandomValues(new Uint8Array(n))]
                   .map(b => b.toString(16).padStart(2, '0'))

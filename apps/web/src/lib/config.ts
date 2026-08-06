@@ -8,12 +8,16 @@ import { useQuery } from '@tanstack/react-query';
  */
 interface InstanceConfig {
   collectUrl: string;
+  /** Release version stamped by the deploy wizard; absent on dev/hosted. */
+  version?: string;
+  /** Wizard session that owns this instance, for update links; absent on dev/hosted. */
+  deployInstanceId?: string;
 }
 
 /** Shown only for the instant before /api/config resolves. */
 const FALLBACK_COLLECT_URL = 'https://collect.traks.dev';
 
-export function useCollectUrl(): string {
+export function useInstanceConfig(): InstanceConfig | undefined {
   const { data } = useQuery({
     queryKey: ['instance-config'],
     queryFn: async (): Promise<InstanceConfig> => {
@@ -25,5 +29,9 @@ export function useCollectUrl(): string {
     gcTime: Infinity,
     retry: 2,
   });
-  return data?.collectUrl ?? FALLBACK_COLLECT_URL;
+  return data;
+}
+
+export function useCollectUrl(): string {
+  return useInstanceConfig()?.collectUrl ?? FALLBACK_COLLECT_URL;
 }

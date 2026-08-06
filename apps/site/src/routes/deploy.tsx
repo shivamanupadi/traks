@@ -80,6 +80,8 @@ interface InstanceRow {
   steps?: StepEvent[];
   error?: string;
   updatedAt?: string;
+  deployedVersion?: string;
+  customDomain?: { zoneId: string; zoneName: string; subdomain: string } | null;
 }
 
 /** A run that hasn't written a step for this long is considered dead. Generous
@@ -271,6 +273,8 @@ function DeployWizard(): ReactElement {
 
   const [steps, setSteps] = useState<StepEvent[]>([]);
   const [result, setResult] = useState<{ apiUrl: string; collectUrl: string } | null>(null);
+  const [versions, setVersions] = useState<{ current?: string; latest?: string }>({});
+  const [updating, setUpdating] = useState(false);
   const startedRef = useRef(false);
   const pollRef = useRef<number | undefined>(undefined);
 
@@ -351,6 +355,14 @@ function DeployWizard(): ReactElement {
       const { data } = (await res.json()) as { data: InstanceRow };
       if (data.instanceName) setInstanceName(data.instanceName);
       if (data.steps) setSteps(collapse(data.steps));
+      if (data.deployedVersion) setVersions(v => ({ ...v, current: data.deployedVersion }));
+      if (data.customDomain) {
+        // Restore the domain choice so an update re-deploys onto the same
+        // hostnames; the zones fetch replaces this seed once tokens verify.
+        setZones([{ id: data.customDomain.zoneId, name: data.customDomain.zoneName }]);
+        setZoneId(data.customDomain.zoneId);
+        setDomainSub(data.customDomain.subdomain);
+      }
       if (data.status === 'ready' && data.apiUrl && data.collectUrl) {
         setResult({ apiUrl: data.apiUrl, collectUrl: data.collectUrl });
         setPhase('done');
@@ -471,23 +483,40 @@ function DeployWizard(): ReactElement {
     }
   };
 
+  // On the done screen, learn whether a newer release exists.
+  useEffect(() => {
+    if (phase !== 'done') return;
+    void fetch('/api/deploy/latest-version')
+      .then(r => (r.ok ? (r.json() as Promise<{ data: { version?: string } }>) : Promise.reject(r)))
+      .then(({ data }) => setVersions(v => ({ ...v, latest: data.version })))
+      .catch(() => undefined);
+  }, [phase]);
+
   // Domains available for the custom-domain picker (per chosen account).
   useEffect(() => {
     if (phase !== 'setup' || !accountId || !sessionId) return;
-    setZones([]);
-    setZoneId('');
     void fetch(`/api/deploy/instance/${sessionId}/zones`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ apiToken: installerToken.trim(), accountId }),
     })
       .then(r => (r.ok ? (r.json() as Promise<{ data: Account[] }>) : Promise.reject(r)))
-      .then(({ data }) => setZones(data))
-      .catch(() => setZones([]));
+      .then(({ data }) => {
+        setZones(data);
+        // Keep a restored/previous choice only if this account still has it.
+        setZoneId(prev => (data.some(z => z.id === prev) ? prev : ''));
+      })
+      .catch(() => {
+        setZones([]);
+        setZoneId('');
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, accountId, sessionId]);
 
   const zoneName = zones.find(z => z.id === zoneId)?.name ?? '';
+  // A selected zone must exist in the loaded list — otherwise the deploy
+  // request would carry an empty zoneName and fail server-side validation.
+  const zoneKnown = zoneId === '' || zones.some(z => z.id === zoneId);
   // Mirrors the server's schema so a bad name is caught here, not as a 400.
   const nameOk = /^[a-z][a-z0-9-]{2,20}$/.test(instanceName.trim());
   const sub = domainSub.trim();
@@ -554,6 +583,8 @@ function DeployWizard(): ReactElement {
             setSteps(prev => collapse([...prev, payload]));
           } else if (payload.type === 'done') {
             setResult({ apiUrl: payload.apiUrl, collectUrl: payload.collectUrl });
+            setVersions(v => ({ ...v, current: v.latest }));
+            setUpdating(false);
             setPhase('done');
           } else if (payload.type === 'error') {
             setError(payload.message);
@@ -695,6 +726,12 @@ function DeployWizard(): ReactElement {
                 {error}
               </p>
             )}
+            {updating && !error && (
+              <p className="mb-4 rounded-xl bg-[#F4F4F6] px-4 py-3 text-[12.5px] leading-relaxed text-[#6E6C7C]">
+                Updating to Traks {versions.latest ?? 'latest'} — same instance, your data and
+                settings stay. Tokens are never stored, so enter them once more to continue.
+              </p>
+            )}
             <div className="space-y-5">
               {oauthSignedIn ? (
                 <div className="flex items-center justify-between gap-3 rounded-2xl border border-[#EEEEF2] bg-[#FAFAFA] px-4 py-3.5">
@@ -818,7 +855,7 @@ function DeployWizard(): ReactElement {
                 <PrimaryButton
                   onClick={() => void deploy()}
                   busy={busy}
-                  disabled={!nameOk || (zoneId !== '' && !subOk)}
+                  disabled={!nameOk || !zoneKnown || (zoneId !== '' && !subOk)}
                 >
                   <Sparkles className="h-4 w-4" />
                   Deploy Traks
@@ -1029,6 +1066,31 @@ function DeployWizard(): ReactElement {
                 {result.apiUrl.replace('https://', '')}
                 <ExternalLink className="h-3.5 w-3.5" />
               </a>
+              {versions.current && versions.latest && versions.current !== versions.latest && (
+                <div className="mb-5 w-full rounded-2xl border border-[#EEEEF2] bg-[#FAFAFA] p-4 text-left">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-[13px] text-[#3D3B4F]">
+                      <span className="font-semibold">Traks {versions.latest} is available</span>
+                      <span className="text-[#9B99A6]"> — this instance runs {versions.current}.</span>
+                    </p>
+                    <button
+                      onClick={() => {
+                        setUpdating(true);
+                        setError('');
+                        setPhase('tokens');
+                      }}
+                      className="shrink-0 rounded-full bg-[#3D3B4F] px-4 py-1.5 text-[12px] font-semibold text-white hover:bg-[#2C2B3B] transition-colors cursor-pointer"
+                    >
+                      <span className="inline-flex items-center gap-1.5">
+                        <RotateCw className="h-3 w-3" /> Update
+                      </span>
+                    </button>
+                  </div>
+                  <p className="mt-1 text-[12px] leading-relaxed text-[#9B99A6]">
+                    Updates re-run the deploy on this same instance — your data and settings stay.
+                  </p>
+                </div>
+              )}
               <div className="w-full rounded-2xl border border-[#EEEEF2] bg-[#FAFAFA] p-4 text-left">
                 <p className="flex items-center gap-2 text-[13px] font-semibold text-[#3D3B4F]">
                   <ShieldCheck className="h-4 w-4" strokeWidth={1.8} />

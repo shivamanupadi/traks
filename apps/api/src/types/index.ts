@@ -25,6 +25,12 @@ export type Bindings = {
    *  the instance was deployed with. When present, only this email can claim
    *  the instance (first sign-up), and the claim screen locks the field. */
   OWNER_EMAIL?: string;
+  /** Set by the deploy wizard on user instances: the release version installed
+   *  (manifest.version). Drives the dashboard's update-available banner. */
+  TRAKS_VERSION?: string;
+  /** Set by the deploy wizard on user instances: the wizard session that owns
+   *  this instance, so "Update" links reopen the same session on traks.dev. */
+  DEPLOY_INSTANCE_ID?: string;
 };
 
 export type Variables = {

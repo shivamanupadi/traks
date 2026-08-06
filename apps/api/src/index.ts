@@ -35,7 +35,12 @@ app.get('/api/claim-status', async c => {
 // lives, so install snippets and docs show this deployment's URL rather
 // than a baked-in default.
 app.get('/api/config', c =>
-  c.json({ collectUrl: c.env.COLLECT_URL, oauthEnabled: Boolean(c.env.CF_OAUTH_CLIENT_ID) })
+  c.json({
+    collectUrl: c.env.COLLECT_URL,
+    oauthEnabled: Boolean(c.env.CF_OAUTH_CLIENT_ID),
+    version: c.env.TRAKS_VERSION,
+    deployInstanceId: c.env.DEPLOY_INSTANCE_ID,
+  })
 );
 
 // "Sign in with Cloudflare" redirect URI (registered on the OAuth client, so

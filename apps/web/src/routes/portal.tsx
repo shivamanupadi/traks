@@ -1,7 +1,9 @@
 import { createFileRoute, useNavigate, useLocation, Link, Outlet } from '@tanstack/react-router';
-import { useEffect } from 'react';
-import { LayoutGrid, Settings, User, ChevronDown, LogOut } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { LayoutGrid, Settings, User, ChevronDown, LogOut, ArrowUpCircle, X } from 'lucide-react';
 import { authClient } from '@/lib/auth-client';
+import { useInstanceConfig } from '@/lib/config';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -84,8 +86,74 @@ function PortalLayout(): React.ReactNode {
         </div>
       </header>
 
+      <UpdateBanner />
+
       {/* Child routes render here */}
       <Outlet />
+    </div>
+  );
+}
+
+/**
+ * "A newer Traks is available" — only on wizard-deployed instances (version +
+ * deployInstanceId vars present). Checks traks.dev's public latest-version
+ * endpoint (CORS-open) and links back to this instance's wizard session,
+ * which re-runs the deploy idempotently. Dismissal is per-version.
+ */
+function UpdateBanner(): React.ReactNode {
+  const config = useInstanceConfig();
+  const { data: latest } = useQuery({
+    queryKey: ['latest-version'],
+    enabled: Boolean(config?.version && config?.deployInstanceId),
+    queryFn: async (): Promise<string | undefined> => {
+      const res = await fetch('https://traks.dev/api/deploy/latest-version');
+      if (!res.ok) throw new Error(`latest-version fetch failed: ${res.status}`);
+      const body = (await res.json()) as { data?: { version?: string } };
+      return body.data?.version;
+    },
+    staleTime: 60 * 60 * 1000,
+    retry: 1,
+  });
+  const dismissKey = `traks-update-dismissed-${latest ?? ''}`;
+  const [dismissed, setDismissed] = useState(false);
+  useEffect(() => {
+    if (latest) setDismissed(localStorage.getItem(dismissKey) === '1');
+  }, [latest, dismissKey]);
+
+  if (!config?.version || !config.deployInstanceId || !latest) return null;
+  if (latest === config.version || dismissed) return null;
+
+  return (
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-4">
+      <div className="flex items-center justify-between gap-3 rounded-2xl bg-white shadow-pill px-4 py-3">
+        <p className="flex items-center gap-2.5 text-[13px] text-[#3D3B4F]">
+          <ArrowUpCircle className="w-4 h-4 shrink-0 text-[#3D3B4F]" />
+          <span>
+            <span className="font-semibold">Traks {latest} is available</span>
+            <span className="text-[#9B9590]"> — you&rsquo;re running {config.version}.</span>
+          </span>
+        </p>
+        <div className="flex items-center gap-2">
+          <a
+            href={`https://traks.dev/deploy?instance=${encodeURIComponent(config.deployInstanceId)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-full bg-[#3D3B4F] px-4 py-1.5 text-[12px] font-semibold text-white hover:bg-[#2C2B3B] transition-colors"
+          >
+            Update
+          </a>
+          <button
+            onClick={() => {
+              localStorage.setItem(dismissKey, '1');
+              setDismissed(true);
+            }}
+            aria-label="Dismiss update notice"
+            className="w-7 h-7 flex items-center justify-center rounded-full text-[#9B9590] hover:text-[#3D3B4F] hover:bg-muted transition-colors"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

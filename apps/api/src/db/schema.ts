@@ -191,6 +191,14 @@ export const deployInstances = sqliteTable('deploy_instances', {
   apiUrl: text('api_url'),
   collectUrl: text('collect_url'),
   error: text('error'),
+  /** Release version installed by the last successful run (manifest.version). */
+  deployedVersion: text('deployed_version'),
+  /** Custom-domain choice, so updates re-deploy onto the same hostnames. */
+  customDomain: text('custom_domain', { mode: 'json' }).$type<{
+    zoneId: string;
+    zoneName: string;
+    subdomain: string;
+  } | null>(),
   /** Step-event log (label/status/detail) for progress replay on resume. */
   steps: text('steps', { mode: 'json' }).$type<
     { stepId: string; label: string; status: string; detail?: string }[]

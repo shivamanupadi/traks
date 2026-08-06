@@ -11,7 +11,7 @@ import { Hono, type Context } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
-import { eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { deployInstances } from '../db/schema';
 import {
   provisionInstance,
@@ -227,9 +227,45 @@ export const deployRoute = app
         if (accounts.length === 0) {
           return c.json({ error: 'This token cannot access any Cloudflare account' }, 400);
         }
+        // Existing installs in these accounts (proving account access via the
+        // token is the authorization) — lets the wizard steer returning users
+        // into the update path instead of an accidental second instance.
+        const db = c.get('db')!;
+        const rows = await db
+          .select({
+            id: deployInstances.id,
+            accountId: deployInstances.accountId,
+            instanceName: deployInstances.instanceName,
+            apiUrl: deployInstances.apiUrl,
+            deployedVersion: deployInstances.deployedVersion,
+            customDomain: deployInstances.customDomain,
+            updatedAt: deployInstances.updatedAt,
+          })
+          .from(deployInstances)
+          .where(
+            and(
+              eq(deployInstances.status, 'ready'),
+              inArray(
+                deployInstances.accountId,
+                accounts.map(a => a.id)
+              )
+            )
+          );
+        // One entry per account+instance, newest session wins (updates create
+        // a fresh session row for the same instance).
+        const byInstance = new Map<string, (typeof rows)[number]>();
+        for (const r of rows) {
+          const key = `${r.accountId}/${r.instanceName}`;
+          const prev = byInstance.get(key);
+          if (!prev || (r.updatedAt ?? 0) > (prev.updatedAt ?? 0)) byInstance.set(key, r);
+        }
         // OAuth sign-ins can also tell us who this is — the instance's owner
         // account gets pinned to this email at deploy time.
-        return c.json({ data: accounts, email: await userEmail(token) });
+        return c.json({
+          data: accounts,
+          email: await userEmail(token),
+          installs: [...byInstance.values()],
+        });
       } catch (err) {
         const message = err instanceof Error ? err.message : 'token check failed';
         return c.json({ error: message }, 400);

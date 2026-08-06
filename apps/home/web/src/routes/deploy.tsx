@@ -70,6 +70,16 @@ interface Account {
   name: string;
 }
 
+/** A ready instance the verified account already runs (from the registry). */
+interface ExistingInstall {
+  id: string;
+  accountId: string | null;
+  instanceName: string | null;
+  apiUrl: string | null;
+  deployedVersion: string | null;
+  customDomain: { zoneId: string; zoneName: string; subdomain: string } | null;
+}
+
 type Phase = 'intro' | 'tokens' | 'setup' | 'deploying' | 'done' | 'failed';
 
 interface InstanceRow {
@@ -275,6 +285,7 @@ function DeployWizard(): ReactElement {
   const [result, setResult] = useState<{ apiUrl: string; collectUrl: string } | null>(null);
   const [versions, setVersions] = useState<{ current?: string; latest?: string }>({});
   const [updating, setUpdating] = useState(false);
+  const [existingInstalls, setExistingInstalls] = useState<ExistingInstall[]>([]);
   const startedRef = useRef(false);
   const pollRef = useRef<number | undefined>(undefined);
 
@@ -409,10 +420,16 @@ function DeployWizard(): ReactElement {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ apiToken: token.trim() }),
       });
-      const body = (await res.json()) as { data?: Account[]; email?: string; error?: string };
+      const body = (await res.json()) as {
+        data?: Account[];
+        email?: string;
+        installs?: ExistingInstall[];
+        error?: string;
+      };
       if (res.ok && body.data) {
         setAccounts(body.data);
         setAccountId(body.data[0].id);
+        setExistingInstalls(body.installs ?? []);
         if (body.email) setCfEmail(body.email);
         setInstallerStatus('ok');
         setInstallerDetail(
@@ -483,14 +500,32 @@ function DeployWizard(): ReactElement {
     }
   };
 
-  // On the done screen, learn whether a newer release exists.
+  // Learn whether a newer release exists — on the done screen, and as soon as
+  // an existing install is detected (to caption it with "vX available").
   useEffect(() => {
-    if (phase !== 'done') return;
+    if (phase !== 'done' && existingInstalls.length === 0) return;
     void fetch('/api/deploy/latest-version')
       .then(r => (r.ok ? (r.json() as Promise<{ data: { version?: string } }>) : Promise.reject(r)))
       .then(({ data }) => setVersions(v => ({ ...v, latest: data.version })))
       .catch(() => undefined);
-  }, [phase]);
+  }, [phase, existingInstalls.length]);
+
+  // Steer a returning user into the update path: adopt the existing install's
+  // settings so Deploy re-provisions the SAME instance (idempotent update).
+  const adoptInstall = (inst: ExistingInstall): void => {
+    if (inst.accountId) setAccountId(inst.accountId);
+    setInstanceName(inst.instanceName ?? 'traks');
+    if (inst.customDomain) {
+      setZones([{ id: inst.customDomain.zoneId, name: inst.customDomain.zoneName }]);
+      setZoneId(inst.customDomain.zoneId);
+      setDomainSub(inst.customDomain.subdomain);
+    } else {
+      setZoneId('');
+    }
+    setVersions(v => ({ ...v, current: inst.deployedVersion ?? undefined }));
+    setUpdating(true);
+    setError('');
+  };
 
   // Domains available for the custom-domain picker (per chosen account).
   useEffect(() => {
@@ -615,7 +650,9 @@ function DeployWizard(): ReactElement {
       />
       <div className="relative">
         <div className="mb-7 flex flex-col items-center">
-          <img src="/logo.svg" alt="Traks" className="h-9 w-9" />
+          <a href="/" aria-label="Back to traks.dev" className="transition-transform hover:scale-105">
+            <img src="/logo.svg" alt="Traks" className="h-9 w-9" />
+          </a>
           <h1 className="mt-3 text-[26px] font-bold tracking-[-0.02em] text-[#3D3B4F]">
             Deploy Traks
           </h1>
@@ -628,10 +665,19 @@ function DeployWizard(): ReactElement {
         {phase === 'intro' && (
           <Card
             footer={
-              <PrimaryButton onClick={() => void begin()} busy={busy}>
-                Get started
-                <ArrowRight className="h-4 w-4" />
-              </PrimaryButton>
+              <>
+                <button
+                  onClick={() => void navigate({ to: '/' })}
+                  className="mr-auto inline-flex h-11 items-center gap-1.5 rounded-full px-4 text-[13.5px] font-semibold text-[#6E6C7C] transition-colors hover:bg-[#F4F4F6] hover:text-[#3D3B4F] cursor-pointer"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Back to traks.dev
+                </button>
+                <PrimaryButton onClick={() => void begin()} busy={busy}>
+                  Get started
+                  <ArrowRight className="h-4 w-4" />
+                </PrimaryButton>
+              </>
             }
           >
             <h2 className="mb-1 text-[16.5px] font-bold text-[#3D3B4F]">
@@ -729,7 +775,10 @@ function DeployWizard(): ReactElement {
             {updating && !error && (
               <p className="mb-4 rounded-xl bg-[#F4F4F6] px-4 py-3 text-[12.5px] leading-relaxed text-[#6E6C7C]">
                 Updating to Traks {versions.latest ?? 'latest'} — same instance, your data and
-                settings stay. Tokens are never stored, so enter them once more to continue.
+                settings stay. Tokens are never stored on our side, but your{' '}
+                <span className="font-medium text-[#3D3B4F]">existing tokens still work</span> —
+                paste the same ones you used before (or sign in with Cloudflare); no need to
+                create new ones.
               </p>
             )}
             <div className="space-y-5">
@@ -797,6 +846,64 @@ function DeployWizard(): ReactElement {
                   statusDetail={installerDetail}
                   errorHelp="Recreate it with the pre-filled link — keep all pre-selected permissions, click “Continue to summary”, then “Create Token”, and copy the full value."
                 />
+              )}
+              {!updating && existingInstalls.length > 0 && (
+                <div className="space-y-3">
+                  {existingInstalls.map(inst => (
+                    <div
+                      key={inst.id}
+                      className="rounded-2xl border border-[#EEEEF2] bg-[#FAFAFA] p-4"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-[13px] font-semibold text-[#3D3B4F]">
+                            Traks is already installed in{' '}
+                            {accounts.find(a => a.id === inst.accountId)?.name ?? 'this account'}
+                          </p>
+                          <p className="mt-0.5 truncate text-[12px] text-[#9B99A6]">
+                            <span className="font-mono">{inst.instanceName}</span>
+                            {inst.deployedVersion && <> · v{inst.deployedVersion}</>}
+                            {versions.latest &&
+                              (versions.latest === inst.deployedVersion ? (
+                                <> · up to date</>
+                              ) : (
+                                <span className="font-semibold text-[#3D3B4F]">
+                                  {' '}
+                                  · v{versions.latest} available
+                                </span>
+                              ))}
+                            {inst.apiUrl && (
+                              <>
+                                {' '}
+                                ·{' '}
+                                <a
+                                  href={inst.apiUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="underline-offset-2 hover:underline"
+                                >
+                                  {inst.apiUrl.replace('https://', '')}
+                                </a>
+                              </>
+                            )}
+                          </p>
+                        </div>
+                        {versions.latest && versions.latest !== inst.deployedVersion && (
+                          <button
+                            onClick={() => adoptInstall(inst)}
+                            className="shrink-0 rounded-full bg-[#3D3B4F] px-4 py-1.5 text-[12px] font-semibold text-white hover:bg-[#2C2B3B] transition-colors cursor-pointer"
+                          >
+                            Update it
+                          </button>
+                        )}
+                      </div>
+                      <p className="mt-1.5 text-[11.5px] leading-relaxed text-[#9B99A6]">
+                        Updating re-runs the deploy on that instance — data and settings stay.
+                        Continuing below instead installs a separate, second instance.
+                      </p>
+                    </div>
+                  ))}
+                </div>
               )}
               {accounts.length > 1 && (
                 <div>

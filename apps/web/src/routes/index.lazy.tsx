@@ -287,6 +287,12 @@ function LandingPage(): ReactElement {
             <NavLink id="features">Features</NavLink>
             <NavLink id="how">How it works</NavLink>
             <a
+              href="/deploy"
+              className="rounded-md px-3 py-2 font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-[#6E6C7C] transition-colors hover:text-[#3D3B4F]"
+            >
+              Deploy
+            </a>
+            <a
               href="/docs"
               className="rounded-md px-3 py-2 font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-[#6E6C7C] transition-colors hover:text-[#3D3B4F]"
             >

@@ -28,6 +28,11 @@ id = "fc5eb93cfb8f4cb18969af2ccd4f9ea5"
 
 # No cron triggers; explicit empty list so deploys delete any previously
 # registered schedules (omitting [triggers] would leave them in place).
+# Release artifacts consumed by the /deploy web installer.
+[[r2_buckets]]
+binding = "RELEASES"
+bucket_name = "traks-releases"
+
 [triggers]
 crons = []
 
@@ -60,6 +65,10 @@ script_name = "traks-collect"
 [[env.production.kv_namespaces]]
 binding = "R2SQL_CACHE"
 id = "8d350a4f547a41218336ba9b4103fe0e"
+
+[[env.production.r2_buckets]]
+binding = "RELEASES"
+bucket_name = "traks-releases"
 
 [env.production.triggers]
 crons = []

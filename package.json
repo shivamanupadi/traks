@@ -27,7 +27,8 @@
     "traks:doctor": "node installer/npm/traks-cli/cli.mjs doctor",
     "traks:adopt": "node installer/npm/traks-cli/cli.mjs adopt",
     "traks:build": "node installer/build-package.mjs",
-    "traks:release": "node installer/build-package.mjs && cd installer/npm/traks-cli && npm version patch --no-git-tag-version && npm publish --access public"
+    "traks:release": "node installer/build-package.mjs && cd installer/npm/traks-cli && npm version patch --no-git-tag-version && npm publish --access public",
+    "traks:upload-release": "node installer/web/upload-release.mjs"
   },
   "devDependencies": {
     "husky": "^9.1.7",

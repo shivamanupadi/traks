@@ -177,3 +177,27 @@ export const funnels = sqliteTable(
   },
   table => [index('funnels_site_id_idx').on(table.siteId)]
 );
+
+// ============ Web installer (traks.dev/deploy) instance registry ============
+// Tracks wizard deployments into USER accounts. Never stores tokens — only
+// non-sensitive state so a returning ?instance= URL can resume its screen.
+export const deployInstances = sqliteTable('deploy_instances', {
+  id: text('id')
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  status: text('status')
+    .$type<'new' | 'deploying' | 'ready' | 'failed'>()
+    .default('new')
+    .notNull(),
+  accountId: text('account_id'),
+  instanceName: text('instance_name'),
+  apiUrl: text('api_url'),
+  collectUrl: text('collect_url'),
+  error: text('error'),
+  /** Step-event log (label/status/detail) for progress replay on resume. */
+  steps: text('steps', { mode: 'json' }).$type<
+    { stepId: string; label: string; status: string; detail?: string }[]
+  >(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+});

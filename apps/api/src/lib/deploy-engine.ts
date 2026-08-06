@@ -1,0 +1,626 @@
+/**
+ * Web-installer provisioning engine (worker port of installer/web/engine.mjs).
+ *
+ * Pure fetch against the Cloudflare REST API — provisions a complete Traks
+ * instance into a USER'S account using tokens they supply, which live only
+ * for the duration of the request and are never persisted or logged.
+ *
+ * Artifacts (worker bundles, web assets, migrations, schema) are loaded
+ * lazily from the RELEASES R2 bucket; asset hashes are precomputed at
+ * release-upload time, so only the files the upload session actually asks
+ * for are ever read.
+ *
+ * Endpoint shapes were mined from wrangler's source and proven end-to-end
+ * by the node harness (installer/web/test-engine.mjs) before this port.
+ */
+
+const API = 'https://api.cloudflare.com/client/v4';
+
+export interface StepEvent {
+  stepId: string;
+  label: string;
+  status: 'start' | 'ok' | 'fail' | 'retry';
+  detail?: string;
+}
+
+export interface DeployArtifacts {
+  apiWorker: () => Promise<Uint8Array>;
+  collectWorker: () => Promise<Uint8Array>;
+  webAssets: {
+    path: string;
+    hash: string;
+    size: number;
+    contentType: string | null;
+    getContent: () => Promise<Uint8Array>;
+  }[];
+  migrations: { name: string; getSql: () => Promise<string> }[];
+  schema: { fields: unknown[] };
+}
+
+export interface EngineCtx {
+  apiToken: string;
+  accountId: string;
+  instance: string;
+  catalogToken: string;
+  artifacts: DeployArtifacts;
+  randomHex: (bytes: number) => string;
+  emit: (e: StepEvent) => void | Promise<void>;
+}
+
+interface CfError extends Error {
+  status?: number;
+  codes?: number[];
+}
+
+export function instanceNames(instance: string) {
+  const us = instance.replaceAll('-', '_');
+  return {
+    apiWorker: `${instance}-api`,
+    collectWorker: `${instance}-collect`,
+    d1: `${instance}-db`,
+    kvTitle: `${instance}-r2sql-cache`,
+    bucket: `${instance}-events`,
+    stream: `${us}_events_stream`,
+    sink: `${us}_events_sink`,
+    pipeline: `${us}_events`,
+    aeDataset: `${us}_collect_metrics`,
+  };
+}
+
+type Cf = (
+  method: string,
+  path: string,
+  body?: unknown,
+  opts?: { jwt?: string; formData?: FormData; tolerate?: number[] }
+) => Promise<any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+function makeApi(ctx: EngineCtx): Cf {
+  return async function cf(method, path, body, { jwt, formData, tolerate = [] } = {}) {
+    const headers: Record<string, string> = { Authorization: `Bearer ${jwt ?? ctx.apiToken}` };
+    let payload: BodyInit | undefined;
+    if (formData) {
+      payload = formData;
+    } else if (body !== undefined) {
+      headers['Content-Type'] = 'application/json';
+      payload = JSON.stringify(body);
+    }
+    const res = await fetch(`${API}${path}`, { method, headers, body: payload });
+    let data: any = null; // eslint-disable-line @typescript-eslint/no-explicit-any
+    try {
+      data = await res.json();
+    } catch {
+      /* non-JSON body */
+    }
+    if (res.ok && data?.success !== false) return data?.result ?? data;
+    const errors: { code: number; message: string }[] = data?.errors ?? [
+      { code: res.status, message: res.statusText },
+    ];
+    if (errors.some(e => tolerate.includes(e.code))) return { tolerated: errors[0].code };
+    const err = new Error(errors.map(e => `[${e.code}] ${e.message}`).join('; ')) as CfError;
+    err.status = res.status;
+    err.codes = errors.map(e => e.code);
+    throw err;
+  };
+}
+
+class StepFailure extends Error {
+  stepId: string;
+  constructor(stepId: string, message: string) {
+    super(message);
+    this.stepId = stepId;
+  }
+}
+
+async function step<T>(
+  ctx: EngineCtx,
+  stepId: string,
+  label: string,
+  fn: () => Promise<T>
+): Promise<T> {
+  await ctx.emit({ stepId, label, status: 'start' });
+  try {
+    const result = await fn();
+    await ctx.emit({ stepId, label, status: 'ok' });
+    return result;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    await ctx.emit({ stepId, label, status: 'fail', detail: message });
+    throw new StepFailure(stepId, message);
+  }
+}
+
+const sleep = (ms: number): Promise<void> => new Promise(r => setTimeout(r, ms));
+
+async function withRetry<T>(
+  ctx: EngineCtx,
+  stepId: string,
+  label: string,
+  fn: () => Promise<T>,
+  {
+    attempts = 5,
+    delayMs = 20_000,
+    transient,
+  }: { attempts?: number; delayMs?: number; transient?: (err: CfError) => boolean } = {}
+): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await fn();
+    } catch (raw) {
+      const err = raw as CfError;
+      const isTransient = transient
+        ? transient(err)
+        : [429, 500, 502, 503].includes(err.status ?? 0);
+      if (!isTransient || attempt >= attempts) throw err;
+      await ctx.emit({ stepId, label, status: 'retry', detail: err.message });
+      await sleep(delayMs);
+    }
+  }
+}
+
+function base64(bytes: Uint8Array): string {
+  let bin = '';
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    bin += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(bin);
+}
+
+/* ── steps ───────────────────────────────────────────────────── */
+
+async function workersSubdomain(ctx: EngineCtx, cf: Cf): Promise<string> {
+  const res = await cf('GET', `/accounts/${ctx.accountId}/workers/subdomain`);
+  if (!res?.subdomain) {
+    throw new Error(
+      'This account has no workers.dev subdomain registered. Open the Cloudflare dashboard → Workers and register one, then retry.'
+    );
+  }
+  return res.subdomain;
+}
+
+async function ensureD1(ctx: EngineCtx, cf: Cf, d1Name: string): Promise<string> {
+  return step(ctx, 'd1', 'Create D1 database', async () => {
+    const list = await cf(
+      'GET',
+      `/accounts/${ctx.accountId}/d1/database?name=${d1Name}&per_page=100`
+    );
+    const existing = (Array.isArray(list) ? list : []).find(
+      (d: { name: string }) => d.name === d1Name
+    );
+    if (existing) return existing.uuid as string;
+    const created = await cf('POST', `/accounts/${ctx.accountId}/d1/database`, { name: d1Name });
+    return created.uuid as string;
+  });
+}
+
+async function applyMigrations(ctx: EngineCtx, cf: Cf, d1Id: string): Promise<void> {
+  await step(ctx, 'db-migrations', 'Apply database migrations', async () => {
+    const q = (sql: string): Promise<any> =>
+      // eslint-disable-line @typescript-eslint/no-explicit-any
+      cf('POST', `/accounts/${ctx.accountId}/d1/database/${d1Id}/query`, { sql });
+    await q(
+      'CREATE TABLE IF NOT EXISTS d1_migrations(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE, applied_at TIMESTAMP NOT NULL DEFAULT current_timestamp);'
+    );
+    const appliedRes = await q('SELECT name FROM d1_migrations;');
+    const applied = new Set<string>(
+      (appliedRes?.[0]?.results ?? []).map((r: { name: string }) => r.name)
+    );
+    for (const m of ctx.artifacts.migrations) {
+      if (applied.has(m.name)) continue;
+      const sql = await m.getSql();
+      for (const stmt of sql.split('--> statement-breakpoint')) {
+        const clean = stmt.trim();
+        if (clean) await q(clean);
+      }
+      await q(`INSERT INTO d1_migrations (name) VALUES ('${m.name.replaceAll("'", "''")}');`);
+    }
+  });
+}
+
+async function ensureKv(ctx: EngineCtx, cf: Cf, title: string): Promise<string> {
+  return step(ctx, 'kv', 'Create KV cache namespace', async () => {
+    let page = 1;
+    for (;;) {
+      const list = await cf(
+        'GET',
+        `/accounts/${ctx.accountId}/storage/kv/namespaces?per_page=100&page=${page}`
+      );
+      const hit = (list ?? []).find((n: { title: string }) => n.title === title);
+      if (hit) return hit.id as string;
+      if (!list || list.length < 100) break;
+      page++;
+    }
+    const created = await cf('POST', `/accounts/${ctx.accountId}/storage/kv/namespaces`, { title });
+    return created.id as string;
+  });
+}
+
+async function ensureBucketAndCatalog(ctx: EngineCtx, cf: Cf, bucket: string): Promise<void> {
+  await step(ctx, 'bucket', 'Create R2 events bucket', async () => {
+    await cf(
+      'POST',
+      `/accounts/${ctx.accountId}/r2/buckets`,
+      { name: bucket },
+      { tolerate: [10004] }
+    );
+  });
+  await step(ctx, 'catalog', 'Enable R2 Data Catalog', async () => {
+    await cf('POST', `/accounts/${ctx.accountId}/r2-catalog/${bucket}/enable`, undefined, {
+      tolerate: [40010, 10021],
+    });
+    await cf(
+      'POST',
+      `/accounts/${ctx.accountId}/r2-catalog/${bucket}/credential`,
+      { token: ctx.catalogToken },
+      { tolerate: [10001, 10021, 40010, 7000, 7003] }
+    ).catch(() => undefined);
+    await cf('POST', `/accounts/${ctx.accountId}/r2-catalog/${bucket}/maintenance-configs`, {
+      compaction: { state: 'enabled', targetSizeMb: 128 },
+    }).catch(() => undefined);
+    await cf('POST', `/accounts/${ctx.accountId}/r2-catalog/${bucket}/maintenance-configs`, {
+      snapshot_expiration: { state: 'enabled', max_snapshot_age: '30d', min_snapshots_to_keep: 5 },
+    }).catch(() => undefined);
+  });
+}
+
+async function ensurePipeline(
+  ctx: EngineCtx,
+  cf: Cf,
+  N: ReturnType<typeof instanceNames>
+): Promise<string> {
+  const base = `/accounts/${ctx.accountId}/pipelines/v1`;
+
+  const streamId = await step(ctx, 'stream', 'Create event stream', async () => {
+    const list = await cf('GET', `${base}/streams?per_page=100`);
+    const hit = (list ?? []).find((st: { name: string }) => st.name === N.stream);
+    if (hit) return hit.id as string;
+    const created = await cf('POST', `${base}/streams`, {
+      name: N.stream,
+      format: { type: 'json' },
+      schema: { fields: ctx.artifacts.schema.fields },
+      http: { enabled: false, authentication: false, cors: {} },
+    });
+    return created.id as string;
+  });
+
+  await step(ctx, 'sink', 'Create Iceberg sink', async () => {
+    const list = await cf('GET', `${base}/sinks?per_page=100`);
+    if ((list ?? []).some((sk: { name: string }) => sk.name === N.sink)) return;
+    await withRetry(
+      ctx,
+      'sink',
+      'Create Iceberg sink',
+      () =>
+        cf('POST', `${base}/sinks`, {
+          name: N.sink,
+          type: 'r2_data_catalog',
+          format: { type: 'parquet' },
+          config: {
+            account_id: ctx.accountId,
+            bucket: N.bucket,
+            table_name: 'traks.events',
+            token: ctx.catalogToken,
+          },
+        }),
+      {
+        attempts: 6,
+        delayMs: 60_000,
+        transient: err => err.codes?.includes(1012) || [429, 500].includes(err.status ?? 0),
+      }
+    );
+  });
+
+  await step(ctx, 'pipeline', 'Connect stream to sink', async () => {
+    const list = await cf('GET', `${base}/pipelines?per_page=100`);
+    if ((list ?? []).some((pl: { name: string }) => pl.name === N.pipeline)) return;
+    await cf('POST', `${base}/pipelines`, {
+      name: N.pipeline,
+      sql: `INSERT INTO ${N.sink} SELECT * FROM ${N.stream}`,
+    });
+  });
+
+  return streamId;
+}
+
+async function scriptExists(ctx: EngineCtx, cf: Cf, name: string): Promise<boolean> {
+  try {
+    await cf('GET', `/accounts/${ctx.accountId}/workers/services/${name}`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function uploadWorker(
+  ctx: EngineCtx,
+  cf: Cf,
+  name: string,
+  moduleBytes: Uint8Array,
+  metadata: Record<string, unknown>
+): Promise<void> {
+  const fd = new FormData();
+  fd.append(
+    'metadata',
+    new Blob([JSON.stringify(metadata)], { type: 'application/json' }),
+    'metadata.json'
+  );
+  fd.append(
+    'worker.js',
+    new Blob([moduleBytes as unknown as ArrayBuffer], { type: 'application/javascript+module' }),
+    'worker.js'
+  );
+  await cf('PUT', `/accounts/${ctx.accountId}/workers/scripts/${name}`, undefined, {
+    formData: fd,
+  });
+  await cf('POST', `/accounts/${ctx.accountId}/workers/scripts/${name}/subdomain`, {
+    enabled: true,
+    previews_enabled: false,
+  });
+}
+
+async function uploadAssets(ctx: EngineCtx, cf: Cf, apiWorkerName: string): Promise<string> {
+  return step(ctx, 'assets', 'Upload dashboard assets', async () => {
+    const manifest: Record<string, { hash: string; size: number }> = {};
+    const byHash = new Map<string, DeployArtifacts['webAssets'][number]>();
+    for (const asset of ctx.artifacts.webAssets) {
+      manifest[asset.path] = { hash: asset.hash, size: asset.size };
+      byHash.set(asset.hash, asset);
+    }
+    const session = await cf(
+      'POST',
+      `/accounts/${ctx.accountId}/workers/scripts/${apiWorkerName}/assets-upload-session`,
+      { manifest }
+    );
+    if (!session?.jwt) throw new Error('assets-upload-session returned no jwt');
+    let completionJwt: string = session.buckets?.length ? '' : session.jwt;
+    for (const bucket of session.buckets ?? []) {
+      const fd = new FormData();
+      for (const hash of bucket as string[]) {
+        const asset = byHash.get(hash);
+        if (!asset) throw new Error(`upload session requested unknown asset hash ${hash}`);
+        const content = await asset.getContent();
+        fd.append(
+          hash,
+          new Blob([base64(content)], { type: asset.contentType ?? 'application/null' }),
+          hash
+        );
+      }
+      const res = await cf(
+        'POST',
+        `/accounts/${ctx.accountId}/workers/assets/upload?base64=true`,
+        undefined,
+        { jwt: session.jwt, formData: fd }
+      );
+      if (res?.jwt) completionJwt = res.jwt;
+    }
+    if (!completionJwt) throw new Error('asset upload did not return a completion token');
+    return completionJwt;
+  });
+}
+
+async function ensureSecrets(
+  ctx: EngineCtx,
+  cf: Cf,
+  N: ReturnType<typeof instanceNames>
+): Promise<void> {
+  await step(ctx, 'secrets', 'Set secrets', async () => {
+    const put = (script: string, name: string, text: string): Promise<unknown> =>
+      cf('PUT', `/accounts/${ctx.accountId}/workers/scripts/${script}/secrets`, {
+        name,
+        text,
+        type: 'secret_text',
+      });
+    const existing = async (script: string): Promise<Set<string>> => {
+      try {
+        const list = await cf(
+          'GET',
+          `/accounts/${ctx.accountId}/workers/scripts/${script}/secrets`
+        );
+        return new Set((list ?? []).map((s: { name: string }) => s.name));
+      } catch {
+        return new Set();
+      }
+    };
+    const apiSecrets = await existing(N.apiWorker);
+    if (!apiSecrets.has('BETTER_AUTH_SECRET')) {
+      await put(N.apiWorker, 'BETTER_AUTH_SECRET', ctx.randomHex(32));
+    }
+    if (!apiSecrets.has('R2_SQL_TOKEN')) {
+      await put(N.apiWorker, 'R2_SQL_TOKEN', ctx.catalogToken);
+    }
+    const collectSecrets = await existing(N.collectWorker);
+    if (!collectSecrets.has('VISITOR_HASH_SECRET')) {
+      await put(N.collectWorker, 'VISITOR_HASH_SECRET', ctx.randomHex(32));
+    }
+  });
+}
+
+/* ── public API ──────────────────────────────────────────────── */
+
+export interface ProvisionResult {
+  apiUrl: string;
+  collectUrl: string;
+}
+
+export async function provisionInstance(ctx: EngineCtx): Promise<ProvisionResult> {
+  const cf = makeApi(ctx);
+  const N = instanceNames(ctx.instance);
+
+  const subdomain = await step(ctx, 'preflight', 'Check account readiness', () =>
+    workersSubdomain(ctx, cf)
+  );
+  const collectUrl = `https://${N.collectWorker}.${subdomain}.workers.dev`;
+  const apiUrl = `https://${N.apiWorker}.${subdomain}.workers.dev`;
+
+  const d1Id = await ensureD1(ctx, cf, N.d1);
+  await applyMigrations(ctx, cf, d1Id);
+  const kvId = await ensureKv(ctx, cf, N.kvTitle);
+  await ensureBucketAndCatalog(ctx, cf, N.bucket);
+  const streamId = await ensurePipeline(ctx, cf, N);
+
+  await step(ctx, 'collect-worker', 'Deploy collect worker', async () => {
+    const exists = await scriptExists(ctx, cf, N.collectWorker);
+    await uploadWorker(ctx, cf, N.collectWorker, await ctx.artifacts.collectWorker(), {
+      main_module: 'worker.js',
+      compatibility_date: '2026-06-01',
+      compatibility_flags: ['nodejs_compat'],
+      bindings: [
+        { type: 'd1', name: 'DB', id: d1Id },
+        { type: 'analytics_engine', name: 'METRICS', dataset: N.aeDataset },
+        {
+          type: 'ratelimit',
+          name: 'RATE_LIMIT',
+          namespace_id: '1001',
+          simple: { limit: 6000, period: 60 },
+        },
+        { type: 'durable_object_namespace', name: 'LIVE', class_name: 'SiteLiveStore' },
+        { type: 'pipelines', name: 'EVENTS', stream: streamId },
+        { type: 'plain_text', name: 'ENVIRONMENT', text: 'production' },
+      ],
+      ...(exists ? {} : { migrations: { new_tag: 'v1', new_sqlite_classes: ['SiteLiveStore'] } }),
+    });
+  });
+
+  const assetsJwt = await uploadAssets(ctx, cf, N.apiWorker);
+
+  await step(ctx, 'api-worker', 'Deploy dashboard worker', async () => {
+    await uploadWorker(ctx, cf, N.apiWorker, await ctx.artifacts.apiWorker(), {
+      main_module: 'worker.js',
+      compatibility_date: '2026-06-01',
+      compatibility_flags: ['nodejs_compat'],
+      bindings: [
+        { type: 'd1', name: 'DB', id: d1Id },
+        { type: 'kv_namespace', name: 'R2SQL_CACHE', namespace_id: kvId },
+        {
+          type: 'durable_object_namespace',
+          name: 'LIVE',
+          class_name: 'SiteLiveStore',
+          script_name: N.collectWorker,
+        },
+        { type: 'assets', name: 'ASSETS' },
+        { type: 'plain_text', name: 'ENVIRONMENT', text: 'production' },
+        { type: 'plain_text', name: 'R2_BUCKET_NAME', text: N.bucket },
+        { type: 'plain_text', name: 'R2_ACCOUNT_ID', text: ctx.accountId },
+        { type: 'plain_text', name: 'COLLECT_URL', text: collectUrl },
+      ],
+      assets: {
+        jwt: assetsJwt,
+        config: {
+          not_found_handling: 'single-page-application',
+          run_worker_first: ['/api/*'],
+        },
+      },
+    });
+  });
+
+  await ensureSecrets(ctx, cf, N);
+
+  await step(ctx, 'smoke', 'Verify the deployment', async () => {
+    const probe = async (url: string, path: string, expect: string): Promise<void> => {
+      for (let i = 0; i < 9; i++) {
+        try {
+          const res = await fetch(url + path);
+          const body = await res.text();
+          if (res.ok && body.includes(expect)) return;
+        } catch {
+          /* retry */
+        }
+        await sleep(10_000);
+      }
+      throw new Error(`${url}${path} did not become healthy`);
+    };
+    await probe(apiUrl, '/api/health', '"ok"');
+    await probe(apiUrl, '/api/config', collectUrl);
+    await probe(collectUrl, '/t.js', 'traks');
+  });
+
+  return { apiUrl, collectUrl };
+}
+
+/** List the accounts a token can act on (never stored). */
+export async function listAccounts(apiToken: string): Promise<{ id: string; name: string }[]> {
+  const res = await fetch(`${API}/accounts?per_page=50`, {
+    headers: { Authorization: `Bearer ${apiToken}` },
+  });
+  const data: any = await res.json().catch(() => null); // eslint-disable-line @typescript-eslint/no-explicit-any
+  if (!res.ok || data?.success === false) {
+    const msg =
+      data?.errors?.map((e: { message: string }) => e.message).join('; ') ?? res.statusText;
+    throw new Error(msg);
+  }
+  return (data.result ?? []).map((a: { id: string; name: string }) => ({
+    id: a.id,
+    name: a.name,
+  }));
+}
+
+/** Verify the catalog token: valid + active, and R2-storage capable. */
+export async function verifyCatalogToken(
+  accountId: string,
+  token: string
+): Promise<{ ok: boolean; reason?: string }> {
+  let tokenId: string | undefined;
+  for (const url of [`${API}/accounts/${accountId}/tokens/verify`, `${API}/user/tokens/verify`]) {
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json() as Promise<any>) // eslint-disable-line @typescript-eslint/no-explicit-any
+      .catch(() => null);
+    if (res?.success && res.result?.status === 'active') {
+      tokenId = res.result.id;
+      break;
+    }
+  }
+  if (!tokenId) return { ok: false, reason: 'not a valid, active Cloudflare API token' };
+
+  // S3 ListBuckets with credentials derived from the token proves R2 storage access.
+  const secretBytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token));
+  const secret = [...new Uint8Array(secretBytes)]
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+  const host = `${accountId}.r2.cloudflarestorage.com`;
+  const now = new Date();
+  const amzDate = now
+    .toISOString()
+    .replace(/[-:]/g, '')
+    .replace(/\.\d{3}/, '');
+  const datestamp = amzDate.slice(0, 8);
+  const emptyHash = [...new Uint8Array(await crypto.subtle.digest('SHA-256', new Uint8Array()))]
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+  const hmac = async (key: ArrayBuffer | Uint8Array, data: string): Promise<ArrayBuffer> => {
+    const k = await crypto.subtle.importKey(
+      'raw',
+      key as BufferSource,
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign']
+    );
+    return crypto.subtle.sign('HMAC', k, new TextEncoder().encode(data));
+  };
+  const sha256hex = async (s: string): Promise<string> =>
+    [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))]
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+  const canonicalHeaders = `host:${host}\nx-amz-content-sha256:${emptyHash}\nx-amz-date:${amzDate}\n`;
+  const signedHeaders = 'host;x-amz-content-sha256;x-amz-date';
+  const canonicalRequest = ['GET', '/', '', canonicalHeaders, signedHeaders, emptyHash].join('\n');
+  const scope = `${datestamp}/auto/s3/aws4_request`;
+  const sts = ['AWS4-HMAC-SHA256', amzDate, scope, await sha256hex(canonicalRequest)].join('\n');
+  let key = await hmac(new TextEncoder().encode(`AWS4${secret}`), datestamp);
+  key = await hmac(key, 'auto');
+  key = await hmac(key, 's3');
+  key = await hmac(key, 'aws4_request');
+  const signature = [...new Uint8Array(await hmac(key, sts))]
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+  const res = await fetch(`https://${host}/`, {
+    headers: {
+      'x-amz-date': amzDate,
+      'x-amz-content-sha256': emptyHash,
+      Authorization: `AWS4-HMAC-SHA256 Credential=${tokenId}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}`,
+    },
+  });
+  if (res.status !== 200) {
+    return { ok: false, reason: `token lacks R2 storage permissions (S3 returned ${res.status})` };
+  }
+  return { ok: true };
+}

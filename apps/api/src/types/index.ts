@@ -15,6 +15,8 @@ export type Bindings = {
   R2_BUCKET_NAME: string;
   /** Public origin of this deployment's collect worker ([vars]). */
   COLLECT_URL: string;
+  /** Release artifacts (worker bundles, web assets) for the deploy wizard. */
+  RELEASES: R2Bucket;
 };
 
 export type Variables = {

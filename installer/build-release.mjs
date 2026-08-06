@@ -49,19 +49,19 @@ rmSync(DIST, { recursive: true, force: true });
 mkdirSync(DIST, { recursive: true });
 
 console.log('==> Building web dashboard');
-run('yarn', ['workspace', '@traks/web', 'build']);
-cpSync(path.join(ROOT, 'apps/web/dist'), path.join(DIST, 'web'), { recursive: true });
+run('yarn', ['workspace', '@traks/platform-web', 'build']);
+cpSync(path.join(ROOT, 'apps/platform/web/dist'), path.join(DIST, 'web'), { recursive: true });
 
 console.log('==> Bundling workers');
-bundleWorker('api', 'api');
-bundleWorker('collect', 'collect');
+bundleWorker('platform/api', 'api');
+bundleWorker('platform/collect', 'collect');
 
 console.log('==> Migrations');
 mkdirSync(path.join(DIST, 'migrations'), { recursive: true });
-for (const f of readdirSync(path.join(ROOT, 'apps/api/src/db/migrations'))) {
+for (const f of readdirSync(path.join(ROOT, 'apps/platform/api/src/db/migrations'))) {
   if (f.endsWith('.sql')) {
     copyFileSync(
-      path.join(ROOT, 'apps/api/src/db/migrations', f),
+      path.join(ROOT, 'apps/platform/api/src/db/migrations', f),
       path.join(DIST, 'migrations', f)
     );
   }

@@ -13,7 +13,7 @@ customer site
   └─ t.js tracker (packages/tracker)
        │  POST /api/event
        ▼
-collect Worker (apps/collect)            ── site-key auth + timezone (D1)
+collect Worker (apps/platform/collect)            ── site-key auth + timezone (D1)
        │                                    bot filtering, UA/referrer parsing,
        │  dual write                        daily-rotating visitor hash (HMAC)
        ├────────────────────────────┐
@@ -27,14 +27,14 @@ Iceberg sink → R2 Data Catalog      serves: today, realtime
    auto compaction +                        │
    snapshot expiration)                     │
        ▼                                    │
-COLD PATH: R2 SQL ◄── api Worker (apps/api) ── Better Auth, D1 metadata
+COLD PATH: R2 SQL ◄── api Worker (apps/platform/api) ── Better Auth, D1 metadata
   serves: 7d/30d/90d/1y/all   ▲                today/realtime → DO
   (edge-cached 5-15 min)      │                history → R2 SQL
                               │                (DO failure → R2 SQL fallback)
-                 web dashboard (apps/web)
+                 web dashboard (apps/platform/web)
 ```
 
-- **`apps/collect`** — ingest Worker. Validates the site key against D1,
+- **`apps/platform/collect`** — ingest Worker. Validates the site key against D1,
   filters bots, computes a Plausible-style daily-rotating visitor ID
   (`HMAC(secret+date, ip+ua+siteKey)` — raw IPs are never stored), enriches
   with Cloudflare geo data, then **dual-writes**: the Pipelines stream
@@ -47,10 +47,10 @@ COLD PATH: R2 SQL ◄── api Worker (apps/api) ── Better Auth, D1 metadat
   SQLite: **millisecond latency, zero ingest delay**.
 - **Pipeline** — pass-through `INSERT INTO <sink> SELECT * FROM <stream>`.
   The stream schema lives in `scripts/pipeline-schema.json`.
-- **`apps/api`** — dashboard API. Site/user metadata in D1 (drizzle), all
+- **`apps/platform/api`** — dashboard API. Site/user metadata in D1 (drizzle), all
   analytics served by R2 SQL over HTTP
   (`api.sql.cloudflarestorage.com/.../r2-sql/query/<bucket>`).
-- **`apps/web`** — dashboard UI.
+- **`apps/platform/web`** — dashboard UI.
 - **`packages/shared`** — event schema (zod), timezone-aware period math, and
   all R2 SQL query builders.
 
@@ -70,7 +70,7 @@ Platform features this codebase relies on:
 | Feature | Since | Where used |
 |---|---|---|
 | Streams/sinks/pipelines split, exactly-once Iceberg delivery | Sep 2025 | ingest path |
-| `stream` key in `[[pipelines]]` Workers binding (replaces `pipeline`) | Jun 2026 | `apps/collect/wrangler.toml` |
+| `stream` key in `[[pipelines]]` Workers binding (replaces `pipeline`) | Jun 2026 | `apps/platform/collect/wrangler.toml` |
 | Automatic compaction (64–512 MB target) | Sep 2025 | `scripts/setup-data-platform.sh` |
 | Snapshot expiration incl. data-file cleanup | Dec 2025 / Apr 2026 | `scripts/setup-data-platform.sh` |
 | R2 SQL aggregations + `approx_distinct` | Dec 2025 | all stat queries |
@@ -157,7 +157,7 @@ CATALOG_TOKEN=<r2-admin-token> ./scripts/setup-data-platform.sh prod
 Creates the bucket, enables the catalog + automatic compaction (128 MB) +
 snapshot expiration (30 days / keep 5), then creates the stream, Iceberg sink
 (60s roll interval for ~1-minute dashboard freshness), and pipeline. Paste the
-printed stream ID into `apps/collect/wrangler.toml`.
+printed stream ID into `apps/platform/collect/wrangler.toml`.
 
 ### 2. D1 + Workers
 
@@ -178,8 +178,8 @@ token), plus `R2_ACCOUNT_ID`. The collect Worker needs
 Auth is [Better Auth](https://better-auth.com) running inside the api Worker —
 no auth SaaS, no third party. Email + password only; users, sessions, and
 credential accounts live in D1 (`users`, `sessions`, `accounts`,
-`verifications` in `apps/api/src/db/schema.ts`). Endpoints mount at
-`/api/auth/*` (`apps/api/src/lib/auth.ts`); `requireAuth` resolves the session
+`verifications` in `apps/platform/api/src/db/schema.ts`). Endpoints mount at
+`/api/auth/*` (`apps/platform/api/src/lib/auth.ts`); `requireAuth` resolves the session
 cookie via `auth.api.getSession`.
 
 **First-run claim**: a fresh instance is unclaimed — `/login` shows a
@@ -245,8 +245,8 @@ npx wrangler pipelines sinks list
 - **Public dashboards**: per-site opt-in; `/share/<siteId>` serves the live
   dashboard through `/api/public`.
 - **Web hosting**: the api Worker serves the dashboard + landing + docs as
-  its static assets (`[env.production.assets]` → `apps/web/dist`, SPA
+  its static assets (`[env.production.assets]` → `apps/platform/web/dist`, SPA
   fallback, `run_worker_first` for `/api/*`). One worker, one hostname —
-  `cd apps/api && yarn release:prod` builds the web app and ships both
+  `cd apps/platform/api && yarn release:prod` builds the web app and ships both
   atomically.
 

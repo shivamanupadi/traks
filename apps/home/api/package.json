@@ -1,0 +1,42 @@
+{
+  "name": "@traks/home-api",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev --remote --port 5014",
+    "build": "tsc --noEmit",
+    "deploy:dev": "wrangler deploy",
+    "worker:prod:deploy": "wrangler deploy --env production",
+    "secrets:prod:sync": "doppler secrets --json -p traks-api -c prd | jq -c 'with_entries(select(.key | test(\"^CF_OAUTH_\")) | .value = .value.computed)' | wrangler secret bulk --env production",
+    "release:prod": "yarn db:migrate:prod && yarn secrets:prod:sync && yarn worker:prod:deploy",
+    "db:generate": "drizzle-kit generate",
+    "db:check": "drizzle-kit generate --name drift_check 2>&1 | tee /dev/stderr | grep -q 'No schema changes' || (git checkout -- src/db/migrations/ >/dev/null 2>&1; git clean -fd src/db/migrations/ >/dev/null 2>&1; echo '\\n✗ Schema drift: schema.ts has uncommitted changes. Run: yarn db:generate --name <descriptive_name>' && exit 1)",
+    "db:migrate:dev": "wrangler d1 migrations apply traks-home-db-dev --remote",
+    "db:migrate:prod": "wrangler d1 migrations apply traks-home-db --env production --remote",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint src --ext .ts --fix",
+    "format": "prettier --write src",
+    "clean": "rimraf .turbo .wrangler"
+  },
+  "dependencies": {
+    "@hono/zod-validator": "^0.4.2",
+    "@paralleldrive/cuid2": "^2.2.2",
+    "drizzle-orm": "^0.38.3",
+    "hono": "^4.6.16",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260219.0",
+    "@traks/eslint-config": "*",
+    "drizzle-kit": "^0.30.1",
+    "eslint": "^8.57.0",
+    "typescript": "^5.7.0",
+    "wrangler": "^4.107.1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

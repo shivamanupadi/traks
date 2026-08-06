@@ -1,0 +1,59 @@
+# traks.dev home worker — deploy-wizard backend ONLY. Physically separate
+# from the platform api that ships to customer instances: different worker,
+# different D1 (registry only), different secrets. The marketing site +
+# wizard UI is the traks-site static-assets worker; this worker claims the
+# dynamic paths on traks.dev via zone routes (which beat custom domains).
+name = "traks-home-api-dev"
+main = "src/index.ts"
+compatibility_date = "2026-06-01"
+compatibility_flags = ["nodejs_compat"]
+
+# --- Dev (default: wrangler dev --remote, port 5014) ---
+
+[[d1_databases]]
+binding = "DB"
+database_name = "traks-home-db-dev"
+database_id = "e4bddd79-ebe8-42bd-83cc-63dd67961c46"
+migrations_dir = "src/db/migrations"
+
+# Release artifacts consumed by the /deploy web installer (shared with prod:
+# releases are immutable, hash-addressed uploads).
+[[r2_buckets]]
+binding = "RELEASES"
+bucket_name = "traks-releases"
+
+[vars]
+ENVIRONMENT = "development"
+
+# --- Production: wrangler deploy --env production ---
+
+[env.production]
+name = "traks-home-api"
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "traks-home-db"
+database_id = "bb63140c-a95b-4812-b8b8-e84f849e0f46"
+migrations_dir = "src/db/migrations"
+
+[[env.production.r2_buckets]]
+binding = "RELEASES"
+bucket_name = "traks-releases"
+
+[env.production.vars]
+ENVIRONMENT = "production"
+
+# traks.dev is owned by the traks-site worker (marketing + wizard UI); this
+# worker takes only the wizard's backend paths there.
+[[env.production.routes]]
+pattern = "traks.dev/api/*"
+zone_name = "traks.dev"
+
+# OAuth redirect URI registered on the "Traks Deploy" client.
+[[env.production.routes]]
+pattern = "traks.dev/deploy/callback*"
+zone_name = "traks.dev"
+
+# Secrets (Doppler project traks-api, config prd — synced via
+# `yarn secrets:prod:sync`, filtered to CF_OAUTH_*):
+#   CF_OAUTH_CLIENT_ID, CF_OAUTH_CLIENT_SECRET

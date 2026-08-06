@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Read packages/tracker/dist/tracker.js and inline it into
- * apps/collect/src/lib/tracker-script.ts as a TypeScript string export.
+ * apps/platform/collect/src/lib/tracker-script.ts as a TypeScript string export.
  *
  * Run after `yarn workspace @traks/tracker build` so the inlined copy
  * matches the latest source.
@@ -12,7 +12,7 @@ import { join } from 'node:path';
 
 const root = process.cwd();
 const distPath = join(root, 'packages/tracker/dist/tracker.js');
-const outPath = join(root, 'apps/collect/src/lib/tracker-script.ts');
+const outPath = join(root, 'apps/platform/collect/src/lib/tracker-script.ts');
 
 const minified = readFileSync(distPath, 'utf8').trim();
 

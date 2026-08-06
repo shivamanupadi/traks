@@ -1,0 +1,1 @@
+DROP TABLE `deploy_instances`;

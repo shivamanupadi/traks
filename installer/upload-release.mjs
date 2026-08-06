@@ -28,7 +28,7 @@ const BUCKET = 'traks-releases';
 const ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID ?? '4cf68c768770ccda55d287d6ecbdeb4f';
 // blake3-wasm ships inside wrangler (resolved via the api workspace) — the
 // same implementation wrangler uses for asset hashes, which must match.
-const apiRequire = createRequire(path.join(ROOT, 'apps/api/package.json'));
+const apiRequire = createRequire(path.join(ROOT, 'apps/platform/api/package.json'));
 const require = createRequire(apiRequire.resolve('wrangler/package.json'));
 const blake3 = require('blake3-wasm');
 

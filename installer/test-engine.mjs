@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Node harness for the deploy engine — runs the SAME TypeScript engine the
- * wizard worker uses (apps/api/src/deploy/engine.ts, via Node's native type
+ * wizard worker uses (apps/home/api/src/deploy/engine.ts, via Node's native type
  * stripping) against a real Cloudflare account. One engine, no drift.
  *
  *   CATALOG_TOKEN=<r2-token> node installer/test-engine.mjs provision <instance>
@@ -17,11 +17,11 @@ import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { provisionInstance, destroyInstance } from '../apps/api/src/deploy/engine.ts';
+import { provisionInstance, destroyInstance } from '../apps/home/api/src/deploy/engine.ts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = path.join(ROOT, 'installer/dist');
-const apiRequire = createRequire(path.join(ROOT, 'apps/api/package.json'));
+const apiRequire = createRequire(path.join(ROOT, 'apps/home/api/package.json'));
 const require = createRequire(apiRequire.resolve('wrangler/package.json'));
 const blake3 = require('blake3-wasm');
 

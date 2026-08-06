@@ -285,6 +285,7 @@ function DeployWizard(): ReactElement {
   const [result, setResult] = useState<{ apiUrl: string; collectUrl: string } | null>(null);
   const [versions, setVersions] = useState<{ current?: string; latest?: string }>({});
   const [updating, setUpdating] = useState(false);
+  const [showNameEdit, setShowNameEdit] = useState(false);
   const [existingInstalls, setExistingInstalls] = useState<ExistingInstall[]>([]);
   const startedRef = useRef(false);
   const pollRef = useRef<number | undefined>(undefined);
@@ -994,19 +995,42 @@ function DeployWizard(): ReactElement {
                 >
                   Instance name
                 </label>
-                <input
-                  id="instance-name"
-                  value={instanceName}
-                  onChange={e => setInstanceName(e.target.value)}
-                  placeholder="traks"
-                  disabled={updating}
-                  className="h-11 w-full rounded-2xl border-none bg-white px-4 text-[13.5px] text-[#3D3B4F] shadow-[inset_0_0_0_1px_#E5E5EB] focus:shadow-[inset_0_0_0_1.5px_#3D3B4F] focus:outline-none disabled:bg-[#F4F4F6] disabled:text-[#8C8A99]"
-                />
+                {updating || !showNameEdit ? (
+                  <div className="flex h-11 w-full items-center justify-between rounded-2xl bg-[#F4F4F6] px-4">
+                    <span className="font-mono text-[13.5px] text-[#3D3B4F]">{instanceName}</span>
+                    {!updating && (
+                      <button
+                        onClick={() => setShowNameEdit(true)}
+                        className="text-[12px] font-semibold text-[#6E6C7C] hover:text-[#3D3B4F] transition-colors cursor-pointer"
+                      >
+                        Change
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <input
+                    id="instance-name"
+                    value={instanceName}
+                    onChange={e => setInstanceName(e.target.value)}
+                    placeholder="traks"
+                    autoFocus
+                    className="h-11 w-full rounded-2xl border-none bg-white px-4 text-[13.5px] text-[#3D3B4F] shadow-[inset_0_0_0_1px_#E5E5EB] focus:shadow-[inset_0_0_0_1.5px_#3D3B4F] focus:outline-none"
+                  />
+                )}
                 <p className="mt-1.5 text-[11.5px] leading-relaxed text-[#9B99A6]">
                   {updating ? (
                     <>
                       Locked during an update — the name identifies the existing resources being
                       updated; changing it would install a separate new instance.
+                    </>
+                  ) : !showNameEdit ? (
+                    <>
+                      Prefixes everything created in your account:{' '}
+                      <span className="font-mono text-[#6E6C7C]">{instanceName.trim()}-api</span>{' '}
+                      (dashboard),{' '}
+                      <span className="font-mono text-[#6E6C7C]">{instanceName.trim()}-collect</span>{' '}
+                      (tracker), database, storage. The default is right for a single instance —
+                      change it only to run several (e.g. a staging copy).
                     </>
                   ) : nameOk ? (
                     <>

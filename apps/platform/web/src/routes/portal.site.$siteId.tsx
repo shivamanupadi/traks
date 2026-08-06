@@ -11,6 +11,7 @@ type SiteSearch = {
   utmMedium?: string;
   utmCampaign?: string;
   country?: string;
+  region?: string;
   city?: string;
   browser?: string;
   os?: string;
@@ -24,6 +25,7 @@ const FILTER_KEYS = [
   'utmMedium',
   'utmCampaign',
   'country',
+  'region',
   'city',
   'browser',
   'os',

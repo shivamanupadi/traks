@@ -51,6 +51,10 @@ app.get('/health', c => c.json({ status: 'ok', timestamp: new Date().toISOString
 app.get('/t.js', c => {
   return c.text(TRACKER_SCRIPT, 200, {
     'Content-Type': 'application/javascript',
+    // Highest-volume response the product serves — cache it explicitly rather
+    // than leaving it to browser heuristics. Short enough that a tracker fix
+    // reaches visitors the same day; stale-while-revalidate hides the refetch.
+    'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400',
   });
 });
 
@@ -94,13 +98,12 @@ async function authenticateSite(db: D1Database, siteKey: string): Promise<SiteAu
   return auth;
 }
 
-// Cache the HMAC CryptoKey per day - avoids crypto.subtle.importKey() on every request
+// Cache the HMAC CryptoKey per (site-local) day — avoids importKey() per request.
 const encoder = new TextEncoder();
 let cachedKeyDate = '';
 let cachedCryptoKey: CryptoKey | null = null;
 
-async function getDailyCryptoKey(secret: string): Promise<CryptoKey> {
-  const date = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+async function getDailyCryptoKey(secret: string, date: string): Promise<CryptoKey> {
   if (cachedKeyDate === date && cachedCryptoKey) return cachedCryptoKey;
 
   const keyData = encoder.encode(secret + date);
@@ -117,21 +120,25 @@ async function getDailyCryptoKey(secret: string): Promise<CryptoKey> {
 
 /**
  * Generate a daily-rotating visitor ID server-side.
- * Uses HMAC-SHA256 with a secret + today's date as the key,
- * and IP + User-Agent + site key as the message.
- * This is the same approach as Plausible Analytics.
+ * Uses HMAC-SHA256 with a secret + the SITE's calendar date as the key, and
+ * IP + User-Agent + site key as the message. Same approach as Plausible.
  *
  * - Same visitor on same day = same hash (accurate daily uniques)
- * - Same visitor on different days = different hash (privacy: no cross-day linking)
- * - Raw IP is never stored - only the hash
+ * - Same visitor on different days = different hash (no cross-day linking)
+ * - Raw IP is never stored — only the hash
+ *
+ * The key MUST rotate on the site's own day boundary: dashboards bucket by
+ * site-local date, so a UTC rotation would split one visitor into two inside
+ * a single "today" for every non-UTC site.
  */
 async function generateVisitorId(
   secret: string,
   ip: string,
   userAgent: string,
-  siteKey: string
+  siteKey: string,
+  siteDate: string
 ): Promise<string> {
-  const cryptoKey = await getDailyCryptoKey(secret);
+  const cryptoKey = await getDailyCryptoKey(secret, siteDate);
   const msgData = encoder.encode(ip + userAgent + siteKey);
   const signature = await crypto.subtle.sign('HMAC', cryptoKey, msgData);
   const hashArray = new Uint8Array(signature);
@@ -141,8 +148,21 @@ async function generateVisitorId(
   return hex;
 }
 
+// Bodies are a few hundred bytes; anything larger is malformed or hostile and
+// must be rejected before it is parsed into the isolate heap.
+const MAX_BODY_BYTES = 8 * 1024;
+
 app.post('/api/event', async c => {
-  const body = await c.req.json().catch(() => null);
+  const declared = Number(c.req.header('content-length') ?? '0');
+  if (declared > MAX_BODY_BYTES) return c.json({ error: 'payload too large' }, 413);
+  const raw = await c.req.text().catch(() => '');
+  if (!raw || raw.length > MAX_BODY_BYTES) return c.json({ error: 'invalid body' }, 400);
+  let body: unknown = null;
+  try {
+    body = JSON.parse(raw);
+  } catch {
+    return c.json({ error: 'invalid body' }, 400);
+  }
   if (!body) return c.json({ error: 'invalid body' }, 400);
 
   const result = trackingEventSchema.safeParse(body);
@@ -151,25 +171,24 @@ app.post('/api/event', async c => {
   const event = result.data;
 
   // Bot filter first — cheap regex check avoids a D1 round-trip for crawler traffic.
-  const ua = c.req.header('user-agent') || '';
+  // The header is capped first: it feeds 30 bot regexes, the UA parser, and the
+  // visitor HMAC, so an oversized UA would burn CPU on the cheapest request.
+  const ua = (c.req.header('user-agent') || '').slice(0, 512);
   if (isBot(ua)) return c.json({ ok: true });
+
+  // Burst guard first (per colo, per site key): unknown keys must be cut here
+  // too, otherwise a flood of random keys becomes an unmetered D1 amplifier.
+  const { success } = await c.env.RATE_LIMIT.limit({ key: event.s });
+  if (!success) return c.json({ error: 'rate limited' }, 429);
 
   // Site key validation + timezone/plan fetch (isolate-cached, one D1 query/min).
   const site = await authenticateSite(c.env.DB, event.s);
   if (!site.valid) {
-    console.warn(`[collect] Unknown site key: ${event.s}`);
     return c.json({ error: 'unknown site' }, 403);
   }
 
-  // Burst guard (per colo, per site key): floods get cut here. No product
-  // quotas — this is purely an abuse backstop.
-  const { success } = await c.env.RATE_LIMIT.limit({ key: event.s });
-  if (!success) return c.json({ error: 'rate limited' }, 429);
-
   const ip = c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for') || '0.0.0.0';
 
-  // Compute visitor ID server-side (Plausible-style: HMAC(secret+date, IP+UA+site))
-  const visitorId = await generateVisitorId(c.env.VISITOR_HASH_SECRET, ip, ua, event.s);
 
   // Geo from Cloudflare request
   const cf = (c.req.raw as unknown as { cf?: Record<string, string | undefined> }).cf || {};
@@ -187,6 +206,15 @@ app.post('/api/event', async c => {
   // Bucket keys are computed in the site's timezone so "today" hourly buckets
   // align with IST (or whatever the site runs on) rather than UTC.
   const { dateKey, hourKey, weekKey } = computeBucketKeys(now, site.timezone);
+
+  // Visitor ID rotates on the same site-local day boundary as the buckets.
+  const visitorId = await generateVisitorId(
+    c.env.VISITOR_HASH_SECRET,
+    ip,
+    ua,
+    event.s,
+    dateKey
+  );
 
   // Auto link events (outbound / download): re-serialize props to the exact
   // canonical form '{"url":"..."}' so link panels can GROUP BY the raw

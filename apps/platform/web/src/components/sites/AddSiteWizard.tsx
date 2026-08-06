@@ -73,11 +73,14 @@ export function AddSiteWizard({
     setTimeout(reset, 200);
   };
 
-  const snippet = createdSite
-    ? `<script defer data-site="${createdSite.key}" src="${collectUrl}/t.js"></script>`
-    : '';
+  // Empty until the instance config resolves — never guess the collect origin.
+  const snippet =
+    createdSite && collectUrl
+      ? `<script defer data-site="${createdSite.key}" src="${collectUrl}/t.js"></script>`
+      : '';
 
   const handleCopy = async (): Promise<void> => {
+    if (!snippet) return;
     await navigator.clipboard.writeText(snippet);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);

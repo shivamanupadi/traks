@@ -21,6 +21,21 @@ export interface AnalyticsFilters {
 // and the vite proxy in dev, so the Access cookie is attached automatically.
 const client = hc<AppType>('');
 
+/** API failure carrying the HTTP status, so callers can distinguish an
+ *  expired session (401) or a missing site (404) from a transient 5xx. */
+export class ApiError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
+/** 401/403/404/409 are decisions, not blips — retrying them just multiplies load. */
+export const isRetryableError = (err: unknown): boolean =>
+  !(err instanceof ApiError) || ![401, 403, 404, 409].includes(err.status);
+
 async function assertOk(res: Response): Promise<void> {
   if (!res.ok) {
     const text = await res.text().catch(() => '');
@@ -31,7 +46,12 @@ async function assertOk(res: Response): Promise<void> {
     } catch {
       if (text) message = `${message}: ${text}`;
     }
-    throw new Error(message);
+    // An expired session must land on /login rather than leaving every panel
+    // showing "failed to load" against a dashboard the user can't refresh.
+    if (res.status === 401 && !window.location.pathname.startsWith('/login')) {
+      window.location.href = '/login';
+    }
+    throw new ApiError(res.status, message);
   }
 }
 

@@ -18,7 +18,9 @@ export const trackingEventSchema = z
     uc: z.string().max(256).optional(),
     en: z.string().max(256).optional(),
     ep: z.string().max(1024).optional(),
-    ev: z.number().optional(),
+    // Bounded: the site key is public, so an unbounded value would let anyone
+    // poison revenue/engagement sums (SUM over 1e308 → Infinity) for a site.
+    ev: z.number().finite().min(0).max(1_000_000).optional(),
   })
   .strict();
 

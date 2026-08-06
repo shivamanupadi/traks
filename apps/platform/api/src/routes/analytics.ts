@@ -115,12 +115,15 @@ function cacheTtlSeconds(period: Period): number {
 }
 
 /**
- * `now` quantized to the minute. Query builders embed `now` in the SQL text;
- * quantizing makes repeated loads produce byte-identical SQL (the cache key)
- * while shifting windows by at most 60s - less than ingest latency.
+ * `now` quantized to the period's cache TTL. Query builders embed `now` in the
+ * SQL text, and the SQL text IS the cache key — so quantizing any finer than
+ * the TTL would mint a new key every tick and make the cache unreachable
+ * (every dashboard tile re-scanning R2 on a timer). Windows shift by at most
+ * one TTL, which is far below the sink's roll interval anyway.
  */
-function queryTime(): Date {
-  return new Date(Math.floor(Date.now() / 60_000) * 60_000);
+function queryTime(period: Period = 'today'): Date {
+  const quantum = cacheTtlSeconds(period) * 1000;
+  return new Date(Math.floor(Date.now() / quantum) * quantum);
 }
 
 async function sha256Hex(text: string): Promise<string> {
@@ -457,8 +460,10 @@ async function runQueries<T>(c: AppContext, fn: () => Promise<T>): Promise<T | R
     return await fn();
   } catch (err) {
     if (err instanceof R2SqlError) {
+      // Full detail goes to the instance owner's logs; the response stays
+      // generic — the upstream body echoes SQL fragments and schema names.
       console.error(`[analytics] R2 SQL failed: ${err.message}`);
-      return c.json({ error: 'analytics query failed', detail: err.message }, 502);
+      return c.json({ error: 'analytics query failed' }, 502);
     }
     throw err;
   }
@@ -606,7 +611,7 @@ export async function fetchDashboard(
     }
   }
 
-  const range = resolvePeriod(period, queryTime(), site.timezone);
+  const range = resolvePeriod(period, queryTime(period), site.timezone);
   const ttl = cacheTtlSeconds(period);
 
   const outcome = await runQueries(c, () =>
@@ -734,7 +739,7 @@ export const analyticsRoute = appWithBatch
       }
     }
 
-    const range = resolvePeriod(period, queryTime(), site.timezone);
+    const range = resolvePeriod(period, queryTime(period), site.timezone);
     const ttl = cacheTtlSeconds(period);
 
     const outcome = await runQueries(c, () =>
@@ -778,7 +783,7 @@ export const analyticsRoute = appWithBatch
       }
     }
 
-    const range = resolvePeriod(period, queryTime(), site.timezone);
+    const range = resolvePeriod(period, queryTime(period), site.timezone);
     const ttl = cacheTtlSeconds(period);
 
     const outcome = await runQueries(c, () =>
@@ -843,7 +848,7 @@ export const analyticsRoute = appWithBatch
       }
     }
 
-    const range = resolvePeriod(period, queryTime(), site.timezone);
+    const range = resolvePeriod(period, queryTime(period), site.timezone);
     const ttl = cacheTtlSeconds(period);
 
     if (type !== 'top') {
@@ -912,7 +917,7 @@ export const analyticsRoute = appWithBatch
       }
     }
 
-    const range = resolvePeriod(period, queryTime(), site.timezone);
+    const range = resolvePeriod(period, queryTime(period), site.timezone);
     const ttl = cacheTtlSeconds(period);
 
     const outcome = await runQueries(c, () =>
@@ -959,7 +964,7 @@ export const analyticsRoute = appWithBatch
       }
     }
 
-    const range = resolvePeriod(period, queryTime(), site.timezone);
+    const range = resolvePeriod(period, queryTime(period), site.timezone);
     const ttl = cacheTtlSeconds(period);
 
     const outcome = await runQueries(c, () =>
@@ -1006,7 +1011,7 @@ export const analyticsRoute = appWithBatch
       }
     }
 
-    const range = resolvePeriod(period, queryTime(), site.timezone);
+    const range = resolvePeriod(period, queryTime(period), site.timezone);
     const ttl = cacheTtlSeconds(period);
 
     const outcome = await runQueries(c, () =>
@@ -1055,7 +1060,7 @@ export const analyticsRoute = appWithBatch
       }
     }
 
-    const range = resolvePeriod(period, queryTime(), site.timezone);
+    const range = resolvePeriod(period, queryTime(period), site.timezone);
     const ttl = cacheTtlSeconds(period);
 
     const outcome = await runQueries(c, () =>
@@ -1106,7 +1111,7 @@ export const analyticsRoute = appWithBatch
       }
     }
 
-    const range = resolvePeriod(period, queryTime(), site.timezone);
+    const range = resolvePeriod(period, queryTime(period), site.timezone);
     const ttl = cacheTtlSeconds(period);
 
     const outcome = await runQueries(c, () =>
@@ -1181,7 +1186,7 @@ export const analyticsRoute = appWithBatch
       }
     }
 
-    const range = resolvePeriod(period, queryTime(), site.timezone);
+    const range = resolvePeriod(period, queryTime(period), site.timezone);
     const ttl = cacheTtlSeconds(period);
 
     const outcome = await runQueries(c, () =>
@@ -1251,7 +1256,7 @@ export const analyticsRoute = appWithBatch
       const [funnel] = await db.select().from(funnels).where(eq(funnels.id, funnelId));
       if (!funnel || funnel.siteId !== siteId) return c.json({ error: 'Not found' }, 404);
 
-      const range = resolvePeriod(period, queryTime(), site.timezone);
+      const range = resolvePeriod(period, queryTime(period), site.timezone);
       const outcome = await runQueries(c, () =>
         cachedR2Sql<Record<string, unknown>>(
           c,
@@ -1351,7 +1356,7 @@ export const analyticsRoute = appWithBatch
       }
     }
 
-    const range = resolvePeriod(period, queryTime(), site.timezone);
+    const range = resolvePeriod(period, queryTime(period), site.timezone);
     const ttl = cacheTtlSeconds(period);
 
     const outcome = await runQueries(c, () =>
@@ -1398,7 +1403,7 @@ export const analyticsRoute = appWithBatch
       }
     }
 
-    const range = resolvePeriod(period, queryTime(), site.timezone);
+    const range = resolvePeriod(period, queryTime(period), site.timezone);
     const ttl = cacheTtlSeconds(period);
 
     const outcome = await runQueries(c, () =>

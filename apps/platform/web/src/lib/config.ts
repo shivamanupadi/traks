@@ -14,9 +14,6 @@ interface InstanceConfig {
   deployInstanceId?: string;
 }
 
-/** Shown only for the instant before /api/config resolves. */
-const FALLBACK_COLLECT_URL = 'https://collect.traks.dev';
-
 export function useInstanceConfig(): InstanceConfig | undefined {
   const { data } = useQuery({
     queryKey: ['instance-config'],
@@ -32,8 +29,14 @@ export function useInstanceConfig(): InstanceConfig | undefined {
   return data;
 }
 
-export function useCollectUrl(): string {
-  return useInstanceConfig()?.collectUrl ?? FALLBACK_COLLECT_URL;
+/**
+ * This deployment's collect origin. Returns undefined until /api/config
+ * resolves — deliberately NOT defaulted: a fallback to some other host would
+ * hand the customer an install snippet that ships their events elsewhere.
+ * Callers must render a loading/error state instead of a wrong snippet.
+ */
+export function useCollectUrl(): string | undefined {
+  return useInstanceConfig()?.collectUrl;
 }
 
 /**

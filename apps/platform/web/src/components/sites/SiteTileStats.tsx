@@ -9,9 +9,23 @@ export function SiteTileStats({
 }: {
   stats: { visitors: number; pageviews: number; sessions: number } | undefined;
   isLoading: boolean;
+  /** Stats fetch failed — render a dash rather than shimmering forever. */
+  isError?: boolean;
   /** Deep companion color for the visitors icon (follows the tile hue). */
   accent?: string;
 }): ReactElement {
+  if (!isLoading && !stats) {
+    // Loaded but absent (request failed): show placeholders, not a skeleton.
+    return (
+      <div className="grid grid-cols-3 gap-2">
+        {[...Array(3)].map((_, i) => (
+          <div key={i} className="rounded-xl bg-[#F4F4F6] px-2.5 py-2">
+            <div className="text-[15px] font-semibold text-[#B5B0AA]">&mdash;</div>
+          </div>
+        ))}
+      </div>
+    );
+  }
   if (isLoading || !stats) {
     return (
       <div className="grid grid-cols-3 gap-2">

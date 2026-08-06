@@ -114,7 +114,10 @@ const startSchema = z.object({
   customDomain: z
     .object({
       zoneId: z.string().regex(/^[a-f0-9]{32}$/),
-      zoneName: z.string().regex(/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?\.[a-z]{2,}$/i),
+      zoneName: z
+        .string()
+        .max(253)
+        .regex(/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?\.[a-z]{2,}$/i),
       subdomain: z
         .string()
         .regex(/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/)
@@ -167,6 +170,40 @@ async function loadArtifacts(releases: R2Bucket): Promise<DeployArtifacts> {
   };
 }
 
+
+/**
+ * Authorize a provision/destroy call against a registry row.
+ *
+ * Instance ids are not secrets (a deployed instance can surface its own id),
+ * so possession of an id must never be sufficient. Two checks:
+ *  1. the supplied token really can act on the claimed account, and
+ *  2. a row already bound to an account/instance can only be driven by that
+ *     same pair — otherwise anyone could repoint or retire someone else's row.
+ */
+async function authorizeRow(
+  row: { accountId: string | null; instanceName: string | null; status: string },
+  apiToken: string,
+  accountId: string,
+  instanceName: string
+): Promise<string | null> {
+  let accounts: { id: string }[];
+  try {
+    accounts = await listAccounts(apiToken);
+  } catch {
+    return 'Could not verify the token against Cloudflare';
+  }
+  if (!accounts.some(a => a.id === accountId)) {
+    return 'This token cannot act on the selected Cloudflare account';
+  }
+  if (row.accountId && row.accountId !== accountId) {
+    return 'This deploy session belongs to a different Cloudflare account';
+  }
+  if (row.instanceName && row.instanceName !== instanceName) {
+    return 'This deploy session belongs to a different instance';
+  }
+  return null;
+}
+
 export const deployRoute = app
   // Kick off "Sign in with Cloudflare": stash nonce + PKCE verifier in a
   // short-lived cookie and bounce to the dashboard consent screen.
@@ -207,14 +244,36 @@ export const deployRoute = app
   })
 
   // Resume state for a returning ?instance= visitor.
+  // Resume state for a returning ?instance= visitor. Deliberately projected:
+  // the account id is never echoed, and step details (raw upstream error text)
+  // are truncated, since an instance id is not a secret.
   .get('/instance/:id', async c => {
     const db = c.get('db')!;
     const [row] = await db
-      .select()
+      .select({
+        status: deployInstances.status,
+        instanceName: deployInstances.instanceName,
+        apiUrl: deployInstances.apiUrl,
+        collectUrl: deployInstances.collectUrl,
+        deployedVersion: deployInstances.deployedVersion,
+        customDomain: deployInstances.customDomain,
+        steps: deployInstances.steps,
+        error: deployInstances.error,
+        updatedAt: deployInstances.updatedAt,
+      })
       .from(deployInstances)
       .where(eq(deployInstances.id, c.req.param('id')));
     if (!row) return c.json({ error: 'Not found' }, 404);
-    return c.json({ data: row });
+    return c.json({
+      data: {
+        ...row,
+        error: row.error ? row.error.slice(0, 300) : row.error,
+        steps: (row.steps ?? []).map(st => ({
+          ...st,
+          detail: st.detail ? st.detail.slice(0, 300) : st.detail,
+        })),
+      },
+    });
   })
 
   // List the accounts the supplied installer token can act on. Token is
@@ -327,8 +386,10 @@ export const deployRoute = app
     const [row] = await db.select().from(deployInstances).where(eq(deployInstances.id, id));
     if (!row) return c.json({ error: 'Not found' }, 404);
     // Reject double-starts, but let a stale 'deploying' row (client vanished
-    // mid-run, worker died) be retaken after 90s — provisioning is idempotent.
-    const staleMs = 90_000;
+    // mid-run, worker died) be retaken — provisioning is idempotent. The window
+    // must exceed the longest silent step: the smoke probe can wait ~5 min on
+    // DNS + certificate issuance without emitting anything.
+    const staleMs = 7 * 60_000;
     if (
       row.status === 'deploying' &&
       row.updatedAt &&
@@ -338,6 +399,10 @@ export const deployRoute = app
     }
 
     const { apiToken, catalogToken, accountId, instanceName, customDomain } = c.req.valid('json');
+    // Credentials are checked before any artifact read or registry write, so a
+    // junk-token request costs one upstream call instead of R2 + D1 + a run.
+    const denied = await authorizeRow(row, apiToken, accountId, instanceName);
+    if (denied) return c.json({ error: denied }, 403);
     const artifacts = await loadArtifacts(c.env.RELEASES);
 
     const steps: StepEvent[] = [];
@@ -459,6 +524,8 @@ export const deployRoute = app
       if (confirmName !== instanceName) {
         return c.json({ error: 'Confirmation does not match the instance name' }, 400);
       }
+      const denied = await authorizeRow(row, apiToken, accountId, instanceName);
+      if (denied) return c.json({ error: denied }, 403);
 
       const steps: StepEvent[] = [];
       const encoder = new TextEncoder();

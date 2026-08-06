@@ -29,6 +29,8 @@ function SitesPage(): ReactElement {
     data: sitesData,
     isLoading,
     isFetching,
+    isError,
+    refetch,
   } = useQuery({
     queryKey: ['sites'],
     queryFn: () => api.getSites(),
@@ -143,6 +145,23 @@ function SitesPage(): ReactElement {
           {[...Array(3)].map((_, i) => (
             <div key={i} className="h-[248px] animate-pulse rounded-[20px] bg-white shadow-float" />
           ))}
+        </div>
+      ) : isError ? (
+        <div className="rounded-[20px] bg-white px-8 py-16 text-center shadow-float">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-muted">
+            <Globe className="h-8 w-8 text-[#9B9590]" />
+          </div>
+          <p className="text-[17px] font-semibold text-[#3D3B4F]">Couldn&rsquo;t load your sites</p>
+          <p className="mx-auto mt-2 max-w-sm text-[14px] text-[#9B9590]">
+            Your sites are safe — this instance just couldn&rsquo;t be reached. Check your
+            connection and try again.
+          </p>
+          <button
+            onClick={() => void refetch()}
+            className="mt-5 inline-flex h-10 items-center gap-2 rounded-full bg-[#3D3B4F] px-5 text-[13.5px] font-semibold text-white transition-colors hover:bg-[#2C2B3B]"
+          >
+            Try again
+          </button>
         </div>
       ) : allSites.length === 0 ? (
         <div className="rounded-[20px] bg-white px-8 py-16 text-center shadow-float">

@@ -18,6 +18,7 @@ import {
   Plus,
   Bookmark,
   BookmarkPlus,
+  Globe,
 } from 'lucide-react';
 import type {
   Period,
@@ -421,6 +422,14 @@ function ManageGoalsModal({
         <DialogBody>
           <div className="space-y-5">
             {/* Existing goals */}
+            {goalsQ.isLoading && (
+              <p className="pb-4 text-[12.5px] text-[#9B9590]">Loading your goals…</p>
+            )}
+            {goalsQ.isError && (
+              <p className="pb-4 text-[12.5px] text-[#e07a5f]">
+                Couldn&rsquo;t load your existing goals — adding one now may duplicate it.
+              </p>
+            )}
             {goals.length > 0 && (
               <div className="space-y-1.5">
                 {goals.map(goal => (
@@ -625,6 +634,14 @@ function ManageFunnelsModal({
         <DialogBody>
           <div className="space-y-5">
             {/* Existing funnels */}
+            {funnelsQ.isLoading && (
+              <p className="pb-4 text-[12.5px] text-[#9B9590]">Loading your funnels…</p>
+            )}
+            {funnelsQ.isError && (
+              <p className="pb-4 text-[12.5px] text-[#e07a5f]">
+                Couldn&rsquo;t load your existing funnels — adding one now may duplicate it.
+              </p>
+            )}
             {funnels.length > 0 && (
               <div className="space-y-1.5">
                 {funnels.map(funnel => (
@@ -1176,7 +1193,13 @@ function SegmentsMenu({
           <DropdownMenuLabel className="px-4 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wider text-[#B5B0AA]">
             Segments
           </DropdownMenuLabel>
-          {segments.length === 0 ? (
+          {segmentsQ.isLoading ? (
+            <p className="px-4 pb-3 pt-1 text-[12.5px] text-[#9B9590]">Loading segments…</p>
+          ) : segmentsQ.isError ? (
+            <p className="px-4 pb-3 pt-1 text-[12.5px] leading-relaxed text-[#e07a5f]">
+              Couldn&rsquo;t load your saved segments.
+            </p>
+          ) : segments.length === 0 ? (
             <p className="px-4 pb-3 pt-1 text-[12.5px] leading-relaxed text-[#9B9590]">
               No saved segments. Filter the dashboard (click any row), then save the view here.
             </p>
@@ -1428,7 +1451,11 @@ function SiteAnalyticsPage(): ReactElement {
     setTimeout(() => setRefreshing(false), 600);
   }, [queryClient, siteId]);
 
-  const { data: siteData } = useQuery({
+  const {
+    data: siteData,
+    isError: siteError,
+    isLoading: siteLoading,
+  } = useQuery({
     queryKey: ['site', siteId],
     queryFn: async () => {
       return api.getSite(siteId);
@@ -1623,6 +1650,28 @@ function SiteAnalyticsPage(): ReactElement {
 
   const site = (siteData as any)?.data;
   const currentVisitors: number | null = (realtimeQ.data as any)?.data?.currentVisitors ?? null;
+
+  if (siteError || (!siteLoading && !site)) {
+    return (
+      <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
+        <div className="rounded-[20px] bg-white px-8 py-16 text-center shadow-float">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-muted">
+            <Globe className="h-8 w-8 text-[#9B9590]" />
+          </div>
+          <p className="text-[17px] font-semibold text-[#3D3B4F]">Site not found</p>
+          <p className="mx-auto mt-2 max-w-sm text-[14px] text-[#9B9590]">
+            It may have been deleted, or this link points somewhere that no longer exists.
+          </p>
+          <Link
+            to="/portal/sites"
+            className="mt-5 inline-flex h-10 items-center gap-2 rounded-full bg-[#3D3B4F] px-5 text-[13.5px] font-semibold text-white transition-colors hover:bg-[#2C2B3B]"
+          >
+            Back to sites
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   const pagesQueries: Record<string, typeof topPagesQ> = {
     top: topPagesQ,

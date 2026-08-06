@@ -23,6 +23,8 @@ interface PanelCardProps {
   items: PanelItem[] | undefined;
   isLoading: boolean;
   isError?: boolean;
+  /** Refetch handler — renders a retry action on the error state. */
+  onRetry?: () => void;
   tabs?: PanelTab[];
   activeTab?: string;
   onTabChange?: (key: string) => void;
@@ -75,6 +77,7 @@ export function PanelCard({
   items,
   isLoading,
   isError,
+  onRetry,
   tabs,
   activeTab,
   onTabChange,
@@ -109,7 +112,15 @@ export function PanelCard({
       {isError ? (
         <div className="flex flex-1 flex-col items-center justify-center">
           <AlertCircle className="mb-2 h-5 w-5 text-[#e07a5f]/60" strokeWidth={1.5} />
-          <p className="text-[13px] text-[#e07a5f]">Failed to load data</p>
+          <p className="text-[13px] text-[#e07a5f]">Couldn&rsquo;t load this panel</p>
+          {onRetry && (
+            <button
+              onClick={onRetry}
+              className="mt-2 rounded-full bg-muted px-3 py-1 text-[12px] font-semibold text-[#3D3B4F] transition-colors hover:bg-[#E4E4E9]"
+            >
+              Try again
+            </button>
+          )}
         </div>
       ) : isLoading || !items ? (
         <div className="mt-1 space-y-2.5">
@@ -138,7 +149,7 @@ export function PanelCard({
             </div>
           </div>
 
-          {items.map((item, i) => {
+          {items.map(item => {
             const pct =
               item.percentage ??
               (totalVisitors > 0 ? Math.round((item.visitors / totalVisitors) * 100) : 0);
@@ -146,7 +157,7 @@ export function PanelCard({
             const Row = clickable ? 'button' : 'div';
             return (
               <Row
-                key={i}
+                key={item.name || '(none)'}
                 onClick={clickable ? () => onItemClick!(item) : undefined}
                 className={cn(
                   'relative flex h-[30px] w-full items-center justify-between rounded-md px-2.5',

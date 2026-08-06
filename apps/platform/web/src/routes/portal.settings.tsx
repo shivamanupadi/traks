@@ -50,6 +50,11 @@ function SettingsPage(): ReactElement {
       setTimeout(() => setApplied(false), 2500);
     },
   });
+  // Without this the spinner just stops: the user believes the zone applied
+  // while every bucket window is unchanged.
+  const applyError = applyTimezone.isError
+    ? ((applyTimezone.error as Error)?.message ?? 'Could not apply the timezone')
+    : '';
 
   const signOut = async (): Promise<void> => {
     await authClient.signOut();
@@ -130,6 +135,12 @@ function SettingsPage(): ReactElement {
                 )}
               </Button>
             </div>
+
+            {applyError && (
+              <p className="mt-3 text-[12px] text-[#e07a5f]">
+                {applyError} — nothing was changed. Check your connection and try again.
+              </p>
+            )}
 
             {uniformZone === null && sites.length > 0 && (
               <p className="mt-3 text-[12px] text-[#e07a5f]">

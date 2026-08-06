@@ -115,6 +115,9 @@ let cachedKeyDate = '';
 let cachedCryptoKey: CryptoKey | null = null;
 
 async function getDailyCryptoKey(secret: string, date: string): Promise<CryptoKey> {
+  // An unset binding would otherwise hash under the literal key "undefined<date>",
+  // making every visitor id in the world reproducible by anyone.
+  if (!secret) throw new Error('VISITOR_HASH_SECRET is not configured');
   if (cachedKeyDate === date && cachedCryptoKey) return cachedCryptoKey;
 
   const keyData = encoder.encode(secret + date);

@@ -139,6 +139,9 @@ function startOfDayNDays(date: Date, tz: string, n: number): Date {
   return startOfDayInTz(noonish, tz);
 }
 
+/** Floor for the 'all time' window — predates any possible event. */
+const ALL_TIME_FLOOR_MS = Date.UTC(2000, 0, 1);
+
 function pad2(n: number): string {
   return String(n).padStart(2, '0');
 }
@@ -215,7 +218,7 @@ export function resolvePeriod(period: Period, now: Date, tz: string): PeriodRang
       granularity = 'week';
       break;
     case 'all':
-      from = new Date(Date.UTC(2000, 0, 1));
+      from = new Date(ALL_TIME_FLOOR_MS);
       granularity = 'week';
       break;
   }
@@ -237,6 +240,13 @@ export function resolvePeriod(period: Period, now: Date, tz: string): PeriodRang
 export function previousRange(range: PeriodRange): { from: string; to: string } {
   const curFrom = new Date(range.from).getTime();
   const curTo = new Date(range.to).getTime();
+  // 'all' starts at the epoch floor (2000-01-01), so mirroring its span would
+  // scan ~26 further years of partitions that cannot contain data — doubling
+  // the cost of the most expensive view to compare against a guaranteed zero.
+  // Collapse it to an empty window instead.
+  if (curFrom <= ALL_TIME_FLOOR_MS) {
+    return { from: new Date(curFrom).toISOString(), to: new Date(curFrom).toISOString() };
+  }
   const span = curTo - curFrom;
   return {
     from: new Date(curFrom - span).toISOString(),

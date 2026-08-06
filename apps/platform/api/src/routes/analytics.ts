@@ -1,7 +1,7 @@
 import { Hono, type Context } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
-import { eq, and, isNull, inArray } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 import {
   PERIODS,
   AUTO_EVENTS,
@@ -17,7 +17,7 @@ import {
   type LiveFilters,
 } from '@traks/shared';
 import { requireAuth } from '../middleware/auth';
-import { sites, apiKeys, goals, funnels } from '../db/schema';
+import { sites, goals, funnels } from '../db/schema';
 import {
   queryR2Sql,
   buildStatsWithComparisonQuery,
@@ -189,10 +189,14 @@ async function cachedR2Sql<T = Record<string, unknown>>(
           },
         })
       ),
-      // KV requires a TTL of at least 60s; every period TTL already is.
-      c.env.R2SQL_CACHE.put(key, body, { expirationTtl: Math.max(60, ttlSeconds) }).catch(err =>
-        console.error('[analytics] KV cache put failed:', err)
-      ),
+      // KV's minimum TTL is 60s. Writing a shorter-lived result there would
+      // serve it well past its intended freshness (realtime asks for 30s), so
+      // sub-minute results live in the per-colo cache only.
+      ttlSeconds >= 60
+        ? c.env.R2SQL_CACHE.put(key, body, { expirationTtl: ttlSeconds }).catch(err =>
+            console.error('[analytics] KV cache put failed:', err)
+          )
+        : Promise.resolve(),
     ])
   );
   return rows;
@@ -479,24 +483,32 @@ async function runQueries<T>(c: AppContext, fn: () => Promise<T>): Promise<T | R
   }
 }
 
+/** Upper bound on sites per batch-stats request (D1 bind params + DO fan-out). */
+const MAX_BATCH_SITES = 100;
+
 const appWithBatch = app
   // Batch stats for all user's sites (used on sites list page)
   .get('/batch/stats', requireAuth, zValidator('query', batchQuery), async c => {
     const userId = c.get('userId')!;
     const { period, siteIds: siteIdsParam } = c.req.valid('query');
     const db = c.get('db')!;
-    const siteIdList = siteIdsParam ? siteIdsParam.split(',').filter(Boolean) : null;
+    // Bounded: each id becomes a D1 bind parameter and (on 'today') a DO
+    // subrequest, so an unbounded list blows D1's parameter ceiling and the
+    // per-request subrequest budget. Dedup too — a repeated id multiplied both.
+    const siteIdList = siteIdsParam
+      ? [...new Set(siteIdsParam.split(',').filter(Boolean))].slice(0, MAX_BATCH_SITES)
+      : null;
 
-    const conditions = [eq(sites.userId, userId), isNull(apiKeys.revokedAt)];
+    const conditions = [eq(sites.userId, userId)];
     if (siteIdList && siteIdList.length > 0) {
       conditions.push(inArray(sites.id, siteIdList));
     }
 
     const siteRecords = await db
-      .select({ siteId: sites.id, key: apiKeys.key, timezone: sites.timezone })
+      .select({ siteId: sites.id, timezone: sites.timezone })
       .from(sites)
-      .innerJoin(apiKeys, eq(sites.id, apiKeys.siteId))
-      .where(and(...conditions));
+      .where(and(...conditions))
+      .limit(MAX_BATCH_SITES);
 
     if (siteRecords.length === 0) return c.json({ data: {} });
 
@@ -514,9 +526,9 @@ const appWithBatch = app
       try {
         const liveNow = new Date();
         await Promise.all(
-          siteRecords.map(async ({ siteId, key, timezone }) => {
+          siteRecords.map(async ({ siteId, timezone }) => {
             const range = resolvePeriod('today', liveNow, timezone);
-            const t = await liveStore(c, key).totals(ms(range.from), ms(range.to));
+            const t = await liveStore(c, siteId).totals(ms(range.from), ms(range.to));
             results[siteId] = {
               visitors: t.visitors,
               pageviews: t.pageviews,
@@ -552,13 +564,13 @@ const appWithBatch = app
             c,
             ttl,
             buildBatchStatsQuery(
-              group.map(g => g.key),
+              group.map(g => g.siteId),
               range
             )
           );
-          const keyToSiteId = new Map(group.map(g => [g.key, g.siteId]));
+          const known = new Set(group.map(g => g.siteId));
           for (const row of rows) {
-            const siteId = keyToSiteId.get(row.site_id);
+            const siteId = known.has(String(row.site_id)) ? String(row.site_id) : undefined;
             if (!siteId) continue;
             results[siteId] = {
               visitors: toNumber(row.visitors),

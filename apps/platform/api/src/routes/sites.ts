@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { createId } from '@paralleldrive/cuid2';
 import {
   createSiteSchema,
@@ -12,7 +12,7 @@ import {
 } from '@traks/shared';
 import { requireAuth } from '../middleware/auth';
 import { invalidateSiteCache } from './analytics';
-import { sites, apiKeys, goals, funnels, segments } from '../db/schema';
+import { sites, apiKeys, goals, funnels, segments, users } from '../db/schema';
 import type { Bindings, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
@@ -33,6 +33,24 @@ export const sitesRoute = app
     const userId = c.get('userId')!;
     const body = c.req.valid('json');
     const db = c.get('db')!;
+
+    // Sites were the only unbounded resource (goals/segments/funnels are all
+    // capped), and each one adds a Durable Object plus a slot in every batch
+    // fan-out. siteLimit has been on the users table all along, unenforced.
+    const [owner] = await db
+      .select({ siteLimit: users.siteLimit })
+      .from(users)
+      .where(eq(users.id, userId));
+    const limit = owner?.siteLimit ?? 0;
+    if (limit > 0) {
+      const [{ n }] = await db
+        .select({ n: sql<number>`count(*)` })
+        .from(sites)
+        .where(eq(sites.userId, userId));
+      if (Number(n) >= limit) {
+        return c.json({ error: `Site limit reached (${limit})` }, 403);
+      }
+    }
 
     const siteId = createId();
     const siteKey = `pb_live_${createId()}`;

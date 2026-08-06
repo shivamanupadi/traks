@@ -139,10 +139,15 @@ async function step<T>(
     return result;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    await ctx.emit({ stepId, label, status: 'fail', detail: message });
+    // Details are persisted to the registry and can carry an entire upstream
+    // HTTP body — bound them where they're produced, not only where read.
+    await ctx.emit({ stepId, label, status: 'fail', detail: message.slice(0, MAX_DETAIL) });
     throw new StepFailure(stepId, message);
   }
 }
+
+/** Cap on a persisted step detail (upstream bodies can be arbitrarily large). */
+const MAX_DETAIL = 300;
 
 const sleep = (ms: number): Promise<void> => new Promise(r => setTimeout(r, ms));
 
@@ -166,7 +171,7 @@ async function withRetry<T>(
         ? transient(err)
         : [429, 500, 502, 503].includes(err.status ?? 0);
       if (!isTransient || attempt >= attempts) throw err;
-      await ctx.emit({ stepId, label, status: 'retry', detail: err.message });
+      await ctx.emit({ stepId, label, status: 'retry', detail: err.message.slice(0, MAX_DETAIL) });
       await sleep(delayMs);
     }
   }

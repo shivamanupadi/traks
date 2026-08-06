@@ -103,6 +103,13 @@ export class SiteLiveStore extends DurableObject<unknown> {
         screen_width INTEGER NOT NULL DEFAULT 0
       );
       CREATE INDEX IF NOT EXISTS idx_events_ts ON events (ts);
+      -- Nearly every dashboard read predicates on
+      --   event_type = 'pageview' AND ts >= ? AND ts < ?
+      -- so the plain ts index still leaves engagement/custom-event rows to be
+      -- scanned and filtered. The composite lets SQLite seek straight to the
+      -- pageview rows in the window, which matters because these scans run on
+      -- a single-threaded object that ingest shares.
+      CREATE INDEX IF NOT EXISTS idx_events_type_ts ON events (event_type, ts);
       CREATE TABLE IF NOT EXISTS usage (
         month TEXT PRIMARY KEY,
         events INTEGER NOT NULL DEFAULT 0

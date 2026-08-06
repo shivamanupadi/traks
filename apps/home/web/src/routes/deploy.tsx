@@ -970,9 +970,13 @@ function DeployWizard(): ReactElement {
               </>
             }
           >
-            <h2 className="mb-1 text-[16.5px] font-bold text-[#3D3B4F]">Name your instance</h2>
+            <h2 className="mb-1 text-[16.5px] font-bold text-[#3D3B4F]">
+              {updating ? 'Confirm your instance' : 'Name your instance'}
+            </h2>
             <p className="mb-5 text-[13px] text-[#9B99A6]">
-              Where Traks deploys and what its resources are called
+              {updating
+                ? 'Updating the existing instance in place'
+                : 'Where Traks deploys and what its resources are called'}
             </p>
             <div className="space-y-4">
               {accounts.length > 0 && (
@@ -995,11 +999,23 @@ function DeployWizard(): ReactElement {
                   value={instanceName}
                   onChange={e => setInstanceName(e.target.value)}
                   placeholder="traks"
-                  className="h-11 w-full rounded-2xl border-none bg-white px-4 text-[13.5px] text-[#3D3B4F] shadow-[inset_0_0_0_1px_#E5E5EB] focus:shadow-[inset_0_0_0_1.5px_#3D3B4F] focus:outline-none"
+                  disabled={updating}
+                  className="h-11 w-full rounded-2xl border-none bg-white px-4 text-[13.5px] text-[#3D3B4F] shadow-[inset_0_0_0_1px_#E5E5EB] focus:shadow-[inset_0_0_0_1.5px_#3D3B4F] focus:outline-none disabled:bg-[#F4F4F6] disabled:text-[#8C8A99]"
                 />
-                <p className="mt-1.5 text-[11.5px] text-[#9B99A6]">
-                  {nameOk ? (
-                    <>Lowercase letters, digits, and dashes — names the resources in your account.</>
+                <p className="mt-1.5 text-[11.5px] leading-relaxed text-[#9B99A6]">
+                  {updating ? (
+                    <>
+                      Locked during an update — the name identifies the existing resources being
+                      updated; changing it would install a separate new instance.
+                    </>
+                  ) : nameOk ? (
+                    <>
+                      Prefixes everything created in your account: workers{' '}
+                      <span className="font-mono text-[#6E6C7C]">{instanceName.trim()}-api</span>{' '}
+                      (your dashboard) and{' '}
+                      <span className="font-mono text-[#6E6C7C]">{instanceName.trim()}-collect</span>{' '}
+                      (the tracker), plus the database and storage.
+                    </>
                   ) : (
                     <span className="text-[#B3402F]">
                       3–21 characters, starting with a letter — lowercase letters, digits, and

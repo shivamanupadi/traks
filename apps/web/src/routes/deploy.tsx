@@ -781,7 +781,6 @@ function DeployWizard(): ReactElement {
             </div>
           </Card>
         )}
-
       </div>
     </div>
   );

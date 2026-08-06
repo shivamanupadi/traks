@@ -4,6 +4,7 @@ import {
   ArrowRight,
   Check,
   CheckCircle2,
+  Cloud,
   ExternalLink,
   KeyRound,
   Loader2,
@@ -199,6 +200,8 @@ function DeployWizard(): ReactElement {
   const [error, setError] = useState('');
 
   const [installerToken, setInstallerToken] = useState('');
+  const [oauthEnabled, setOauthEnabled] = useState(false);
+  const [oauthSignedIn, setOauthSignedIn] = useState(false);
   const [catalogToken, setCatalogToken] = useState('');
   const [installerStatus, setInstallerStatus] = useState<'checking' | 'ok' | 'bad' | undefined>();
   const [installerDetail, setInstallerDetail] = useState<string | undefined>();
@@ -212,6 +215,38 @@ function DeployWizard(): ReactElement {
   const [steps, setSteps] = useState<StepEvent[]>([]);
   const [result, setResult] = useState<{ apiUrl: string; collectUrl: string } | null>(null);
   const startedRef = useRef(false);
+
+  // Instance capabilities (is "Sign in with Cloudflare" configured?).
+  useEffect(() => {
+    void fetch('/api/config')
+      .then(r => r.json() as Promise<{ oauthEnabled?: boolean }>)
+      .then(cfg => setOauthEnabled(Boolean(cfg.oauthEnabled)))
+      .catch(() => undefined);
+  }, []);
+
+  // Returning from the Cloudflare consent screen: the access token arrives in
+  // the URL fragment (never sent to our server); an aborted sign-in arrives as
+  // ?oauth_error=. Either way, scrub the URL immediately.
+  useEffect(() => {
+    if (!sessionId) return;
+    const hashToken = new URLSearchParams(window.location.hash.slice(1)).get('cf_token');
+    const oauthError = new URLSearchParams(window.location.search).get('oauth_error');
+    if (!hashToken && !oauthError) return;
+    window.history.replaceState(null, '', `/deploy?instance=${encodeURIComponent(sessionId)}`);
+    setPhase('tokens');
+    if (hashToken) {
+      setInstallerToken(hashToken);
+      setOauthSignedIn(true);
+      void checkInstaller(hashToken, sessionId);
+    } else {
+      setError(
+        oauthError === 'access_denied'
+          ? 'Cloudflare sign-in was cancelled — try again, or paste a token instead.'
+          : 'Cloudflare sign-in failed — try again, or paste a token instead.'
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId]);
 
   // Resume a returning ?instance= session.
   useEffect(() => {
@@ -256,13 +291,13 @@ function DeployWizard(): ReactElement {
     }
   };
 
-  const checkInstaller = async (): Promise<void> => {
-    if (installerToken.trim().length < 20) return;
+  const checkInstaller = async (token: string, session = sessionId): Promise<void> => {
+    if (token.trim().length < 20) return;
     setInstallerStatus('checking');
-    const res = await fetch(`/api/deploy/instance/${sessionId}/accounts`, {
+    const res = await fetch(`/api/deploy/instance/${session}/accounts`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ apiToken: installerToken.trim() }),
+      body: JSON.stringify({ apiToken: token.trim() }),
     });
     const body = (await res.json()) as { data?: Account[]; error?: string };
     if (res.ok && body.data) {
@@ -399,11 +434,17 @@ function DeployWizard(): ReactElement {
             <p className="mb-5 text-[13px] text-[#9B99A6]">Here&rsquo;s what will happen</p>
             <div className="space-y-2.5">
               {[
-                {
-                  icon: KeyRound,
-                  title: 'Create two tokens — pre-filled, one click each',
-                  desc: 'Links open the Cloudflare dashboard with the exact permissions already selected. Click Create, copy, paste. We verify both before touching anything.',
-                },
+                oauthEnabled
+                  ? {
+                      icon: KeyRound,
+                      title: 'Sign in with Cloudflare',
+                      desc: 'Approve the exact permissions on Cloudflare’s own consent screen — access is temporary and never stored. One storage token is pasted separately; it stays with your instance.',
+                    }
+                  : {
+                      icon: KeyRound,
+                      title: 'Create two tokens — pre-filled, one click each',
+                      desc: 'Links open the Cloudflare dashboard with the exact permissions already selected. Click Create, copy, paste. We verify both before touching anything.',
+                    },
                 {
                   icon: Server,
                   title: 'We set Traks up for you',
@@ -446,12 +487,24 @@ function DeployWizard(): ReactElement {
               </PrimaryButton>
             }
           >
-            <h2 className="mb-1 text-[16.5px] font-bold text-[#3D3B4F]">Two tokens, two clicks</h2>
+            <h2 className="mb-1 text-[16.5px] font-bold text-[#3D3B4F]">
+              {oauthEnabled ? 'Connect your Cloudflare account' : 'Two tokens, two clicks'}
+            </h2>
             <p className="mb-5 text-[13px] leading-relaxed text-[#9B99A6]">
-              Each link opens Cloudflare with the permissions pre-selected — click{' '}
-              <span className="font-medium text-[#6E6C7C]">Continue to summary</span>, then{' '}
-              <span className="font-medium text-[#6E6C7C]">Create Token</span>, and paste it here.
-              Tokens are used for this deploy only and never stored.
+              {oauthEnabled ? (
+                <>
+                  Sign in and approve the exact permissions Traks needs — nothing is stored, and
+                  access expires on its own within the hour. One storage token is still pasted
+                  manually: it stays with your instance as its data-warehouse credential.
+                </>
+              ) : (
+                <>
+                  Each link opens Cloudflare with the permissions pre-selected — click{' '}
+                  <span className="font-medium text-[#6E6C7C]">Continue to summary</span>, then{' '}
+                  <span className="font-medium text-[#6E6C7C]">Create Token</span>, and paste it
+                  here. Tokens are used for this deploy only and never stored.
+                </>
+              )}
             </p>
             {error && (
               <p className="mb-4 rounded-xl bg-[#F7DCD4] px-4 py-3 text-[12.5px] text-[#8F3B2C]">
@@ -460,27 +513,79 @@ function DeployWizard(): ReactElement {
               </p>
             )}
             <div className="space-y-5">
-              <TokenField
-                id="installer-token"
-                label="Installer token"
-                help="Creates the Workers, database, KV, and pipeline in your account."
-                linkLabel="Create installer token (pre-filled)"
-                linkUrl={INSTALLER_TOKEN_URL}
-                value={installerToken}
-                onChange={v => {
-                  setInstallerToken(v);
-                  setInstallerStatus(undefined);
-                }}
-                status={installerStatus}
-                statusDetail={installerDetail}
-              />
-              {installerToken.trim().length >= 20 && installerStatus === undefined && (
-                <button
-                  onClick={() => void checkInstaller()}
-                  className="rounded-full bg-muted px-4 py-1.5 text-[12px] font-semibold text-[#3D3B4F] hover:bg-[#E4E4E9] transition-colors cursor-pointer"
-                >
-                  Verify token
-                </button>
+              {oauthSignedIn ? (
+                <div className="flex items-center justify-between gap-3 rounded-2xl border border-[#EEEEF2] bg-[#FAFAFA] px-4 py-3.5">
+                  <p className="flex items-center gap-2.5 text-[13px] font-semibold text-[#3D3B4F]">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-mint/15">
+                      <Check className="h-4 w-4 text-[#0E9F6E]" strokeWidth={2.4} />
+                    </span>
+                    Signed in with Cloudflare
+                  </p>
+                  <p className="text-[11.5px] text-[#9B99A6]">
+                    {installerStatus === 'checking' ? (
+                      <span className="inline-flex items-center gap-1.5">
+                        <Loader2 className="h-3 w-3 animate-spin" /> Checking access…
+                      </span>
+                    ) : installerStatus === 'ok' ? (
+                      installerDetail
+                    ) : installerStatus === 'bad' ? (
+                      <span className="text-[#B3402F]">{installerDetail}</span>
+                    ) : null}
+                  </p>
+                </div>
+              ) : oauthEnabled ? (
+                <div>
+                  <button
+                    onClick={() => {
+                      window.location.href = `/api/deploy/oauth/start?instance=${encodeURIComponent(
+                        sessionId ?? ''
+                      )}`;
+                    }}
+                    className="flex h-12 w-full items-center justify-center gap-2.5 rounded-2xl bg-[#3D3B4F] text-[14px] font-semibold text-white transition-all hover:-translate-y-px hover:bg-[#2C2B3B] hover:shadow-md cursor-pointer"
+                  >
+                    <Cloud className="h-[18px] w-[18px]" strokeWidth={2} />
+                    Sign in with Cloudflare
+                  </button>
+                  <p className="mt-1.5 text-[11.5px] leading-relaxed text-[#9B99A6]">
+                    Opens Cloudflare&rsquo;s consent screen listing every permission — approve once
+                    and you&rsquo;re back here. Prefer not to?{' '}
+                    <a
+                      href={INSTALLER_TOKEN_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-semibold text-[#3D3B4F] underline-offset-2 hover:underline"
+                    >
+                      Create a token manually
+                    </a>{' '}
+                    and paste it below instead.
+                  </p>
+                </div>
+              ) : null}
+              {!oauthSignedIn && (
+                <>
+                  <TokenField
+                    id="installer-token"
+                    label="Installer token"
+                    help="Creates the Workers, database, KV, and pipeline in your account."
+                    linkLabel="Create installer token (pre-filled)"
+                    linkUrl={INSTALLER_TOKEN_URL}
+                    value={installerToken}
+                    onChange={v => {
+                      setInstallerToken(v);
+                      setInstallerStatus(undefined);
+                    }}
+                    status={installerStatus}
+                    statusDetail={installerDetail}
+                  />
+                  {installerToken.trim().length >= 20 && installerStatus === undefined && (
+                    <button
+                      onClick={() => void checkInstaller(installerToken)}
+                      className="rounded-full bg-muted px-4 py-1.5 text-[12px] font-semibold text-[#3D3B4F] hover:bg-[#E4E4E9] transition-colors cursor-pointer"
+                    >
+                      Verify token
+                    </button>
+                  )}
+                </>
               )}
               <TokenField
                 id="catalog-token"

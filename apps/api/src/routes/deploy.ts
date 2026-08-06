@@ -7,7 +7,8 @@
  * wizard session (?instance=<id> in the URL), holding only non-sensitive
  * resume state — status, chosen names, step log, final URLs.
  */
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
+import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { eq } from 'drizzle-orm';
@@ -23,7 +24,78 @@ import type { Bindings, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
-const tokenSchema = z.string().min(20).max(300);
+/* ── "Sign in with Cloudflare" (self-managed OAuth client) ─────────────────
+ * Endpoints from https://dash.cloudflare.com/.well-known/openid-configuration.
+ * Authorization-code + PKCE; token exchange is client_secret_post. The state
+ * nonce + PKCE verifier live in a short-lived HttpOnly cookie (nothing is
+ * stored server-side), and the access token is handed to the SPA in the URL
+ * fragment so it never transits back to our server.
+ */
+const CF_OAUTH_AUTH_URL = 'https://dash.cloudflare.com/oauth2/auth';
+const CF_OAUTH_TOKEN_URL = 'https://dash.cloudflare.com/oauth2/token';
+// Must exactly match the scopes registered on the OAuth client.
+const CF_OAUTH_SCOPES = [
+  'workers-scripts.write',
+  'd1.write',
+  'workers-kv-storage.write',
+  'pipelines.write',
+  'workers-r2.write',
+  'r2-catalog.write',
+  'r2-catalog-sql.read',
+  'account-settings.read',
+];
+const OAUTH_COOKIE = 'traks_oauth';
+
+const b64url = (bytes: ArrayBuffer | Uint8Array): string => {
+  const arr = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  return btoa(String.fromCharCode(...arr))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+};
+
+const redirectUri = (c: Context): string => `${new URL(c.req.url).origin}/deploy/callback`;
+
+/** Top-level GET /deploy/callback (registered redirect URI — outside /api). */
+export async function oauthCallback(
+  c: Context<{ Bindings: Bindings; Variables: Variables }>
+): Promise<Response> {
+  const url = new URL(c.req.url);
+  const state = url.searchParams.get('state') ?? '';
+  const [instanceId, nonce] = state.split('.');
+  const back = (params: string): Response =>
+    c.redirect(`/deploy?instance=${encodeURIComponent(instanceId ?? '')}${params}`);
+
+  const denied = url.searchParams.get('error');
+  if (denied) return back(`&oauth_error=${encodeURIComponent(denied)}`);
+
+  const code = url.searchParams.get('code');
+  const cookie = getCookie(c, OAUTH_COOKIE) ?? '';
+  const [cookieNonce, verifier] = cookie.split('.');
+  deleteCookie(c, OAUTH_COOKIE, { path: '/' });
+  if (!code || !instanceId || !nonce || nonce !== cookieNonce || !verifier) {
+    return back('&oauth_error=state_mismatch');
+  }
+
+  const res = await fetch(CF_OAUTH_TOKEN_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: redirectUri(c),
+      client_id: c.env.CF_OAUTH_CLIENT_ID ?? '',
+      client_secret: c.env.CF_OAUTH_CLIENT_SECRET ?? '',
+      code_verifier: verifier,
+    }),
+  });
+  const data = (await res.json().catch(() => null)) as { access_token?: string } | null;
+  if (!res.ok || !data?.access_token) return back('&oauth_error=exchange_failed');
+  // Fragment, not query: the token stays in the browser and never reaches us.
+  return back(`#cf_token=${encodeURIComponent(data.access_token)}`);
+}
+
+const tokenSchema = z.string().min(20).max(2048);
 const startSchema = z.object({
   apiToken: tokenSchema,
   catalogToken: tokenSchema,
@@ -64,6 +136,37 @@ async function loadArtifacts(releases: R2Bucket): Promise<DeployArtifacts> {
 }
 
 export const deployRoute = app
+  // Kick off "Sign in with Cloudflare": stash nonce + PKCE verifier in a
+  // short-lived cookie and bounce to the dashboard consent screen.
+  .get('/oauth/start', async c => {
+    if (!c.env.CF_OAUTH_CLIENT_ID) return c.json({ error: 'OAuth not configured' }, 404);
+    const instanceId = c.req.query('instance');
+    if (!instanceId || !/^[a-zA-Z0-9-]{8,64}$/.test(instanceId)) {
+      return c.json({ error: 'instance required' }, 400);
+    }
+    const nonce = b64url(crypto.getRandomValues(new Uint8Array(16)));
+    const verifier = b64url(crypto.getRandomValues(new Uint8Array(32)));
+    const challenge = b64url(
+      await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))
+    );
+    setCookie(c, OAUTH_COOKIE, `${nonce}.${verifier}`, {
+      path: '/',
+      httpOnly: true,
+      secure: true,
+      sameSite: 'Lax',
+      maxAge: 600,
+    });
+    const auth = new URL(CF_OAUTH_AUTH_URL);
+    auth.searchParams.set('response_type', 'code');
+    auth.searchParams.set('client_id', c.env.CF_OAUTH_CLIENT_ID);
+    auth.searchParams.set('redirect_uri', redirectUri(c));
+    auth.searchParams.set('scope', CF_OAUTH_SCOPES.join(' '));
+    auth.searchParams.set('state', `${instanceId}.${nonce}`);
+    auth.searchParams.set('code_challenge', challenge);
+    auth.searchParams.set('code_challenge_method', 'S256');
+    return c.redirect(auth.toString());
+  })
+
   // Create a wizard session.
   .post('/instance', async c => {
     const db = c.get('db')!;

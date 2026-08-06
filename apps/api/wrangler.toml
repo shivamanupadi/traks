@@ -89,7 +89,7 @@ COLLECT_URL = "https://collect.traks.dev"
 directory = "../web/dist"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
-run_worker_first = ["/api/*"]
+run_worker_first = ["/api/*", "/deploy/callback"]
 
 # Cutover note: traks.dev/www.traks.dev were bound to the old traks-web
 # worker — delete that worker (npx wrangler delete --name traks-web) right

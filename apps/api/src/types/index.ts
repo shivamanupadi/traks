@@ -17,6 +17,10 @@ export type Bindings = {
   COLLECT_URL: string;
   /** Release artifacts (worker bundles, web assets) for the deploy wizard. */
   RELEASES: R2Bucket;
+  /** "Sign in with Cloudflare" OAuth client (Doppler-managed, prod only —
+   *  absent means the wizard falls back to token paste). */
+  CF_OAUTH_CLIENT_ID?: string;
+  CF_OAUTH_CLIENT_SECRET?: string;
 };
 
 export type Variables = {

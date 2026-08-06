@@ -15,6 +15,8 @@ import { and, eq, inArray } from 'drizzle-orm';
 import { deployInstances } from '../db/schema';
 import {
   provisionInstance,
+  destroyInstance,
+  emptyBucket,
   listAccounts,
   listZones,
   userEmail,
@@ -428,4 +430,114 @@ export const deployRoute = app
         Connection: 'keep-alive',
       },
     });
-  });
+  })
+
+  // Tear down an instance, streaming step events as SSE. Idempotent — every
+  // delete tolerates already-gone resources. The confirmation name is checked
+  // server-side too; tokens are used for this run only and never stored.
+  .post(
+    '/instance/:id/destroy',
+    zValidator(
+      'json',
+      z.object({
+        apiToken: tokenSchema,
+        catalogToken: tokenSchema,
+        accountId: z.string().regex(/^[a-f0-9]{32}$/),
+        instanceName: z.string().regex(/^[a-z][a-z0-9-]{2,20}$/),
+        confirmName: z.string().max(64),
+      })
+    ),
+    async c => {
+      const db = c.get('db')!;
+      const id = c.req.param('id');
+      const [row] = await db.select().from(deployInstances).where(eq(deployInstances.id, id));
+      if (!row) return c.json({ error: 'Not found' }, 404);
+      const { apiToken, catalogToken, accountId, instanceName, confirmName } = c.req.valid('json');
+      if (confirmName !== instanceName) {
+        return c.json({ error: 'Confirmation does not match the instance name' }, 400);
+      }
+
+      const steps: StepEvent[] = [];
+      const encoder = new TextEncoder();
+      let runPromise: Promise<void> = Promise.resolve();
+      const stream = new ReadableStream({
+        start: controller => {
+          let clientGone = false;
+          const send = (payload: unknown): void => {
+            if (clientGone) return;
+            try {
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
+            } catch {
+              clientGone = true;
+            }
+          };
+
+          const run = async (): Promise<void> => {
+            try {
+              await destroyInstance({
+                apiToken,
+                accountId,
+                instance: instanceName,
+                emptyBucket: async bucket => {
+                  await emptyBucket(accountId, catalogToken, bucket);
+                },
+                emit: async e => {
+                  steps.push(e);
+                  send({ type: 'step', ...e });
+                  await db
+                    .update(deployInstances)
+                    .set({ steps, updatedAt: new Date() })
+                    .where(eq(deployInstances.id, id))
+                    .catch(() => undefined);
+                },
+              });
+              // Retire every session that points at this instance so the
+              // wizard stops offering it as an existing install.
+              await db
+                .update(deployInstances)
+                .set({ status: 'destroyed', updatedAt: new Date() })
+                .where(
+                  and(
+                    eq(deployInstances.accountId, accountId),
+                    eq(deployInstances.instanceName, instanceName)
+                  )
+                );
+              await db
+                .update(deployInstances)
+                .set({ status: 'destroyed', steps, error: null, updatedAt: new Date() })
+                .where(eq(deployInstances.id, id));
+              send({ type: 'done' });
+            } catch (err) {
+              const message = err instanceof Error ? err.message : 'destroy failed';
+              await db
+                .update(deployInstances)
+                .set({ error: message, steps, updatedAt: new Date() })
+                .where(eq(deployInstances.id, id))
+                .catch(() => undefined);
+              send({ type: 'error', message });
+            } finally {
+              try {
+                controller.close();
+              } catch {
+                /* stream already cancelled by the client */
+              }
+            }
+          };
+          runPromise = run();
+        },
+      });
+      try {
+        c.executionCtx.waitUntil(runPromise);
+      } catch {
+        /* executionCtx unavailable (tests) */
+      }
+
+      return new Response(stream, {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          Connection: 'keep-alive',
+        },
+      });
+    }
+  );

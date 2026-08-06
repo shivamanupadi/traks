@@ -623,6 +623,118 @@ export async function userEmail(apiToken: string): Promise<string | undefined> {
   }
 }
 
+/* ── S3 helpers (WebCrypto SigV4, token-derived credentials) ──── */
+
+const sha256Hex = async (s: string | Uint8Array): Promise<string> =>
+  [
+    ...new Uint8Array(
+      await crypto.subtle.digest(
+        'SHA-256',
+        typeof s === 'string' ? new TextEncoder().encode(s) : (s as BufferSource)
+      )
+    ),
+  ]
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+
+const hmacSha256 = async (key: ArrayBuffer | Uint8Array, data: string): Promise<ArrayBuffer> => {
+  const k = await crypto.subtle.importKey('raw', key as BufferSource, { name: 'HMAC', hash: 'SHA-256' }, false, [
+    'sign',
+  ]);
+  return crypto.subtle.sign('HMAC', k, new TextEncoder().encode(data));
+};
+
+/** Resolve the S3 key id for an API token (account tokens, then user tokens). */
+async function s3KeyId(accountId: string, token: string): Promise<string> {
+  for (const url of [`${API}/accounts/${accountId}/tokens/verify`, `${API}/user/tokens/verify`]) {
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json() as Promise<any>) // eslint-disable-line @typescript-eslint/no-explicit-any
+      .catch(() => null);
+    if (res?.success && res.result?.status === 'active') return res.result.id as string;
+  }
+  throw new Error('storage token is not a valid, active Cloudflare API token');
+}
+
+/**
+ * Empty an R2 bucket via the S3 API before deletion (R2 refuses to delete
+ * non-empty buckets, and the management API has no purge). Batch
+ * DeleteObjects (verified to work on R2 without Content-MD5) keeps this to
+ * ~2 subrequests per 1000 objects, safely inside Worker limits.
+ */
+export async function emptyBucket(
+  accountId: string,
+  token: string,
+  bucket: string
+): Promise<number> {
+  const keyId = await s3KeyId(accountId, token);
+  const secret = await sha256Hex(token);
+  const host = `${accountId}.r2.cloudflarestorage.com`;
+
+  const signedFetch = async (
+    method: string,
+    path: string,
+    query: string,
+    body: string
+  ): Promise<Response> => {
+    const amzDate = new Date()
+      .toISOString()
+      .replace(/[-:]/g, '')
+      .replace(/\.\d{3}/, '');
+    const datestamp = amzDate.slice(0, 8);
+    const payloadHash = await sha256Hex(body);
+    const canonicalPath = path.split('/').map(encodeURIComponent).join('/');
+    const canonicalHeaders = `host:${host}\nx-amz-content-sha256:${payloadHash}\nx-amz-date:${amzDate}\n`;
+    const signedHeaders = 'host;x-amz-content-sha256;x-amz-date';
+    const canonicalRequest = [method, canonicalPath, query, canonicalHeaders, signedHeaders, payloadHash].join('\n');
+    const scope = `${datestamp}/auto/s3/aws4_request`;
+    const sts = ['AWS4-HMAC-SHA256', amzDate, scope, await sha256Hex(canonicalRequest)].join('\n');
+    let key = await hmacSha256(new TextEncoder().encode(`AWS4${secret}`), datestamp);
+    key = await hmacSha256(key, 'auto');
+    key = await hmacSha256(key, 's3');
+    key = await hmacSha256(key, 'aws4_request');
+    const signature = [...new Uint8Array(await hmacSha256(key, sts))]
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+    return fetch(`https://${host}${canonicalPath}${query ? `?${query}` : ''}`, {
+      method,
+      headers: {
+        'x-amz-content-sha256': payloadHash,
+        'x-amz-date': amzDate,
+        Authorization: `AWS4-HMAC-SHA256 Credential=${keyId}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}`,
+      },
+      body: body || undefined,
+    });
+  };
+
+  const unescapeXml = (s: string): string =>
+    s
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'");
+  const escapeXml = (s: string): string =>
+    s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  let total = 0;
+  for (let round = 0; round < 500; round++) {
+    const listRes = await signedFetch('GET', `/${bucket}/`, 'list-type=2', '');
+    if (listRes.status === 404) return total; // bucket already gone
+    if (!listRes.ok) throw new Error(`bucket list failed (${listRes.status})`);
+    const keys = [...(await listRes.text()).matchAll(/<Key>([^<]+)<\/Key>/g)].map(m =>
+      unescapeXml(m[1])
+    );
+    if (keys.length === 0) return total;
+    const xml = `<?xml version="1.0" encoding="UTF-8"?><Delete>${keys
+      .map(k => `<Object><Key>${escapeXml(k)}</Key></Object>`)
+      .join('')}<Quiet>true</Quiet></Delete>`;
+    const delRes = await signedFetch('POST', `/${bucket}/`, 'delete=', xml);
+    if (!delRes.ok) throw new Error(`bucket purge failed (${delRes.status})`);
+    total += keys.length;
+  }
+  throw new Error('bucket purge did not converge');
+}
+
 export interface DestroyCtx {
   apiToken: string;
   accountId: string;

@@ -13,6 +13,7 @@ import {
   Server,
   ShieldCheck,
   Sparkles,
+  Trash2,
   XCircle,
 } from 'lucide-react';
 
@@ -80,7 +81,16 @@ interface ExistingInstall {
   customDomain: { zoneId: string; zoneName: string; subdomain: string } | null;
 }
 
-type Phase = 'intro' | 'tokens' | 'setup' | 'deploying' | 'done' | 'failed';
+type Phase =
+  | 'intro'
+  | 'tokens'
+  | 'setup'
+  | 'deploying'
+  | 'done'
+  | 'failed'
+  | 'destroy-confirm'
+  | 'destroying'
+  | 'destroyed';
 
 interface InstanceRow {
   status: string;
@@ -115,6 +125,9 @@ const PHASE_INDEX: Record<Phase, number> = {
   deploying: 3,
   done: 3,
   failed: 3,
+  'destroy-confirm': 2,
+  destroying: 3,
+  destroyed: 3,
 };
 
 /* ── shared UI bits (ink + mint design system) ──────────────── */
@@ -286,6 +299,8 @@ function DeployWizard(): ReactElement {
   const [versions, setVersions] = useState<{ current?: string; latest?: string }>({});
   const [updating, setUpdating] = useState(false);
   const [showNameEdit, setShowNameEdit] = useState(false);
+  const [destroyTarget, setDestroyTarget] = useState<ExistingInstall | null>(null);
+  const [confirmName, setConfirmName] = useState('');
   const [existingInstalls, setExistingInstalls] = useState<ExistingInstall[]>([]);
   const startedRef = useRef(false);
   const pollRef = useRef<number | undefined>(undefined);
@@ -526,6 +541,69 @@ function DeployWizard(): ReactElement {
     setVersions(v => ({ ...v, current: inst.deployedVersion ?? undefined }));
     setUpdating(true);
     setError('');
+  };
+
+  const destroyRun = async (): Promise<void> => {
+    if (!destroyTarget?.instanceName || !destroyTarget.accountId) return;
+    setBusy(true);
+    setError('');
+    setSteps([]);
+    setPhase('destroying');
+    try {
+      const res = await fetch(`/api/deploy/instance/${sessionId}/destroy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          apiToken: installerToken.trim(),
+          catalogToken: catalogToken.trim(),
+          accountId: destroyTarget.accountId,
+          instanceName: destroyTarget.instanceName,
+          confirmName: confirmName.trim(),
+        }),
+      });
+      if (!res.ok || !res.body) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(body?.error ?? `destroy request failed (${res.status})`);
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split('\n\n');
+        buffer = events.pop() ?? '';
+        for (const raw of events) {
+          const line = raw.trim();
+          if (!line.startsWith('data: ')) continue;
+          const payload = JSON.parse(line.slice(6)) as
+            | ({ type: 'step' } & StepEvent)
+            | { type: 'done' }
+            | { type: 'error'; message: string };
+          if (payload.type === 'step') {
+            setSteps(prev => collapse([...prev, payload]));
+          } else if (payload.type === 'done') {
+            setExistingInstalls(prev =>
+              prev.filter(
+                i =>
+                  !(
+                    i.accountId === destroyTarget.accountId &&
+                    i.instanceName === destroyTarget.instanceName
+                  )
+              )
+            );
+            setPhase('destroyed');
+          } else if (payload.type === 'error') {
+            setError(payload.message);
+          }
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'destroy failed');
+    } finally {
+      setBusy(false);
+    }
   };
 
   // Domains available for the custom-domain picker (per chosen account).
@@ -902,6 +980,17 @@ function DeployWizard(): ReactElement {
                         Updating re-runs the deploy on that instance — data and settings stay.
                         Continuing below instead installs a separate, second instance.
                       </p>
+                      <button
+                        onClick={() => {
+                          setDestroyTarget(inst);
+                          setConfirmName('');
+                          setError('');
+                          setPhase('destroy-confirm');
+                        }}
+                        className="mt-2 text-[11.5px] font-semibold text-[#B3402F]/70 hover:text-[#B3402F] transition-colors cursor-pointer"
+                      >
+                        Destroy this instance…
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -1263,6 +1352,176 @@ function DeployWizard(): ReactElement {
             </div>
           </Card>
         )}
+
+        {phase === 'destroy-confirm' && destroyTarget?.instanceName && (
+          <Card
+            footer={
+              <>
+                <BackButton onClick={() => setPhase('tokens')} disabled={busy} />
+                <button
+                  onClick={() => void destroyRun()}
+                  disabled={
+                    busy ||
+                    confirmName.trim() !== destroyTarget.instanceName ||
+                    catalogToken.trim().length < 20
+                  }
+                  className="inline-flex h-11 items-center gap-2 rounded-full bg-[#B3402F] px-6 text-[13.5px] font-semibold text-white transition-all hover:-translate-y-px hover:bg-[#96331F] hover:shadow-md disabled:pointer-events-none disabled:opacity-40 cursor-pointer"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Destroy instance
+                </button>
+              </>
+            }
+          >
+            <h2 className="mb-1 text-[16.5px] font-bold text-[#B3402F]">
+              Destroy {destroyTarget.instanceName}?
+            </h2>
+            <p className="mb-4 text-[13px] leading-relaxed text-[#9B99A6]">
+              This permanently deletes the instance and{' '}
+              <span className="font-semibold text-[#3D3B4F]">all of its analytics data</span>. It
+              cannot be undone.
+            </p>
+            <div className="mb-4 rounded-2xl border border-[#EEEEF2] bg-[#FAFAFA] p-4">
+              <p className="mb-2 text-[12.5px] font-semibold text-[#3D3B4F]">
+                Deleted from your Cloudflare account:
+              </p>
+              <ul className="space-y-1 text-[12px] leading-relaxed text-[#6E6C7C]">
+                {(() => {
+                  const n = destroyTarget.instanceName;
+                  const us = n.replaceAll('-', '_');
+                  return [
+                    [`${n}-api`, 'worker — your dashboard' + (destroyTarget.customDomain ? ' (custom domain detaches)' : '')],
+                    [`${n}-collect`, 'worker — the tracker endpoint'],
+                    [`${n}-db`, 'D1 database — sites, users, settings'],
+                    [`${n}-events`, 'R2 bucket — every analytics event ever collected'],
+                    [`${n}-r2sql-cache`, 'KV namespace — query cache'],
+                    [`${us}_events`, 'pipeline, stream, and sink'],
+                  ].map(([name, what]) => (
+                    <li key={name}>
+                      <span className="font-mono text-[#3D3B4F]">{name}</span> — {what}
+                    </li>
+                  ));
+                })()}
+              </ul>
+              <p className="mt-2 text-[11.5px] leading-relaxed text-[#9B99A6]">
+                The ingest-failure metrics dataset has no delete API; its data expires on its own
+                within 90 days.
+              </p>
+            </div>
+            {catalogToken.trim().length < 20 && (
+              <p className="mb-4 rounded-xl bg-[#F7DCD4] px-4 py-3 text-[12.5px] leading-relaxed text-[#8F3B2C]">
+                Destroying needs your storage token too (it empties the events bucket) — go back
+                and paste it first.
+              </p>
+            )}
+            <label
+              htmlFor="destroy-confirm"
+              className="mb-1.5 block text-[12.5px] font-semibold text-[#3D3B4F]"
+            >
+              Type <span className="font-mono">{destroyTarget.instanceName}</span> to confirm
+            </label>
+            <input
+              id="destroy-confirm"
+              value={confirmName}
+              onChange={e => setConfirmName(e.target.value)}
+              placeholder={destroyTarget.instanceName}
+              autoComplete="off"
+              className="h-11 w-full rounded-2xl border-none bg-white px-4 font-mono text-[13.5px] text-[#3D3B4F] shadow-[inset_0_0_0_1px_#E5E5EB] transition-shadow placeholder:text-[#D8D7DE] focus:shadow-[inset_0_0_0_1.5px_#B3402F] focus:outline-none"
+            />
+            {error && (
+              <p className="mt-4 rounded-xl bg-[#F7DCD4] px-4 py-3 text-[12.5px] leading-relaxed text-[#8F3B2C]">
+                {error}
+              </p>
+            )}
+          </Card>
+        )}
+
+        {phase === 'destroying' && (
+          <Card
+            footer={
+              error ? (
+                <>
+                  <BackButton onClick={() => setPhase('destroy-confirm')} disabled={busy} />
+                  <PrimaryButton onClick={() => void destroyRun()} busy={busy}>
+                    <RotateCw className="h-4 w-4" />
+                    Retry destroy
+                  </PrimaryButton>
+                </>
+              ) : undefined
+            }
+          >
+            <h2 className="mb-1 text-[16.5px] font-bold text-[#3D3B4F]">
+              Destroying {destroyTarget?.instanceName}
+            </h2>
+            <p className="mb-5 text-[13px] text-[#9B99A6]">
+              Removing everything from your Cloudflare account
+            </p>
+            <div className="space-y-1">
+              {steps.length === 0 && !error && (
+                <p className="flex items-center gap-2 py-1.5 text-[13px] text-[#9B99A6]">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Starting the teardown…
+                </p>
+              )}
+              {steps.map(s => (
+                <div key={s.stepId} className="flex items-start gap-2.5 py-1.5">
+                  {s.status === 'ok' ? (
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#3D3B4F]" strokeWidth={2.2} />
+                  ) : s.status === 'fail' ? (
+                    <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-[#B3402F]" />
+                  ) : (
+                    <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-[#9B99A6]" />
+                  )}
+                  <div className="min-w-0">
+                    <p
+                      className={`text-[13px] ${
+                        s.status === 'fail' ? 'font-medium text-[#B3402F]' : 'text-[#3D3B4F]'
+                      }`}
+                    >
+                      {s.label}
+                    </p>
+                    {s.detail && s.status !== 'ok' && (
+                      <p className="mt-0.5 break-words text-[11.5px] leading-relaxed text-[#9B99A6]">
+                        {s.detail}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {error && (
+              <p className="mt-4 rounded-xl bg-[#F7DCD4] px-4 py-3 text-[12.5px] leading-relaxed text-[#8F3B2C]">
+                {error} — retries are safe; already-deleted resources are skipped.
+              </p>
+            )}
+          </Card>
+        )}
+
+        {phase === 'destroyed' && (
+          <Card
+            footer={
+              <a
+                href="/"
+                className="inline-flex h-11 items-center gap-2 rounded-full bg-[#3D3B4F] px-6 text-[13.5px] font-semibold text-white transition-all hover:-translate-y-px hover:bg-[#2C2B3B] hover:shadow-md"
+              >
+                Back to traks.dev
+                <ArrowRight className="h-4 w-4" />
+              </a>
+            }
+          >
+            <div className="flex flex-col items-center pt-2 text-center">
+              <CheckCircle2 className="mb-3 h-12 w-12 text-[#3D3B4F]" strokeWidth={1.5} />
+              <h2 className="text-[17px] font-bold text-[#3D3B4F]">Instance destroyed</h2>
+              <p className="mb-2 mt-1 text-[13px] leading-relaxed text-[#9B99A6]">
+                Everything was removed from your Cloudflare account. Your tokens were used for
+                this teardown only — you can revoke them in the Cloudflare dashboard now.
+              </p>
+              <p className="text-[12px] text-[#9B99A6]">
+                Changed your mind later? Installing fresh takes about two minutes.
+              </p>
+            </div>
+          </Card>
+        )}
+
       </div>
     </div>
   );

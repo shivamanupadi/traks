@@ -3,7 +3,7 @@ main = "src/index.ts"
 compatibility_date = "2026-06-01"
 compatibility_flags = ["nodejs_compat"]
 
-# --- Dev (default: wrangler dev --remote) ---
+# --- Dev (local-first: wrangler dev, shared state in <root>/.wrangler-state) ---
 
 [[d1_databases]]
 binding = "DB"
@@ -42,10 +42,6 @@ class_name = "SiteLiveStore"
 [[pipelines]]
 binding = "EVENTS"
 stream = "f0ee6ab42aa7462094f374857e996b47" # traks_events_dev_stream (dev)
-
-[[routes]]
-pattern = "collect-dev.traks.dev"
-custom_domain = true
 
 [vars]
 ENVIRONMENT = "development"

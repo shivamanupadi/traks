@@ -4,9 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "doppler secrets download --no-file --format=env -p traks-collect -c dev > .dev.vars.doppler && touch .dev.vars && wrangler dev --remote --port 5010 --env-file .dev.vars.doppler --env-file .dev.vars",
+    "dev": "doppler secrets download --no-file --format=env -p traks-collect -c dev > .dev.vars.doppler && touch .dev.vars && wrangler dev --port 5010 --persist-to ../../../.wrangler-state --env-file .dev.vars.doppler --env-file .dev.vars",
     "build": "tsc --noEmit",
-    "deploy:dev": "wrangler deploy",
     "type-check": "tsc --noEmit",
     "lint": "eslint src --ext .ts --fix",
     "format": "prettier --write src",

@@ -3,8 +3,10 @@ main = "src/index.ts"
 compatibility_date = "2026-06-01"
 compatibility_flags = ["nodejs_compat"]
 
-# --- Dev (default: wrangler dev --remote) ---
-# Local dev serves the SPA from vite (:5012, proxying /api to :5011).
+# --- Dev (local-first: wrangler dev, shared state in <root>/.wrangler-state) ---
+# Local dev serves the SPA from vite (:5012, proxying /api to :5011). D1/KV
+# are local simulations; ids below are inert locally. Only the events
+# warehouse (R2 SQL over traks-events-dev) is a real cloud dependency.
 
 [[d1_databases]]
 binding = "DB"
@@ -31,15 +33,11 @@ id = "fc5eb93cfb8f4cb18969af2ccd4f9ea5"
 [triggers]
 crons = []
 
-[[routes]]
-pattern = "api-dev.traks.dev"
-custom_domain = true
-
 [vars]
 ENVIRONMENT = "development"
 R2_BUCKET_NAME = "traks-events-dev"
 R2_ACCOUNT_ID = "4cf68c768770ccda55d287d6ecbdeb4f"
-COLLECT_URL = "https://collect-dev.traks.dev"
+COLLECT_URL = "http://localhost:5010"
 
 # The platform ships to customers as a release bundle; the ONLY install path
 # is the traks.dev deploy wizard. There is no wrangler prod deploy — our own

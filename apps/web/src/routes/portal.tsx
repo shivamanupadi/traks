@@ -50,7 +50,7 @@ function PortalLayout(): React.ReactNode {
       <header className="bg-[#fafafa]/85 backdrop-blur-xl sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-[68px] flex items-center justify-between">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2.5 group">
+          <Link to="/portal/sites" className="flex items-center gap-2.5 group">
             <img
               src="/logo.svg"
               alt="Traks"

@@ -10,7 +10,7 @@
   ],
   "scripts": {
     "dev": "yarn kill-ports && turbo run dev",
-    "kill-ports": "kill -9 $(lsof -ti :5010,:5011,:5012) 2>/dev/null; echo 'Ports 5010-5012 cleared'",
+    "kill-ports": "kill -9 $(lsof -ti :5010,:5011,:5012,:5013) 2>/dev/null; echo 'Ports 5010-5013 cleared'",
     "build": "turbo run build",
     "lint": "turbo lint",
     "type-check": "turbo run type-check",

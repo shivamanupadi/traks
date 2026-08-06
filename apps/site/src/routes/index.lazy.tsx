@@ -287,24 +287,17 @@ function LandingPage(): ReactElement {
             <NavLink id="features">Features</NavLink>
             <NavLink id="how">How it works</NavLink>
             <a
-              href="/deploy"
-              className="rounded-md px-3 py-2 font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-[#6E6C7C] transition-colors hover:text-[#3D3B4F]"
-            >
-              Deploy
-            </a>
-            <a
               href="/docs"
               className="rounded-md px-3 py-2 font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-[#6E6C7C] transition-colors hover:text-[#3D3B4F]"
             >
               Docs
             </a>
           </div>
-          {/* Plain anchor: a full navigation lets Cloudflare Access gate /portal. */}
           <a
-            href="/portal/sites"
+            href="/deploy"
             className="ml-2 inline-flex h-9 items-center gap-1.5 rounded-full bg-[#3D3B4F] px-4 text-[12.5px] font-semibold text-white transition-all hover:-translate-y-px hover:bg-[#2C2B3B] hover:shadow-md"
           >
-            Dashboard
+            Deploy now
           </a>
         </nav>
       </header>
@@ -357,10 +350,10 @@ function LandingPage(): ReactElement {
             className="mt-9 flex flex-wrap items-center gap-4"
           >
             <a
-              href="/portal/sites"
+              href="/deploy"
               className="inline-flex h-12 items-center gap-2 rounded-full bg-[#3D3B4F] px-7 text-[14px] font-semibold text-white transition-all hover:-translate-y-px hover:bg-[#2C2B3B] hover:shadow-lg"
             >
-              Open the dashboard
+              Deploy to your Cloudflare
               <ArrowRight className="h-4 w-4" />
             </a>
             <a
@@ -582,10 +575,10 @@ function LandingPage(): ReactElement {
               within seconds.
             </p>
             <a
-              href="/portal/sites"
+              href="/deploy"
               className="relative mt-8 inline-flex h-12 items-center gap-2 rounded-full bg-mint px-8 text-[14px] font-bold text-[#123326] transition-all hover:-translate-y-px hover:shadow-[0_8px_24px_rgba(40,233,159,0.35)]"
             >
-              Open the dashboard
+              Deploy Traks now
               <ArrowRight className="h-4 w-4" />
             </a>
           </motion.div>

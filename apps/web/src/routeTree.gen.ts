@@ -11,8 +11,6 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as PortalRouteImport } from './routes/portal'
 import { Route as LoginRouteImport } from './routes/login'
-import { Route as DocsRouteImport } from './routes/docs'
-import { Route as DeployRouteImport } from './routes/deploy'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PortalSitesRouteImport } from './routes/portal.sites'
 import { Route as PortalSettingsRouteImport } from './routes/portal.settings'
@@ -28,21 +26,11 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DocsRoute = DocsRouteImport.update({
-  id: '/docs',
-  path: '/docs',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DeployRoute = DeployRouteImport.update({
-  id: '/deploy',
-  path: '/deploy',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
-} as any).lazy(() => import('./routes/index.lazy').then((d) => d.Route))
+} as any)
 const PortalSitesRoute = PortalSitesRouteImport.update({
   id: '/sites',
   path: '/sites',
@@ -63,8 +51,6 @@ const PortalSiteSiteIdRoute = PortalSiteSiteIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/deploy': typeof DeployRoute
-  '/docs': typeof DocsRoute
   '/login': typeof LoginRoute
   '/portal': typeof PortalRouteWithChildren
   '/portal/settings': typeof PortalSettingsRoute
@@ -73,8 +59,6 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/deploy': typeof DeployRoute
-  '/docs': typeof DocsRoute
   '/login': typeof LoginRoute
   '/portal': typeof PortalRouteWithChildren
   '/portal/settings': typeof PortalSettingsRoute
@@ -84,8 +68,6 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/deploy': typeof DeployRoute
-  '/docs': typeof DocsRoute
   '/login': typeof LoginRoute
   '/portal': typeof PortalRouteWithChildren
   '/portal/settings': typeof PortalSettingsRoute
@@ -96,8 +78,6 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/deploy'
-    | '/docs'
     | '/login'
     | '/portal'
     | '/portal/settings'
@@ -106,8 +86,6 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/deploy'
-    | '/docs'
     | '/login'
     | '/portal'
     | '/portal/settings'
@@ -116,8 +94,6 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
-    | '/deploy'
-    | '/docs'
     | '/login'
     | '/portal'
     | '/portal/settings'
@@ -127,8 +103,6 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  DeployRoute: typeof DeployRoute
-  DocsRoute: typeof DocsRoute
   LoginRoute: typeof LoginRoute
   PortalRoute: typeof PortalRouteWithChildren
 }
@@ -147,20 +121,6 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/docs': {
-      id: '/docs'
-      path: '/docs'
-      fullPath: '/docs'
-      preLoaderRoute: typeof DocsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/deploy': {
-      id: '/deploy'
-      path: '/deploy'
-      fullPath: '/deploy'
-      preLoaderRoute: typeof DeployRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -211,8 +171,6 @@ const PortalRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  DeployRoute: DeployRoute,
-  DocsRoute: DocsRoute,
   LoginRoute: LoginRoute,
   PortalRoute: PortalRouteWithChildren,
 }

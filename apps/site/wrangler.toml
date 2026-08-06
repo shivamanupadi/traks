@@ -1,0 +1,19 @@
+# traks.dev marketing site + deploy wizard UI — a static-assets-only worker.
+# All dynamic paths on this hostname are claimed by the traks-api worker via
+# zone routes (traks.dev/api/*, /login*, /portal*, /deploy/callback*), which
+# take precedence over this worker's custom domain. This worker only ever
+# serves the SPA (landing, /docs, /deploy) with an index.html fallback.
+name = "traks-site"
+compatibility_date = "2026-06-01"
+
+[assets]
+directory = "./dist"
+not_found_handling = "single-page-application"
+
+[[routes]]
+pattern = "traks.dev"
+custom_domain = true
+
+[[routes]]
+pattern = "www.traks.dev"
+custom_domain = true

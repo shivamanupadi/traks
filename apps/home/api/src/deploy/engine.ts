@@ -426,9 +426,15 @@ async function uploadWorker(
   metadata: Record<string, unknown>
 ): Promise<void> {
   const fd = new FormData();
+  // The script-upload API replaces the ENTIRE binding set with what's in
+  // `bindings` — secrets included. Without keep_bindings, every update drops
+  // the worker's secrets and ensureSecrets then regenerates them: a new
+  // BETTER_AUTH_SECRET invalidates every session (all users logged out) and
+  // VISITOR_HASH_SECRET resets visitor identity. Same list wrangler sends.
+  const withKeep = { ...metadata, keep_bindings: ['secret_text', 'secret_key'] };
   fd.append(
     'metadata',
-    new Blob([JSON.stringify(metadata)], { type: 'application/json' }),
+    new Blob([JSON.stringify(withKeep)], { type: 'application/json' }),
     'metadata.json'
   );
   fd.append(
@@ -583,6 +589,10 @@ export async function provisionInstance(ctx: EngineCtx): Promise<ProvisionResult
       main_module: 'worker.js',
       compatibility_date: '2026-06-01',
       compatibility_flags: ['nodejs_compat'],
+      // Dashboard requests chain several hops to D1, the live DO and R2 SQL —
+      // none at the edge — so placing the worker near the data beats placing
+      // it near the viewer. The collect worker deliberately stays at the edge.
+      placement: { mode: 'smart' },
       bindings: [
         { type: 'd1', name: 'DB', id: d1Id },
         { type: 'kv_namespace', name: 'R2SQL_CACHE', namespace_id: kvId },

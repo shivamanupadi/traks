@@ -12,19 +12,39 @@ import {
   createSegmentSchema,
 } from '@traks/shared';
 import { requireAuth } from '../middleware/auth';
-import { invalidateSiteCache } from './analytics';
 import { sites, apiKeys, goals, funnels, segments, users } from '../db/schema';
 import {
   siteAccessFilter,
+  siteManageFilter,
   getAccessibleSite,
+  getSiteAccess,
   getMembership,
   ensureDefaultWorkspace,
 } from '../lib/workspaces';
+import { roleAllows } from '../lib/permissions';
 import type { Bindings, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
 const listSitesQuery = z.object({ workspaceId: z.string().optional() });
+
+type ManageCheck = { ok: true } | { ok: false; status: 403 | 404; error: string };
+
+/** Site mutations evaluate the declared policy (lib/permissions.ts): the
+ *  caller's workspace role must grant the requested `site` permission. */
+async function checkManage(
+  db: NonNullable<Variables['db']>,
+  userId: string,
+  siteId: string,
+  action: 'update' | 'delete' | 'configure'
+): Promise<ManageCheck> {
+  const access = await getSiteAccess(db, userId, siteId);
+  if (!access) return { ok: false, status: 404, error: 'Not found' };
+  if (!roleAllows(access.role, { site: [action] })) {
+    return { ok: false, status: 403, error: 'Your workspace role does not allow this change' };
+  }
+  return { ok: true };
+}
 
 export const sitesRoute = app
   // List the sites the user can access, optionally scoped to one workspace
@@ -55,13 +75,18 @@ export const sitesRoute = app
     const db = c.get('db')!;
 
     // Resolve the target workspace: the requested one (must be a member) or
-    // the user's default. Every new site lands in a workspace.
+    // the user's default. Every new site lands in a workspace, and only
+    // workspace OWNERS create sites — members are view-only.
     let workspaceId = body.workspaceId;
-    if (workspaceId) {
-      const membership = await getMembership(db, workspaceId, userId);
-      if (!membership) return c.json({ error: 'Workspace not found' }, 404);
-    } else {
-      workspaceId = await ensureDefaultWorkspace(db, userId);
+    if (!workspaceId) {
+      const defaultWorkspaceId = await ensureDefaultWorkspace(db, userId);
+      if (!defaultWorkspaceId) return c.json({ error: 'You are not in any workspace' }, 403);
+      workspaceId = defaultWorkspaceId;
+    }
+    const membership = await getMembership(db, workspaceId, userId);
+    if (!membership) return c.json({ error: 'Workspace not found' }, 404);
+    if (!roleAllows(membership.role, { site: ['create'] })) {
+      return c.json({ error: 'Only workspace owners can add sites' }, 403);
     }
 
     // Sites were the only unbounded resource (goals/segments/funnels are all
@@ -116,44 +141,63 @@ export const sitesRoute = app
     return c.json({ data: site, key: siteKey }, 201);
   })
 
-  // Set one timezone across all sites the user can access (account settings).
+  // Set one timezone across sites — the given workspace's sites (requires
+  // the owner role there), or every manageable site when none is given.
   // Static path — declared before the /:id routes so it can't be shadowed.
   .post('/timezone', requireAuth, zValidator('json', allSitesTimezoneSchema), async c => {
     const userId = c.get('userId')!;
-    const { timezone } = c.req.valid('json');
+    const { timezone, workspaceId } = c.req.valid('json');
     const db = c.get('db')!;
+
+    if (workspaceId) {
+      const membership = await getMembership(db, workspaceId, userId);
+      if (!membership) return c.json({ error: 'Not found' }, 404);
+      if (!roleAllows(membership.role, { site: ['update'] })) {
+        return c.json({ error: 'Your workspace role does not allow this change' }, 403);
+      }
+      await db
+        .update(sites)
+        .set({ timezone, updatedAt: new Date() })
+        .where(eq(sites.workspaceId, workspaceId));
+      return c.json({ data: { timezone } });
+    }
 
     await db
       .update(sites)
       .set({ timezone, updatedAt: new Date() })
-      .where(siteAccessFilter(db, userId));
+      .where(siteManageFilter(db, userId));
 
     return c.json({ data: { timezone } });
   })
 
-  // Get site details + API key
+  // Get site details + API key (role included so the UI can hide manage
+  // affordances for members)
   .get('/:id', requireAuth, async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('id');
     const db = c.get('db')!;
 
-    const site = await getAccessibleSite(db, userId, siteId);
-    if (!site) return c.json({ error: 'Not found' }, 404);
+    const access = await getSiteAccess(db, userId, siteId);
+    if (!access) return c.json({ error: 'Not found' }, 404);
 
-    const keys = await db.select().from(apiKeys).where(eq(apiKeys.siteId, siteId));
+    // The ingest key is withheld from view-only members: it is a write
+    // credential for the buyer's pipeline, and members never install snippets.
+    const keys = roleAllows(access.role, { site: ['update'] })
+      ? await db.select().from(apiKeys).where(eq(apiKeys.siteId, siteId))
+      : [];
 
-    return c.json({ data: { ...site, apiKeys: keys } });
+    return c.json({ data: { ...access.site, apiKeys: keys, role: access.role } });
   })
 
-  // Update a site
+  // Update a site (owners only)
   .patch('/:id', requireAuth, zValidator('json', updateSiteSchema), async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('id');
     const body = c.req.valid('json');
     const db = c.get('db')!;
 
-    const site = await getAccessibleSite(db, userId, siteId);
-    if (!site) return c.json({ error: 'Not found' }, 404);
+    const manageSite = await checkManage(db, userId, siteId, 'update');
+    if (!manageSite.ok) return c.json({ error: manageSite.error }, manageSite.status);
 
     try {
       await db
@@ -196,7 +240,8 @@ export const sitesRoute = app
     const body = c.req.valid('json');
     const db = c.get('db')!;
 
-    if (!(await getAccessibleSite(db, userId, siteId))) return c.json({ error: 'Not found' }, 404);
+    const manage = await checkManage(db, userId, siteId, 'configure');
+    if (!manage.ok) return c.json({ error: manage.error }, manage.status);
 
     // Bound per-site goal count (query cost scales with the IN list).
     const existing = await db.select({ id: goals.id }).from(goals).where(eq(goals.siteId, siteId));
@@ -221,7 +266,8 @@ export const sitesRoute = app
     const goalId = c.req.param('goalId');
     const db = c.get('db')!;
 
-    if (!(await getAccessibleSite(db, userId, siteId))) return c.json({ error: 'Not found' }, 404);
+    const manage = await checkManage(db, userId, siteId, 'configure');
+    if (!manage.ok) return c.json({ error: manage.error }, manage.status);
 
     const [goal] = await db
       .select({ siteId: goals.siteId })
@@ -252,7 +298,8 @@ export const sitesRoute = app
     const body = c.req.valid('json');
     const db = c.get('db')!;
 
-    if (!(await getAccessibleSite(db, userId, siteId))) return c.json({ error: 'Not found' }, 404);
+    const manage = await checkManage(db, userId, siteId, 'configure');
+    if (!manage.ok) return c.json({ error: manage.error }, manage.status);
 
     const existing = await db
       .select({ id: segments.id })
@@ -278,7 +325,8 @@ export const sitesRoute = app
     const segmentId = c.req.param('segmentId');
     const db = c.get('db')!;
 
-    if (!(await getAccessibleSite(db, userId, siteId))) return c.json({ error: 'Not found' }, 404);
+    const manage = await checkManage(db, userId, siteId, 'configure');
+    if (!manage.ok) return c.json({ error: manage.error }, manage.status);
 
     const [segment] = await db
       .select({ siteId: segments.siteId })
@@ -309,7 +357,8 @@ export const sitesRoute = app
     const body = c.req.valid('json');
     const db = c.get('db')!;
 
-    if (!(await getAccessibleSite(db, userId, siteId))) return c.json({ error: 'Not found' }, 404);
+    const manage = await checkManage(db, userId, siteId, 'configure');
+    if (!manage.ok) return c.json({ error: manage.error }, manage.status);
 
     // Bound per-site funnel count (each funnel stat render is a paid R2 SQL scan).
     const existing = await db
@@ -336,7 +385,8 @@ export const sitesRoute = app
     const funnelId = c.req.param('funnelId');
     const db = c.get('db')!;
 
-    if (!(await getAccessibleSite(db, userId, siteId))) return c.json({ error: 'Not found' }, 404);
+    const manage = await checkManage(db, userId, siteId, 'configure');
+    if (!manage.ok) return c.json({ error: manage.error }, manage.status);
 
     const [funnel] = await db
       .select({ siteId: funnels.siteId })
@@ -348,17 +398,16 @@ export const sitesRoute = app
     return c.json({ ok: true });
   })
 
-  // Delete a site (also purges its live DO)
+  // Delete a site (owners only; also purges its live DO)
   .delete('/:id', requireAuth, async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('id');
     const db = c.get('db')!;
 
-    const site = await getAccessibleSite(db, userId, siteId);
-    if (!site) return c.json({ error: 'Not found' }, 404);
+    const manage = await checkManage(db, userId, siteId, 'delete');
+    if (!manage.ok) return c.json({ error: manage.error }, manage.status);
 
     await db.delete(sites).where(eq(sites.id, siteId));
-    invalidateSiteCache(siteId);
 
     c.executionCtx.waitUntil(
       (async () => {

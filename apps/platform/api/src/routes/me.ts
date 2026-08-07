@@ -11,7 +11,12 @@ export const meRoute = app.get('/', requireAuth, async c => {
   const db = c.get('db')!;
 
   const [user] = await db
-    .select({ id: users.id, email: users.email, name: users.name })
+    .select({
+      id: users.id,
+      email: users.email,
+      name: users.name,
+      isInstanceOwner: users.isInstanceOwner,
+    })
     .from(users)
     .where(eq(users.id, userId));
 

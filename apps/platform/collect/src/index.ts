@@ -74,6 +74,42 @@ interface SiteAuth {
 // Invalid keys are cached too, so key-guessing doesn't hammer D1.
 const AUTH_CACHE_TTL_MS = 60_000;
 const authCache = new Map<string, { auth: SiteAuth; expires: number }>();
+/** Dedupes concurrent first-contact lookups for the same key in one isolate. */
+const authInFlight = new Map<string, Promise<SiteAuth>>();
+
+/**
+ * Cached site auth, stale-while-revalidate.
+ *
+ * Returns a hit immediately even once past its TTL and refreshes in the
+ * background, because the refresh is a D1 round trip — 50-250ms from a distant
+ * colo — and it used to sit inline on the event response every 60s per key per
+ * isolate, plus on every cold isolate. Only a key never seen by this isolate
+ * blocks. Worst-case revocation lag doubles to ~120s, which is acceptable for
+ * a credential that ships publicly in a script tag.
+ *
+ * `refresh` must only be called after the rate-limit check has passed, so
+ * unknown-key floods still cannot amplify into D1.
+ */
+function authenticateSiteCached(
+  db: D1Database,
+  siteKey: string,
+  background: (p: Promise<unknown>) => void
+): SiteAuth | Promise<SiteAuth> {
+  const cached = authCache.get(siteKey);
+  if (cached) {
+    if (cached.expires <= Date.now() && !authInFlight.has(siteKey)) {
+      // Stale: serve now, refresh behind the response.
+      background(authenticateSite(db, siteKey).catch(() => undefined));
+    }
+    return cached.auth;
+  }
+  // First contact for this key in this isolate — must block.
+  const inFlight = authInFlight.get(siteKey);
+  if (inFlight) return inFlight;
+  const p = authenticateSite(db, siteKey).finally(() => authInFlight.delete(siteKey));
+  authInFlight.set(siteKey, p);
+  return p;
+}
 
 /**
  * Validate the site key AND fetch the site's IANA timezone in one D1 hit.
@@ -81,9 +117,6 @@ const authCache = new Map<string, { auth: SiteAuth; expires: number }>();
  * aggregations align with the user's local clock, not UTC.
  */
 async function authenticateSite(db: D1Database, siteKey: string): Promise<SiteAuth> {
-  const cached = authCache.get(siteKey);
-  if (cached && cached.expires > Date.now()) return cached.auth;
-
   const row = await db
     .prepare(
       `SELECT sites.timezone AS tz, sites.id AS site_id, sites.domain AS domain
@@ -109,27 +142,35 @@ async function authenticateSite(db: D1Database, siteKey: string): Promise<SiteAu
   return auth;
 }
 
-// Cache the HMAC CryptoKey per (site-local) day — avoids importKey() per request.
+// Cache the HMAC CryptoKey per (site-local) day — avoids importKey() per
+// request. Keyed by a Map rather than a single slot: `date` is the SITE's
+// local date, so an isolate serving sites either side of a date boundary
+// (Asia/Kolkata is already on tomorrow while America/LA is on today, for
+// several hours daily) alternated dates request to request and re-imported
+// the key every time. At most a handful of dates are ever live.
 const encoder = new TextEncoder();
-let cachedKeyDate = '';
-let cachedCryptoKey: CryptoKey | null = null;
+const cryptoKeys = new Map<string, CryptoKey>();
 
 async function getDailyCryptoKey(secret: string, date: string): Promise<CryptoKey> {
   // An unset binding would otherwise hash under the literal key "undefined<date>",
   // making every visitor id in the world reproducible by anyone.
   if (!secret) throw new Error('VISITOR_HASH_SECRET is not configured');
-  if (cachedKeyDate === date && cachedCryptoKey) return cachedCryptoKey;
+  const hit = cryptoKeys.get(date);
+  if (hit) return hit;
 
   const keyData = encoder.encode(secret + date);
-  cachedCryptoKey = await crypto.subtle.importKey(
+  const key = await crypto.subtle.importKey(
     'raw',
     keyData,
     { name: 'HMAC', hash: 'SHA-256' },
     false,
     ['sign']
   );
-  cachedKeyDate = date;
-  return cachedCryptoKey;
+  // Yesterday/today/tomorrow across all served timezones is a tiny set; clear
+  // wholesale rather than tracking an LRU.
+  if (cryptoKeys.size > 8) cryptoKeys.clear();
+  cryptoKeys.set(date, key);
+  return key;
 }
 
 /**
@@ -214,8 +255,11 @@ app.post('/api/event', async c => {
   const { success } = await c.env.RATE_LIMIT.limit({ key: event.s });
   if (!success) return c.json({ error: 'rate limited' }, 429);
 
-  // Site key validation + timezone/domain fetch (isolate-cached, one D1 query/min).
-  const site = await authenticateSite(c.env.DB, event.s);
+  // Site key validation + timezone/domain fetch. Cached per isolate and served
+  // stale while it refreshes behind the response, so only a key this isolate
+  // has never seen puts D1 on the critical path. Placed after the rate limit
+  // so unknown keys still cannot amplify into D1.
+  const site = await authenticateSiteCached(c.env.DB, event.s, p => c.executionCtx.waitUntil(p));
   if (!site.valid) {
     return c.json({ error: 'unknown site' }, 403);
   }

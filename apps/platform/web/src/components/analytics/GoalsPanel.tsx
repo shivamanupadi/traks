@@ -7,7 +7,8 @@ interface GoalsPanelProps {
   goals: GoalStat[] | undefined;
   isLoading: boolean;
   isError?: boolean;
-  onManage: () => void;
+  /** Absent for view-only members: hides the manage affordances. */
+  onManage?: () => void;
   className?: string;
 }
 
@@ -27,13 +28,15 @@ export function GoalsPanel({
         <h3 className="text-[15px] font-bold tracking-[-0.01em] text-[#3D3B4F]">
           Goal Conversions
         </h3>
-        <button
-          onClick={onManage}
-          className="flex items-center gap-1.5 rounded-full bg-muted px-3.5 py-1.5 text-[12px] font-semibold text-foreground hover:bg-muted transition-colors cursor-pointer"
-        >
-          <Settings2 className="h-3.5 w-3.5" />
-          Manage goals
-        </button>
+        {onManage && (
+          <button
+            onClick={onManage}
+            className="flex items-center gap-1.5 rounded-full bg-muted px-3.5 py-1.5 text-[12px] font-semibold text-foreground hover:bg-muted transition-colors cursor-pointer"
+          >
+            <Settings2 className="h-3.5 w-3.5" />
+            Manage goals
+          </button>
+        )}
       </div>
 
       {isError ? (
@@ -57,12 +60,14 @@ export function GoalsPanel({
           <p className="mt-1 text-[12px] text-[#B5B0AA]">
             Track conversions by marking a custom event or page visit as a goal.
           </p>
-          <button
-            onClick={onManage}
-            className="mt-3 rounded-full bg-muted px-4 py-2 text-[12px] font-semibold text-foreground hover:bg-[#E4E4E9] transition-colors cursor-pointer"
-          >
-            Add your first goal
-          </button>
+          {onManage && (
+            <button
+              onClick={onManage}
+              className="mt-3 rounded-full bg-muted px-4 py-2 text-[12px] font-semibold text-foreground hover:bg-[#E4E4E9] transition-colors cursor-pointer"
+            >
+              Add your first goal
+            </button>
+          )}
         </div>
       ) : (
         <div className="space-y-1">

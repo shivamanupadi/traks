@@ -1,9 +1,11 @@
 import { createFileRoute, useNavigate, useLocation, Link, Outlet } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
-import { LayoutGrid, Settings, User, ChevronDown, LogOut, ArrowUpCircle, X } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { User, ChevronDown, LogOut, ArrowUpCircle, X } from 'lucide-react';
 import { authClient } from '@/lib/auth-client';
+import { api } from '@/lib/api';
 import { useInstanceConfig, useLatestVersion } from '@/lib/config';
-import { WorkspaceProvider } from '@/lib/workspace';
+import { useWorkspace, WorkspaceProvider } from '@/lib/workspace';
 import { WorkspaceSwitcher } from '@/components/layout/WorkspaceSwitcher';
 import {
   DropdownMenu,
@@ -50,53 +52,109 @@ function PortalLayout(): React.ReactNode {
   return (
     <WorkspaceProvider>
       <div className="min-h-screen bg-[#fafafa]">
-        {/* Header */}
-        <header className="bg-[#fafafa]/85 backdrop-blur-xl sticky top-0 z-40">
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 h-[68px] flex items-center justify-between">
-            {/* Logo + workspace switcher */}
-            <div className="flex items-center gap-3">
-              <Link to="/portal/sites" className="flex items-center gap-2.5 group">
-                <img
-                  src="/logo.svg"
-                  alt="Traks"
-                  className="h-9 w-9 group-hover:scale-105 transition-transform"
-                />
-                <span className="font-semibold text-[17px] text-[#3D3B4F] tracking-tight hidden sm:block">
-                  Traks
-                </span>
-              </Link>
-              <WorkspaceSwitcher />
-            </div>
-
-            {/* Center Nav */}
-            <nav className="hidden sm:flex items-center gap-0.5 bg-white p-1 rounded-full shadow-pill">
-              <NavLink to="/portal/sites" icon="sites" alsoMatchPaths={['/portal/site/']}>
-                Sites
-              </NavLink>
-              <NavLink to="/portal/settings" icon="settings">
-                Settings
-              </NavLink>
-            </nav>
-
-            {/* Right side */}
-            <div className="flex items-center gap-3">
-              {/* Mobile nav */}
-              <nav className="flex sm:hidden items-center gap-1">
-                <MobileNavLink to="/portal/sites" icon="sites" alsoMatchPaths={['/portal/site/']} />
-                <MobileNavLink to="/portal/settings" icon="settings" />
-              </nav>
-
-              <UserMenu />
-            </div>
-          </div>
-        </header>
-
+        <PortalHeader />
         <UpdateBanner />
 
         {/* Child routes render here */}
         <Outlet />
       </div>
     </WorkspaceProvider>
+  );
+}
+
+/**
+ * Two-row chrome: a white top row carrying identity (logo / workspace / site
+ * breadcrumb) and account, and a tab rail carrying navigation with an ink
+ * underline on the active tab.
+ */
+function PortalHeader(): React.ReactNode {
+  const location = useLocation();
+  const { current } = useWorkspace();
+
+  // Third breadcrumb segment: the site name while inside a dashboard. Reads
+  // the same query the dashboard page populates, so it costs no extra fetch.
+  const siteMatch = location.pathname.match(/^\/portal\/site\/([^/]+)/);
+  const siteId = siteMatch?.[1];
+  const { data: siteData } = useQuery({
+    queryKey: ['site', siteId],
+    queryFn: () => api.getSite(siteId!),
+    enabled: !!siteId,
+    staleTime: 60_000,
+  });
+  const siteCrumb = siteId
+    ? ((siteData as any)?.data?.name ?? (siteData as any)?.data?.domain ?? null)
+    : null;
+
+  return (
+    <header className="sticky top-0 z-40 bg-white">
+      {/* Identity row */}
+      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
+        <div className="flex min-w-0 items-center">
+          <Link to="/portal/sites" className="flex shrink-0 items-center gap-2">
+            <img src="/logo.svg" alt="Traks" className="h-6 w-6" />
+            <span className="hidden sm:block text-[15px] font-semibold tracking-[-0.01em] text-[#3D3B4F]">
+              Traks
+            </span>
+          </Link>
+          <BreadcrumbSlash />
+          <WorkspaceSwitcher />
+          {siteCrumb && (
+            <>
+              <BreadcrumbSlash />
+              <span className="truncate text-[13.5px] text-[#8F8D99]">{siteCrumb}</span>
+            </>
+          )}
+        </div>
+        <UserMenu />
+      </div>
+
+      {/* Tab rail: border spans the full width, tabs align with the content column */}
+      <div className="border-b border-[#E9E8EC]">
+        <nav className="mx-auto flex h-[42px] max-w-6xl items-center px-2 sm:px-4">
+          <HeaderTab to="/portal/sites" alsoMatchPaths={['/portal/site/']}>
+            Sites
+          </HeaderTab>
+          {current?.role === 'owner' && <HeaderTab to="/portal/members">Members</HeaderTab>}
+          <HeaderTab to="/portal/settings">Settings</HeaderTab>
+        </nav>
+      </div>
+    </header>
+  );
+}
+
+function BreadcrumbSlash(): React.ReactNode {
+  return <span aria-hidden className="mx-3 h-[22px] w-px shrink-0 rotate-[18deg] bg-[#E3E2E6]" />;
+}
+
+function HeaderTab({
+  to,
+  alsoMatchPaths,
+  children,
+}: {
+  to: string;
+  alsoMatchPaths?: string[];
+  children: React.ReactNode;
+}): React.ReactNode {
+  const location = useLocation();
+  const isActive =
+    location.pathname.startsWith(to) ||
+    (alsoMatchPaths?.some(p => location.pathname.startsWith(p)) ?? false);
+
+  return (
+    <Link to={to} className="relative flex h-full items-center px-1">
+      <span
+        className={`rounded-[7px] px-2.5 py-1.5 text-[13.5px] transition-colors ${
+          isActive
+            ? 'font-semibold text-[#3D3B4F]'
+            : 'text-[#6F6D7A] hover:bg-[#F2F2F0] hover:text-[#3D3B4F]'
+        }`}
+      >
+        {children}
+      </span>
+      {isActive && (
+        <span className="absolute inset-x-3 -bottom-px h-[2px] rounded-t-sm bg-[#3D3B4F]" />
+      )}
+    </Link>
   );
 }
 
@@ -153,66 +211,6 @@ function UpdateBanner(): React.ReactNode {
   );
 }
 
-function NavLink({
-  to,
-  icon,
-  alsoMatchPaths,
-  children,
-}: {
-  to: string;
-  icon: 'sites' | 'settings';
-  alsoMatchPaths?: string[];
-  children: React.ReactNode;
-}): React.ReactNode {
-  const location = useLocation();
-  const isActive =
-    location.pathname.startsWith(to) ||
-    (alsoMatchPaths?.some(p => location.pathname.startsWith(p)) ?? false);
-
-  return (
-    <Link
-      to={to}
-      className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-full transition-all ${
-        isActive ? 'text-white bg-[#3D3B4F] font-semibold' : 'text-[#9B9590] hover:text-[#6b6560]'
-      }`}
-    >
-      <NavIcon type={icon} />
-      {children}
-    </Link>
-  );
-}
-
-function MobileNavLink({
-  to,
-  icon,
-  alsoMatchPaths,
-}: {
-  to: string;
-  icon: 'sites' | 'settings';
-  alsoMatchPaths?: string[];
-}): React.ReactNode {
-  const location = useLocation();
-  const isActive =
-    location.pathname.startsWith(to) ||
-    (alsoMatchPaths?.some(p => location.pathname.startsWith(p)) ?? false);
-
-  return (
-    <Link
-      to={to}
-      className={`w-9 h-9 flex items-center justify-center rounded-full transition-all ${
-        isActive ? 'bg-[#3D3B4F] text-white' : 'text-[#9B9590] hover:text-[#6b6560] hover:bg-muted'
-      }`}
-    >
-      <NavIcon type={icon} />
-    </Link>
-  );
-}
-
-function NavIcon({ type }: { type: 'sites' | 'settings' }): React.ReactNode {
-  if (type === 'sites') return <LayoutGrid className="w-4 h-4" />;
-  return <Settings className="w-4 h-4" />;
-}
-
 function UserMenu(): React.ReactNode {
   const { data: session } = authClient.useSession();
   const config = useInstanceConfig();
@@ -248,25 +246,6 @@ function UserMenu(): React.ReactNode {
           <p className="text-sm font-semibold text-[#3D3B4F] truncate">{displayName}</p>
           <p className="text-xs text-[#9B9590] font-normal truncate">{email}</p>
         </DropdownMenuLabel>
-
-        <DropdownMenuSeparator />
-
-        <DropdownMenuItem asChild>
-          <Link to="/portal/sites" className="flex items-center gap-3 px-4 py-2.5 cursor-pointer">
-            <LayoutGrid className="w-4 h-4" />
-            Sites
-          </Link>
-        </DropdownMenuItem>
-
-        <DropdownMenuItem asChild>
-          <Link
-            to="/portal/settings"
-            className="flex items-center gap-3 px-4 py-2.5 cursor-pointer"
-          >
-            <Settings className="w-4 h-4" />
-            Settings
-          </Link>
-        </DropdownMenuItem>
 
         <DropdownMenuSeparator />
 

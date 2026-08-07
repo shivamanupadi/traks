@@ -40,6 +40,7 @@ function SitesPage(): ReactElement {
   });
 
   const isLoading = sitesLoading || workspaceLoading || !workspace;
+  const isWorkspaceOwner = workspace?.role === 'owner';
   const allSites = (sitesData as any)?.data || [];
 
   // Client-side search: case-insensitive match on name or domain
@@ -136,10 +137,12 @@ function SitesPage(): ReactElement {
             />
             Refresh
           </Button>
-          <Button variant="dark" onClick={() => setWizardOpen(true)} className="px-5 h-10">
-            <Plus className="h-4 w-4" />
-            Add Site
-          </Button>
+          {isWorkspaceOwner && (
+            <Button variant="dark" onClick={() => setWizardOpen(true)} className="px-5 h-10">
+              <Plus className="h-4 w-4" />
+              Add Site
+            </Button>
+          )}
         </div>
       </div>
 
@@ -177,12 +180,16 @@ function SitesPage(): ReactElement {
           </div>
           <p className="text-[17px] font-semibold text-[#3D3B4F]">No sites yet</p>
           <p className="mt-2 text-[14px] text-[#9B9590] max-w-sm mx-auto">
-            Add your first website to start tracking visitors, pageviews, and more
+            {isWorkspaceOwner
+              ? 'Add your first website to start tracking visitors, pageviews, and more'
+              : 'A workspace owner needs to add a site before there is anything to see here'}
           </p>
-          <Button variant="dark" onClick={() => setWizardOpen(true)} className="mt-5 px-6">
-            <Plus className="h-4 w-4" />
-            Add Your First Site
-          </Button>
+          {isWorkspaceOwner && (
+            <Button variant="dark" onClick={() => setWizardOpen(true)} className="mt-5 px-6">
+              <Plus className="h-4 w-4" />
+              Add Your First Site
+            </Button>
+          )}
         </div>
       ) : filteredSites.length === 0 ? (
         <div className="rounded-[20px] bg-white px-8 py-12 text-center shadow-float">

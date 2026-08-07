@@ -21,6 +21,14 @@ import { SCREEN_SIZE_CASE } from '@traks/shared';
 // any timezone; prune with margin.
 const RETENTION_MS = 50 * 60 * 60 * 1000;
 const PRUNE_INTERVAL_MS = 60 * 60 * 1000;
+/**
+ * How many events may be recorded before the monthly counters are written to
+ * SQLite. Bounds counter drift to this many events in the worst case (object
+ * evicted between persists) while removing ~98% of the row writes that
+ * per-event persistence cost. The hourly prune alarm also flushes them, so
+ * drift is bounded by time as well as by count.
+ */
+const COUNTER_PERSIST_EVERY = 50;
 
 // Writes go to SQLite on the same tick they arrive. An earlier version held
 // events in memory behind a 1s timer to batch inserts, but a pending timer
@@ -75,6 +83,10 @@ export class SiteLiveStore extends DurableObject<unknown> {
   private memo = new Map<string, { expires: number; value: unknown }>();
   /** Avoids an async storage.getAlarm() round-trip on every record(). */
   private alarmArmed = false;
+  /** Months whose in-memory counter is ahead of the `usage` table. */
+  private dirtyMonths = new Set<string>();
+  /** Events recorded since the counters were last persisted. */
+  private countsSincePersist = 0;
 
   constructor(ctx: DurableObjectState, env: unknown) {
     super(ctx, env);
@@ -176,10 +188,27 @@ export class SiteLiveStore extends DurableObject<unknown> {
       );
     }
 
-    // Persist the in-memory counters for every month this batch touched.
-    const months = new Set<string>();
-    for (const e of events) months.add(e.hourKey.slice(0, 7));
-    for (const month of months) {
+    for (const e of events) this.dirtyMonths.add(e.hourKey.slice(0, 7));
+    this.countsSincePersist += events.length;
+    if (this.countsSincePersist >= COUNTER_PERSIST_EVERY) this.persistCounts();
+  }
+
+  /**
+   * Write the in-memory monthly counters to SQLite.
+   *
+   * Deliberately NOT done per event. Nothing reads the `usage` table on the
+   * hot path — monthCounts is authoritative in memory — so the table is only
+   * a durable copy for when the object is evicted. Rewriting one integer on
+   * every event made it the second-largest source of billable row writes
+   * (Cloudflare bills per row written), for no observable benefit. Persisting
+   * every COUNTER_PERSIST_EVERY events removes ~98% of those writes and caps
+   * the worst case at that many events of counter drift, and only if the
+   * object is evicted between persists. Reads, freshness and event durability
+   * are untouched: event rows are still written on arrival.
+   */
+  private persistCounts(): void {
+    if (this.dirtyMonths.size === 0) return;
+    for (const month of this.dirtyMonths) {
       const count = this.monthCounts.get(month);
       if (count === undefined) continue;
       this.sql.exec(
@@ -190,6 +219,8 @@ export class SiteLiveStore extends DurableObject<unknown> {
         count
       );
     }
+    this.dirtyMonths.clear();
+    this.countsSincePersist = 0;
   }
 
   /**
@@ -285,6 +316,8 @@ export class SiteLiveStore extends DurableObject<unknown> {
   async purge(): Promise<void> {
     this.buffer = [];
     this.monthCounts.clear();
+    this.dirtyMonths.clear();
+    this.countsSincePersist = 0;
     this.memo.clear();
     this.alarmArmed = false;
     await this.ctx.storage.deleteAlarm();
@@ -293,6 +326,9 @@ export class SiteLiveStore extends DurableObject<unknown> {
 
   async alarm(): Promise<void> {
     this.flushBuffer();
+    // Bound counter drift by time as well as by event count: an object that
+    // goes quiet mid-batch still has its counters durable within the hour.
+    this.persistCounts();
     this.sql.exec('DELETE FROM events WHERE ts < ?', Date.now() - RETENTION_MS);
     const remaining = n(this.sql.exec('SELECT COUNT(*) AS c FROM events').one().c);
     // Keep pruning while data remains; a fresh event re-arms the alarm.

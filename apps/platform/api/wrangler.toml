@@ -3,6 +3,14 @@ main = "src/index.ts"
 compatibility_date = "2026-06-01"
 compatibility_flags = ["nodejs_compat"]
 
+# Dashboard requests are back-end bound: each one makes several sequential hops
+# to D1, the live Durable Object and R2 SQL, none of which live at the edge.
+# Running near the data beats running near the viewer here — the opposite of
+# the collect worker, which stays at the edge because ingest latency is felt on
+# the visitor's page.
+[placement]
+mode = "smart"
+
 # --- Dev (local-first: wrangler dev, shared state in <root>/.wrangler-state) ---
 # Local dev serves the SPA from vite (:5012, proxying /api to :5011). D1/KV
 # are local simulations; ids below are inert locally. Only the events

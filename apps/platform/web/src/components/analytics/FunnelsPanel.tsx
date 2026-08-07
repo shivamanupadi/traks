@@ -10,7 +10,8 @@ interface FunnelsPanelProps {
   stat: FunnelStat | undefined;
   isLoading: boolean;
   isError?: boolean;
-  onManage: () => void;
+  /** Absent for view-only members: hides the manage affordances. */
+  onManage?: () => void;
   className?: string;
 }
 
@@ -62,13 +63,15 @@ export function FunnelsPanel({
               ))}
             </div>
           )}
-          <button
-            onClick={onManage}
-            className="flex items-center gap-1.5 rounded-full bg-muted px-3.5 py-1.5 text-[12px] font-semibold text-foreground hover:bg-[#E4E4E9] transition-colors cursor-pointer"
-          >
-            <Settings2 className="h-3.5 w-3.5" />
-            Manage funnels
-          </button>
+          {onManage && (
+            <button
+              onClick={onManage}
+              className="flex items-center gap-1.5 rounded-full bg-muted px-3.5 py-1.5 text-[12px] font-semibold text-foreground hover:bg-[#E4E4E9] transition-colors cursor-pointer"
+            >
+              <Settings2 className="h-3.5 w-3.5" />
+              Manage funnels
+            </button>
+          )}
         </div>
       </div>
 
@@ -84,12 +87,14 @@ export function FunnelsPanel({
           <p className="mt-1 max-w-[44ch] text-center text-[12px] text-[#B5B0AA]">
             Chain pages and events into ordered steps to see where visitors drop off.
           </p>
-          <button
-            onClick={onManage}
-            className="mt-3 rounded-full bg-muted px-4 py-2 text-[12px] font-semibold text-foreground hover:bg-[#E4E4E9] transition-colors cursor-pointer"
-          >
-            Create your first funnel
-          </button>
+          {onManage && (
+            <button
+              onClick={onManage}
+              className="mt-3 rounded-full bg-muted px-4 py-2 text-[12px] font-semibold text-foreground hover:bg-[#E4E4E9] transition-colors cursor-pointer"
+            >
+              Create your first funnel
+            </button>
+          )}
         </div>
       ) : isLoading || !stat ? (
         <div className="space-y-2.5">

@@ -804,8 +804,9 @@ function DeleteSiteModal({
           </div>
           <DialogTitle>Delete {site?.name || 'this site'}?</DialogTitle>
           <DialogDescription>
-            This permanently removes the site, its tracking keys and all collected analytics data.
-            This cannot be undone.
+            This permanently removes the site, its tracking keys, goals, segments and funnels, and
+            cuts off access to all of its analytics. Raw events already collected stay in your R2
+            bucket but can never be viewed from Traks again. This cannot be undone.
           </DialogDescription>
         </DialogHeader>
 
@@ -1463,13 +1464,54 @@ function SiteAnalyticsPage(): ReactElement {
     staleTime: 300_000,
   });
 
+  // One request for the whole default view. /stats/all answers main,
+  // timeseries, top pages, referrers, countries, browsers and OS from a single
+  // server round-trip (and, on 'today', a single fan-out to the live store) —
+  // seven browser requests collapsed into one. It has no filtered variant, so
+  // the moment a filter chip is active we fall back to per-panel requests.
+  const useBootstrap = !hasFilters;
+  const bootstrapQ = useQuery({
+    queryKey: ['site-analytics', siteId, 'all', period],
+    queryFn: async () => api.getAllStats(siteId, period),
+    enabled: useBootstrap,
+    refetchInterval: getRefetchInterval(period),
+    staleTime: getStaleTime(period),
+  });
+
+  // Seed each panel's cache from the bundle so the panel queries below find
+  // fresh data and never hit the network. Panels stay independent components
+  // with their own loading states; they just get their data early.
+  const bootstrapData = (bootstrapQ.data as { data?: Record<string, unknown> } | undefined)?.data;
+  useEffect(() => {
+    if (!bootstrapData) return;
+    const seed = (key: readonly unknown[], value: unknown): void => {
+      queryClient.setQueryData(['site-analytics', siteId, ...key, period, filterKey], {
+        data: value,
+      });
+    };
+    seed(['main'], bootstrapData.main);
+    seed(['timeseries'], bootstrapData.timeseries);
+    seed(['pages', 'top'], bootstrapData.pages);
+    seed(['referrers'], bootstrapData.referrers);
+    seed(['locations', 'country'], bootstrapData.locations);
+    seed(['devices', 'browser'], bootstrapData.browsers);
+    seed(['devices', 'os'], bootstrapData.os);
+  }, [bootstrapData, queryClient, siteId, period, filterKey]);
+
+  // Panels covered by the bundle wait for it rather than racing it; if it
+  // fails they fall back to fetching themselves, so a bundle error degrades
+  // to the old behaviour instead of an empty dashboard.
+  const bootstrapSettled = !useBootstrap || bootstrapQ.isSuccess || bootstrapQ.isError;
+
   // Per-tile parallel queries — each tile renders as its own request resolves.
   // Tabbed panels pass `enabled` so only the active tab's query runs (each
   // R2 SQL query is a paid distributed scan; don't fetch hidden tabs).
+  // `inBundle` marks the panels /stats/all already answers.
   const tileOpts = (
     key: readonly unknown[],
     call: () => Promise<unknown>,
-    enabled = true
+    enabled = true,
+    inBundle = false
   ): Parameters<typeof useQuery>[0] => ({
     queryKey: ['site-analytics', siteId, ...key, period, filterKey],
     queryFn: async () => {
@@ -1477,19 +1519,22 @@ function SiteAnalyticsPage(): ReactElement {
     },
     refetchInterval: getRefetchInterval(period),
     staleTime: getStaleTime(period),
-    enabled,
+    enabled: enabled && (!inBundle || bootstrapSettled),
   });
 
-  const mainQ = useQuery(tileOpts(['main'], () => api.getMainStats(siteId, period, filters)));
+  const mainQ = useQuery(
+    tileOpts(['main'], () => api.getMainStats(siteId, period, filters), true, true)
+  );
   const timeseriesQ = useQuery(
-    tileOpts(['timeseries'], () => api.getTimeseries(siteId, period, filters))
+    tileOpts(['timeseries'], () => api.getTimeseries(siteId, period, filters), true, true)
   );
   // Pages panel: top pages or entry/exit pages (first/last page of each session)
   const topPagesQ = useQuery(
     tileOpts(
       ['pages', 'top'],
       () => api.getTopPages(siteId, period, 'top', filters),
-      pagesTab === 'top'
+      pagesTab === 'top',
+      true
     )
   );
   const entryPagesQ = useQuery(
@@ -1512,7 +1557,8 @@ function SiteAnalyticsPage(): ReactElement {
     tileOpts(
       ['referrers'],
       () => api.getTopReferrers(siteId, period, filters),
-      sourceTab === 'referrers'
+      sourceTab === 'referrers',
+      true
     )
   );
   const utmSourceQ = useQuery(
@@ -1542,7 +1588,8 @@ function SiteAnalyticsPage(): ReactElement {
     tileOpts(
       ['locations', 'country'],
       () => api.getLocations(siteId, period, 'country', filters),
-      belowFoldVisible && locationTab === 'country'
+      belowFoldVisible && locationTab === 'country',
+      true
     )
   );
   const regionsQ = useQuery(
@@ -1563,7 +1610,8 @@ function SiteAnalyticsPage(): ReactElement {
     tileOpts(
       ['devices', 'browser'],
       () => api.getDevices(siteId, period, 'browser', filters),
-      belowFoldVisible && deviceTab === 'browser'
+      belowFoldVisible && deviceTab === 'browser',
+      true
     )
   );
   const osQ = useQuery(
@@ -1649,6 +1697,9 @@ function SiteAnalyticsPage(): ReactElement {
   });
 
   const site = (siteData as any)?.data;
+  // Members are view-only: manage affordances render only once the site has
+  // loaded with an owner role (server enforces regardless).
+  const canManage = !!site && site.role !== 'member';
   const currentVisitors: number | null = (realtimeQ.data as any)?.data?.currentVisitors ?? null;
 
   if (siteError || (!siteLoading && !site)) {
@@ -1740,13 +1791,15 @@ function SiteAnalyticsPage(): ReactElement {
             >
               <Code2 className="w-[15px] h-[15px]" />
             </button>
-            <button
-              onClick={() => setEditOpen(true)}
-              className="flex items-center justify-center w-[38px] h-[38px] rounded-full bg-white shadow-pill text-[#9B9590] hover:text-foreground transition-colors cursor-pointer"
-              title="Site settings"
-            >
-              <Settings className="w-[15px] h-[15px]" />
-            </button>
+            {canManage && (
+              <button
+                onClick={() => setEditOpen(true)}
+                className="flex items-center justify-center w-[38px] h-[38px] rounded-full bg-white shadow-pill text-[#9B9590] hover:text-foreground transition-colors cursor-pointer"
+                title="Site settings"
+              >
+                <Settings className="w-[15px] h-[15px]" />
+              </button>
+            )}
             <button
               onClick={handleRefresh}
               className="flex items-center justify-center w-[38px] h-[38px] rounded-full bg-white shadow-pill text-[#9B9590] hover:text-foreground transition-colors cursor-pointer"
@@ -1761,13 +1814,15 @@ function SiteAnalyticsPage(): ReactElement {
               onApply={applySegment}
             />
             <PeriodPicker value={period} onChange={setPeriod} />
-            <button
-              onClick={() => setDeleteOpen(true)}
-              className="flex items-center justify-center w-[38px] h-[38px] rounded-full bg-white shadow-pill text-coral hover:bg-[#e07a5f]/10 transition-colors cursor-pointer"
-              title="Delete site"
-            >
-              <Trash2 className="w-[15px] h-[15px]" />
-            </button>
+            {canManage && (
+              <button
+                onClick={() => setDeleteOpen(true)}
+                className="flex items-center justify-center w-[38px] h-[38px] rounded-full bg-white shadow-pill text-coral hover:bg-[#e07a5f]/10 transition-colors cursor-pointer"
+                title="Delete site"
+              >
+                <Trash2 className="w-[15px] h-[15px]" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -1917,7 +1972,7 @@ function SiteAnalyticsPage(): ReactElement {
                 goals={(goalStatsQ.data as any)?.data}
                 isLoading={goalStatsQ.isLoading}
                 isError={goalStatsQ.isError}
-                onManage={() => setGoalsOpen(true)}
+                onManage={canManage ? () => setGoalsOpen(true) : undefined}
               />
               {elTab === 'events' ? (
                 selectedEvent === null ? (
@@ -1985,7 +2040,7 @@ function SiteAnalyticsPage(): ReactElement {
               stat={(funnelStatsQ.data as any)?.data as FunnelStat | undefined}
               isLoading={funnelStatsQ.isLoading}
               isError={funnelStatsQ.isError || funnelsQ.isError}
-              onManage={() => setFunnelsOpen(true)}
+              onManage={canManage ? () => setFunnelsOpen(true) : undefined}
             />
           </>
         )}

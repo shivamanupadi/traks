@@ -1,6 +1,7 @@
 import { hc } from 'hono/client';
 import type { AppType } from '@traks/platform-api';
 import type { Period } from '@traks/shared';
+import { authClient } from '@/lib/auth-client';
 
 /** Click-to-filter params, passed through to the analytics endpoints. */
 export interface AnalyticsFilters {
@@ -55,6 +56,28 @@ async function assertOk(res: Response): Promise<void> {
   }
 }
 
+/** Better Auth client calls return {data, error} — normalize to throwing
+ *  ApiError so react-query error paths stay identical to the REST calls. */
+function unwrap<T>(res: {
+  data: T | null;
+  error: { message?: string; status?: number } | null;
+}): T {
+  if (res.error) {
+    throw new ApiError(res.error.status ?? 500, res.error.message || 'Request failed');
+  }
+  return res.data as T;
+}
+
+/** Org plugin requires a slug; derive one from the name, uniqued by suffix. */
+function slugify(name: string): string {
+  const base = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 30);
+  return `${base || 'workspace'}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
 export const api = {
   // Current user
   async getMe(): Promise<any> {
@@ -63,7 +86,8 @@ export const api = {
     return res.json();
   },
 
-  // Workspaces
+  // Workspaces — reads come from the custom aggregation endpoint (role +
+  // siteCount + bootstrap); lifecycle goes through the org plugin.
   async getWorkspaces(): Promise<any> {
     const res = await client.api.workspaces.$get();
     await assertOk(res);
@@ -71,24 +95,92 @@ export const api = {
   },
 
   async createWorkspace(data: { name: string }): Promise<any> {
-    const res = await client.api.workspaces.$post({ json: data });
-    await assertOk(res);
-    return res.json();
+    const org = unwrap(
+      await authClient.organization.create({ name: data.name, slug: slugify(data.name) })
+    );
+    return { data: org };
   },
 
   async updateWorkspace(workspaceId: string, data: { name: string }): Promise<any> {
-    const res = await client.api.workspaces[':id'].$patch({
-      param: { id: workspaceId },
-      json: data,
-    });
+    const org = unwrap(
+      await authClient.organization.update({
+        organizationId: workspaceId,
+        data: { name: data.name },
+      })
+    );
+    return { data: org };
+  },
+
+  async deleteWorkspace(workspaceId: string): Promise<any> {
+    unwrap(await authClient.organization.delete({ organizationId: workspaceId }));
+    return { ok: true };
+  },
+
+  // Members
+  async getMembers(workspaceId: string): Promise<any> {
+    const res = await client.api.workspaces[':id'].members.$get({ param: { id: workspaceId } });
     await assertOk(res);
     return res.json();
   },
 
-  async deleteWorkspace(workspaceId: string): Promise<any> {
-    const res = await client.api.workspaces[':id'].$delete({ param: { id: workspaceId } });
+  async removeMember(workspaceId: string, memberEmail: string): Promise<any> {
+    unwrap(
+      await authClient.organization.removeMember({
+        organizationId: workspaceId,
+        memberIdOrEmail: memberEmail,
+      })
+    );
+    return { ok: true };
+  },
+
+  async leaveWorkspace(workspaceId: string): Promise<any> {
+    unwrap(await authClient.organization.leave({ organizationId: workspaceId }));
+    return { ok: true };
+  },
+
+  // Invitations — created/canceled/accepted via the org plugin; the row id
+  // IS the invite-link token. Public preview stays a custom endpoint (the
+  // plugin's getInvitation requires a session the invitee doesn't have).
+  async createInvitation(
+    workspaceId: string,
+    data: { email: string; role?: 'owner' | 'member' }
+  ): Promise<any> {
+    const invitation = unwrap<{ id: string }>(
+      await authClient.organization.inviteMember({
+        organizationId: workspaceId,
+        email: data.email,
+        role: data.role ?? 'member',
+      })
+    );
+    return { data: invitation, token: invitation.id };
+  },
+
+  async getInvitations(workspaceId: string): Promise<any> {
+    const invitations = unwrap<
+      { id: string; email: string; role: string; status: string; expiresAt: Date | string }[]
+    >(await authClient.organization.listInvitations({ query: { organizationId: workspaceId } }));
+    const pending = (invitations ?? []).filter(
+      inv => inv.status === 'pending' && new Date(inv.expiresAt).getTime() > Date.now()
+    );
+    return { data: pending };
+  },
+
+  async revokeInvitation(_workspaceId: string, invitationId: string): Promise<any> {
+    unwrap(await authClient.organization.cancelInvitation({ invitationId }));
+    return { ok: true };
+  },
+
+  async getInvitation(token: string): Promise<any> {
+    const res = await client.api.invitations[':token'].$get({ param: { token } });
     await assertOk(res);
     return res.json();
+  },
+
+  async acceptInvitation(token: string): Promise<any> {
+    const accepted = unwrap<{ member: { organizationId: string } }>(
+      await authClient.organization.acceptInvitation({ invitationId: token })
+    );
+    return { data: { workspaceId: accepted.member.organizationId } };
   },
 
   // Sites
@@ -126,8 +218,8 @@ export const api = {
     return res.json();
   },
 
-  async setAllSitesTimezone(timezone: string): Promise<any> {
-    const res = await client.api.sites.timezone.$post({ json: { timezone } });
+  async setAllSitesTimezone(timezone: string, workspaceId?: string): Promise<any> {
+    const res = await client.api.sites.timezone.$post({ json: { timezone, workspaceId } });
     await assertOk(res);
     return res.json();
   },

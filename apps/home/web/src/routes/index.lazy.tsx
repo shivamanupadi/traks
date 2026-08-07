@@ -528,8 +528,8 @@ function LandingPage(): ReactElement {
               <p className="mt-4 text-[13.5px] leading-relaxed text-[#6E6C7C]">
                 Traks isn&rsquo;t a subscription dashboard holding your history hostage. It deploys
                 into your own Cloudflare account, stores events in your own database, and serves the
-                dashboard from your own domain. Cloudflare&rsquo;s $5/mo Workers plan covers millions of
-                events — and if you ever leave, the data is already yours.
+                dashboard from your own domain. Cloudflare&rsquo;s $5/mo Workers plan covers
+                millions of events — and if you ever leave, the data is already yours.
               </p>
               <div className="mt-6 flex flex-wrap gap-2">
                 {STACK.map(s => (
@@ -560,8 +560,8 @@ function LandingPage(): ReactElement {
             </h2>
             <p className="mt-4 max-w-[62ch] text-[13.5px] leading-relaxed text-[#6E6C7C]">
               Traks runs entirely in your Cloudflare account, so the running cost is
-              Cloudflare&rsquo;s usage pricing — paid to them, not to us. Slide to your traffic and
-              compare with hosted analytics at the same volume.
+              Cloudflare&rsquo;s usage pricing — paid to them, not to us. Slide to your traffic to
+              see where every cent goes.
             </p>
           </motion.div>
           <motion.div {...rise(0.08)} className="mt-10">
@@ -639,79 +639,111 @@ function LandingPage(): ReactElement {
 
 /* ── cost calculator ─────────────────────────────────────────── */
 
-const COST_STEPS = [10e3, 25e3, 50e3, 100e3, 250e3, 500e3, 1e6, 2e6, 5e6, 10e6];
+const COST_STEPS = [10e3, 25e3, 50e3, 100e3, 250e3, 500e3, 1e6, 2e6, 5e6, 10e6, 15e6, 20e6, 25e6];
 
 const fmtEvents = (n: number): string => (n >= 1e6 ? `${n / 1e6}M` : `${n / 1e3}k`);
 
-/** Smallest published tier that covers the volume; null = custom/enterprise. */
-const tierPrice = (tiers: [number, number][], events: number): number | null => {
-  for (const [cap, price] of tiers) if (events <= cap) return price;
-  return null;
-};
-
-// Published pricing, checked August 2026 — see each vendor's pricing page.
-const PLAUSIBLE_TIERS: [number, number][] = [
-  [10e3, 9], [100e3, 19], [200e3, 29], [500e3, 49], [1e6, 69], [2e6, 89], [5e6, 129], [10e6, 149],
-];
-const FATHOM_TIERS: [number, number][] = [
-  [100e3, 15], [500e3, 34], [2e6, 74],
-];
+const gb = (bytes: number): number => bytes / 1024 ** 3;
+/** Metered amount above an included allowance. */
+const over = (used: number, included: number): number => Math.max(0, used - included);
 
 /**
- * Traks infrastructure estimate at Cloudflare list prices (Aug 2026):
- * $5/mo Workers Paid (includes 10M requests, 1M DO requests, 30M CPU-ms,
- * 25B D1 reads, 50 GB/mo Pipelines transforms + sink, 10 GB/mo R2 SQL scans),
- * plus metered overages. Events assume ~800 B ingested, ~250 B stored as
- * Parquet; storage models ~6 months of accumulated history.
+ * Row writes billed per event by the live-stats Durable Object. Cloudflare
+ * bills every index update as its own row write, and counts deletes as
+ * writes too:
+ *   1 events row + 2 index entries        = 3 on insert
+ *   the same 3 again when the 50-hour     = 3 on prune
+ *   retention window deletes the row
+ * The monthly usage counter used to add a 7th here; it is now persisted once
+ * per 50 events (see COUNTER_PERSIST_EVERY in the collect worker), which
+ * rounds to nothing per event. This is the single largest line item at scale,
+ * so it is modelled explicitly rather than folded into the request charge.
  */
-function traksCost(events: number): { total: number; overage: number } {
-  const gb = (bytes: number): number => bytes / 1024 ** 3;
-  const workerReq = (Math.max(0, events * 1.05 - 10e6) / 1e6) * 0.3;
-  const doReq = (Math.max(0, events - 1e6) / 1e6) * 0.15;
-  const transforms = Math.max(0, gb(events * 800) - 50) * 0.04;
-  const sink = Math.max(0, gb(events * 250) - 50) * 0.06;
-  const storage = Math.max(0, gb(events * 250 * 6) - 10) * 0.015;
-  const r2sql = Math.max(0, gb(events * 500) - 10) * 0.0025;
-  const overage = workerReq + doReq + transforms + sink + storage + r2sql;
-  return { total: 5 + overage, overage };
+const DO_ROWS_PER_EVENT = 6;
+
+interface CostLine {
+  label: string;
+  detail: string;
+  amount: number;
+}
+
+/**
+ * Cloudflare list prices, verified 7 Aug 2026 against developers.cloudflare.com
+ * (Workers, Durable Objects, R2, Pipelines and R2 SQL pricing pages). Billing
+ * for Pipelines, R2 SQL and R2 Data Catalog was switched on 3 Aug 2026, so
+ * these are live charges, not beta freebies.
+ *
+ * Volume assumptions, deliberately on the pessimistic side: one ingest request
+ * per event, ~5% more requests for dashboard use, ~800 B per raw event through
+ * the pipeline sink, ~250 B per event once written as compacted Parquet, and
+ * six months of accumulated history in R2.
+ */
+function traksCost(events: number): { total: number; lines: CostLine[] } {
+  const lines: CostLine[] = [
+    { label: 'Workers Paid plan', detail: 'flat monthly minimum', amount: 5 },
+    {
+      label: 'Worker requests',
+      detail: '10M/mo included, then $0.30/M',
+      amount: (over(events * 1.05, 10e6) / 1e6) * 0.3,
+    },
+    {
+      label: 'Durable Object requests',
+      detail: '1M/mo included, then $0.15/M',
+      amount: (over(events, 1e6) / 1e6) * 0.15,
+    },
+    {
+      label: 'Durable Object row writes',
+      detail: `~${DO_ROWS_PER_EVENT}/event · 50M/mo included, then $1.00/M`,
+      amount: (over(events * DO_ROWS_PER_EVENT, 50e6) / 1e6) * 1.0,
+    },
+    {
+      label: 'Pipelines sink',
+      detail: '50 GB/mo included, then $0.06/GB',
+      amount: over(gb(events * 800), 50) * 0.06,
+    },
+    {
+      label: 'R2 storage',
+      detail: '10 GB/mo included, then $0.015/GB',
+      amount: over(gb(events * 250 * 6), 10) * 0.015,
+    },
+    {
+      label: 'R2 SQL scans',
+      detail: '10 GB/mo included, then $0.0025/GB',
+      amount: over(gb(events * 500), 10) * 0.0025,
+    },
+  ];
+  return { total: lines.reduce((sum, l) => sum + l.amount, 0), lines };
 }
 
 const fmtUsd = (n: number): string => (n % 1 === 0 ? `$${n}` : `$${n.toFixed(2)}`);
 
-function CostRow({
-  name,
-  price,
-  max,
-  mint,
-  note,
-}: {
-  name: string;
-  price: number | null;
-  max: number;
-  mint?: boolean;
-  note?: string;
-}): ReactElement {
-  const width = price === null ? 100 : Math.max(4, (price / max) * 100);
+/** One metered line: name, the rule behind it, and a share-of-total bar. */
+function CostLineRow({ line, total }: { line: CostLine; total: number }): ReactElement {
+  const included = line.amount === 0 && line.label !== 'Workers Paid plan';
+  const share = total > 0 ? (line.amount / total) * 100 : 0;
+
   return (
-    <div>
-      <div className="mb-1 flex items-baseline justify-between gap-3">
-        <span className={`text-[13px] ${mint ? 'font-semibold text-[#3D3B4F]' : 'text-[#6E6C7C]'}`}>
-          {name}
-          {note && <span className="ml-2 text-[11px] text-[#B3B1BE]">{note}</span>}
-        </span>
-        <span
-          className={`font-mono text-[13px] ${mint ? 'font-semibold text-[#3D3B4F]' : 'text-[#8C8A99]'}`}
-        >
-          {price === null ? 'custom' : `${fmtUsd(price)}/mo`}
-        </span>
-      </div>
-      <div className="h-[6px] overflow-hidden rounded-full bg-[#F0F0F3]">
-        <div
-          className={`h-full rounded-full transition-all duration-300 ${
-            mint ? 'bg-mint' : price === null ? 'bg-[#E4E4E9]' : 'bg-[#CBCAD4]'
-          }`}
-          style={{ width: `${width}%` }}
-        />
+    <div className="flex items-baseline gap-3 py-2">
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="text-[13px] text-[#3D3B4F]">{line.label}</span>
+          <span
+            className={`shrink-0 font-mono text-[12.5px] tabular-nums ${
+              included ? 'text-[#B3B1BE]' : 'text-[#3D3B4F]'
+            }`}
+          >
+            {included ? 'included' : fmtUsd(Math.round(line.amount * 100) / 100)}
+          </span>
+        </div>
+        <div className="mt-1 flex items-center gap-2">
+          <div className="h-[3px] flex-1 overflow-hidden rounded-full bg-[#F0F0F3]">
+            <div
+              className="h-full rounded-full bg-mint transition-all duration-300"
+              style={{ width: `${share}%` }}
+            />
+          </div>
+          <span className="shrink-0 font-mono text-[10px] text-[#B3B1BE]">{line.detail}</span>
+        </div>
       </div>
     </div>
   );
@@ -720,20 +752,11 @@ function CostRow({
 function CostCalculator(): ReactElement {
   const [step, setStep] = useState(3); // 100k default
   const events = COST_STEPS[step];
-  const { traks, plausible, fathom, max, savings } = useMemo(() => {
-    const t = traksCost(events);
-    const pl = tierPrice(PLAUSIBLE_TIERS, events);
-    const fa = tierPrice(FATHOM_TIERS, events);
-    const mx = Math.max(t.total, pl ?? 0, fa ?? 0);
-    const cheapest = Math.min(...[pl, fa].filter((x): x is number => x !== null));
-    return {
-      traks: t,
-      plausible: pl,
-      fathom: fa,
-      max: mx,
-      savings: Number.isFinite(cheapest) ? Math.round((cheapest - t.total) * 12) : null,
-    };
-  }, [events]);
+  const { total, lines } = useMemo(() => traksCost(events), [events]);
+
+  const metered = lines.filter(l => l.label !== 'Workers Paid plan');
+  const usage = metered.reduce((sum, l) => sum + l.amount, 0);
+  const perMillion = events >= 1e6 ? total / (events / 1e6) : null;
 
   return (
     <div className="rounded-[18px] border border-[#E4E4E9] bg-white p-7 sm:p-9">
@@ -755,43 +778,50 @@ function CostCalculator(): ReactElement {
         onChange={e => setStep(Number(e.target.value))}
         className="w-full accent-[#3D3B4F]"
       />
-      <div className="mb-8 mt-1 flex justify-between font-mono text-[10.5px] text-[#B3B1BE]">
+      <div className="mt-1 flex justify-between font-mono text-[10.5px] text-[#B3B1BE]">
         <span>{fmtEvents(COST_STEPS[0])}</span>
         <span>{fmtEvents(COST_STEPS[COST_STEPS.length - 1])}</span>
       </div>
 
-      <div className="space-y-5">
-        <CostRow
-          name="Traks on your Cloudflare"
-          price={Math.round(traks.total * 100) / 100}
-          max={max}
-          mint
-          note={
-            traks.overage < 0.01
-              ? '$5 plan covers it'
-              : `$5 plan + ${fmtUsd(Math.round(traks.overage * 100) / 100)} usage`
-          }
-        />
-        <CostRow name="Plausible" price={plausible} max={max} />
-        <CostRow name="Fathom" price={fathom} max={max} />
+      {/* Headline total */}
+      <div className="mt-8 flex flex-wrap items-end justify-between gap-4 border-b border-[#EFEFF2] pb-6">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.09em] text-[#B3B1BE]">
+            Estimated Cloudflare bill
+          </p>
+          <p className="mt-1.5 font-mono text-[34px] font-bold leading-none tracking-tight text-[#3D3B4F]">
+            {fmtUsd(Math.round(total * 100) / 100)}
+            <span className="ml-1 text-[15px] font-semibold text-[#8C8A99]">/mo</span>
+          </p>
+        </div>
+        <p className="text-right font-mono text-[11px] leading-relaxed text-[#B3B1BE]">
+          $5.00 plan + {fmtUsd(Math.round(usage * 100) / 100)} usage
+          {perMillion && (
+            <>
+              <br />
+              {fmtUsd(Math.round(perMillion * 100) / 100)} per million events
+            </>
+          )}
+        </p>
       </div>
 
-      {savings !== null && savings > 0 && (
-        <p className="mt-7 rounded-xl bg-[#FAFAFA] px-4 py-3 text-[13px] text-[#6E6C7C]">
-          That&rsquo;s about{' '}
-          <span className="font-semibold text-[#3D3B4F]">
-            ${savings.toLocaleString()}/year saved
-          </span>{' '}
-          vs the cheapest hosted option — and the data lives in your account, not theirs.
-        </p>
-      )}
+      {/* Where it goes */}
+      <p className="mt-6 mb-1 text-[11px] font-semibold uppercase tracking-[0.09em] text-[#B3B1BE]">
+        Where it goes
+      </p>
+      <div className="divide-y divide-[#F4F4F6]">
+        {lines.map(line => (
+          <CostLineRow key={line.label} line={line} total={total} />
+        ))}
+      </div>
 
-      <p className="mt-5 text-[11.5px] leading-relaxed text-[#B3B1BE]">
-        Traks estimate uses Cloudflare list prices (Aug 2026): the $5/mo Workers Paid plan plus
-        metered usage — most volumes never exceed the plan&rsquo;s included allowances. Assumes
-        ~250 B per stored event and ~6 months of history; excludes the one-time Traks license.
-        Competitor prices are their published monthly tiers as of Aug 2026 — check their sites for
-        current pricing. Google Analytics is $0 — priced in a different currency.
+      <p className="mt-6 text-[11.5px] leading-relaxed text-[#B3B1BE]">
+        Cloudflare list prices, verified 7 Aug 2026 — paid to Cloudflare, not to us. Billing for
+        Pipelines, R2 SQL and R2 Data Catalog began 3 Aug 2026, so these are live charges. Assumes
+        one request per event, ~800 B through the pipeline, ~250 B stored as Parquet and six months
+        of history; Analytics Engine is not yet billed by Cloudflare. Your real bill moves with how
+        often dashboards are opened and how much history you keep. Excludes the one-time Traks
+        licence.
       </p>
     </div>
   );

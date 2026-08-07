@@ -1,5 +1,5 @@
 import { useState, type ReactElement } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, ChevronDown, Layers, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,18 +27,23 @@ export function WorkspaceSwitcher(): ReactElement | null {
   const { workspaces, current, setCurrentId } = useWorkspace();
   const [createOpen, setCreateOpen] = useState(false);
 
+  // Only the instance owner can create workspaces (server-enforced too).
+  const { data: meData } = useQuery({
+    queryKey: ['me'],
+    queryFn: () => api.getMe(),
+    staleTime: 5 * 60_000,
+  });
+  const canCreate = !!(meData as any)?.data?.isInstanceOwner;
+
   if (!current) return null;
 
   return (
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button className="flex items-center gap-2 pl-3 pr-2.5 py-1.5 rounded-full bg-white shadow-pill hover:shadow-md transition-shadow focus:outline-none">
-            <Layers className="w-3.5 h-3.5 text-[#9B9590]" strokeWidth={1.8} />
-            <span className="text-[13px] font-medium text-[#3D3B4F] max-w-[140px] truncate">
-              {current.name}
-            </span>
-            <ChevronDown className="w-3.5 h-3.5 text-[#9B9590]" />
+          <button className="flex min-w-0 items-center gap-1.5 rounded-lg px-2 py-1 text-[13.5px] font-medium text-[#3D3B4F] transition-colors hover:bg-[#F2F2F0] focus:outline-none focus-visible:bg-[#F2F2F0]">
+            <span className="max-w-[180px] truncate">{current.name}</span>
+            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[#A3A1AB]" />
           </button>
         </DropdownMenuTrigger>
 
@@ -66,14 +71,18 @@ export function WorkspaceSwitcher(): ReactElement | null {
               {ws.id === current.id && <Check className="w-4 h-4 shrink-0 text-[#3D3B4F]" />}
             </DropdownMenuItem>
           ))}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onClick={() => setCreateOpen(true)}
-            className="flex items-center gap-3 px-4 py-2.5 cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            New workspace
-          </DropdownMenuItem>
+          {canCreate && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => setCreateOpen(true)}
+                className="flex items-center gap-3 px-4 py-2.5 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                New workspace
+              </DropdownMenuItem>
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
 

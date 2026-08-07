@@ -52,24 +52,16 @@ export const createSiteSchema = z.object({
   workspaceId: z.string().min(1).max(64).optional(),
 });
 
-/** Workspace names: same bounds as site names. */
-export const createWorkspaceSchema = z.object({
-  name: z.string().min(1).max(100),
-});
-
-export const updateWorkspaceSchema = z.object({
-  name: z.string().min(1).max(100),
-});
-
 export const updateSiteSchema = z.object({
   name: z.string().min(1).max(100),
   domain: z.string().min(1).max(256),
   timezone: timezoneSchema.optional(),
 });
 
-/** Account-level "apply this timezone to all my sites". */
+/** Bulk "apply this timezone to sites", scoped to one workspace when given. */
 export const allSitesTimezoneSchema = z.object({
   timezone: timezoneSchema,
+  workspaceId: z.string().min(1).max(64).optional(),
 });
 
 /** Goal definition: a custom event name or a pathname that counts as a conversion. */

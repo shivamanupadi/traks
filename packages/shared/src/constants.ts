@@ -4,8 +4,12 @@
  * Written by the collect Worker via the Pipelines binding.
  * Queried by the api Worker via R2 SQL.
  *
- * Partitioned by (site_id, day(ts)) in Iceberg — filtering by site_id and ts
- * enables partition pruning in R2 SQL.
+ * NOT partitioned: the Pipelines R2 Data Catalog sink exposes no partition
+ * spec (checked Aug 2026), so R2 SQL prunes only on Parquet row-group min/max
+ * statistics. Because rows land in arrival order that prunes `ts` well, which
+ * is why every query builder filters on the time range first; `site_id` prunes
+ * weakly, though each instance's bucket only ever holds its own sites. Revisit
+ * if Cloudflare ships partitioned sinks.
  *
  * date_key and hour_key are computed at ingest time to avoid relying on date
  * functions in R2 SQL (which only guarantees EXTRACT).

@@ -141,6 +141,34 @@
       "when": 1786066640756,
       "tag": "0019_workspaces",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1786070593410,
+      "tag": "0020_invitations",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1786073742178,
+      "tag": "0021_org_plugin",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1786073742787,
+      "tag": "0022_org_invitations",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1786077813587,
+      "tag": "0023_instance_owner",
+      "breakpoints": true
     }
   ]
 }

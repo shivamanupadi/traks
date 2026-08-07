@@ -54,25 +54,15 @@ interface SiteRecord {
   timezone: string;
 }
 
-// Isolate-level memo for site lookups. The dashboard fires 7 parallel tile
-// requests that each need the same site record; this collapses the repeated
-// D1 round-trips. Positive results only, so a newly created site is visible
-// immediately; key revocation propagates within the TTL.
-const SITE_CACHE_TTL_MS = 60_000;
-const siteCache = new Map<string, { site: SiteRecord; expires: number }>();
-
-/** Drop cached lookups for a site (deletion, key revocation, settings change). */
-export function invalidateSiteCache(siteId: string): void {
-  for (const key of siteCache.keys()) {
-    if (key.endsWith(`:${siteId}`)) siteCache.delete(key);
-  }
-}
-
+/**
+ * Site lookup scoped to what the caller may access. Deliberately NOT memoized:
+ * the row this returns doubles as the authorization decision, and an
+ * isolate-local cache would keep answering for a user whose membership was
+ * just revoked (no cross-isolate invalidation exists) and would serve a stale
+ * timezone after a settings change. It is one indexed D1 read, negligible
+ * beside the R2 SQL scan every caller goes on to make.
+ */
 async function getSite(c: AppContext, siteId: string, userId: string): Promise<SiteRecord | null> {
-  const cacheKey = `${userId}:${siteId}`;
-  const cached = siteCache.get(cacheKey);
-  if (cached && cached.expires > Date.now()) return cached.site;
-
   const db = c.get('db')!;
   const [result] = await db
     .select({ siteId: sites.id, timezone: sites.timezone })
@@ -80,10 +70,6 @@ async function getSite(c: AppContext, siteId: string, userId: string): Promise<S
     .where(and(eq(sites.id, siteId), siteAccessFilter(db, userId)))
     .limit(1);
 
-  if (result) {
-    if (siteCache.size > 5_000) siteCache.clear();
-    siteCache.set(cacheKey, { site: result, expires: Date.now() + SITE_CACHE_TTL_MS });
-  }
   return result ?? null;
 }
 
@@ -138,10 +124,44 @@ async function sha256Hex(text: string): Promise<string> {
 }
 
 /**
- * queryR2Sql behind two cache layers: the per-colo Workers Cache API (fastest,
- * free) and a KV namespace (global — a scan any colo already paid for is
- * reused worldwide for the TTL). KV reads/writes are wrapped so a KV outage
- * degrades to the old per-colo behavior instead of failing the request.
+ * How long a KV entry outlives its logical freshness. Past `fetchedAt +
+ * ttlSeconds` the rows are stale but still returned instantly while a refresh
+ * runs behind the response — without this, every TTL boundary handed the next
+ * viewer a full cold scan (0.5-3s per query, up to nine of them in parallel).
+ */
+const STALE_GRACE_SECONDS = 24 * 60 * 60;
+
+interface CachedPayload<T> {
+  rows: T[];
+  fetchedAt: number;
+}
+
+/**
+ * Entries written before results carried a timestamp are bare arrays. Treat
+ * them as infinitely stale so they are served once and immediately refreshed
+ * into the new shape — without this, the deploy that ships this code would
+ * read `.rows` off an array and hand every dashboard `undefined`.
+ */
+function asPayload<T>(parsed: unknown): CachedPayload<T> {
+  if (Array.isArray(parsed)) return { rows: parsed as T[], fetchedAt: 0 };
+  return parsed as CachedPayload<T>;
+}
+
+/**
+ * Coalesces identical in-flight scans within one isolate. Two panels are built
+ * to emit byte-identical SQL precisely so they share a cache entry, but they
+ * fire in the same tick — without this both miss and both pay for the scan.
+ */
+const inFlightScans = new Map<string, Promise<unknown[]>>();
+
+/**
+ * queryR2Sql behind three cache layers: the per-colo Workers Cache API
+ * (fastest, free), a KV namespace (global — a scan any colo already paid for
+ * is reused worldwide), and an isolate-local in-flight map that stops
+ * concurrent duplicates. KV reads/writes are wrapped so a KV outage degrades
+ * to per-colo behavior instead of failing the request. Results are served
+ * stale-while-revalidate: freshness is bounded by ttlSeconds, but a viewer
+ * never waits for a scan when any usable copy exists.
  */
 async function cachedR2Sql<T = Record<string, unknown>>(
   c: AppContext,
@@ -156,51 +176,83 @@ async function cachedR2Sql<T = Record<string, unknown>>(
   // import under DOM lib types, where CacheStorage has no `default`.
   const cache = (caches as unknown as { default: Cache }).default;
 
+  /** Run the scan once per key per isolate and populate both caches. */
+  const runScan = (): Promise<T[]> => {
+    const existing = inFlightScans.get(key);
+    if (existing) return existing as Promise<T[]>;
+
+    const p = queryR2Sql<T>(config, () => sql)
+      .then(rows => {
+        const payload: CachedPayload<T> = { rows, fetchedAt: Date.now() };
+        const body = JSON.stringify(payload);
+        c.executionCtx.waitUntil(
+          Promise.all([
+            cache.put(
+              cacheKey,
+              new Response(body, {
+                headers: {
+                  'Content-Type': 'application/json',
+                  // The colo copy expires at the logical TTL; KV holds the
+                  // stale copy that makes revalidation invisible.
+                  'Cache-Control': `public, max-age=${ttlSeconds}`,
+                },
+              })
+            ),
+            // KV's minimum TTL is 60s. Sub-minute results (realtime) would be
+            // served well past their intended freshness, so they stay
+            // per-colo only.
+            ttlSeconds >= 60
+              ? c.env.R2SQL_CACHE.put(key, body, {
+                  expirationTtl: ttlSeconds + STALE_GRACE_SECONDS,
+                }).catch(err => console.error('[analytics] KV cache put failed:', err))
+              : Promise.resolve(),
+          ])
+        );
+        return rows;
+      })
+      .finally(() => inFlightScans.delete(key));
+
+    if (inFlightScans.size > 500) inFlightScans.clear();
+    inFlightScans.set(key, p as Promise<unknown[]>);
+    return p;
+  };
+
   const hit = await cache.match(cacheKey);
-  if (hit) return (await hit.json()) as T[];
+  if (hit) {
+    const payload = asPayload<T>(await hit.json());
+    // Colo entries expire at the logical TTL, so a hit here is always fresh
+    // — except a legacy bare-array entry, which is refreshed in the
+    // background rather than blocking this request.
+    if (payload.fetchedAt === 0) c.executionCtx.waitUntil(runScan().then(() => undefined));
+    return payload.rows;
+  }
 
   const kvHit = await c.env.R2SQL_CACHE.get(key, 'text').catch(() => null);
   if (kvHit !== null) {
-    const rows = JSON.parse(kvHit) as T[];
-    // Backfill the colo cache so subsequent local hits skip KV too.
-    c.executionCtx.waitUntil(
-      cache.put(
-        cacheKey,
-        new Response(kvHit, {
-          headers: {
-            'Content-Type': 'application/json',
-            'Cache-Control': `public, max-age=${ttlSeconds}`,
-          },
-        })
-      )
-    );
-    return rows;
+    const payload = asPayload<T>(JSON.parse(kvHit));
+    const ageSeconds = (Date.now() - payload.fetchedAt) / 1000;
+    if (ageSeconds < ttlSeconds) {
+      // Fresh: backfill the colo cache so subsequent local hits skip KV too.
+      c.executionCtx.waitUntil(
+        cache.put(
+          cacheKey,
+          new Response(kvHit, {
+            headers: {
+              'Content-Type': 'application/json',
+              'Cache-Control': `public, max-age=${Math.max(1, Math.round(ttlSeconds - ageSeconds))}`,
+            },
+          })
+        )
+      );
+      return payload.rows;
+    }
+    // Stale: hand back the old rows now, refresh behind the response.
+    c.executionCtx.waitUntil(runScan().then(() => undefined));
+    return payload.rows;
   }
 
-  const rows = await queryR2Sql<T>(config, () => sql);
-  const body = JSON.stringify(rows);
-  c.executionCtx.waitUntil(
-    Promise.all([
-      cache.put(
-        cacheKey,
-        new Response(body, {
-          headers: {
-            'Content-Type': 'application/json',
-            'Cache-Control': `public, max-age=${ttlSeconds}`,
-          },
-        })
-      ),
-      // KV's minimum TTL is 60s. Writing a shorter-lived result there would
-      // serve it well past its intended freshness (realtime asks for 30s), so
-      // sub-minute results live in the per-colo cache only.
-      ttlSeconds >= 60
-        ? c.env.R2SQL_CACHE.put(key, body, { expirationTtl: ttlSeconds }).catch(err =>
-            console.error('[analytics] KV cache put failed:', err)
-          )
-        : Promise.resolve(),
-    ])
-  );
-  return rows;
+  // Nothing cached anywhere — this one has to wait.
+  return runScan();
 }
 
 // Click-to-filter params (exact match). Flat query-string fields, mapped to

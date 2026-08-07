@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { authClient } from '@/lib/auth-client';
 import { api, ApiError } from '@/lib/api';
+import { FieldError } from '@/components/ui/field-error';
+import { emailError, passwordError, requiredTextError } from '@traks/shared';
 
 export const Route = createFileRoute('/invite/$token')({
   component: InvitePage,
@@ -32,6 +34,7 @@ function InvitePage(): ReactElement {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [fieldsTouched, setFieldsTouched] = useState(false);
 
   const lockedEmail: string | null = invite?.email ?? null;
 
@@ -51,8 +54,19 @@ function InvitePage(): ReactElement {
   const signUpAndJoin = async (e: FormEvent): Promise<void> => {
     e.preventDefault();
     setError('');
-    setSubmitting(true);
+    setFieldsTouched(true);
     const signUpEmail = lockedEmail ?? email;
+    // Checked here as well as by the browser: the same rules run on the API,
+    // and a rejection there costs a round trip to say the same thing.
+    const firstProblem =
+      requiredTextError(name, 100, 'Your name') ??
+      (lockedEmail ? null : emailError(signUpEmail)) ??
+      passwordError(password);
+    if (firstProblem) {
+      setError(firstProblem);
+      return;
+    }
+    setSubmitting(true);
     // inviteToken rides along in the sign-up body; the API's auth hooks
     // validate it and attach the workspace membership.
     const result = await authClient.signUp.email({
@@ -137,8 +151,14 @@ function InvitePage(): ReactElement {
                       value={name}
                       onChange={e => setName(e.target.value)}
                       placeholder="Ada Lovelace"
+                      maxLength={100}
+                      required
+                      aria-invalid={fieldsTouched && !!requiredTextError(name, 100, 'Your name')}
                       className="h-11 px-4 text-[14px]"
                       autoFocus
+                    />
+                    <FieldError
+                      message={fieldsTouched ? requiredTextError(name, 100, 'Your name') : null}
                     />
                   </div>
                   <div>

@@ -14,6 +14,8 @@ import {
 } from '@/components/ui/dialog';
 import { TimezoneSelect } from '@/components/ui/timezone-select';
 import { api, ApiError } from '@/lib/api';
+import { FieldError } from '@/components/ui/field-error';
+import { requiredTextError } from '@traks/shared';
 import { useWorkspace } from '@/lib/workspace';
 
 export const Route = createFileRoute('/portal/settings')({
@@ -210,7 +212,8 @@ function WorkspaceCard({ isLastWorkspace }: { isLastWorkspace: boolean }): React
   if (!current) return null;
 
   const isOwner = current.role === 'owner';
-  const nameChanged = name.trim().length > 0 && name.trim() !== current.name;
+  const wsNameError = requiredTextError(name, 100, 'Workspace name');
+  const nameChanged = !wsNameError && name.trim() !== current.name;
   // Deletion blockers are explained inside the dialog, not by disabling the
   // button — a dead button never tells anyone why.
   const deleteBlocked = current.siteCount > 0 || isLastWorkspace;
@@ -244,6 +247,8 @@ function WorkspaceCard({ isLastWorkspace }: { isLastWorkspace: boolean }): React
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                 <Input
                   value={name}
+                  maxLength={100}
+                  aria-invalid={!!wsNameError}
                   onChange={e => setName(e.target.value)}
                   className="h-10 px-4 text-[14px] sm:w-96"
                   onKeyDown={e => {
@@ -266,6 +271,7 @@ function WorkspaceCard({ isLastWorkspace }: { isLastWorkspace: boolean }): React
                   )}
                 </Button>
               </div>
+              <FieldError message={wsNameError} />
             </div>
 
             <div className="mt-5 flex items-center justify-between gap-4 border-t border-[#F5F2EC] pt-4">

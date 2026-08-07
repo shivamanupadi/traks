@@ -42,8 +42,12 @@ async function assertOk(res: Response): Promise<void> {
     const text = await res.text().catch(() => '');
     let message = `API error ${res.status}`;
     try {
-      const parsed = JSON.parse(text) as { error?: string };
-      if (parsed?.error) message = parsed.error;
+      const parsed = JSON.parse(text) as { error?: unknown; message?: unknown };
+      // Only take `error` when it is genuinely a sentence. Some validation
+      // responses put an object there, which used to render as
+      // "[object Object]" in place of the actual reason.
+      const candidate = [parsed?.error, parsed?.message].find(v => typeof v === 'string' && v);
+      if (candidate) message = candidate as string;
     } catch {
       if (text) message = `${message}: ${text}`;
     }

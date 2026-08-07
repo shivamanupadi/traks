@@ -1,6 +1,6 @@
 import { Hono, type Context } from 'hono';
 import { z } from 'zod';
-import { zValidator } from '@hono/zod-validator';
+import { validate } from '../lib/validate';
 import { eq, and, inArray } from 'drizzle-orm';
 import {
   PERIODS,
@@ -541,7 +541,7 @@ const MAX_BATCH_SITES = 100;
 
 const appWithBatch = app
   // Batch stats for all user's sites (used on sites list page)
-  .get('/batch/stats', requireAuth, zValidator('query', batchQuery), async c => {
+  .get('/batch/stats', requireAuth, validate('query', batchQuery), async c => {
     const userId = c.get('userId')!;
     const { period, siteIds: siteIdsParam } = c.req.valid('query');
     const db = c.get('db')!;
@@ -775,7 +775,7 @@ export async function fetchDashboard(
 // Chain continues from appWithBatch so the Hono RPC AppType keeps every route.
 export const analyticsRoute = appWithBatch
   // All stats in a single request (used on site analytics page)
-  .get('/:siteId/stats/all', requireAuth, zValidator('query', periodQuery), async c => {
+  .get('/:siteId/stats/all', requireAuth, validate('query', periodQuery), async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('siteId');
     const query = c.req.valid('query');
@@ -798,7 +798,7 @@ export const analyticsRoute = appWithBatch
     return c.json({ data: result });
   })
 
-  .get('/:siteId/stats/main', requireAuth, zValidator('query', periodQuery), async c => {
+  .get('/:siteId/stats/main', requireAuth, validate('query', periodQuery), async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('siteId');
     const query = c.req.valid('query');
@@ -848,7 +848,7 @@ export const analyticsRoute = appWithBatch
     return c.json({ data: assembleMainStats(statRows, sessionRows, engagementRows) });
   })
 
-  .get('/:siteId/stats/timeseries', requireAuth, zValidator('query', periodQuery), async c => {
+  .get('/:siteId/stats/timeseries', requireAuth, validate('query', periodQuery), async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('siteId');
     const query = c.req.valid('query');
@@ -897,7 +897,7 @@ export const analyticsRoute = appWithBatch
     });
   })
 
-  .get('/:siteId/stats/pages', requireAuth, zValidator('query', pagesQuery), async c => {
+  .get('/:siteId/stats/pages', requireAuth, validate('query', pagesQuery), async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('siteId');
     const query = c.req.valid('query');
@@ -977,7 +977,7 @@ export const analyticsRoute = appWithBatch
     });
   })
 
-  .get('/:siteId/stats/links', requireAuth, zValidator('query', linksQuery), async c => {
+  .get('/:siteId/stats/links', requireAuth, validate('query', linksQuery), async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('siteId');
     const query = c.req.valid('query');
@@ -1027,7 +1027,7 @@ export const analyticsRoute = appWithBatch
     });
   })
 
-  .get('/:siteId/stats/referrers', requireAuth, zValidator('query', periodQuery), async c => {
+  .get('/:siteId/stats/referrers', requireAuth, validate('query', periodQuery), async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('siteId');
     const query = c.req.valid('query');
@@ -1070,7 +1070,7 @@ export const analyticsRoute = appWithBatch
     });
   })
 
-  .get('/:siteId/stats/utm', requireAuth, zValidator('query', utmQuery), async c => {
+  .get('/:siteId/stats/utm', requireAuth, validate('query', utmQuery), async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('siteId');
     const query = c.req.valid('query');
@@ -1121,7 +1121,7 @@ export const analyticsRoute = appWithBatch
     });
   })
 
-  .get('/:siteId/stats/locations', requireAuth, zValidator('query', locationQuery), async c => {
+  .get('/:siteId/stats/locations', requireAuth, validate('query', locationQuery), async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('siteId');
     const query = c.req.valid('query');
@@ -1166,7 +1166,7 @@ export const analyticsRoute = appWithBatch
     });
   })
 
-  .get('/:siteId/stats/devices', requireAuth, zValidator('query', deviceQuery), async c => {
+  .get('/:siteId/stats/devices', requireAuth, validate('query', deviceQuery), async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('siteId');
     const query = c.req.valid('query');
@@ -1219,7 +1219,7 @@ export const analyticsRoute = appWithBatch
     });
   })
 
-  .get('/:siteId/stats/goals', requireAuth, zValidator('query', periodQuery), async c => {
+  .get('/:siteId/stats/goals', requireAuth, validate('query', periodQuery), async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('siteId');
     const query = c.req.valid('query');
@@ -1326,55 +1326,50 @@ export const analyticsRoute = appWithBatch
   // Funnel completion stats. Always answered from R2 SQL — funnels need
   // cross-event ordering per session, which the live DO doesn't track — so
   // 'today' numbers trail ingest by the sink roll interval (~1 min).
-  .get(
-    '/:siteId/stats/funnel/:funnelId',
-    requireAuth,
-    zValidator('query', periodQuery),
-    async c => {
-      const userId = c.get('userId')!;
-      const siteId = c.req.param('siteId');
-      const funnelId = c.req.param('funnelId');
-      const query = c.req.valid('query');
-      const { period } = query;
-      const filters = parseFilters(query);
+  .get('/:siteId/stats/funnel/:funnelId', requireAuth, validate('query', periodQuery), async c => {
+    const userId = c.get('userId')!;
+    const siteId = c.req.param('siteId');
+    const funnelId = c.req.param('funnelId');
+    const query = c.req.valid('query');
+    const { period } = query;
+    const filters = parseFilters(query);
 
-      const site = await getSite(c, siteId, userId);
-      if (!site) return c.json({ error: 'Not found' }, 404);
+    const site = await getSite(c, siteId, userId);
+    if (!site) return c.json({ error: 'Not found' }, 404);
 
-      const db = c.get('db')!;
-      const [funnel] = await db.select().from(funnels).where(eq(funnels.id, funnelId));
-      if (!funnel || funnel.siteId !== siteId) return c.json({ error: 'Not found' }, 404);
+    const db = c.get('db')!;
+    const [funnel] = await db.select().from(funnels).where(eq(funnels.id, funnelId));
+    if (!funnel || funnel.siteId !== siteId) return c.json({ error: 'Not found' }, 404);
 
-      const range = resolvePeriod(period, queryTime(period), site.timezone);
-      const outcome = await runQueries(c, () =>
-        cachedR2Sql<Record<string, unknown>>(
-          c,
-          cacheTtlSeconds(period),
-          buildFunnelQuery(site.siteId, range, funnel.steps, filters)
-        )
-      );
-      if (outcome instanceof Response) return outcome;
+    const range = resolvePeriod(period, queryTime(period), site.timezone);
+    const outcome = await runQueries(c, () =>
+      cachedR2Sql<Record<string, unknown>>(
+        c,
+        cacheTtlSeconds(period),
+        buildFunnelQuery(site.siteId, range, funnel.steps, filters)
+      )
+    );
+    if (outcome instanceof Response) return outcome;
 
-      const row = outcome[0] ?? {};
-      const counts = funnel.steps.map((_, i) => toNumber(row[`c${i}`]));
-      const first = counts[0] ?? 0;
-      const pct = (num: number, den: number): number =>
-        den > 0 ? Math.round((num / den) * 1000) / 10 : 0;
+    const row = outcome[0] ?? {};
+    const counts = funnel.steps.map((_, i) => toNumber(row[`c${i}`]));
+    const first = counts[0] ?? 0;
+    const pct = (num: number, den: number): number =>
+      den > 0 ? Math.round((num / den) * 1000) / 10 : 0;
 
-      return c.json({
-        data: {
-          id: funnel.id,
-          name: funnel.name,
-          steps: funnel.steps.map((s, i) => ({
-            ...s,
-            sessions: counts[i],
-            rateFromFirst: i === 0 ? 100 : pct(counts[i], first),
-            rateFromPrev: i === 0 ? 100 : pct(counts[i], counts[i - 1]),
-          })),
-        },
-      });
-    }
-  )
+    return c.json({
+      data: {
+        id: funnel.id,
+        name: funnel.name,
+        steps: funnel.steps.map((s, i) => ({
+          ...s,
+          sessions: counts[i],
+          rateFromFirst: i === 0 ? 100 : pct(counts[i], first),
+          rateFromPrev: i === 0 ? 100 : pct(counts[i], counts[i - 1]),
+        })),
+      },
+    });
+  })
 
   .get('/:siteId/stats/realtime', requireAuth, async c => {
     const userId = c.get('userId')!;
@@ -1418,7 +1413,7 @@ export const analyticsRoute = appWithBatch
     });
   })
 
-  .get('/:siteId/stats/events', requireAuth, zValidator('query', periodQuery), async c => {
+  .get('/:siteId/stats/events', requireAuth, validate('query', periodQuery), async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('siteId');
     const query = c.req.valid('query');
@@ -1466,7 +1461,7 @@ export const analyticsRoute = appWithBatch
     });
   })
 
-  .get('/:siteId/stats/event-props', requireAuth, zValidator('query', eventPropsQuery), async c => {
+  .get('/:siteId/stats/event-props', requireAuth, validate('query', eventPropsQuery), async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('siteId');
     const query = c.req.valid('query');

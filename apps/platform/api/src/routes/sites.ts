@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { zValidator } from '@hono/zod-validator';
+import { validate } from '../lib/validate';
 import { eq, sql } from 'drizzle-orm';
 import { createId } from '@paralleldrive/cuid2';
 import {
@@ -48,7 +48,7 @@ async function checkManage(
 
 export const sitesRoute = app
   // List the sites the user can access, optionally scoped to one workspace
-  .get('/', requireAuth, zValidator('query', listSitesQuery), async c => {
+  .get('/', requireAuth, validate('query', listSitesQuery), async c => {
     const userId = c.get('userId')!;
     const { workspaceId } = c.req.valid('query');
     const db = c.get('db')!;
@@ -69,7 +69,7 @@ export const sitesRoute = app
   })
 
   // Create a new site
-  .post('/', requireAuth, zValidator('json', createSiteSchema), async c => {
+  .post('/', requireAuth, validate('json', createSiteSchema), async c => {
     const userId = c.get('userId')!;
     const body = c.req.valid('json');
     const db = c.get('db')!;
@@ -144,7 +144,7 @@ export const sitesRoute = app
   // Set one timezone across sites — the given workspace's sites (requires
   // the owner role there), or every manageable site when none is given.
   // Static path — declared before the /:id routes so it can't be shadowed.
-  .post('/timezone', requireAuth, zValidator('json', allSitesTimezoneSchema), async c => {
+  .post('/timezone', requireAuth, validate('json', allSitesTimezoneSchema), async c => {
     const userId = c.get('userId')!;
     const { timezone, workspaceId } = c.req.valid('json');
     const db = c.get('db')!;
@@ -190,7 +190,7 @@ export const sitesRoute = app
   })
 
   // Update a site (owners only)
-  .patch('/:id', requireAuth, zValidator('json', updateSiteSchema), async c => {
+  .patch('/:id', requireAuth, validate('json', updateSiteSchema), async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('id');
     const body = c.req.valid('json');
@@ -234,7 +234,7 @@ export const sitesRoute = app
   })
 
   // Create a goal
-  .post('/:id/goals', requireAuth, zValidator('json', createGoalSchema), async c => {
+  .post('/:id/goals', requireAuth, validate('json', createGoalSchema), async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('id');
     const body = c.req.valid('json');
@@ -292,7 +292,7 @@ export const sitesRoute = app
   })
 
   // Create a segment
-  .post('/:id/segments', requireAuth, zValidator('json', createSegmentSchema), async c => {
+  .post('/:id/segments', requireAuth, validate('json', createSegmentSchema), async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('id');
     const body = c.req.valid('json');
@@ -351,7 +351,7 @@ export const sitesRoute = app
   })
 
   // Create a funnel
-  .post('/:id/funnels', requireAuth, zValidator('json', createFunnelSchema), async c => {
+  .post('/:id/funnels', requireAuth, validate('json', createFunnelSchema), async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('id');
     const body = c.req.valid('json');

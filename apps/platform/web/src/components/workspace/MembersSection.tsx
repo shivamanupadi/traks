@@ -13,6 +13,8 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { api, ApiError } from '@/lib/api';
+import { FieldError } from '@/components/ui/field-error';
+import { emailError } from '@traks/shared';
 import { authClient } from '@/lib/auth-client';
 import { useWorkspace } from '@/lib/workspace';
 
@@ -260,6 +262,11 @@ function InviteDialog({
   const [inviteUrl, setInviteUrl] = useState('');
   const [copied, setCopied] = useState(false);
 
+  const [emailTouched, setEmailTouched] = useState(false);
+  // The input carries type="email", but this dialog is not a <form> and
+  // submits on click, so the browser's own check never runs.
+  const emailErr = emailError(email);
+
   const createInvite = useMutation({
     mutationFn: () => api.createInvitation(workspaceId, { email: email.trim(), role }),
     onSuccess: (result: any) => {
@@ -268,10 +275,17 @@ function InviteDialog({
     },
   });
 
+  /** Reveal the problem on submit rather than leaving a dead button. */
+  const sendInvite = (): void => {
+    setEmailTouched(true);
+    if (!emailErr && !createInvite.isPending) createInvite.mutate();
+  };
+
   const handleClose = (): void => {
     onOpenChange(false);
     setTimeout(() => {
       setEmail('');
+      setEmailTouched(false);
       setRole('member');
       setInviteUrl('');
       setCopied(false);
@@ -335,17 +349,23 @@ function InviteDialog({
                 type="email"
                 placeholder="them@example.com"
                 value={email}
+                maxLength={256}
+                aria-invalid={emailTouched && !!emailErr}
                 onChange={e => setEmail(e.target.value)}
+                onBlur={() => setEmailTouched(true)}
                 className="h-11 px-4 text-[14px]"
                 autoFocus
                 onKeyDown={e => {
-                  if (e.key === 'Enter' && email.trim() && !createInvite.isPending)
-                    createInvite.mutate();
+                  if (e.key === 'Enter' && !createInvite.isPending) sendInvite();
                 }}
               />
-              <p className="mt-2 text-[12px] text-[#B5B0AA]">
-                Only this email will be able to use the invite.
-              </p>
+              {emailTouched && emailErr ? (
+                <FieldError message={emailErr} />
+              ) : (
+                <p className="mt-2 text-[12px] text-[#B5B0AA]">
+                  Only this email will be able to use the invite.
+                </p>
+              )}
 
               <label className="mt-4 mb-2 block text-[13px] font-medium text-[#3D3B4F]">Role</label>
               <div className="flex gap-2">
@@ -401,8 +421,7 @@ function InviteDialog({
                 Cancel
               </Button>
               <Button
-                onClick={() => createInvite.mutate()}
-                disabled={!email.trim()}
+                onClick={sendInvite}
                 isLoading={createInvite.isPending}
                 className="text-[13px] px-5"
               >

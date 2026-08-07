@@ -56,6 +56,8 @@ import { GoalsPanel } from '@/components/analytics/GoalsPanel';
 import { FunnelsPanel } from '@/components/analytics/FunnelsPanel';
 import { PeriodPicker } from '@/components/layout/PeriodPicker';
 import { api, type AnalyticsFilters } from '@/lib/api';
+import { FieldError } from '@/components/ui/field-error';
+import { domainInputError, normalizeDomain, requiredTextError, targetError } from '@traks/shared';
 import { useCollectUrl } from '@/lib/config';
 
 // Auto-poll only 'today' - it's served live from the site's Durable Object
@@ -230,6 +232,7 @@ function EditSiteModal({
   const [domain, setDomain] = useState('');
   const [timezone, setTimezone] = useState('UTC');
   const [error, setError] = useState('');
+  const [touched, setTouched] = useState<{ name?: boolean; domain?: boolean }>({});
 
   useEffect(() => {
     if (open && site) {
@@ -237,12 +240,19 @@ function EditSiteModal({
       setDomain(site.domain);
       setTimezone(site.timezone || 'UTC');
       setError('');
+      setTouched({});
     }
   }, [open, site]);
 
   const updateSite = useMutation({
     mutationFn: async () => {
-      return api.updateSite(siteId, { name, domain, timezone });
+      // Normalized on the way out so a pasted URL is stored as the bare host
+      // the collect worker matches origins against.
+      return api.updateSite(siteId, {
+        name: name.trim(),
+        domain: normalizeDomain(domain),
+        timezone,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['site', siteId] });
@@ -251,16 +261,19 @@ function EditSiteModal({
       queryClient.invalidateQueries({ queryKey: ['site-analytics', siteId] });
       onOpenChange(false);
     },
-    onError: (err: Error) => {
-      if (err.message.includes('409')) {
-        setError('Domain is already in use');
-      } else {
-        setError(err.message);
-      }
-    },
+    // The API already sends a readable sentence for every failure it knows
+    // about, including the 409 for a duplicate domain.
+    onError: (err: Error) => setError(err.message),
   });
 
-  const canSave = name.trim().length > 0 && domain.trim().length > 0;
+  const nameError = requiredTextError(name, 100, 'Site name');
+  const domainErr = domainInputError(domain);
+  const canSave = !nameError && !domainErr;
+
+  const save = (): void => {
+    setTouched({ name: true, domain: true });
+    if (canSave) updateSite.mutate();
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -280,29 +293,44 @@ function EditSiteModal({
               <Input
                 placeholder="My SaaS"
                 value={name}
+                maxLength={100}
+                aria-invalid={touched.name && !!nameError}
                 onChange={e => {
                   setName(e.target.value);
                   setError('');
                 }}
+                onBlur={() => setTouched(t => ({ ...t, name: true }))}
                 className="h-11 px-4 text-[14px]"
                 autoFocus
               />
+              <FieldError message={touched.name ? nameError : null} />
             </div>
             <div>
               <label className="mb-2 block text-[13px] font-medium text-[#3D3B4F]">Domain</label>
               <Input
                 placeholder="example.com"
                 value={domain}
+                maxLength={253}
+                aria-invalid={touched.domain && !!domainErr}
                 onChange={e => {
                   setDomain(e.target.value);
                   setError('');
                 }}
+                onBlur={() => setTouched(t => ({ ...t, domain: true }))}
                 className="h-11 px-4 text-[14px]"
                 onKeyDown={e => {
-                  if (e.key === 'Enter' && canSave) updateSite.mutate();
+                  if (e.key === 'Enter') save();
                 }}
               />
-              <p className="mt-2 text-[12px] text-[#B5B0AA]">Without http:// or https://</p>
+              {touched.domain && domainErr ? (
+                <FieldError message={domainErr} />
+              ) : (
+                <p className="mt-2 text-[12px] text-[#B5B0AA]">
+                  {domain.trim() && normalizeDomain(domain) !== domain.trim()
+                    ? `Will be saved as ${normalizeDomain(domain)}`
+                    : 'Just the domain — a pasted URL works too'}
+                </p>
+              )}
             </div>
             <div>
               <label className="mb-2 block text-[13px] font-medium text-[#3D3B4F]">Timezone</label>
@@ -325,12 +353,7 @@ function EditSiteModal({
           <Button variant="ghost" onClick={() => onOpenChange(false)} className="text-[13px]">
             Cancel
           </Button>
-          <Button
-            onClick={() => updateSite.mutate()}
-            disabled={!canSave}
-            isLoading={updateSite.isPending}
-            className="text-[13px] px-5"
-          >
+          <Button onClick={save} isLoading={updateSite.isPending} className="text-[13px] px-5">
             Save changes
           </Button>
         </DialogFooter>
@@ -353,6 +376,7 @@ function ManageGoalsModal({
   const [type, setType] = useState<'event' | 'page'>('event');
   const [target, setTarget] = useState('');
   const [error, setError] = useState('');
+  const [touched, setTouched] = useState<{ name?: boolean; target?: boolean }>({});
 
   useEffect(() => {
     if (open) {
@@ -360,6 +384,7 @@ function ManageGoalsModal({
       setType('event');
       setTarget('');
       setError('');
+      setTouched({});
     }
   }, [open]);
 
@@ -379,12 +404,13 @@ function ManageGoalsModal({
 
   const createGoal = useMutation({
     mutationFn: async () => {
-      return api.createGoal(siteId, { name, type, target });
+      return api.createGoal(siteId, { name: name.trim(), type, target: target.trim() });
     },
     onSuccess: () => {
       setName('');
       setTarget('');
       setError('');
+      setTouched({});
       invalidate();
     },
     onError: (err: Error) => setError(err.message),
@@ -404,7 +430,17 @@ function ManageGoalsModal({
     type: 'event' | 'page';
     target: string;
   }[];
-  const canCreate = name.trim().length > 0 && target.trim().length > 0;
+  // A page goal whose target lacks a leading slash (or an event goal that has
+  // one) silently never converts, so it is caught here rather than discovered
+  // weeks later from an empty panel.
+  const goalNameError = requiredTextError(name, 100, 'Goal name');
+  const goalTargetError = targetError(type, target);
+  const canCreate = !goalNameError && !goalTargetError;
+
+  const addGoal = (): void => {
+    setTouched({ name: true, target: true });
+    if (canCreate) createGoal.mutate();
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -484,29 +520,41 @@ function ManageGoalsModal({
                     Page visit
                   </button>
                 </div>
-                <Input
-                  placeholder="Goal name (e.g. Signed up)"
-                  value={name}
-                  onChange={e => {
-                    setName(e.target.value);
-                    setError('');
-                  }}
-                  className="h-10 px-4 text-[13px]"
-                />
-                <Input
-                  placeholder={
-                    type === 'event' ? 'Event name (e.g. signup)' : 'Pathname (e.g. /thank-you)'
-                  }
-                  value={target}
-                  onChange={e => {
-                    setTarget(e.target.value);
-                    setError('');
-                  }}
-                  className="h-10 px-4 text-[13px]"
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' && canCreate) createGoal.mutate();
-                  }}
-                />
+                <div>
+                  <Input
+                    placeholder="Goal name (e.g. Signed up)"
+                    value={name}
+                    maxLength={100}
+                    aria-invalid={touched.name && !!goalNameError}
+                    onChange={e => {
+                      setName(e.target.value);
+                      setError('');
+                    }}
+                    onBlur={() => setTouched(t => ({ ...t, name: true }))}
+                    className="h-10 px-4 text-[13px]"
+                  />
+                  <FieldError message={touched.name ? goalNameError : null} />
+                </div>
+                <div>
+                  <Input
+                    placeholder={
+                      type === 'event' ? 'Event name (e.g. signup)' : 'Pathname (e.g. /thank-you)'
+                    }
+                    value={target}
+                    maxLength={2048}
+                    aria-invalid={touched.target && !!goalTargetError}
+                    onChange={e => {
+                      setTarget(e.target.value);
+                      setError('');
+                    }}
+                    onBlur={() => setTouched(t => ({ ...t, target: true }))}
+                    className="h-10 px-4 text-[13px]"
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') addGoal();
+                    }}
+                  />
+                  <FieldError message={touched.target ? goalTargetError : null} />
+                </div>
                 {type === 'event' && (
                   <p className="text-[11px] text-[#B5B0AA]">
                     Fire it from your site with{' '}
@@ -529,8 +577,7 @@ function ManageGoalsModal({
             Done
           </Button>
           <Button
-            onClick={() => createGoal.mutate()}
-            disabled={!canCreate}
+            onClick={addGoal}
             isLoading={createGoal.isPending}
             className="bg-[#3D3B4F] hover:bg-[#2C2B3B] text-white shadow-none text-[13px] px-5 cursor-pointer"
           >
@@ -561,12 +608,16 @@ function ManageFunnelsModal({
   const [name, setName] = useState('');
   const [steps, setSteps] = useState<FunnelStep[]>(EMPTY_FUNNEL_STEPS);
   const [error, setError] = useState('');
+  const [nameTouched, setNameTouched] = useState(false);
+  const [touchedSteps, setTouchedSteps] = useState<boolean[]>([]);
 
   useEffect(() => {
     if (open) {
       setName('');
       setSteps(EMPTY_FUNNEL_STEPS);
       setError('');
+      setNameTouched(false);
+      setTouchedSteps([]);
     }
   }, [open]);
 
@@ -587,7 +638,7 @@ function ManageFunnelsModal({
   const createFunnel = useMutation({
     mutationFn: async () => {
       return api.createFunnel(siteId, {
-        name,
+        name: name.trim(),
         steps: steps.map(s => ({ type: s.type, target: s.target.trim() })),
       });
     },
@@ -609,8 +660,17 @@ function ManageFunnelsModal({
   });
 
   const funnels = ((funnelsQ.data as any)?.data ?? []) as FunnelDef[];
-  const canCreate =
-    name.trim().length > 0 && steps.length >= 2 && steps.every(s => s.target.trim().length > 0);
+  // Each step carries the same page-vs-event target rule as a goal; a wrong
+  // one makes the whole funnel read zero at that step forever.
+  const funnelNameError = requiredTextError(name, 100, 'Funnel name');
+  const stepErrors = steps.map(s => targetError(s.type, s.target));
+  const canCreate = !funnelNameError && steps.length >= 2 && stepErrors.every(e => !e);
+
+  const addFunnel = (): void => {
+    setTouchedSteps(steps.map(() => true));
+    setNameTouched(true);
+    if (canCreate) createFunnel.mutate();
+  };
 
   const setStep = (i: number, patch: Partial<FunnelStep>): void => {
     setSteps(prev => prev.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
@@ -674,15 +734,21 @@ function ManageFunnelsModal({
             <div className={funnels.length > 0 ? 'border-t border-[#e6e5ea]/60 pt-5' : ''}>
               <p className="mb-3 text-[13px] font-medium text-[#3D3B4F]">Create a funnel</p>
               <div className="space-y-3">
-                <Input
-                  placeholder="Funnel name (e.g. Signup flow)"
-                  value={name}
-                  onChange={e => {
-                    setName(e.target.value);
-                    setError('');
-                  }}
-                  className="h-10 px-4 text-[13px]"
-                />
+                <div>
+                  <Input
+                    placeholder="Funnel name (e.g. Signup flow)"
+                    value={name}
+                    maxLength={100}
+                    aria-invalid={nameTouched && !!funnelNameError}
+                    onChange={e => {
+                      setName(e.target.value);
+                      setError('');
+                    }}
+                    onBlur={() => setNameTouched(true)}
+                    className="h-10 px-4 text-[13px]"
+                  />
+                  <FieldError message={nameTouched ? funnelNameError : null} />
+                </div>
 
                 <div className="space-y-2">
                   {steps.map((step, i) => (
@@ -702,7 +768,16 @@ function ManageFunnelsModal({
                       <Input
                         placeholder={step.type === 'page' ? '/pricing' : 'signup'}
                         value={step.target}
+                        maxLength={2048}
+                        aria-invalid={!!touchedSteps[i] && !!stepErrors[i]}
                         onChange={e => setStep(i, { target: e.target.value })}
+                        onBlur={() =>
+                          setTouchedSteps(prev => {
+                            const next = [...prev];
+                            next[i] = true;
+                            return next;
+                          })
+                        }
                         className="h-9 px-3 text-[13px]"
                       />
                       <button
@@ -715,6 +790,9 @@ function ManageFunnelsModal({
                       </button>
                     </div>
                   ))}
+                  {stepErrors.some((e, i) => e && touchedSteps[i]) && (
+                    <FieldError message={stepErrors.find((e, i) => e && touchedSteps[i]) ?? null} />
+                  )}
                 </div>
 
                 {steps.length < 8 && (
@@ -742,8 +820,7 @@ function ManageFunnelsModal({
             Done
           </Button>
           <Button
-            onClick={() => createFunnel.mutate()}
-            disabled={!canCreate}
+            onClick={addFunnel}
             isLoading={createFunnel.isPending}
             className="bg-[#3D3B4F] hover:bg-[#2C2B3B] text-white shadow-none text-[13px] px-5 cursor-pointer"
           >
@@ -793,7 +870,9 @@ function DeleteSiteModal({
     onError: (err: Error) => setError(err.message),
   });
 
-  const canDelete = site !== null && confirmText === site.domain;
+  // Trimmed: pasting the domain often brings a trailing space, and an exact
+  // comparison then blocks deletion with nothing on screen explaining why.
+  const canDelete = site !== null && confirmText.trim() === site.domain;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1155,7 +1234,10 @@ function SegmentsMenu({
 
   const createSegment = useMutation({
     mutationFn: async () => {
-      return api.createSegment(siteId, { name, filters: filters as Record<string, string> });
+      return api.createSegment(siteId, {
+        name: name.trim(),
+        filters: filters as Record<string, string>,
+      });
     },
     onSuccess: () => {
       setSaveOpen(false);
@@ -1169,6 +1251,9 @@ function SegmentsMenu({
       return api.deleteSegment(siteId, segmentId);
     },
     onSuccess: invalidate,
+    // Previously absent: a failed delete left the row in place with nothing
+    // said, so it read as the click not registering.
+    onError: (err: Error) => setError(err.message),
   });
 
   const activeEntries = Object.entries(filters).filter(([, v]) => v) as [

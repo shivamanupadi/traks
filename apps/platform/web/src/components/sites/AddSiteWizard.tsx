@@ -14,6 +14,8 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { api } from '@/lib/api';
+import { FieldError } from '@/components/ui/field-error';
+import { domainInputError, normalizeDomain, requiredTextError } from '@traks/shared';
 import { useCollectUrl } from '@/lib/config';
 
 type WizardStep = 'details' | 'snippet';
@@ -42,13 +44,26 @@ export function AddSiteWizard({
   const [domain, setDomain] = useState('');
   const [createdSite, setCreatedSite] = useState<CreatedSite | null>(null);
   const [copied, setCopied] = useState(false);
+  const [touched, setTouched] = useState<{ name?: boolean; domain?: boolean }>({});
+
+  // Same rules the API enforces, imported rather than restated so a value can
+  // never pass here and fail there.
+  const nameError = requiredTextError(name, 100, 'Site name');
+  const domainErr = domainInputError(domain);
 
   const createSite = useMutation({
     mutationFn: async () => {
       // Site timezone drives how dashboard buckets are computed at ingest;
       // default it to the browser's zone instead of UTC.
       const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-      return api.createSite({ name, domain, timezone, workspaceId });
+      // Normalized here too so the confirmation screen shows the domain that
+      // was actually stored, not the URL the user pasted.
+      return api.createSite({
+        name: name.trim(),
+        domain: normalizeDomain(domain),
+        timezone,
+        workspaceId,
+      });
     },
     onSuccess: (result: any) => {
       queryClient.invalidateQueries({ queryKey: ['sites'] });
@@ -69,6 +84,10 @@ export function AddSiteWizard({
     setDomain('');
     setCreatedSite(null);
     setCopied(false);
+    setTouched({});
+    // Without this a failed create left its error on screen the next time the
+    // wizard was opened, blaming the new attempt for the old failure.
+    createSite.reset();
   };
 
   const handleClose = (): void => {
@@ -90,7 +109,13 @@ export function AddSiteWizard({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const canCreate = name.trim().length > 0 && domain.trim().length > 0;
+  const canCreate = !nameError && !domainErr;
+
+  /** Reveal any problems at once when submission is attempted. */
+  const submit = (): void => {
+    setTouched({ name: true, domain: true });
+    if (canCreate) createSite.mutate();
+  };
 
   const stepIndicator = (
     <div className="flex items-center gap-1.5 mb-4">
@@ -171,10 +196,14 @@ export function AddSiteWizard({
                   <Input
                     placeholder="My SaaS"
                     value={name}
+                    maxLength={100}
+                    aria-invalid={touched.name && !!nameError}
                     onChange={e => setName(e.target.value)}
+                    onBlur={() => setTouched(t => ({ ...t, name: true }))}
                     className="h-11 px-4 text-[14px]"
                     autoFocus
                   />
+                  <FieldError message={touched.name ? nameError : null} />
                 </div>
                 <div>
                   <label className="mb-2 block text-[13px] font-medium text-[#3D3B4F]">
@@ -183,13 +212,24 @@ export function AddSiteWizard({
                   <Input
                     placeholder="example.com"
                     value={domain}
+                    maxLength={253}
+                    aria-invalid={touched.domain && !!domainErr}
                     onChange={e => setDomain(e.target.value)}
+                    onBlur={() => setTouched(t => ({ ...t, domain: true }))}
                     className="h-11 px-4 text-[14px]"
                     onKeyDown={e => {
-                      if (e.key === 'Enter' && canCreate) createSite.mutate();
+                      if (e.key === 'Enter') submit();
                     }}
                   />
-                  <p className="mt-2 text-[12px] text-[#B5B0AA]">Without http:// or https://</p>
+                  {touched.domain && domainErr ? (
+                    <FieldError message={domainErr} />
+                  ) : (
+                    <p className="mt-2 text-[12px] text-[#B5B0AA]">
+                      {domain.trim() && normalizeDomain(domain) !== domain.trim()
+                        ? `Will be saved as ${normalizeDomain(domain)}`
+                        : 'Just the domain — a pasted URL works too'}
+                    </p>
+                  )}
                 </div>
                 {createSite.isError && (
                   <p className="text-[13px] text-[#e5484d]">{createSite.error.message}</p>
@@ -252,8 +292,7 @@ export function AddSiteWizard({
                 Cancel
               </Button>
               <Button
-                onClick={() => createSite.mutate()}
-                disabled={!canCreate}
+                onClick={submit}
                 isLoading={createSite.isPending}
                 className="text-[13px] px-5"
               >

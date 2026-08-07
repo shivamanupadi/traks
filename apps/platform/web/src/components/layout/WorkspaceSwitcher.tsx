@@ -21,6 +21,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { api } from '@/lib/api';
+import { FieldError } from '@/components/ui/field-error';
+import { requiredTextError } from '@traks/shared';
 import { useWorkspace } from '@/lib/workspace';
 
 export function WorkspaceSwitcher(): ReactElement | null {
@@ -106,6 +108,7 @@ function CreateWorkspaceDialog({
 }): ReactElement {
   const queryClient = useQueryClient();
   const [name, setName] = useState('');
+  const [touched, setTouched] = useState(false);
 
   const createWorkspace = useMutation({
     mutationFn: () => api.createWorkspace({ name: name.trim() }),
@@ -117,12 +120,19 @@ function CreateWorkspaceDialog({
     },
   });
 
-  const canCreate = name.trim().length > 0 && !createWorkspace.isPending;
+  const wsNameError = requiredTextError(name, 100, 'Workspace name');
+  const canCreate = !wsNameError && !createWorkspace.isPending;
+
+  const submit = (): void => {
+    setTouched(true);
+    if (canCreate) createWorkspace.mutate();
+  };
 
   const handleClose = (): void => {
     onOpenChange(false);
     setTimeout(() => {
       setName('');
+      setTouched(false);
       createWorkspace.reset();
     }, 200);
   };
@@ -146,13 +156,17 @@ function CreateWorkspaceDialog({
             <Input
               placeholder="Client projects"
               value={name}
+              maxLength={100}
+              aria-invalid={touched && !!wsNameError}
               onChange={e => setName(e.target.value)}
+              onBlur={() => setTouched(true)}
               className="h-11 px-4 text-[14px]"
               autoFocus
               onKeyDown={e => {
-                if (e.key === 'Enter' && canCreate) createWorkspace.mutate();
+                if (e.key === 'Enter') submit();
               }}
             />
+            <FieldError message={touched ? wsNameError : null} />
           </div>
           {createWorkspace.isError && (
             <p className="mt-3 text-[13px] text-[#e5484d]">{createWorkspace.error.message}</p>
@@ -164,8 +178,7 @@ function CreateWorkspaceDialog({
             Cancel
           </Button>
           <Button
-            onClick={() => createWorkspace.mutate()}
-            disabled={!canCreate}
+            onClick={submit}
             isLoading={createWorkspace.isPending}
             className="text-[13px] px-5"
           >

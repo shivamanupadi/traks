@@ -44,17 +44,91 @@ const timezoneSchema = z
   .max(64)
   .refine(isValidTimezone, { message: 'Invalid IANA timezone' });
 
+/**
+ * Free text that must survive trimming. `.min(1)` alone accepts "   ", which
+ * then renders as a blank name nobody can click on.
+ */
+export const trimmedText = (max: number, label: string) =>
+  z
+    .string()
+    .transform(s => s.trim())
+    .pipe(
+      z
+        .string()
+        .min(1, `${label} is required`)
+        .max(max, `${label} must be ${max} characters or fewer`)
+    );
+
+/**
+ * Reduce whatever the user pasted to the bare hostname we store and match on.
+ *
+ * Accepts a full URL, a trailing slash, a port, mixed case, or a `www.` prefix
+ * because people copy from the address bar. `www.` is dropped deliberately:
+ * the collect worker matches an event's Origin as `host === domain ||
+ * host.endsWith('.' + domain)`, so the naked domain covers the apex AND every
+ * subdomain, while storing `www.example.com` would silently reject the apex.
+ */
+export function normalizeDomain(input: string): string {
+  return input
+    .trim()
+    .toLowerCase()
+    .replace(/^[a-z][a-z0-9+.-]*:\/\//, '') // scheme
+    .replace(/^[^/@]*@/, '') // userinfo
+    .replace(/[/?#].*$/, '') // path, query, fragment
+    .replace(/:\d+$/, '') // port
+    .replace(/^www\./, '')
+    .replace(/\.$/, ''); // fully-qualified trailing dot
+}
+
+/**
+ * Validate an already-normalized domain. Returns a message explaining what to
+ * fix, or null when it is good. Shared verbatim by the API and the forms so a
+ * value can never pass one and fail the other.
+ */
+export function domainError(normalized: string): string | null {
+  if (!normalized) return 'Enter the domain visitors use, like example.com';
+  if (normalized.length > 253) return 'Domain is too long';
+  if (normalized.includes(' ')) return 'A domain cannot contain spaces';
+  if (!normalized.includes('.')) {
+    return 'Include the full domain with its extension, like example.com';
+  }
+  const labels = normalized.split('.');
+  for (const label of labels) {
+    if (!label) return 'Domain has an empty part — check for a doubled dot';
+    if (label.length > 63) return 'One part of the domain is too long';
+    if (!/^[a-z0-9-]+$/.test(label)) {
+      return 'Use only letters, numbers and hyphens in a domain';
+    }
+    if (label.startsWith('-') || label.endsWith('-')) {
+      return 'Domain parts cannot start or end with a hyphen';
+    }
+  }
+  const tld = labels[labels.length - 1];
+  if (!/^[a-z]{2,}$/.test(tld)) return 'That does not look like a real domain extension';
+  return null;
+}
+
+/** Bare hostname, normalized on the way in and rejected if malformed. */
+export const domainSchema = z
+  .string()
+  .max(2048) // bound before any work; the real limit is applied post-normalize
+  .transform(normalizeDomain)
+  .superRefine((value, ctx) => {
+    const message = domainError(value);
+    if (message) ctx.addIssue({ code: z.ZodIssueCode.custom, message });
+  });
+
 export const createSiteSchema = z.object({
-  name: z.string().min(1).max(100),
-  domain: z.string().min(1).max(256),
+  name: trimmedText(100, 'Site name'),
+  domain: domainSchema,
   timezone: timezoneSchema.default('UTC'),
   /** Target workspace; omitted → the caller's default workspace. */
   workspaceId: z.string().min(1).max(64).optional(),
 });
 
 export const updateSiteSchema = z.object({
-  name: z.string().min(1).max(100),
-  domain: z.string().min(1).max(256),
+  name: trimmedText(100, 'Site name'),
+  domain: domainSchema,
   timezone: timezoneSchema.optional(),
 });
 
@@ -64,12 +138,42 @@ export const allSitesTimezoneSchema = z.object({
   workspaceId: z.string().min(1).max(64).optional(),
 });
 
+/**
+ * A goal/funnel target means different things per type, and a mismatch is
+ * silent — the goal simply never converts — so it is rejected up front rather
+ * than left for the customer to discover from a permanently empty panel.
+ * Returns a message or null.
+ */
+export function targetError(type: 'event' | 'page', rawTarget: string): string | null {
+  const target = rawTarget.trim();
+  if (!target) return type === 'page' ? 'Enter a path, like /pricing' : 'Enter an event name';
+  if (type === 'page') {
+    if (!target.startsWith('/')) return 'A path must start with /, like /pricing';
+    if (/\s/.test(target)) return 'A path cannot contain spaces';
+    if (target.length > 2048) return 'Path is too long';
+    return null;
+  }
+  if (target.startsWith('/')) {
+    return 'That looks like a path — switch the type to Page, or enter an event name';
+  }
+  if (target.length > 256) return 'Event name must be 256 characters or fewer';
+  return null;
+}
+
 /** Goal definition: a custom event name or a pathname that counts as a conversion. */
-export const createGoalSchema = z.object({
-  name: z.string().min(1).max(100),
-  type: z.enum(['event', 'page']),
-  target: z.string().min(1).max(2048),
-});
+export const createGoalSchema = z
+  .object({
+    name: trimmedText(100, 'Goal name'),
+    type: z.enum(['event', 'page']),
+    target: z
+      .string()
+      .max(2048)
+      .transform(s => s.trim()),
+  })
+  .superRefine((goal, ctx) => {
+    const message = targetError(goal.type, goal.target);
+    if (message) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['target'], message });
+  });
 
 /** Saved filter set: at least one known filter dimension, unknown keys stripped. */
 export const segmentFiltersSchema = z
@@ -92,21 +196,72 @@ export const segmentFiltersSchema = z
   });
 
 export const createSegmentSchema = z.object({
-  name: z.string().min(1).max(100),
+  name: trimmedText(100, 'Segment name'),
   filters: segmentFiltersSchema,
 });
 
 /** One ordered funnel step: a pageview of a pathname or a custom event. */
-export const funnelStepSchema = z.object({
-  type: z.enum(['event', 'page']),
-  target: z.string().min(1).max(2048),
-});
+export const funnelStepSchema = z
+  .object({
+    type: z.enum(['event', 'page']),
+    target: z
+      .string()
+      .max(2048)
+      .transform(s => s.trim()),
+  })
+  .superRefine((step, ctx) => {
+    const message = targetError(step.type, step.target);
+    if (message) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['target'], message });
+  });
 
 /** Funnel definition: 2-8 ordered steps a session should complete in sequence. */
 export const createFunnelSchema = z.object({
-  name: z.string().min(1).max(100),
-  steps: z.array(funnelStepSchema).min(2).max(8),
+  name: trimmedText(100, 'Funnel name'),
+  steps: z
+    .array(funnelStepSchema)
+    .min(2, 'A funnel needs at least 2 steps')
+    .max(8, 'A funnel can have at most 8 steps'),
 });
+
+/* ── Field validators shared with the forms ─────────────────────────────
+ * The dialogs call these directly so an inline message and the API's own
+ * rejection can never disagree about what is acceptable. Each returns a
+ * sentence to show the user, or null when the value is fine.
+ */
+
+/** Minimum password length; mirrored by the sign-up hook on the server. */
+export const MIN_PASSWORD_LENGTH = 8;
+
+export function requiredTextError(raw: string, max: number, label: string): string | null {
+  const value = raw.trim();
+  if (!value) return `${label} is required`;
+  if (value.length > max) return `${label} must be ${max} characters or fewer`;
+  return null;
+}
+
+export function emailError(raw: string): string | null {
+  const value = raw.trim();
+  if (!value) return 'Email is required';
+  if (value.length > 256) return 'Email is too long';
+  // Deliberately permissive — one @, something either side, a dotted domain.
+  // Anything stricter rejects addresses that genuinely deliver.
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value)) return 'Enter a valid email address';
+  return null;
+}
+
+export function passwordError(raw: string): string | null {
+  if (!raw) return 'Password is required';
+  if (raw.length < MIN_PASSWORD_LENGTH) {
+    return `Password must be at least ${MIN_PASSWORD_LENGTH} characters`;
+  }
+  if (raw.length > 512) return 'Password is too long';
+  return null;
+}
+
+/** Domain check for forms: normalizes first, so paste-a-URL still passes. */
+export function domainInputError(raw: string): string | null {
+  return domainError(normalizeDomain(raw));
+}
 
 export const statsQuerySchema = z.object({
   period: z.enum(['today', '7d', '30d', '90d', '6m', '1y', 'all']).default('today'),

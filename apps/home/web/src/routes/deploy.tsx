@@ -184,7 +184,13 @@ function PrimaryButton({
   );
 }
 
-function BackButton({ onClick, disabled }: { onClick: () => void; disabled?: boolean }): ReactElement {
+function BackButton({
+  onClick,
+  disabled,
+}: {
+  onClick: () => void;
+  disabled?: boolean;
+}): ReactElement {
   return (
     <button
       onClick={onClick}
@@ -298,6 +304,15 @@ function DeployWizard(): ReactElement {
   const [result, setResult] = useState<{ apiUrl: string; collectUrl: string } | null>(null);
   const [versions, setVersions] = useState<{ current?: string; latest?: string }>({});
   const [updating, setUpdating] = useState(false);
+  // Whether this run still needs a storage token. Updating a healthy instance
+  // needs none — the sink already exists and the query secret is in place — so
+  // the wizard stops sending people to the Cloudflare dashboard for nothing.
+  // Assume required until preflight says otherwise, so a failed probe asks
+  // rather than silently skipping something the deploy needs.
+  const [catalogRequired, setCatalogRequired] = useState(true);
+  const [catalogReason, setCatalogReason] = useState<string | null>(null);
+  const [retainedBucket, setRetainedBucket] = useState<string | null>(null);
+  const [retainedReason, setRetainedReason] = useState<string | null>(null);
   const [showNameEdit, setShowNameEdit] = useState(false);
   const [destroyTarget, setDestroyTarget] = useState<ExistingInstall | null>(null);
   const [confirmName, setConfirmName] = useState('');
@@ -541,6 +556,43 @@ function DeployWizard(): ReactElement {
     setVersions(v => ({ ...v, current: inst.deployedVersion ?? undefined }));
     setUpdating(true);
     setError('');
+    void runPreflight('update', inst.accountId ?? '', inst.instanceName ?? 'traks');
+  };
+
+  /**
+   * Ask the API what this run still needs before rendering the form. Failure
+   * leaves `catalogRequired` at its default of true: a probe that could not
+   * answer must not be read as "nothing needed".
+   */
+  const runPreflight = async (
+    intent: 'update' | 'destroy',
+    account: string,
+    instance: string
+  ): Promise<void> => {
+    const token = installerToken.trim();
+    if (!sessionId || token.length < 20 || !account || !instance) return;
+    setCatalogRequired(true);
+    setCatalogReason(null);
+    try {
+      const res = await fetch(`/api/deploy/instance/${sessionId}/preflight`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          apiToken: token,
+          accountId: account,
+          instanceName: instance,
+          intent,
+        }),
+      });
+      if (!res.ok) return;
+      const { data } = (await res.json()) as {
+        data: { catalogTokenNeeded: boolean; reason: string | null };
+      };
+      setCatalogRequired(data.catalogTokenNeeded);
+      setCatalogReason(data.reason);
+    } catch {
+      /* keep the conservative default */
+    }
   };
 
   const destroyRun = async (): Promise<void> => {
@@ -579,11 +631,13 @@ function DeployWizard(): ReactElement {
           if (!line.startsWith('data: ')) continue;
           const payload = JSON.parse(line.slice(6)) as
             | ({ type: 'step' } & StepEvent)
-            | { type: 'done' }
+            | { type: 'done'; retainedBucket?: string | null; retainedReason?: string | null }
             | { type: 'error'; message: string };
           if (payload.type === 'step') {
             setSteps(prev => collapse([...prev, payload]));
           } else if (payload.type === 'done') {
+            setRetainedBucket(payload.retainedBucket ?? null);
+            setRetainedReason(payload.retainedReason ?? null);
             setExistingInstalls(prev =>
               prev.filter(
                 i =>
@@ -729,7 +783,11 @@ function DeployWizard(): ReactElement {
       />
       <div className="relative">
         <div className="mb-7 flex flex-col items-center">
-          <a href="/" aria-label="Back to traks.dev" className="transition-transform hover:scale-105">
+          <a
+            href="/"
+            aria-label="Back to traks.dev"
+            className="transition-transform hover:scale-105"
+          >
             <img src="/logo.svg" alt="Traks" className="h-9 w-9" />
           </a>
           <h1 className="mt-3 text-[26px] font-bold tracking-[-0.02em] text-[#3D3B4F]">
@@ -819,7 +877,9 @@ function DeployWizard(): ReactElement {
                 <PrimaryButton
                   onClick={() => void continueFromTokens()}
                   busy={busy}
-                  disabled={installerStatus !== 'ok' || catalogToken.trim().length < 20}
+                  disabled={
+                    installerStatus !== 'ok' || (catalogRequired && catalogToken.trim().length < 20)
+                  }
                 >
                   Continue
                   <ArrowRight className="h-4 w-4" />
@@ -856,8 +916,8 @@ function DeployWizard(): ReactElement {
                 Updating to Traks {versions.latest ?? 'latest'} — same instance, your data and
                 settings stay. Tokens are never stored on our side, but your{' '}
                 <span className="font-medium text-[#3D3B4F]">existing tokens still work</span> —
-                paste the same ones you used before (or sign in with Cloudflare); no need to
-                create new ones.
+                paste the same ones you used before (or sign in with Cloudflare); no need to create
+                new ones.
               </p>
             )}
             <div className="space-y-5">
@@ -983,6 +1043,11 @@ function DeployWizard(): ReactElement {
                       <button
                         onClick={() => {
                           setDestroyTarget(inst);
+                          void runPreflight(
+                            'destroy',
+                            inst.accountId ?? '',
+                            inst.instanceName ?? ''
+                          );
                           setConfirmName('');
                           setError('');
                           setPhase('destroy-confirm');
@@ -1117,7 +1182,9 @@ function DeployWizard(): ReactElement {
                       Prefixes everything created in your account:{' '}
                       <span className="font-mono text-[#6E6C7C]">{instanceName.trim()}-api</span>{' '}
                       (dashboard),{' '}
-                      <span className="font-mono text-[#6E6C7C]">{instanceName.trim()}-collect</span>{' '}
+                      <span className="font-mono text-[#6E6C7C]">
+                        {instanceName.trim()}-collect
+                      </span>{' '}
                       (tracker), database, storage. The default is right for a single instance —
                       change it only to run several (e.g. a staging copy).
                     </>
@@ -1126,7 +1193,9 @@ function DeployWizard(): ReactElement {
                       Prefixes everything created in your account: workers{' '}
                       <span className="font-mono text-[#6E6C7C]">{instanceName.trim()}-api</span>{' '}
                       (your dashboard) and{' '}
-                      <span className="font-mono text-[#6E6C7C]">{instanceName.trim()}-collect</span>{' '}
+                      <span className="font-mono text-[#6E6C7C]">
+                        {instanceName.trim()}-collect
+                      </span>{' '}
                       (the tracker), plus the database and storage.
                     </>
                   ) : (
@@ -1307,7 +1376,10 @@ function DeployWizard(): ReactElement {
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-[13px] text-[#3D3B4F]">
                       <span className="font-semibold">Traks {versions.latest} is available</span>
-                      <span className="text-[#9B99A6]"> — this instance runs {versions.current}.</span>
+                      <span className="text-[#9B99A6]">
+                        {' '}
+                        — this instance runs {versions.current}.
+                      </span>
                     </p>
                     <button
                       onClick={() => {
@@ -1360,11 +1432,11 @@ function DeployWizard(): ReactElement {
                 <BackButton onClick={() => setPhase('tokens')} disabled={busy} />
                 <button
                   onClick={() => void destroyRun()}
-                  disabled={
-                    busy ||
-                    confirmName.trim() !== destroyTarget.instanceName ||
-                    (oauthSignedIn && catalogToken.trim().length < 20)
-                  }
+                  // Deliberately NOT gated on the storage token. Teardown now
+                  // survives an un-emptiable bucket — everything else is
+                  // removed and the bucket is reported back — so a missing
+                  // token is a disclosed consequence, not a dead end.
+                  disabled={busy || confirmName.trim() !== destroyTarget.instanceName}
                   className="inline-flex h-11 items-center gap-2 rounded-full bg-[#B3402F] px-6 text-[13.5px] font-semibold text-white transition-all hover:-translate-y-px hover:bg-[#96331F] hover:shadow-md disabled:pointer-events-none disabled:opacity-40 cursor-pointer"
                 >
                   <Trash2 className="h-4 w-4" />
@@ -1390,7 +1462,11 @@ function DeployWizard(): ReactElement {
                   const n = destroyTarget.instanceName;
                   const us = n.replaceAll('-', '_');
                   return [
-                    [`${n}-api`, 'worker — your dashboard' + (destroyTarget.customDomain ? ' (custom domain detaches)' : '')],
+                    [
+                      `${n}-api`,
+                      'worker — your dashboard' +
+                        (destroyTarget.customDomain ? ' (custom domain detaches)' : ''),
+                    ],
                     [`${n}-collect`, 'worker — the tracker endpoint'],
                     [`${n}-db`, 'D1 database — sites, users, settings'],
                     [`${n}-events`, 'R2 bucket — every analytics event ever collected'],
@@ -1408,10 +1484,13 @@ function DeployWizard(): ReactElement {
                 within 90 days.
               </p>
             </div>
-            {oauthSignedIn && catalogToken.trim().length < 20 && (
+            {catalogRequired && catalogToken.trim().length < 20 && (
               <p className="mb-4 rounded-xl bg-[#F7DCD4] px-4 py-3 text-[12.5px] leading-relaxed text-[#8F3B2C]">
-                With Cloudflare sign-in, destroying also needs your storage token (it empties the
-                events bucket) — go back and paste it first.
+                {catalogReason ??
+                  'Removing your stored analytics needs a Cloudflare API token — the sign-in alone cannot delete R2 objects.'}{' '}
+                Go back and paste your storage token, or destroy without it: everything else is
+                removed and the events bucket stays, still costing R2 storage until you delete it
+                yourself.
               </p>
             )}
             <label
@@ -1510,18 +1589,33 @@ function DeployWizard(): ReactElement {
           >
             <div className="flex flex-col items-center pt-2 text-center">
               <CheckCircle2 className="mb-3 h-12 w-12 text-[#3D3B4F]" strokeWidth={1.5} />
-              <h2 className="text-[17px] font-bold text-[#3D3B4F]">Instance destroyed</h2>
+              <h2 className="text-[17px] font-bold text-[#3D3B4F]">
+                {retainedBucket ? 'Instance destroyed — one thing left' : 'Instance destroyed'}
+              </h2>
               <p className="mb-2 mt-1 text-[13px] leading-relaxed text-[#9B99A6]">
-                Everything was removed from your Cloudflare account. Your tokens were used for
-                this teardown only — you can revoke them in the Cloudflare dashboard now.
+                {retainedBucket
+                  ? 'The workers, database, KV namespace and pipeline are gone. Your tokens were used for this teardown only — you can revoke them now.'
+                  : 'Everything was removed from your Cloudflare account. Your tokens were used for this teardown only — you can revoke them in the Cloudflare dashboard now.'}
               </p>
+              {retainedBucket && (
+                <div className="mb-2 w-full rounded-xl bg-[#F7DCD4] px-4 py-3 text-left text-[12.5px] leading-relaxed text-[#8F3B2C]">
+                  <p className="font-semibold">
+                    Your events bucket <code className="font-mono">{retainedBucket}</code> is still
+                    there.
+                  </p>
+                  <p className="mt-1">
+                    {retainedReason ?? 'It could not be emptied during teardown.'} It keeps costing
+                    R2 storage until you delete it — do that from R2 in the Cloudflare dashboard, or
+                    re-run this destroy with a storage token.
+                  </p>
+                </div>
+              )}
               <p className="text-[12px] text-[#9B99A6]">
                 Changed your mind later? Installing fresh takes about two minutes.
               </p>
             </div>
           </Card>
         )}
-
       </div>
     </div>
   );

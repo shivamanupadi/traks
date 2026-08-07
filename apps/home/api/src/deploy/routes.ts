@@ -15,10 +15,12 @@ import { and, eq, inArray } from 'drizzle-orm';
 import { deployInstances } from '../db/schema';
 import {
   provisionInstance,
+  canSignR2,
   destroyInstance,
   emptyBucket,
   listAccounts,
   listZones,
+  updateNeedsCatalogToken,
   userEmail,
   verifyCatalogToken,
   type CustomDomain,
@@ -116,7 +118,10 @@ export async function oauthCallback(
 const tokenSchema = z.string().min(20).max(2048);
 const startSchema = z.object({
   apiToken: tokenSchema,
-  catalogToken: tokenSchema,
+  // Optional: a re-provision of a healthy instance never reads it (see
+  // /preflight). Provisioning still refuses to run without one when the sink
+  // or the query secret actually has to be created.
+  catalogToken: tokenSchema.optional(),
   accountId: z.string().regex(/^[a-f0-9]{32}$/),
   instanceName: z.string().regex(/^[a-z][a-z0-9-]{2,20}$/, 'lowercase letters, digits, and dashes'),
   // Optional: deploy onto one of the account's own domains. Hostnames are
@@ -426,6 +431,57 @@ export const deployRoute = app
     }
   )
 
+  /**
+   * What this operation still needs from the operator, asked before the
+   * wizard renders its form.
+   *
+   * Updating a healthy instance consumes no catalog token at all — the sink
+   * step short-circuits on an existing sink and the R2_SQL_TOKEN secret is
+   * already in place — so the wizard should not send anyone to the Cloudflare
+   * dashboard to mint one. Destroying, by contrast, needs a token that can
+   * sign S3 requests, because R2 will not delete a bucket with objects in it
+   * and only the S3 API can remove them.
+   */
+  .post(
+    '/instance/:id/preflight',
+    zValidator(
+      'json',
+      z.object({
+        apiToken: tokenSchema,
+        accountId: z.string().regex(/^[a-f0-9]{32}$/),
+        instanceName: z.string().regex(/^[a-z][a-z0-9-]{2,20}$/),
+        intent: z.enum(['update', 'destroy']),
+      })
+    ),
+    async c => {
+      const capped = await limited(c, c.env.VERIFY_LIMIT);
+      if (capped) return capped;
+      const db = c.get('db')!;
+      const id = c.req.param('id');
+      const [row] = await db.select().from(deployInstances).where(eq(deployInstances.id, id));
+      if (!row) return c.json({ error: 'Not found' }, 404);
+      const { apiToken, accountId, instanceName, intent } = c.req.valid('json');
+      const denied = await authorizeRow(row, apiToken, accountId, instanceName);
+      if (denied) return c.json({ error: denied }, 403);
+
+      if (intent === 'destroy') {
+        // A pasted API token signs S3 itself; an OAuth access token cannot.
+        const canPurge = await canSignR2(accountId, apiToken);
+        return c.json({
+          data: {
+            catalogTokenNeeded: !canPurge,
+            reason: canPurge
+              ? null
+              : 'Removing your stored analytics needs a Cloudflare API token — the sign-in alone cannot delete R2 objects.',
+          },
+        });
+      }
+
+      const { needed, reason } = await updateNeedsCatalogToken(accountId, apiToken, instanceName);
+      return c.json({ data: { catalogTokenNeeded: needed, reason } });
+    }
+  )
+
   // Run the deploy, streaming step events as SSE. Idempotent — a retry after
   // a failure resumes from existing resources.
   .post('/instance/:id/provision', zValidator('json', startSchema), async c => {
@@ -451,6 +507,20 @@ export const deployRoute = app
     // junk-token request costs one upstream call instead of R2 + D1 + a run.
     const denied = await authorizeRow(row, apiToken, accountId, instanceName);
     if (denied) return c.json({ error: denied }, 403);
+
+    // Without a token, confirm the run genuinely does not need one. First
+    // installs always do; updates only when the sink or the query secret has
+    // to be created. Checked here as well as in the wizard so the API is
+    // safe to call directly.
+    if (!catalogToken) {
+      const { needed, reason } = await updateNeedsCatalogToken(accountId, apiToken, instanceName);
+      if (needed) {
+        return c.json(
+          { error: `${reason ?? 'This deploy needs a catalog token.'} Add one and try again.` },
+          400
+        );
+      }
+    }
     const artifacts = await loadArtifacts(c.env.RELEASES);
 
     const steps: StepEvent[] = [];
@@ -492,7 +562,9 @@ export const deployRoute = app
               apiToken,
               accountId,
               instance: instanceName,
-              catalogToken,
+              // Empty only on the verified-unnecessary path above, where no
+              // step reads it.
+              catalogToken: catalogToken ?? '',
               artifacts,
               customDomain: customDomain && resolveCustomDomain(customDomain),
               deploySessionId: id,
@@ -592,7 +664,7 @@ export const deployRoute = app
 
           const run = async (): Promise<void> => {
             try {
-              await destroyInstance({
+              const outcome = await destroyInstance({
                 apiToken,
                 accountId,
                 instance: instanceName,
@@ -624,7 +696,13 @@ export const deployRoute = app
                 .update(deployInstances)
                 .set({ status: 'destroyed', steps, error: null, updatedAt: new Date() })
                 .where(eq(deployInstances.id, id));
-              send({ type: 'done' });
+              // Say plainly when the data bucket outlived the teardown —
+              // it keeps costing R2 storage until someone removes it.
+              send({
+                type: 'done',
+                retainedBucket: outcome.retainedBucket,
+                retainedReason: outcome.retainedReason,
+              });
             } catch (err) {
               const message = err instanceof Error ? err.message : 'destroy failed';
               await db

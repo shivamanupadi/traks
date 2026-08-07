@@ -829,13 +829,23 @@ export interface DestroyCtx {
   emptyBucket?: (bucket: string) => Promise<void>;
 }
 
+/** Anything teardown deliberately left behind, so the caller can say so
+ *  plainly instead of reporting a clean destroy that wasn't. */
+export interface DestroyResult {
+  retainedBucket: string | null;
+  /** Why the bucket survived, in words meant for the person who asked. */
+  retainedReason: string | null;
+}
+
 /** Tear down everything provisionInstance created. Idempotent — every delete
  *  tolerates already-gone resources, so partial teardowns can be re-run. */
-export async function destroyInstance(ctx: DestroyCtx): Promise<void> {
+export async function destroyInstance(ctx: DestroyCtx): Promise<DestroyResult> {
   const cf = makeApi(ctx);
   const N = instanceNames(ctx.instance);
   const base = `/accounts/${ctx.accountId}/pipelines/v1`;
   const gone = [10007, 10000, 7003, 1000]; // not-found flavors
+  let retainedBucket: string | null = null;
+  let retainedReason: string | null = null;
 
   await step(ctx, 'workers', 'Delete workers', async () => {
     for (const name of [N.apiWorker, N.collectWorker]) {
@@ -873,7 +883,25 @@ export async function destroyInstance(ctx: DestroyCtx): Promise<void> {
     await cf('POST', `/accounts/${ctx.accountId}/r2-catalog/${N.bucket}/disable`, undefined, {
       tolerate: gone,
     }).catch(() => {});
-    if (ctx.emptyBucket) await ctx.emptyBucket(N.bucket);
+
+    // R2 refuses to delete a non-empty bucket, and objects only die via the
+    // S3 API — which needs a real API token to sign with. An OAuth access
+    // token cannot, so this leg fails for OAuth installs. It must NOT abort
+    // the run: this step used to throw, and everything after it (the D1
+    // database and the KV namespace) was then never deleted at all. Record
+    // the bucket as retained and carry on tearing the rest down.
+    if (ctx.emptyBucket) {
+      try {
+        await ctx.emptyBucket(N.bucket);
+      } catch (err) {
+        retainedBucket = N.bucket;
+        retainedReason =
+          err instanceof Error && /not a valid, active Cloudflare API token/i.test(err.message)
+            ? 'Emptying an R2 bucket needs a Cloudflare API token; the sign-in token cannot do it.'
+            : `The bucket could not be emptied: ${err instanceof Error ? err.message : String(err)}`;
+        return;
+      }
+    }
     await cf('DELETE', `/accounts/${ctx.accountId}/r2/buckets/${N.bucket}`, undefined, {
       tolerate: gone,
     }).catch(() => {});
@@ -907,6 +935,65 @@ export async function destroyInstance(ctx: DestroyCtx): Promise<void> {
       if (!kvList || kvList.length < 100) break;
     }
   });
+
+  return { retainedBucket, retainedReason };
+}
+
+/**
+ * Can this token sign S3 requests for R2? Only a real Cloudflare API token
+ * can; an OAuth access token cannot, which is what decides whether a destroy
+ * is able to empty the data bucket. Asked before teardown so the wizard can
+ * say so up front instead of discovering it mid-run.
+ */
+export async function canSignR2(accountId: string, token: string): Promise<boolean> {
+  try {
+    await s3KeyId(accountId, token);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * What a re-provision of an existing instance still needs from the operator.
+ *
+ * The catalog token is only consumed when the Iceberg sink has to be created
+ * (an existing, correctly-configured sink short-circuits that step) or when
+ * the api worker is missing its R2_SQL_TOKEN secret. On a healthy instance
+ * neither holds, so an update needs nothing beyond the account connection —
+ * and asking for a token anyway sends people to the Cloudflare dashboard to
+ * mint a credential that is then never read.
+ */
+export async function updateNeedsCatalogToken(
+  accountId: string,
+  apiToken: string,
+  instance: string
+): Promise<{ needed: boolean; reason: string | null }> {
+  const N = instanceNames(instance);
+  const cf = makeApi({ apiToken });
+  const base = `/accounts/${accountId}/pipelines/v1`;
+
+  const sinkOk = await cf('GET', `${base}/sinks?per_page=100`)
+    .then(list => {
+      const sink = ((list ?? []) as { name: string; config?: Record<string, unknown> }[]).find(
+        s => s.name === N.sink
+      );
+      const cfg = sink?.config ?? {};
+      return Boolean(sink) && cfg.namespace === 'traks' && cfg.table_name === 'events';
+    })
+    .catch(() => false);
+  if (!sinkOk) {
+    return { needed: true, reason: 'The events pipeline has to be recreated.' };
+  }
+
+  const hasSecret = await cf('GET', `/accounts/${accountId}/workers/scripts/${N.apiWorker}/secrets`)
+    .then(list => ((list ?? []) as { name: string }[]).some(s => s.name === 'R2_SQL_TOKEN'))
+    .catch(() => false);
+  if (!hasSecret) {
+    return { needed: true, reason: 'The dashboard is missing its query credential.' };
+  }
+
+  return { needed: false, reason: null };
 }
 
 /** List the account's active zones, for the custom-domain picker (token never stored). */

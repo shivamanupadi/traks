@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { eq, sql } from 'drizzle-orm';
 import { createId } from '@paralleldrive/cuid2';
@@ -13,17 +14,36 @@ import {
 import { requireAuth } from '../middleware/auth';
 import { invalidateSiteCache } from './analytics';
 import { sites, apiKeys, goals, funnels, segments, users } from '../db/schema';
+import {
+  siteAccessFilter,
+  getAccessibleSite,
+  getMembership,
+  ensureDefaultWorkspace,
+} from '../lib/workspaces';
 import type { Bindings, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
+const listSitesQuery = z.object({ workspaceId: z.string().optional() });
+
 export const sitesRoute = app
-  // List user's sites
-  .get('/', requireAuth, async c => {
+  // List the sites the user can access, optionally scoped to one workspace
+  .get('/', requireAuth, zValidator('query', listSitesQuery), async c => {
     const userId = c.get('userId')!;
+    const { workspaceId } = c.req.valid('query');
     const db = c.get('db')!;
 
-    const userSites = await db.select().from(sites).where(eq(sites.userId, userId));
+    if (workspaceId) {
+      const membership = await getMembership(db, workspaceId, userId);
+      if (!membership) return c.json({ error: 'Not found' }, 404);
+      const workspaceSites = await db
+        .select()
+        .from(sites)
+        .where(eq(sites.workspaceId, workspaceId));
+      return c.json({ data: workspaceSites });
+    }
+
+    const userSites = await db.select().from(sites).where(siteAccessFilter(db, userId));
 
     return c.json({ data: userSites });
   })
@@ -33,6 +53,16 @@ export const sitesRoute = app
     const userId = c.get('userId')!;
     const body = c.req.valid('json');
     const db = c.get('db')!;
+
+    // Resolve the target workspace: the requested one (must be a member) or
+    // the user's default. Every new site lands in a workspace.
+    let workspaceId = body.workspaceId;
+    if (workspaceId) {
+      const membership = await getMembership(db, workspaceId, userId);
+      if (!membership) return c.json({ error: 'Workspace not found' }, 404);
+    } else {
+      workspaceId = await ensureDefaultWorkspace(db, userId);
+    }
 
     // Sites were the only unbounded resource (goals/segments/funnels are all
     // capped), and each one adds a Durable Object plus a slot in every batch
@@ -62,6 +92,7 @@ export const sitesRoute = app
         db.insert(sites).values({
           id: siteId,
           userId,
+          workspaceId,
           name: body.name,
           domain: body.domain,
           timezone: body.timezone,
@@ -85,14 +116,17 @@ export const sitesRoute = app
     return c.json({ data: site, key: siteKey }, 201);
   })
 
-  // Set one timezone across all of the user's sites (account settings).
+  // Set one timezone across all sites the user can access (account settings).
   // Static path — declared before the /:id routes so it can't be shadowed.
   .post('/timezone', requireAuth, zValidator('json', allSitesTimezoneSchema), async c => {
     const userId = c.get('userId')!;
     const { timezone } = c.req.valid('json');
     const db = c.get('db')!;
 
-    await db.update(sites).set({ timezone, updatedAt: new Date() }).where(eq(sites.userId, userId));
+    await db
+      .update(sites)
+      .set({ timezone, updatedAt: new Date() })
+      .where(siteAccessFilter(db, userId));
 
     return c.json({ data: { timezone } });
   })
@@ -103,11 +137,8 @@ export const sitesRoute = app
     const siteId = c.req.param('id');
     const db = c.get('db')!;
 
-    const [site] = await db.select().from(sites).where(eq(sites.id, siteId));
-
-    if (!site || site.userId !== userId) {
-      return c.json({ error: 'Not found' }, 404);
-    }
+    const site = await getAccessibleSite(db, userId, siteId);
+    if (!site) return c.json({ error: 'Not found' }, 404);
 
     const keys = await db.select().from(apiKeys).where(eq(apiKeys.siteId, siteId));
 
@@ -121,11 +152,8 @@ export const sitesRoute = app
     const body = c.req.valid('json');
     const db = c.get('db')!;
 
-    const [site] = await db.select().from(sites).where(eq(sites.id, siteId));
-
-    if (!site || site.userId !== userId) {
-      return c.json({ error: 'Not found' }, 404);
-    }
+    const site = await getAccessibleSite(db, userId, siteId);
+    if (!site) return c.json({ error: 'Not found' }, 404);
 
     try {
       await db
@@ -155,11 +183,7 @@ export const sitesRoute = app
     const siteId = c.req.param('id');
     const db = c.get('db')!;
 
-    const [site] = await db
-      .select({ userId: sites.userId })
-      .from(sites)
-      .where(eq(sites.id, siteId));
-    if (!site || site.userId !== userId) return c.json({ error: 'Not found' }, 404);
+    if (!(await getAccessibleSite(db, userId, siteId))) return c.json({ error: 'Not found' }, 404);
 
     const siteGoals = await db.select().from(goals).where(eq(goals.siteId, siteId));
     return c.json({ data: siteGoals });
@@ -172,11 +196,7 @@ export const sitesRoute = app
     const body = c.req.valid('json');
     const db = c.get('db')!;
 
-    const [site] = await db
-      .select({ userId: sites.userId })
-      .from(sites)
-      .where(eq(sites.id, siteId));
-    if (!site || site.userId !== userId) return c.json({ error: 'Not found' }, 404);
+    if (!(await getAccessibleSite(db, userId, siteId))) return c.json({ error: 'Not found' }, 404);
 
     // Bound per-site goal count (query cost scales with the IN list).
     const existing = await db.select({ id: goals.id }).from(goals).where(eq(goals.siteId, siteId));
@@ -201,11 +221,7 @@ export const sitesRoute = app
     const goalId = c.req.param('goalId');
     const db = c.get('db')!;
 
-    const [site] = await db
-      .select({ userId: sites.userId })
-      .from(sites)
-      .where(eq(sites.id, siteId));
-    if (!site || site.userId !== userId) return c.json({ error: 'Not found' }, 404);
+    if (!(await getAccessibleSite(db, userId, siteId))) return c.json({ error: 'Not found' }, 404);
 
     const [goal] = await db
       .select({ siteId: goals.siteId })
@@ -223,11 +239,7 @@ export const sitesRoute = app
     const siteId = c.req.param('id');
     const db = c.get('db')!;
 
-    const [site] = await db
-      .select({ userId: sites.userId })
-      .from(sites)
-      .where(eq(sites.id, siteId));
-    if (!site || site.userId !== userId) return c.json({ error: 'Not found' }, 404);
+    if (!(await getAccessibleSite(db, userId, siteId))) return c.json({ error: 'Not found' }, 404);
 
     const siteSegments = await db.select().from(segments).where(eq(segments.siteId, siteId));
     return c.json({ data: siteSegments });
@@ -240,11 +252,7 @@ export const sitesRoute = app
     const body = c.req.valid('json');
     const db = c.get('db')!;
 
-    const [site] = await db
-      .select({ userId: sites.userId })
-      .from(sites)
-      .where(eq(sites.id, siteId));
-    if (!site || site.userId !== userId) return c.json({ error: 'Not found' }, 404);
+    if (!(await getAccessibleSite(db, userId, siteId))) return c.json({ error: 'Not found' }, 404);
 
     const existing = await db
       .select({ id: segments.id })
@@ -270,11 +278,7 @@ export const sitesRoute = app
     const segmentId = c.req.param('segmentId');
     const db = c.get('db')!;
 
-    const [site] = await db
-      .select({ userId: sites.userId })
-      .from(sites)
-      .where(eq(sites.id, siteId));
-    if (!site || site.userId !== userId) return c.json({ error: 'Not found' }, 404);
+    if (!(await getAccessibleSite(db, userId, siteId))) return c.json({ error: 'Not found' }, 404);
 
     const [segment] = await db
       .select({ siteId: segments.siteId })
@@ -292,11 +296,7 @@ export const sitesRoute = app
     const siteId = c.req.param('id');
     const db = c.get('db')!;
 
-    const [site] = await db
-      .select({ userId: sites.userId })
-      .from(sites)
-      .where(eq(sites.id, siteId));
-    if (!site || site.userId !== userId) return c.json({ error: 'Not found' }, 404);
+    if (!(await getAccessibleSite(db, userId, siteId))) return c.json({ error: 'Not found' }, 404);
 
     const siteFunnels = await db.select().from(funnels).where(eq(funnels.siteId, siteId));
     return c.json({ data: siteFunnels });
@@ -309,11 +309,7 @@ export const sitesRoute = app
     const body = c.req.valid('json');
     const db = c.get('db')!;
 
-    const [site] = await db
-      .select({ userId: sites.userId })
-      .from(sites)
-      .where(eq(sites.id, siteId));
-    if (!site || site.userId !== userId) return c.json({ error: 'Not found' }, 404);
+    if (!(await getAccessibleSite(db, userId, siteId))) return c.json({ error: 'Not found' }, 404);
 
     // Bound per-site funnel count (each funnel stat render is a paid R2 SQL scan).
     const existing = await db
@@ -340,11 +336,7 @@ export const sitesRoute = app
     const funnelId = c.req.param('funnelId');
     const db = c.get('db')!;
 
-    const [site] = await db
-      .select({ userId: sites.userId })
-      .from(sites)
-      .where(eq(sites.id, siteId));
-    if (!site || site.userId !== userId) return c.json({ error: 'Not found' }, 404);
+    if (!(await getAccessibleSite(db, userId, siteId))) return c.json({ error: 'Not found' }, 404);
 
     const [funnel] = await db
       .select({ siteId: funnels.siteId })
@@ -362,11 +354,8 @@ export const sitesRoute = app
     const siteId = c.req.param('id');
     const db = c.get('db')!;
 
-    const [site] = await db.select().from(sites).where(eq(sites.id, siteId));
-
-    if (!site || site.userId !== userId) {
-      return c.json({ error: 'Not found' }, 404);
-    }
+    const site = await getAccessibleSite(db, userId, siteId);
+    if (!site) return c.json({ error: 'Not found' }, 404);
 
     await db.delete(sites).where(eq(sites.id, siteId));
     invalidateSiteCache(siteId);

@@ -74,6 +74,37 @@ export const verifications = sqliteTable('verifications', {
   updatedAt: integer('updated_at', { mode: 'timestamp' }),
 });
 
+// ============ Workspaces (a workspace groups sites; members join per-workspace) ============
+export const workspaces = sqliteTable('workspaces', {
+  id: text('id')
+    .primaryKey()
+    .$defaultFn(() => createId()),
+  name: text('name').notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+});
+
+export const workspaceMembers = sqliteTable(
+  'workspace_members',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    role: text('role').$type<'owner' | 'member'>().notNull().default('member'),
+    createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+  },
+  table => [
+    uniqueIndex('workspace_members_ws_user_idx').on(table.workspaceId, table.userId),
+    index('workspace_members_user_id_idx').on(table.userId),
+  ]
+);
+
 // ============ Sites ============
 export const sites = sqliteTable(
   'sites',
@@ -84,6 +115,9 @@ export const sites = sqliteTable(
     userId: text('user_id')
       .notNull()
       .references(() => users.id),
+    /** Nullable during rollout (expand-contract); app code backfills into the
+     *  creator's default workspace and treats membership as the access rule. */
+    workspaceId: text('workspace_id').references(() => workspaces.id),
     name: text('name').notNull(),
     domain: text('domain').notNull(),
     timezone: text('timezone').default('UTC').notNull(),
@@ -93,6 +127,7 @@ export const sites = sqliteTable(
   },
   table => [
     index('sites_user_id_idx').on(table.userId),
+    index('sites_workspace_id_idx').on(table.workspaceId),
     uniqueIndex('sites_domain_idx').on(table.domain),
   ]
 );

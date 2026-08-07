@@ -24,8 +24,11 @@ export default defineConfig({
   server: {
     port: 5012,
     // Mirror prod topology (traks.dev/api/* -> API worker): same-origin /api.
+    // Host must be preserved (changeOrigin: false): the API derives Better
+    // Auth's trustedOrigins from the request URL, so rewriting Host to :5011
+    // makes every browser login fail the origin check with INVALID_ORIGIN.
     proxy: {
-      '/api': { target: 'http://localhost:5011', changeOrigin: true },
+      '/api': { target: 'http://localhost:5011', changeOrigin: false },
     },
   },
 });

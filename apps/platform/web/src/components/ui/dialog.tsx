@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -25,7 +26,11 @@ function Dialog({ open, onOpenChange, children }: DialogProps): React.ReactNode 
     };
   }, [open, onOpenChange]);
 
-  return (
+  // Portal to <body>: an ancestor with transform/backdrop-filter (e.g. the
+  // portal header's backdrop-blur) becomes the containing block for fixed
+  // descendants, which would center the dialog inside that element instead
+  // of the viewport.
+  return createPortal(
     <AnimatePresence>
       {open && (
         <>
@@ -42,7 +47,8 @@ function Dialog({ open, onOpenChange, children }: DialogProps): React.ReactNode 
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">{children}</div>
         </>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }
 

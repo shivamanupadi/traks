@@ -63,14 +63,49 @@ export const api = {
     return res.json();
   },
 
-  // Sites
-  async getSites(): Promise<any> {
-    const res = await client.api.sites.$get();
+  // Workspaces
+  async getWorkspaces(): Promise<any> {
+    const res = await client.api.workspaces.$get();
     await assertOk(res);
     return res.json();
   },
 
-  async createSite(data: { name: string; domain: string; timezone?: string }): Promise<any> {
+  async createWorkspace(data: { name: string }): Promise<any> {
+    const res = await client.api.workspaces.$post({ json: data });
+    await assertOk(res);
+    return res.json();
+  },
+
+  async updateWorkspace(workspaceId: string, data: { name: string }): Promise<any> {
+    const res = await client.api.workspaces[':id'].$patch({
+      param: { id: workspaceId },
+      json: data,
+    });
+    await assertOk(res);
+    return res.json();
+  },
+
+  async deleteWorkspace(workspaceId: string): Promise<any> {
+    const res = await client.api.workspaces[':id'].$delete({ param: { id: workspaceId } });
+    await assertOk(res);
+    return res.json();
+  },
+
+  // Sites
+  async getSites(workspaceId?: string): Promise<any> {
+    const res = await client.api.sites.$get({
+      query: workspaceId ? { workspaceId } : {},
+    });
+    await assertOk(res);
+    return res.json();
+  },
+
+  async createSite(data: {
+    name: string;
+    domain: string;
+    timezone?: string;
+    workspaceId?: string;
+  }): Promise<any> {
     const res = await client.api.sites.$post({ json: data });
     await assertOk(res);
     return res.json();

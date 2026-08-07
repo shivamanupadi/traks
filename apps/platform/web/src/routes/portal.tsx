@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 import { LayoutGrid, Settings, User, ChevronDown, LogOut, ArrowUpCircle, X } from 'lucide-react';
 import { authClient } from '@/lib/auth-client';
 import { useInstanceConfig, useLatestVersion } from '@/lib/config';
+import { WorkspaceProvider } from '@/lib/workspace';
+import { WorkspaceSwitcher } from '@/components/layout/WorkspaceSwitcher';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,50 +48,55 @@ function PortalLayout(): React.ReactNode {
   }
 
   return (
-    <div className="min-h-screen bg-[#fafafa]">
-      {/* Header */}
-      <header className="bg-[#fafafa]/85 backdrop-blur-xl sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-[68px] flex items-center justify-between">
-          {/* Logo */}
-          <Link to="/portal/sites" className="flex items-center gap-2.5 group">
-            <img
-              src="/logo.svg"
-              alt="Traks"
-              className="h-9 w-9 group-hover:scale-105 transition-transform"
-            />
-            <span className="font-semibold text-[17px] text-[#3D3B4F] tracking-tight hidden sm:block">
-              Traks
-            </span>
-          </Link>
+    <WorkspaceProvider>
+      <div className="min-h-screen bg-[#fafafa]">
+        {/* Header */}
+        <header className="bg-[#fafafa]/85 backdrop-blur-xl sticky top-0 z-40">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 h-[68px] flex items-center justify-between">
+            {/* Logo + workspace switcher */}
+            <div className="flex items-center gap-3">
+              <Link to="/portal/sites" className="flex items-center gap-2.5 group">
+                <img
+                  src="/logo.svg"
+                  alt="Traks"
+                  className="h-9 w-9 group-hover:scale-105 transition-transform"
+                />
+                <span className="font-semibold text-[17px] text-[#3D3B4F] tracking-tight hidden sm:block">
+                  Traks
+                </span>
+              </Link>
+              <WorkspaceSwitcher />
+            </div>
 
-          {/* Center Nav */}
-          <nav className="hidden sm:flex items-center gap-0.5 bg-white p-1 rounded-full shadow-pill">
-            <NavLink to="/portal/sites" icon="sites" alsoMatchPaths={['/portal/site/']}>
-              Sites
-            </NavLink>
-            <NavLink to="/portal/settings" icon="settings">
-              Settings
-            </NavLink>
-          </nav>
-
-          {/* Right side */}
-          <div className="flex items-center gap-3">
-            {/* Mobile nav */}
-            <nav className="flex sm:hidden items-center gap-1">
-              <MobileNavLink to="/portal/sites" icon="sites" alsoMatchPaths={['/portal/site/']} />
-              <MobileNavLink to="/portal/settings" icon="settings" />
+            {/* Center Nav */}
+            <nav className="hidden sm:flex items-center gap-0.5 bg-white p-1 rounded-full shadow-pill">
+              <NavLink to="/portal/sites" icon="sites" alsoMatchPaths={['/portal/site/']}>
+                Sites
+              </NavLink>
+              <NavLink to="/portal/settings" icon="settings">
+                Settings
+              </NavLink>
             </nav>
 
-            <UserMenu />
+            {/* Right side */}
+            <div className="flex items-center gap-3">
+              {/* Mobile nav */}
+              <nav className="flex sm:hidden items-center gap-1">
+                <MobileNavLink to="/portal/sites" icon="sites" alsoMatchPaths={['/portal/site/']} />
+                <MobileNavLink to="/portal/settings" icon="settings" />
+              </nav>
+
+              <UserMenu />
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      <UpdateBanner />
+        <UpdateBanner />
 
-      {/* Child routes render here */}
-      <Outlet />
-    </div>
+        {/* Child routes render here */}
+        <Outlet />
+      </div>
+    </WorkspaceProvider>
   );
 }
 

@@ -5,6 +5,7 @@ import { getAuth, claimStatus } from './lib/auth';
 import { sitesRoute } from './routes/sites';
 import { analyticsRoute } from './routes/analytics';
 import { meRoute } from './routes/me';
+import { workspacesRoute } from './routes/workspaces';
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -58,6 +59,7 @@ app.get('/api/config', c =>
 // Routes - chained for Hono RPC type inference
 const routes = app
   .route('/api/me', meRoute)
+  .route('/api/workspaces', workspacesRoute)
   .route('/api/sites', sitesRoute)
   .route('/api/analytics', analyticsRoute);
 

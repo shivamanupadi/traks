@@ -1,11 +1,13 @@
 import { useState, useEffect, type ReactElement } from 'react';
 import { createFileRoute } from '@tanstack/react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Check, Globe, User } from 'lucide-react';
+import { Check, Globe, Layers, Pencil, Trash2, User, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { TimezoneSelect } from '@/components/ui/timezone-select';
 import { authClient } from '@/lib/auth-client';
 import { api } from '@/lib/api';
+import { useWorkspace, type Workspace } from '@/lib/workspace';
 
 export const Route = createFileRoute('/portal/settings')({
   component: SettingsPage,
@@ -99,6 +101,9 @@ function SettingsPage(): ReactElement {
           </div>
         </section>
 
+        {/* Workspaces */}
+        <WorkspacesSection />
+
         {/* Timezone */}
         <section>
           <p className="mb-3 text-[10.5px] font-bold uppercase tracking-[0.1em] text-[#9B9590]">
@@ -156,5 +161,153 @@ function SettingsPage(): ReactElement {
         </section>
       </div>
     </main>
+  );
+}
+
+function WorkspacesSection(): ReactElement {
+  const { workspaces } = useWorkspace();
+
+  return (
+    <section>
+      <p className="mb-3 text-[10.5px] font-bold uppercase tracking-[0.1em] text-[#9B9590]">
+        Workspaces
+      </p>
+      <div className="rounded-[20px] bg-white p-6 shadow-float">
+        <div className="flex items-center gap-3.5">
+          <span className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-[14px] bg-muted">
+            <Layers className="h-[17px] w-[17px] text-foreground" strokeWidth={1.8} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-[13.5px] font-semibold text-[#3D3B4F]">Your workspaces</p>
+            <p className="mt-0.5 text-[12px] text-[#9B9590]">
+              Workspaces group your sites. Create new ones from the switcher in the header.
+            </p>
+          </div>
+        </div>
+
+        <ul className="mt-4 divide-y divide-[#F5F2EC]">
+          {workspaces.map(ws => (
+            <WorkspaceRow key={ws.id} workspace={ws} isOnly={workspaces.length === 1} />
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+function WorkspaceRow({
+  workspace,
+  isOnly,
+}: {
+  workspace: Workspace;
+  isOnly: boolean;
+}): ReactElement {
+  const queryClient = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(workspace.name);
+
+  const rename = useMutation({
+    mutationFn: () => api.updateWorkspace(workspace.id, { name: name.trim() }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['workspaces'] });
+      setEditing(false);
+    },
+  });
+
+  const remove = useMutation({
+    mutationFn: () => api.deleteWorkspace(workspace.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['workspaces'] });
+    },
+  });
+
+  const isOwner = workspace.role === 'owner';
+  // An empty workspace is the only deletable kind (the API refuses otherwise).
+  const canDelete = isOwner && !isOnly && workspace.siteCount === 0;
+  const canRename = name.trim().length > 0 && !rename.isPending;
+  const error = rename.isError
+    ? (rename.error as Error).message
+    : remove.isError
+      ? (remove.error as Error).message
+      : '';
+
+  return (
+    <li className="py-3 first:pt-0 last:pb-0">
+      <div className="flex items-center gap-3">
+        {editing ? (
+          <>
+            <Input
+              value={name}
+              onChange={e => setName(e.target.value)}
+              className="h-9 px-3 text-[13.5px]"
+              autoFocus
+              onKeyDown={e => {
+                if (e.key === 'Enter' && canRename) rename.mutate();
+                if (e.key === 'Escape') {
+                  setName(workspace.name);
+                  setEditing(false);
+                }
+              }}
+            />
+            <Button
+              onClick={() => rename.mutate()}
+              disabled={!canRename}
+              isLoading={rename.isPending}
+              className="h-9 shrink-0 px-4 text-[12.5px]"
+            >
+              <Check className="h-3.5 w-3.5" />
+              Save
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setName(workspace.name);
+                setEditing(false);
+              }}
+              className="h-9 w-9 shrink-0 p-0"
+              aria-label="Cancel rename"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </>
+        ) : (
+          <>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[13.5px] font-semibold text-[#3D3B4F]">
+                {workspace.name}
+              </p>
+              <p className="mt-0.5 text-[12px] text-[#9B9590]">
+                {workspace.siteCount} {workspace.siteCount === 1 ? 'site' : 'sites'}
+              </p>
+            </div>
+            <span className="rounded-full bg-muted px-3 py-1 text-[10.5px] font-bold uppercase tracking-[0.07em] text-foreground">
+              {workspace.role}
+            </span>
+            {isOwner && (
+              <Button
+                variant="outline"
+                onClick={() => setEditing(true)}
+                className="h-9 w-9 shrink-0 p-0"
+                aria-label={`Rename ${workspace.name}`}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+            )}
+            {canDelete && (
+              <Button
+                variant="outline"
+                onClick={() => remove.mutate()}
+                disabled={remove.isPending}
+                className="h-9 w-9 shrink-0 p-0 text-[#e5484d] hover:text-[#e5484d]"
+                aria-label={`Delete ${workspace.name}`}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            )}
+          </>
+        )}
+      </div>
+      {error && <p className="mt-2 text-[12px] text-[#e07a5f]">{error}</p>}
+    </li>
   );
 }

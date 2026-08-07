@@ -17,6 +17,7 @@ import {
   type LiveFilters,
 } from '@traks/shared';
 import { requireAuth } from '../middleware/auth';
+import { siteAccessFilter } from '../lib/workspaces';
 import { sites, goals, funnels } from '../db/schema';
 import {
   queryR2Sql,
@@ -76,7 +77,7 @@ async function getSite(c: AppContext, siteId: string, userId: string): Promise<S
   const [result] = await db
     .select({ siteId: sites.id, timezone: sites.timezone })
     .from(sites)
-    .where(and(eq(sites.id, siteId), eq(sites.userId, userId)))
+    .where(and(eq(sites.id, siteId), siteAccessFilter(db, userId)))
     .limit(1);
 
   if (result) {
@@ -499,7 +500,7 @@ const appWithBatch = app
       ? [...new Set(siteIdsParam.split(',').filter(Boolean))].slice(0, MAX_BATCH_SITES)
       : null;
 
-    const conditions = [eq(sites.userId, userId)];
+    const conditions = [siteAccessFilter(db, userId)];
     if (siteIdList && siteIdList.length > 0) {
       conditions.push(inArray(sites.id, siteIdList));
     }

@@ -28,9 +28,12 @@ interface CreatedSite {
 export function AddSiteWizard({
   open,
   onOpenChange,
+  workspaceId,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Workspace the new site is created in; omitted → the default workspace. */
+  workspaceId?: string;
 }): ReactElement {
   const queryClient = useQueryClient();
   const collectUrl = useCollectUrl();
@@ -45,10 +48,11 @@ export function AddSiteWizard({
       // Site timezone drives how dashboard buckets are computed at ingest;
       // default it to the browser's zone instead of UTC.
       const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-      return api.createSite({ name, domain, timezone });
+      return api.createSite({ name, domain, timezone, workspaceId });
     },
     onSuccess: (result: any) => {
       queryClient.invalidateQueries({ queryKey: ['sites'] });
+      queryClient.invalidateQueries({ queryKey: ['workspaces'] });
       setCreatedSite({
         id: result.data.id,
         name: result.data.name,

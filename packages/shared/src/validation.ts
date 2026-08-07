@@ -48,6 +48,17 @@ export const createSiteSchema = z.object({
   name: z.string().min(1).max(100),
   domain: z.string().min(1).max(256),
   timezone: timezoneSchema.default('UTC'),
+  /** Target workspace; omitted → the caller's default workspace. */
+  workspaceId: z.string().min(1).max(64).optional(),
+});
+
+/** Workspace names: same bounds as site names. */
+export const createWorkspaceSchema = z.object({
+  name: z.string().min(1).max(100),
+});
+
+export const updateWorkspaceSchema = z.object({
+  name: z.string().min(1).max(100),
 });
 
 export const updateSiteSchema = z.object({

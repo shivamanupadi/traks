@@ -4,6 +4,7 @@ import { APIError, createAuthMiddleware } from 'better-auth/api';
 import { drizzle, DrizzleD1Database } from 'drizzle-orm/d1';
 import { and, eq, ne, sql } from 'drizzle-orm';
 import { users, sessions, accounts, verifications, sites, apiKeys } from '../db/schema';
+import { ensureDefaultWorkspace } from './workspaces';
 import type { Bindings } from '../types';
 
 // Once the instance is claimed it stays claimed — skip the D1 count.
@@ -139,6 +140,9 @@ function createAuth(env: Bindings, origin: string) {
         create: {
           after: async user => {
             await adoptLegacyData(db, user);
+            // Adopted (and any future) sites land in the owner's default
+            // workspace; runs after adoption so re-parented rows are included.
+            await ensureDefaultWorkspace(db, user.id);
           },
         },
       },

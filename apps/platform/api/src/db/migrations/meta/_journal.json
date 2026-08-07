@@ -134,6 +134,13 @@
       "when": 1785992934034,
       "tag": "0018_single_owner_claim",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1786066640756,
+      "tag": "0019_workspaces",
+      "breakpoints": true
     }
   ]
 }

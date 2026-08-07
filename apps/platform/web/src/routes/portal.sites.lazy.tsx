@@ -5,6 +5,7 @@ import { Plus, Globe, Search, X, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { api } from '@/lib/api';
+import { useWorkspace } from '@/lib/workspace';
 import { SiteTile } from '@/components/sites/SiteTile';
 import { AddSiteWizard } from '@/components/sites/AddSiteWizard';
 
@@ -21,21 +22,24 @@ const PAGE_SIZE = 6;
 
 function SitesPage(): ReactElement {
   const queryClient = useQueryClient();
+  const { current: workspace, isLoading: workspaceLoading } = useWorkspace();
   const [wizardOpen, setWizardOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const {
     data: sitesData,
-    isLoading,
+    isLoading: sitesLoading,
     isFetching,
     isError,
     refetch,
   } = useQuery({
-    queryKey: ['sites'],
-    queryFn: () => api.getSites(),
+    queryKey: ['sites', workspace?.id],
+    queryFn: () => api.getSites(workspace!.id),
+    enabled: !!workspace,
   });
 
+  const isLoading = sitesLoading || workspaceLoading || !workspace;
   const allSites = (sitesData as any)?.data || [];
 
   // Client-side search: case-insensitive match on name or domain
@@ -81,6 +85,7 @@ function SitesPage(): ReactElement {
   };
 
   const handleRefresh = (): void => {
+    void queryClient.invalidateQueries({ queryKey: ['workspaces'] });
     void queryClient.invalidateQueries({ queryKey: ['sites'] });
     void queryClient.invalidateQueries({ queryKey: ['stats', 'batch'] });
   };
@@ -91,7 +96,9 @@ function SitesPage(): ReactElement {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-[26px] font-bold text-[#3D3B4F] tracking-[-0.02em]">Your Sites</h1>
-          <p className="mt-1 text-[14px] text-[#9B9590]">Select a site to view its analytics</p>
+          <p className="mt-1 text-[14px] text-[#9B9590]">
+            {workspace ? `Sites in ${workspace.name}` : 'Select a site to view its analytics'}
+          </p>
         </div>
         <div className="flex items-center gap-3">
           {!isLoading && allSites.length > 0 && (
@@ -137,7 +144,7 @@ function SitesPage(): ReactElement {
       </div>
 
       {/* Add site wizard modal */}
-      <AddSiteWizard open={wizardOpen} onOpenChange={setWizardOpen} />
+      <AddSiteWizard open={wizardOpen} onOpenChange={setWizardOpen} workspaceId={workspace?.id} />
 
       {/* Site tiles grid */}
       {isLoading ? (

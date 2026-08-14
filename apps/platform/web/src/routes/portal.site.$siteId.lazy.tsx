@@ -2157,8 +2157,11 @@ function SiteAnalyticsPage(): ReactElement {
   return (
     <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
       <div className="space-y-6">
-        {/* Header: identity block */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        {/* Header: identity + toolbar, sticky under the 56px app header so
+            period, refresh, and segments stay reachable mid-page. Negative
+            margins stretch the ground-colored backdrop across the content
+            column so panels slide cleanly beneath it. */}
+        <div className="sticky top-14 z-30 -mx-4 flex flex-wrap items-center justify-between gap-3 bg-[#F9F8F6] px-4 py-3 sm:-mx-6 sm:px-6">
           <div className="flex items-center gap-3">
             <Link
               to="/portal/sites"

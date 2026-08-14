@@ -109,6 +109,9 @@ export function GoalsPanel({
                 {goal.name}
                 <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-[#9B9590]">
                   {goal.type === 'event' ? goal.target : `visit ${goal.target}`}
+                  {goal.propKey && goal.propValue && (
+                    <> &middot; {goal.propKey}={goal.propValue}</>
+                  )}
                 </span>
               </span>
               <div className="relative z-10 flex shrink-0 gap-5 text-[13px] font-medium tabular-nums text-[#3D3B4F]">

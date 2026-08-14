@@ -4,6 +4,7 @@ import type {
   LiveFilters,
   LiveCounts,
   LiveGoalRow,
+  LiveGoalTarget,
   LiveTotals,
   LiveDimension,
   LiveTimeseriesRow,
@@ -15,7 +16,14 @@ import type {
   LiveScreenSizeRow,
   LiveMetaRow,
 } from '@traks/shared';
-import { SCREEN_SIZE_CASE, AI_HOSTNAME_IN, aiSourceCaseSql } from '@traks/shared';
+import {
+  SCREEN_SIZE_CASE,
+  AI_HOSTNAME_IN,
+  aiSourceCaseSql,
+  escapeLike,
+  isPagePrefix,
+  propLikePatterns,
+} from '@traks/shared';
 
 // "Today" plus the full previous-day comparison window needs at most 48h in
 // any timezone; prune with margin.
@@ -254,6 +262,13 @@ export class SiteLiveStore extends DurableObject<unknown> {
     for (const [key, value] of Object.entries(filters)) {
       const col = DIMENSION_COLUMNS[key as LiveDimension];
       if (!col || typeof value !== 'string') continue;
+      // The page filter alone also understands the '/section/*' prefix syntax.
+      if (col === 'pathname' && isPagePrefix(value)) {
+        const prefix = value.slice(0, -2);
+        sql += ` AND (${col} = ? OR ${col} LIKE ? ESCAPE '\\')`;
+        params.push(prefix, `${escapeLike(prefix)}/%`);
+        continue;
+      }
       sql += ` AND ${col} = ?`;
       params.push(value);
     }
@@ -608,64 +623,82 @@ export class SiteLiveStore extends DurableObject<unknown> {
   async goalStats(
     fromMs: number,
     toMs: number,
-    eventNames: string[],
-    pathnames: string[],
+    goalDefs: LiveGoalTarget[],
     filters?: LiveFilters
   ): Promise<LiveGoalRow[]> {
-    const events = eventNames.slice(0, 50);
-    const pages = pathnames.slice(0, 50);
-    if (events.length === 0 && pages.length === 0) return [];
+    const defs = goalDefs.slice(0, 50);
+    if (defs.length === 0) return [];
+    // Plain goals batch into one IN/GROUP BY query per kind; prop-filtered
+    // event goals and '/section/*' prefix page goals each need their own
+    // WHERE, so they run as individual single-row counts.
+    const hasProp = (g: LiveGoalTarget): boolean => Boolean(g.propKey && g.propValue);
+    const plainEvents = defs.filter(g => g.type === 'event' && !hasProp(g));
+    const plainPages = defs.filter(g => g.type === 'page' && !isPagePrefix(g.target));
+    const special = defs.filter(
+      g => (g.type === 'event' && hasProp(g)) || (g.type === 'page' && isPagePrefix(g.target))
+    );
     const f = SiteLiveStore.filterSql(filters);
-    const memoKey = `goals:${SiteLiveStore.q(fromMs)}:${SiteLiveStore.q(toMs)}:${events.join('\u0001')}:${pages.join('\u0001')}:${SiteLiveStore.filterKey(filters)}`;
+    const defKey = defs
+      .map(g => `${g.id}\u0001${g.type}\u0001${g.target}\u0001${g.propKey ?? ''}\u0001${g.propValue ?? ''}`)
+      .join('\u0002');
+    const memoKey = `goals:${SiteLiveStore.q(fromMs)}:${SiteLiveStore.q(toMs)}:${defKey}:${SiteLiveStore.filterKey(filters)}`;
     return this.memoized(memoKey, MEMO_TTL_MS, () => {
       const rows: LiveGoalRow[] = [];
-      if (events.length > 0) {
-        const marks = events.map(() => '?').join(', ');
+      const batch = (
+        goalList: LiveGoalTarget[],
+        eventType: string,
+        col: 'event_name' | 'pathname'
+      ): void => {
+        if (goalList.length === 0) return;
+        const targets = [...new Set(goalList.map(g => g.target))];
+        const marks = targets.map(() => '?').join(', ');
+        const byTarget = new Map<string, { events: number; visitors: number }>();
         for (const r of this.sql
           .exec(
-            `SELECT event_name AS target, COUNT(*) AS events,
+            `SELECT ${col} AS target, COUNT(*) AS events,
                     COUNT(DISTINCT visitor_id) AS visitors
              FROM events
-             WHERE event_type = 'event' AND ts >= ? AND ts < ?${f.sql}
-               AND event_name IN (${marks})
-             GROUP BY event_name`,
+             WHERE event_type = '${eventType}' AND ts >= ? AND ts < ?${f.sql}
+               AND ${col} IN (${marks})
+             GROUP BY ${col}`,
             fromMs,
             toMs,
             ...f.params,
-            ...events
+            ...targets
           )
           .toArray()) {
-          rows.push({
-            target: String(r.target),
-            kind: 'event',
-            events: n(r.events),
-            visitors: n(r.visitors),
-          });
+          byTarget.set(String(r.target), { events: n(r.events), visitors: n(r.visitors) });
         }
-      }
-      if (pages.length > 0) {
-        const marks = pages.map(() => '?').join(', ');
-        for (const r of this.sql
+        for (const g of goalList) {
+          const hit = byTarget.get(g.target);
+          if (hit) rows.push({ goalId: g.id, ...hit });
+        }
+      };
+      batch(plainEvents, 'event', 'event_name');
+      batch(plainPages, 'pageview', 'pathname');
+
+      for (const g of special) {
+        let cond: string;
+        const params: (string | number)[] = [fromMs, toMs, ...f.params];
+        if (g.type === 'event') {
+          const patterns = propLikePatterns(g.propKey!, g.propValue!);
+          const like = patterns.map(() => `event_meta LIKE ? ESCAPE '\\'`).join(' OR ');
+          cond = `event_type = 'event' AND event_name = ? AND (${like})`;
+          params.push(g.target, ...patterns);
+        } else {
+          const prefix = g.target.slice(0, -2);
+          cond = `event_type = 'pageview' AND (pathname = ? OR pathname LIKE ? ESCAPE '\\')`;
+          params.push(prefix, `${escapeLike(prefix)}/%`);
+        }
+        const [r] = this.sql
           .exec(
-            `SELECT pathname AS target, COUNT(*) AS events,
-                    COUNT(DISTINCT visitor_id) AS visitors
+            `SELECT COUNT(*) AS events, COUNT(DISTINCT visitor_id) AS visitors
              FROM events
-             WHERE event_type = 'pageview' AND ts >= ? AND ts < ?${f.sql}
-               AND pathname IN (${marks})
-             GROUP BY pathname`,
-            fromMs,
-            toMs,
-            ...f.params,
-            ...pages
+             WHERE ts >= ? AND ts < ?${f.sql} AND ${cond}`,
+            ...params
           )
-          .toArray()) {
-          rows.push({
-            target: String(r.target),
-            kind: 'page',
-            events: n(r.events),
-            visitors: n(r.visitors),
-          });
-        }
+          .toArray();
+        if (r) rows.push({ goalId: g.id, events: n(r.events), visitors: n(r.visitors) });
       }
       return rows;
     });

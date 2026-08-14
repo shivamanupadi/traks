@@ -151,6 +151,15 @@ export function targetError(type: 'event' | 'page', rawTarget: string): string |
     if (!target.startsWith('/')) return 'A path must start with /, like /pricing';
     if (/\s/.test(target)) return 'A path cannot contain spaces';
     if (target.length > 2048) return 'Path is too long';
+    // A trailing /* makes the target a section prefix (/blog/* matches
+    // /blog and everything under it). The star is valid nowhere else.
+    const star = target.indexOf('*');
+    if (star !== -1) {
+      if (!target.endsWith('/*') || star !== target.length - 1) {
+        return 'A * wildcard can only appear at the end, as /section/*';
+      }
+      if (target === '/*') return 'Use a real prefix before /*, like /blog/*';
+    }
     return null;
   }
   if (target.startsWith('/')) {
@@ -159,6 +168,46 @@ export function targetError(type: 'event' | 'page', rawTarget: string): string |
   if (target.length > 256) return 'Event name must be 256 characters or fewer';
   return null;
 }
+
+/**
+ * Optional event-prop condition (`where key = value`): both present or both
+ * absent, event targets only. Shared by goal/funnel forms and their schemas
+ * so the inline message and the API rejection can never disagree.
+ */
+export function propPairError(
+  type: 'event' | 'page',
+  rawKey: string,
+  rawValue: string
+): string | null {
+  const key = rawKey.trim();
+  const value = rawValue.trim();
+  if (!key && !value) return null;
+  if (type === 'page') return 'Property conditions only apply to event targets';
+  if (!key) return 'Enter the property key, or clear the value';
+  if (!value) return 'Enter the property value, or clear the key';
+  if (key.length > 128) return 'Property key must be 128 characters or fewer';
+  if (value.length > 512) return 'Property value must be 512 characters or fewer';
+  return null;
+}
+
+const optionalProp = (max: number) =>
+  z
+    .string()
+    .max(max)
+    .transform(s => s.trim())
+    .optional();
+
+const refineTargetAndProp = (
+  item: { type: 'event' | 'page'; target: string; propKey?: string; propValue?: string },
+  ctx: z.RefinementCtx
+): void => {
+  const message = targetError(item.type, item.target);
+  if (message) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['target'], message });
+  const propMessage = propPairError(item.type, item.propKey ?? '', item.propValue ?? '');
+  if (propMessage) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['propKey'], message: propMessage });
+  }
+};
 
 /** Goal definition: a custom event name or a pathname that counts as a conversion. */
 export const createGoalSchema = z
@@ -169,11 +218,10 @@ export const createGoalSchema = z
       .string()
       .max(2048)
       .transform(s => s.trim()),
+    propKey: optionalProp(128),
+    propValue: optionalProp(512),
   })
-  .superRefine((goal, ctx) => {
-    const message = targetError(goal.type, goal.target);
-    if (message) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['target'], message });
-  });
+  .superRefine(refineTargetAndProp);
 
 /** Saved filter set: at least one known filter dimension, unknown keys stripped. */
 export const segmentFiltersSchema = z
@@ -208,11 +256,10 @@ export const funnelStepSchema = z
       .string()
       .max(2048)
       .transform(s => s.trim()),
+    propKey: optionalProp(128),
+    propValue: optionalProp(512),
   })
-  .superRefine((step, ctx) => {
-    const message = targetError(step.type, step.target);
-    if (message) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['target'], message });
-  });
+  .superRefine(refineTargetAndProp);
 
 /** Funnel definition: 2-8 ordered steps a session should complete in sequence. */
 export const createFunnelSchema = z.object({

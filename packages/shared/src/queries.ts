@@ -72,6 +72,44 @@ function esc(value: string): string {
   return value.replace(/'/g, "''");
 }
 
+/** Escape LIKE metacharacters in user-supplied text, for use with ESCAPE '\'. */
+export function escapeLike(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+}
+
+/** True when a page target uses the trailing `/*` section-prefix syntax. */
+export function isPagePrefix(target: string): boolean {
+  return target.endsWith('/*') && target.length > 2;
+}
+
+/** SQL matching a page target: exact, or prefix for '/docs/*' — the bare
+ *  prefix itself plus everything under it (never '/docsfoo'). */
+export function pathMatchSql(col: string, target: string): string {
+  if (!isPagePrefix(target)) return `${col} = '${esc(target)}'`;
+  const prefix = target.slice(0, -2);
+  return `(${col} = '${esc(prefix)}' OR ${col} LIKE '${esc(escapeLike(prefix))}/%' ESCAPE '\\')`;
+}
+
+/**
+ * LIKE patterns matching one `"key":"value"` pair inside event_meta, which
+ * stores the tracker's flat JSON.stringify of scalar props verbatim. Values
+ * that could have been sent as JSON numbers/booleans also get an unquoted
+ * variant. Escaped for `LIKE ... ESCAPE '\'`.
+ */
+export function propLikePatterns(key: string, value: string): string[] {
+  const patterns = [`%${escapeLike(`${JSON.stringify(key)}:${JSON.stringify(value)}`)}%`];
+  if (/^-?\d+(\.\d+)?$/.test(value) || value === 'true' || value === 'false') {
+    patterns.push(`%${escapeLike(`${JSON.stringify(key)}:${value}`)}%`);
+  }
+  return patterns;
+}
+
+/** SQL condition for an event-prop exact match against event_meta. */
+export function propMatchSql(key: string, value: string): string {
+  const conds = propLikePatterns(key, value).map(p => `event_meta LIKE '${esc(p)}' ESCAPE '\\'`);
+  return conds.length === 1 ? conds[0] : `(${conds.join(' OR ')})`;
+}
+
 // ============ Timezone-aware period math ============
 
 /**
@@ -329,13 +367,18 @@ const FILTER_COLUMNS: Record<LiveDimension, string> = {
   utm_campaign: 'utm_campaign',
 };
 
-/** Exact-match dashboard filters as additional AND clauses ('' if none). */
+/** Exact-match dashboard filters as additional AND clauses ('' if none).
+ *  The page filter alone also understands the '/section/*' prefix syntax. */
 function filterClause(filters?: LiveFilters): string {
   if (!filters) return '';
   let sql = '';
   for (const [key, value] of Object.entries(filters)) {
     const col = FILTER_COLUMNS[key as LiveDimension];
     if (!col || typeof value !== 'string') continue;
+    if (col === 'pathname' && isPagePrefix(value)) {
+      sql += ` AND ${pathMatchSql(col, value)}`;
+      continue;
+    }
     sql += ` AND ${col} = '${esc(value)}'`;
   }
   return sql;
@@ -457,6 +500,47 @@ export function buildGoalEventsQuery(
   `;
 }
 
+/**
+ * One prop-filtered event goal. These can't join the batched IN/GROUP BY
+ * query: two goals on the same event with different prop conditions would
+ * collapse into one row there.
+ */
+export function buildGoalEventPropQuery(
+  siteKey: string,
+  range: PeriodRange,
+  target: string,
+  propKey: string,
+  propValue: string,
+  filters?: LiveFilters
+) {
+  return (table: string) => `
+    SELECT
+      COUNT(*) AS events,
+      approx_distinct(visitor_id) AS visitors
+    FROM ${table}
+    WHERE ${whereSiteAndRange(siteKey, range, 'event', filters)}
+      AND event_name = '${esc(target)}'
+      AND ${propMatchSql(propKey, propValue)}
+  `;
+}
+
+/** One section-prefix page goal ('/docs/*') — LIKE can't ride the IN batch. */
+export function buildGoalPagePrefixQuery(
+  siteKey: string,
+  range: PeriodRange,
+  target: string,
+  filters?: LiveFilters
+) {
+  return (table: string) => `
+    SELECT
+      COUNT(*) AS events,
+      approx_distinct(visitor_id) AS visitors
+    FROM ${table}
+    WHERE ${whereSiteAndRange(siteKey, range, 'pageview', filters)}
+      AND ${pathMatchSql('pathname', target)}
+  `;
+}
+
 /** Conversion counts for page-visit goals (grouped by pathname). */
 export function buildGoalPagesQuery(
   siteKey: string,
@@ -492,14 +576,17 @@ export function buildGoalPagesQuery(
 export function buildFunnelQuery(
   siteKey: string,
   range: PeriodRange,
-  steps: { type: 'event' | 'page'; target: string }[],
+  steps: { type: 'event' | 'page'; target: string; propKey?: string; propValue?: string }[],
   filters?: LiveFilters
 ) {
-  const conds = steps.map(s =>
-    s.type === 'page'
-      ? `(event_type = 'pageview' AND pathname = '${esc(s.target)}')`
-      : `(event_type = 'event' AND event_name = '${esc(s.target)}')`
-  );
+  const conds = steps.map(s => {
+    if (s.type === 'page') {
+      return `(event_type = 'pageview' AND ${pathMatchSql('pathname', s.target)})`;
+    }
+    const prop =
+      s.propKey && s.propValue ? ` AND ${propMatchSql(s.propKey, s.propValue)}` : '';
+    return `(event_type = 'event' AND event_name = '${esc(s.target)}'${prop})`;
+  });
   const stepCols = conds
     .map((cond, i) => `MIN(CASE WHEN ${cond} THEN ts END) AS s${i}`)
     .join(',\n        ');

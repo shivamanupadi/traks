@@ -41,6 +41,9 @@ import {
   buildEngagementStatsQuery,
   buildGoalEventsQuery,
   buildGoalPagesQuery,
+  buildGoalEventPropQuery,
+  buildGoalPagePrefixQuery,
+  isPagePrefix,
   buildFunnelQuery,
 } from '../lib/queries';
 import type { Bindings, Variables } from '../types';
@@ -1295,25 +1298,33 @@ export const analyticsRoute = appWithBatch
     const siteGoals = await db.select().from(goals).where(eq(goals.siteId, siteId));
     if (siteGoals.length === 0) return c.json({ data: [] });
 
-    const eventNames = siteGoals.filter(g => g.type === 'event').map(g => g.target);
-    const pathnames = siteGoals.filter(g => g.type === 'page').map(g => g.target);
+    // Plain goals keep the batched IN/GROUP BY queries; prop-filtered event
+    // goals and '/section/*' prefix page goals each run their own count —
+    // two goals on one event with different prop conditions can't share a
+    // GROUP BY event_name row.
+    const hasProp = (g: (typeof siteGoals)[number]): boolean => Boolean(g.propKey && g.propValue);
+    const isSpecial = (g: (typeof siteGoals)[number]): boolean =>
+      (g.type === 'event' && hasProp(g)) || (g.type === 'page' && isPagePrefix(g.target));
+    const eventNames = siteGoals.filter(g => g.type === 'event' && !hasProp(g)).map(g => g.target);
+    const pathnames = siteGoals
+      .filter(g => g.type === 'page' && !isPagePrefix(g.target))
+      .map(g => g.target);
+    const specialGoals = siteGoals.filter(isSpecial);
 
-    interface GoalCount {
-      target: string;
-      kind: 'event' | 'page';
-      events: number;
-      visitors: number;
-    }
-
-    const respond = (rows: GoalCount[], totalVisitors: number): Response => {
+    const respond = (
+      byGoal: Map<string, { events: number; visitors: number }>,
+      totalVisitors: number
+    ): Response => {
       const data = siteGoals.map(goal => {
-        const row = rows.find(r => r.kind === goal.type && r.target === goal.target);
+        const row = byGoal.get(goal.id);
         const uniques = row?.visitors ?? 0;
         return {
           id: goal.id,
           name: goal.name,
           type: goal.type,
           target: goal.target,
+          propKey: goal.propKey,
+          propValue: goal.propValue,
           uniques,
           events: row?.events ?? 0,
           conversionRate: totalVisitors > 0 ? Math.round((uniques / totalVisitors) * 1000) / 10 : 0,
@@ -1328,10 +1339,24 @@ export const analyticsRoute = appWithBatch
         const range = resolvePeriod('today', new Date(), site.timezone);
         const live = liveStore(c, site.siteId);
         const [rows, totals] = await Promise.all([
-          live.goalStats(ms(range.from), ms(range.to), eventNames, pathnames, filters),
+          live.goalStats(
+            ms(range.from),
+            ms(range.to),
+            siteGoals.map(g => ({
+              id: g.id,
+              type: g.type,
+              target: g.target,
+              propKey: g.propKey,
+              propValue: g.propValue,
+            })),
+            filters
+          ),
           live.totals(ms(range.from), ms(range.to), filters),
         ]);
-        return respond(rows, totals.visitors);
+        return respond(
+          new Map(rows.map(r => [r.goalId, { events: r.events, visitors: r.visitors }])),
+          totals.visitors
+        );
       } catch (err) {
         logLiveFallback(err);
       }
@@ -1362,27 +1387,46 @@ export const analyticsRoute = appWithBatch
               buildGoalPagesQuery(site.siteId, range, pathnames, filters)
             )
           : Promise.resolve([]),
+        Promise.all(
+          specialGoals.map(g =>
+            cachedR2Sql<{ events: unknown; visitors: unknown }>(
+              c,
+              ttl,
+              g.type === 'event'
+                ? buildGoalEventPropQuery(
+                    site.siteId,
+                    range,
+                    g.target,
+                    g.propKey!,
+                    g.propValue!,
+                    filters
+                  )
+                : buildGoalPagePrefixQuery(site.siteId, range, g.target, filters)
+            )
+          )
+        ),
       ])
     );
     if (outcome instanceof Response) return outcome;
 
-    const [statRows, eventRows, pageRows] = outcome;
+    const [statRows, eventRows, pageRows, specialRows] = outcome;
     const totalVisitors = toNumber(statRows.find(r => r.period === 'current')?.visitors);
-    const rows: GoalCount[] = [
-      ...eventRows.map(r => ({
-        target: r.target,
-        kind: 'event' as const,
-        events: toNumber(r.events),
-        visitors: toNumber(r.visitors),
-      })),
-      ...pageRows.map(r => ({
-        target: r.target,
-        kind: 'page' as const,
-        events: toNumber(r.events),
-        visitors: toNumber(r.visitors),
-      })),
-    ];
-    return respond(rows, totalVisitors);
+    const byGoal = new Map<string, { events: number; visitors: number }>();
+    for (const goal of siteGoals) {
+      if (isSpecial(goal)) continue;
+      const rows = goal.type === 'event' ? eventRows : pageRows;
+      const row = rows.find(r => r.target === goal.target);
+      if (row) {
+        byGoal.set(goal.id, { events: toNumber(row.events), visitors: toNumber(row.visitors) });
+      }
+    }
+    specialGoals.forEach((goal, i) => {
+      const [row] = specialRows[i] ?? [];
+      if (row) {
+        byGoal.set(goal.id, { events: toNumber(row.events), visitors: toNumber(row.visitors) });
+      }
+    });
+    return respond(byGoal, totalVisitors);
   })
 
   // Funnel completion stats. Always answered from R2 SQL — funnels need

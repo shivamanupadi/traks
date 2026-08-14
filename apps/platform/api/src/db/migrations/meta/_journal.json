@@ -176,6 +176,13 @@
       "when": 1786685313147,
       "tag": "0024_site_favicon",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1786696558538,
+      "tag": "0025_goal_prop_match",
+      "breakpoints": true
     }
   ]
 }

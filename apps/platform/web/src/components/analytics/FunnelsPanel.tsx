@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { Filter, AlertCircle, Settings2 } from 'lucide-react';
+import { Filter, AlertCircle, Settings2, Plus } from 'lucide-react';
 import type { FunnelDef, FunnelStat } from '@traks/shared';
 import { cn, formatNumber } from '@/lib/utils';
 
@@ -11,6 +11,8 @@ interface FunnelsPanelProps {
   isLoading: boolean;
   isError?: boolean;
   /** Absent for view-only members: hides the manage affordances. */
+  onAdd?: () => void;
+  /** Absent for view-only members; hidden while no funnels exist. */
   onManage?: () => void;
   className?: string;
 }
@@ -26,6 +28,7 @@ export function FunnelsPanel({
   stat,
   isLoading,
   isError,
+  onAdd,
   onManage,
   className,
 }: FunnelsPanelProps): ReactElement {
@@ -63,13 +66,22 @@ export function FunnelsPanel({
               ))}
             </div>
           )}
-          {onManage && (
+          {onManage && hasFunnels && (
             <button
               onClick={onManage}
               className="flex items-center gap-1.5 rounded-full bg-muted px-3.5 py-1.5 text-[12px] font-semibold text-foreground hover:bg-[#E6E4DE] transition-colors cursor-pointer"
             >
               <Settings2 className="h-3.5 w-3.5" />
               Manage funnels
+            </button>
+          )}
+          {onAdd && (
+            <button
+              onClick={onAdd}
+              className="flex items-center gap-1.5 rounded-full bg-[#3D3B4F] px-3.5 py-1.5 text-[12px] font-semibold text-white hover:bg-[#2C2B3B] transition-colors cursor-pointer"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add funnel
             </button>
           )}
         </div>
@@ -87,9 +99,9 @@ export function FunnelsPanel({
           <p className="mt-1 max-w-[44ch] text-center text-[12px] text-[#B5B0AA]">
             Chain pages and events into ordered steps to see where visitors drop off.
           </p>
-          {onManage && (
+          {onAdd && (
             <button
-              onClick={onManage}
+              onClick={onAdd}
               className="mt-3 rounded-full bg-muted px-4 py-2 text-[12px] font-semibold text-foreground hover:bg-[#E6E4DE] transition-colors cursor-pointer"
             >
               Create your first funnel
@@ -130,7 +142,15 @@ export function FunnelsPanel({
                   <span className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border border-[#E6E4DE] bg-white font-mono text-[10px] font-semibold text-[#6E6C7C]">
                     {i + 1}
                   </span>
-                  <span className="truncate text-[13px] text-[#3D3B4F]">{step.target}</span>
+                  <span className="truncate text-[13px] text-[#3D3B4F]">
+                    {step.target}
+                    {step.propKey && step.propValue && (
+                      <span className="text-[#9B9590]">
+                        {' '}
+                        &middot; {step.propKey}={step.propValue}
+                      </span>
+                    )}
+                  </span>
                   <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] text-[#9B9590]">
                     {step.type === 'page' ? 'page' : 'event'}
                   </span>

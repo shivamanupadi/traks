@@ -23,6 +23,9 @@ export {
   buildEngagementStatsQuery,
   buildGoalEventsQuery,
   buildGoalPagesQuery,
+  buildGoalEventPropQuery,
+  buildGoalPagePrefixQuery,
+  isPagePrefix,
   buildFunnelQuery,
 } from '@traks/shared';
 export type { QueryConfig, PeriodRange } from '@traks/shared';

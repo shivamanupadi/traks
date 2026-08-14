@@ -42,6 +42,9 @@ export interface GoalStat {
   name: string;
   type: 'event' | 'page';
   target: string;
+  /** Optional event-prop condition on 'event' goals. */
+  propKey?: string | null;
+  propValue?: string | null;
   /** Unique visitors who completed the goal in the period. */
   uniques: number;
   /** Total completions. */
@@ -74,10 +77,15 @@ export interface SegmentDef {
   filters: SegmentFilters;
 }
 
-/** One ordered funnel step: a pageview of a pathname or a custom event. */
+/** One ordered funnel step: a pageview of a pathname or a custom event.
+ *  Page targets may end in `/*` to match the whole section; event steps may
+ *  carry one exact-match prop condition. */
 export interface FunnelStep {
   type: 'event' | 'page';
   target: string;
+  /** Optional event-prop condition (both present or both absent). */
+  propKey?: string;
+  propValue?: string;
 }
 
 export interface FunnelDef {

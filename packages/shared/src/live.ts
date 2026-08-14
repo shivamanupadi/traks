@@ -64,10 +64,19 @@ export interface LiveTotals extends LiveCounts {
   engagedSeconds: number;
 }
 
-export interface LiveGoalRow {
-  /** The matched event_name or pathname. */
+/** A goal definition the DO evaluates (id + what to match). */
+export interface LiveGoalTarget {
+  id: string;
+  type: 'event' | 'page';
+  /** event_name, or pathname (may end in '/*' for a section prefix). */
   target: string;
-  kind: 'event' | 'page';
+  /** Optional event-prop exact-match condition. */
+  propKey?: string | null;
+  propValue?: string | null;
+}
+
+export interface LiveGoalRow {
+  goalId: string;
   events: number;
   visitors: number;
 }
@@ -161,12 +170,11 @@ export interface LiveStoreApi {
     filters?: LiveFilters
   ): Promise<LiveTopListRow[]>;
   realtime(nowMs: number): Promise<LiveRealtime>;
-  /** Conversion counts for goal targets (event names + pathnames). */
+  /** Conversion counts per goal definition. */
   goalStats(
     fromMs: number,
     toMs: number,
-    eventNames: string[],
-    pathnames: string[],
+    goals: LiveGoalTarget[],
     filters?: LiveFilters
   ): Promise<LiveGoalRow[]>;
   customEvents(

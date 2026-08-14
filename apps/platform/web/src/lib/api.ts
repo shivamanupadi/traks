@@ -243,7 +243,13 @@ export const api = {
 
   async createGoal(
     siteId: string,
-    data: { name: string; type: 'event' | 'page'; target: string }
+    data: {
+      name: string;
+      type: 'event' | 'page';
+      target: string;
+      propKey?: string;
+      propValue?: string;
+    }
   ): Promise<any> {
     const res = await client.api.sites[':id'].goals.$post({ param: { id: siteId }, json: data });
     await assertOk(res);
@@ -253,7 +259,13 @@ export const api = {
   async updateGoal(
     siteId: string,
     goalId: string,
-    data: { name: string; type: 'event' | 'page'; target: string }
+    data: {
+      name: string;
+      type: 'event' | 'page';
+      target: string;
+      propKey?: string;
+      propValue?: string;
+    }
   ): Promise<any> {
     const res = await client.api.sites[':id'].goals[':goalId'].$patch({
       param: { id: siteId, goalId },
@@ -305,9 +317,28 @@ export const api = {
 
   async createFunnel(
     siteId: string,
-    data: { name: string; steps: { type: 'event' | 'page'; target: string }[] }
+    data: {
+      name: string;
+      steps: { type: 'event' | 'page'; target: string; propKey?: string; propValue?: string }[];
+    }
   ): Promise<any> {
     const res = await client.api.sites[':id'].funnels.$post({ param: { id: siteId }, json: data });
+    await assertOk(res);
+    return res.json();
+  },
+
+  async updateFunnel(
+    siteId: string,
+    funnelId: string,
+    data: {
+      name: string;
+      steps: { type: 'event' | 'page'; target: string; propKey?: string; propValue?: string }[];
+    }
+  ): Promise<any> {
+    const res = await client.api.sites[':id'].funnels[':funnelId'].$patch({
+      param: { id: siteId, funnelId },
+      json: data,
+    });
     await assertOk(res);
     return res.json();
   },

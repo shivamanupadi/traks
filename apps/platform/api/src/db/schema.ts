@@ -212,8 +212,12 @@ export const goals = sqliteTable(
       .references(() => sites.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     type: text('type').$type<'event' | 'page'>().notNull(),
-    /** event_name for 'event' goals, pathname for 'page' goals. */
+    /** event_name for 'event' goals, pathname for 'page' goals (a trailing
+     *  '/*' makes it a section prefix). */
     target: text('target').notNull(),
+    /** Optional event-prop exact-match condition (both set or both null). */
+    propKey: text('prop_key'),
+    propValue: text('prop_value'),
     createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
   },
   table => [index('goals_site_id_idx').on(table.siteId)]

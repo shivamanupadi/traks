@@ -283,6 +283,8 @@ export const sitesRoute = app
       name: body.name,
       type: body.type,
       target: body.target,
+      propKey: body.propKey || null,
+      propValue: body.propValue || null,
     });
     const [goal] = await db.select().from(goals).where(eq(goals.id, goalId));
     return c.json({ data: goal }, 201);
@@ -307,7 +309,13 @@ export const sitesRoute = app
 
     await db
       .update(goals)
-      .set({ name: body.name, type: body.type, target: body.target })
+      .set({
+        name: body.name,
+        type: body.type,
+        target: body.target,
+        propKey: body.propKey || null,
+        propValue: body.propValue || null,
+      })
       .where(eq(goals.id, goalId));
     const [goal] = await db.select().from(goals).where(eq(goals.id, goalId));
     return c.json({ data: goal });
@@ -430,6 +438,31 @@ export const sitesRoute = app
     });
     const [funnel] = await db.select().from(funnels).where(eq(funnels.id, funnelId));
     return c.json({ data: funnel }, 201);
+  })
+
+  // Update a funnel (same shape as create — name + ordered steps)
+  .patch('/:id/funnels/:funnelId', requireAuth, validate('json', createFunnelSchema), async c => {
+    const userId = c.get('userId')!;
+    const siteId = c.req.param('id');
+    const funnelId = c.req.param('funnelId');
+    const body = c.req.valid('json');
+    const db = c.get('db')!;
+
+    const manage = await checkManage(db, userId, siteId, 'configure');
+    if (!manage.ok) return c.json({ error: manage.error }, manage.status);
+
+    const [existing] = await db
+      .select({ siteId: funnels.siteId })
+      .from(funnels)
+      .where(eq(funnels.id, funnelId));
+    if (!existing || existing.siteId !== siteId) return c.json({ error: 'Not found' }, 404);
+
+    await db
+      .update(funnels)
+      .set({ name: body.name, steps: body.steps })
+      .where(eq(funnels.id, funnelId));
+    const [funnel] = await db.select().from(funnels).where(eq(funnels.id, funnelId));
+    return c.json({ data: funnel });
   })
 
   // Delete a funnel

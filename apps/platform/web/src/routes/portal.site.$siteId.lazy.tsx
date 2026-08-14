@@ -61,7 +61,13 @@ import { FunnelsPanel } from '@/components/analytics/FunnelsPanel';
 import { PeriodPicker } from '@/components/layout/PeriodPicker';
 import { api, type AnalyticsFilters } from '@/lib/api';
 import { FieldError } from '@/components/ui/field-error';
-import { domainInputError, normalizeDomain, requiredTextError, targetError } from '@traks/shared';
+import {
+  domainInputError,
+  normalizeDomain,
+  propPairError,
+  requiredTextError,
+  targetError,
+} from '@traks/shared';
 import { useCollectUrl } from '@/lib/config';
 
 // Auto-poll only 'today' - it's served live from the site's Durable Object
@@ -410,6 +416,8 @@ interface GoalDef {
   name: string;
   type: 'event' | 'page';
   target: string;
+  propKey?: string | null;
+  propValue?: string | null;
 }
 
 /** Add or edit a single goal — one form, one purpose. `goal` null = add. */
@@ -428,8 +436,10 @@ function GoalFormModal({
   const [name, setName] = useState('');
   const [type, setType] = useState<'event' | 'page'>('event');
   const [target, setTarget] = useState('');
+  const [propKey, setPropKey] = useState('');
+  const [propValue, setPropValue] = useState('');
   const [error, setError] = useState('');
-  const [touched, setTouched] = useState<{ name?: boolean; target?: boolean }>({});
+  const [touched, setTouched] = useState<{ name?: boolean; target?: boolean; prop?: boolean }>({});
   const editing = goal !== null;
 
   useEffect(() => {
@@ -437,6 +447,8 @@ function GoalFormModal({
       setName(goal?.name ?? '');
       setType(goal?.type ?? 'event');
       setTarget(goal?.target ?? '');
+      setPropKey(goal?.propKey ?? '');
+      setPropValue(goal?.propValue ?? '');
       setError('');
       setTouched({});
     }
@@ -449,7 +461,14 @@ function GoalFormModal({
 
   const saveGoal = useMutation({
     mutationFn: async () => {
-      const body = { name: name.trim(), type, target: target.trim() };
+      const body = {
+        name: name.trim(),
+        type,
+        target: target.trim(),
+        ...(type === 'event' && propKey.trim() && propValue.trim()
+          ? { propKey: propKey.trim(), propValue: propValue.trim() }
+          : {}),
+      };
       return goal ? api.updateGoal(siteId, goal.id, body) : api.createGoal(siteId, body);
     },
     onSuccess: () => {
@@ -464,10 +483,11 @@ function GoalFormModal({
   // weeks later from an empty panel.
   const goalNameError = requiredTextError(name, 100, 'Goal name');
   const goalTargetError = targetError(type, target);
-  const canSave = !goalNameError && !goalTargetError;
+  const goalPropError = propPairError(type, propKey, propValue);
+  const canSave = !goalNameError && !goalTargetError && !goalPropError;
 
   const submit = (): void => {
-    setTouched({ name: true, target: true });
+    setTouched({ name: true, target: true, prop: true });
     if (canSave) saveGoal.mutate();
   };
 
@@ -545,11 +565,53 @@ function GoalFormModal({
                 }}
               />
               <FieldError message={touched.target ? goalTargetError : null} />
+              {type === 'page' && !goalTargetError && (
+                <p className="mt-1.5 text-[11px] text-[#B5B0AA]">
+                  End with /* to count a whole section, e.g. /blog/*
+                </p>
+              )}
             </div>
+            {type === 'event' && (
+              <div>
+                <p className="mb-1.5 text-[12px] font-medium text-[#6E6C7C]">
+                  Only count events where a property matches (optional)
+                </p>
+                <div className="flex items-center gap-2">
+                  <Input
+                    placeholder="Property key (e.g. reason)"
+                    value={propKey}
+                    maxLength={128}
+                    aria-invalid={touched.prop && !!goalPropError}
+                    onChange={e => {
+                      setPropKey(e.target.value);
+                      setError('');
+                    }}
+                    onBlur={() => setTouched(t => ({ ...t, prop: true }))}
+                    className="h-10 px-4 text-[13px]"
+                  />
+                  <span className="shrink-0 text-[13px] text-[#B5B0AA]">=</span>
+                  <Input
+                    placeholder="Value (e.g. claimed)"
+                    value={propValue}
+                    maxLength={512}
+                    aria-invalid={touched.prop && !!goalPropError}
+                    onChange={e => {
+                      setPropValue(e.target.value);
+                      setError('');
+                    }}
+                    onBlur={() => setTouched(t => ({ ...t, prop: true }))}
+                    className="h-10 px-4 text-[13px]"
+                  />
+                </div>
+                <FieldError message={touched.prop ? goalPropError : null} />
+              </div>
+            )}
             {type === 'event' && (
               <p className="text-[11px] text-[#B5B0AA]">
                 Fire it from your site with{' '}
-                <code className="rounded bg-muted px-1 py-0.5">traks(&apos;signup&apos;)</code>
+                <code className="rounded bg-muted px-1 py-0.5">
+                  traks(&apos;signup&apos;, {'{'} reason: &apos;claimed&apos; {'}'})
+                </code>
               </p>
             )}
             {error && <p className="text-[13px] text-[#e07a5f]">{error}</p>}
@@ -660,6 +722,7 @@ function ManageGoalsModal({
                   <p className="truncate text-[13px] font-medium text-[#3D3B4F]">{goal.name}</p>
                   <p className="truncate text-[11px] text-[#9B9590]">
                     {goal.type === 'event' ? `event: ${goal.target}` : `visit: ${goal.target}`}
+                    {goal.propKey && goal.propValue && ` · ${goal.propKey}=${goal.propValue}`}
                   </p>
                 </div>
                 <div className="ml-3 flex shrink-0 items-center gap-1">
@@ -703,14 +766,18 @@ const EMPTY_FUNNEL_STEPS: FunnelStep[] = [
   { type: 'event', target: '' },
 ];
 
-function ManageFunnelsModal({
+/** Add or edit a single funnel — name + ordered steps. `funnel` null = add.
+ *  Event steps may carry an optional exact-match prop condition. */
+function FunnelFormModal({
   open,
   onOpenChange,
   siteId,
+  funnel,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   siteId: string;
+  funnel: FunnelDef | null;
 }): ReactElement {
   const queryClient = useQueryClient();
   const [name, setName] = useState('');
@@ -718,71 +785,78 @@ function ManageFunnelsModal({
   const [error, setError] = useState('');
   const [nameTouched, setNameTouched] = useState(false);
   const [touchedSteps, setTouchedSteps] = useState<boolean[]>([]);
+  const editing = funnel !== null;
 
   useEffect(() => {
     if (open) {
-      setName('');
-      setSteps(EMPTY_FUNNEL_STEPS);
+      setName(funnel?.name ?? '');
+      setSteps(
+        funnel
+          ? funnel.steps.map(s => ({
+              type: s.type,
+              target: s.target,
+              propKey: s.propKey ?? '',
+              propValue: s.propValue ?? '',
+            }))
+          : EMPTY_FUNNEL_STEPS
+      );
       setError('');
       setNameTouched(false);
       setTouchedSteps([]);
     }
-  }, [open]);
-
-  const funnelsQ = useQuery({
-    queryKey: ['site-funnels', siteId],
-    queryFn: async () => {
-      return api.getFunnels(siteId);
-    },
-    enabled: open,
-    staleTime: 60_000,
-  });
+  }, [open, funnel]);
 
   const invalidate = (): void => {
     queryClient.invalidateQueries({ queryKey: ['site-funnels', siteId] });
     queryClient.invalidateQueries({ queryKey: ['site-analytics', siteId] });
   };
 
-  const createFunnel = useMutation({
+  const saveFunnel = useMutation({
     mutationFn: async () => {
-      return api.createFunnel(siteId, {
+      const body = {
         name: name.trim(),
-        steps: steps.map(s => ({ type: s.type, target: s.target.trim() })),
-      });
+        steps: steps.map(s => ({
+          type: s.type,
+          target: s.target.trim(),
+          ...(s.type === 'event' && s.propKey?.trim() && s.propValue?.trim()
+            ? { propKey: s.propKey.trim(), propValue: s.propValue.trim() }
+            : {}),
+        })),
+      };
+      return funnel ? api.updateFunnel(siteId, funnel.id, body) : api.createFunnel(siteId, body);
     },
     onSuccess: () => {
-      setName('');
-      setSteps(EMPTY_FUNNEL_STEPS);
-      setError('');
       invalidate();
+      onOpenChange(false);
     },
     onError: (err: Error) => setError(err.message),
   });
 
-  const deleteFunnel = useMutation({
-    mutationFn: async (funnelId: string) => {
-      return api.deleteFunnel(siteId, funnelId);
-    },
-    onSuccess: invalidate,
-    onError: (err: Error) => setError(err.message),
-  });
-
-  const funnels = ((funnelsQ.data as any)?.data ?? []) as FunnelDef[];
   // Each step carries the same page-vs-event target rule as a goal; a wrong
   // one makes the whole funnel read zero at that step forever.
   const funnelNameError = requiredTextError(name, 100, 'Funnel name');
-  const stepErrors = steps.map(s => targetError(s.type, s.target));
-  const canCreate = !funnelNameError && steps.length >= 2 && stepErrors.every(e => !e);
+  const stepErrors = steps.map(
+    s => targetError(s.type, s.target) ?? propPairError(s.type, s.propKey ?? '', s.propValue ?? '')
+  );
+  const canSave = !funnelNameError && steps.length >= 2 && stepErrors.every(e => !e);
 
-  const addFunnel = (): void => {
+  const submit = (): void => {
     setTouchedSteps(steps.map(() => true));
     setNameTouched(true);
-    if (canCreate) createFunnel.mutate();
+    if (canSave) saveFunnel.mutate();
   };
 
   const setStep = (i: number, patch: Partial<FunnelStep>): void => {
     setSteps(prev => prev.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
     setError('');
+  };
+
+  const touchStep = (i: number): void => {
+    setTouchedSteps(prev => {
+      const next = [...prev];
+      next[i] = true;
+      return next;
+    });
   };
 
   return (
@@ -792,7 +866,7 @@ function ManageFunnelsModal({
           <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center mb-3">
             <Filter className="w-5 h-5 text-[#6E6C7C]" strokeWidth={1.7} />
           </div>
-          <DialogTitle>Funnels</DialogTitle>
+          <DialogTitle>{editing ? `Edit ${funnel.name}` : 'Create a funnel'}</DialogTitle>
           <DialogDescription>
             Ordered steps a visitor should complete in one session — pages or custom events. The
             panel shows where they drop off.
@@ -800,120 +874,93 @@ function ManageFunnelsModal({
         </DialogHeader>
 
         <DialogBody>
-          <div className="space-y-5">
-            {/* Existing funnels */}
-            {funnelsQ.isLoading && (
-              <p className="pb-4 text-[12.5px] text-[#9B9590]">Loading your funnels…</p>
-            )}
-            {funnelsQ.isError && (
-              <p className="pb-4 text-[12.5px] text-[#e07a5f]">
-                Couldn&rsquo;t load your existing funnels — adding one now may duplicate it.
-              </p>
-            )}
-            {funnels.length > 0 && (
-              <div className="space-y-1.5">
-                {funnels.map(funnel => (
-                  <div
-                    key={funnel.id}
-                    className="flex items-center justify-between rounded-xl border border-[#e6e5ea]/80 px-3.5 py-2.5"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-[13px] font-medium text-[#3D3B4F]">
-                        {funnel.name}
-                      </p>
-                      <p className="truncate text-[11px] text-[#9B9590]">
-                        {funnel.steps.map(s => s.target).join(' → ')}
-                      </p>
-                    </div>
+          <div className="space-y-3">
+            <div>
+              <Input
+                placeholder="Funnel name (e.g. Signup flow)"
+                value={name}
+                maxLength={100}
+                aria-invalid={nameTouched && !!funnelNameError}
+                onChange={e => {
+                  setName(e.target.value);
+                  setError('');
+                }}
+                onBlur={() => setNameTouched(true)}
+                className="h-10 px-4 text-[13px]"
+                autoFocus
+              />
+              <FieldError message={nameTouched ? funnelNameError : null} />
+            </div>
+
+            <div className="space-y-2">
+              {steps.map((step, i) => (
+                <div key={i} className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#e6e5ea] bg-white font-mono text-[10.5px] font-semibold text-[#6E6C7C]">
+                      {i + 1}
+                    </span>
                     <button
-                      onClick={() => deleteFunnel.mutate(funnel.id)}
-                      disabled={deleteFunnel.isPending}
-                      className="ml-3 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[#B5B0AA] hover:bg-[#e07a5f]/10 hover:text-[#e07a5f] transition-colors cursor-pointer"
-                      title="Delete funnel"
+                      onClick={() => setStep(i, { type: step.type === 'page' ? 'event' : 'page' })}
+                      className="w-[64px] shrink-0 rounded-lg border border-[#e6e5ea] px-2 py-2 text-[11.5px] font-medium text-[#6E6C7C] hover:border-[#cbcad4] transition-colors cursor-pointer"
+                      title="Toggle step type"
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      {step.type === 'page' ? 'Page' : 'Event'}
+                    </button>
+                    <Input
+                      placeholder={step.type === 'page' ? '/pricing or /docs/*' : 'signup'}
+                      value={step.target}
+                      maxLength={2048}
+                      aria-invalid={!!touchedSteps[i] && !!stepErrors[i]}
+                      onChange={e => setStep(i, { target: e.target.value })}
+                      onBlur={() => touchStep(i)}
+                      className="h-9 px-3 text-[13px]"
+                    />
+                    <button
+                      onClick={() => setSteps(prev => prev.filter((_, idx) => idx !== i))}
+                      disabled={steps.length <= 2}
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[#B5B0AA] hover:text-[#e07a5f] disabled:opacity-30 disabled:cursor-default transition-colors cursor-pointer"
+                      title="Remove step"
+                    >
+                      <X className="h-3.5 w-3.5" />
                     </button>
                   </div>
-                ))}
-              </div>
-            )}
-
-            {/* Create funnel */}
-            <div className={funnels.length > 0 ? 'border-t border-[#e6e5ea]/60 pt-5' : ''}>
-              <p className="mb-3 text-[13px] font-medium text-[#3D3B4F]">Create a funnel</p>
-              <div className="space-y-3">
-                <div>
-                  <Input
-                    placeholder="Funnel name (e.g. Signup flow)"
-                    value={name}
-                    maxLength={100}
-                    aria-invalid={nameTouched && !!funnelNameError}
-                    onChange={e => {
-                      setName(e.target.value);
-                      setError('');
-                    }}
-                    onBlur={() => setNameTouched(true)}
-                    className="h-10 px-4 text-[13px]"
-                  />
-                  <FieldError message={nameTouched ? funnelNameError : null} />
-                </div>
-
-                <div className="space-y-2">
-                  {steps.map((step, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#e6e5ea] bg-white font-mono text-[10.5px] font-semibold text-[#6E6C7C]">
-                        {i + 1}
-                      </span>
-                      <button
-                        onClick={() =>
-                          setStep(i, { type: step.type === 'page' ? 'event' : 'page' })
-                        }
-                        className="w-[64px] shrink-0 rounded-lg border border-[#e6e5ea] px-2 py-2 text-[11.5px] font-medium text-[#6E6C7C] hover:border-[#cbcad4] transition-colors cursor-pointer"
-                        title="Toggle step type"
-                      >
-                        {step.type === 'page' ? 'Page' : 'Event'}
-                      </button>
+                  {step.type === 'event' && (
+                    <div className="flex items-center gap-2 pl-[104px] pr-9">
                       <Input
-                        placeholder={step.type === 'page' ? '/pricing' : 'signup'}
-                        value={step.target}
-                        maxLength={2048}
-                        aria-invalid={!!touchedSteps[i] && !!stepErrors[i]}
-                        onChange={e => setStep(i, { target: e.target.value })}
-                        onBlur={() =>
-                          setTouchedSteps(prev => {
-                            const next = [...prev];
-                            next[i] = true;
-                            return next;
-                          })
-                        }
-                        className="h-9 px-3 text-[13px]"
+                        placeholder="prop key (optional)"
+                        value={step.propKey ?? ''}
+                        maxLength={128}
+                        onChange={e => setStep(i, { propKey: e.target.value })}
+                        onBlur={() => touchStep(i)}
+                        className="h-8 px-3 text-[12px]"
                       />
-                      <button
-                        onClick={() => setSteps(prev => prev.filter((_, idx) => idx !== i))}
-                        disabled={steps.length <= 2}
-                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[#B5B0AA] hover:text-[#e07a5f] disabled:opacity-30 disabled:cursor-default transition-colors cursor-pointer"
-                        title="Remove step"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
+                      <span className="shrink-0 text-[12px] text-[#B5B0AA]">=</span>
+                      <Input
+                        placeholder="value"
+                        value={step.propValue ?? ''}
+                        maxLength={512}
+                        onChange={e => setStep(i, { propValue: e.target.value })}
+                        onBlur={() => touchStep(i)}
+                        className="h-8 px-3 text-[12px]"
+                      />
                     </div>
-                  ))}
-                  {stepErrors.some((e, i) => e && touchedSteps[i]) && (
-                    <FieldError message={stepErrors.find((e, i) => e && touchedSteps[i]) ?? null} />
                   )}
                 </div>
-
-                {steps.length < 8 && (
-                  <button
-                    onClick={() => setSteps(prev => [...prev, { type: 'page', target: '' }])}
-                    className="flex items-center gap-1.5 rounded-lg px-1 py-0.5 text-[12px] font-medium text-[#6E6C7C] hover:text-[#3D3B4F] transition-colors cursor-pointer"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    Add step
-                  </button>
-                )}
-              </div>
+              ))}
+              {stepErrors.some((e, i) => e && touchedSteps[i]) && (
+                <FieldError message={stepErrors.find((e, i) => e && touchedSteps[i]) ?? null} />
+              )}
             </div>
+
+            {steps.length < 8 && (
+              <button
+                onClick={() => setSteps(prev => [...prev, { type: 'page', target: '' }])}
+                className="flex items-center gap-1.5 rounded-lg px-1 py-0.5 text-[12px] font-medium text-[#6E6C7C] hover:text-[#3D3B4F] transition-colors cursor-pointer"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add step
+              </button>
+            )}
 
             {error && <p className="text-[13px] text-[#e07a5f]">{error}</p>}
           </div>
@@ -925,15 +972,24 @@ function ManageFunnelsModal({
             onClick={() => onOpenChange(false)}
             className="text-[13px] cursor-pointer"
           >
-            Done
+            Cancel
           </Button>
           <Button
-            onClick={addFunnel}
-            isLoading={createFunnel.isPending}
+            onClick={submit}
+            isLoading={saveFunnel.isPending}
             className="bg-[#3D3B4F] hover:bg-[#2C2B3B] text-white shadow-none text-[13px] px-5 cursor-pointer"
           >
-            <Plus className="w-3.5 h-3.5" />
-            Create funnel
+            {editing ? (
+              <>
+                <Check className="w-3.5 h-3.5" />
+                Save changes
+              </>
+            ) : (
+              <>
+                <Plus className="w-3.5 h-3.5" />
+                Create funnel
+              </>
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -941,6 +997,120 @@ function ManageFunnelsModal({
   );
 }
 
+/** The list of existing funnels — edit and delete only; adding lives in its
+ *  own modal, opened from the panel header. */
+function ManageFunnelsModal({
+  open,
+  onOpenChange,
+  siteId,
+  onEdit,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  siteId: string;
+  onEdit: (funnel: FunnelDef) => void;
+}): ReactElement {
+  const queryClient = useQueryClient();
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (open) setError('');
+  }, [open]);
+
+  const funnelsQ = useQuery({
+    queryKey: ['site-funnels', siteId],
+    queryFn: async () => {
+      return api.getFunnels(siteId);
+    },
+    enabled: open,
+    staleTime: 60_000,
+  });
+
+  const deleteFunnel = useMutation({
+    mutationFn: async (funnelId: string) => {
+      return api.deleteFunnel(siteId, funnelId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['site-funnels', siteId] });
+      queryClient.invalidateQueries({ queryKey: ['site-analytics', siteId] });
+    },
+    onError: (err: Error) => setError(err.message),
+  });
+
+  const funnels = ((funnelsQ.data as any)?.data ?? []) as FunnelDef[];
+  const stepLabel = (s: FunnelStep): string =>
+    s.propKey && s.propValue ? `${s.target}[${s.propKey}=${s.propValue}]` : s.target;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent onClose={() => onOpenChange(false)} className="max-w-md">
+        <DialogHeader>
+          <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center mb-3">
+            <Filter className="w-5 h-5 text-[#6E6C7C]" strokeWidth={1.7} />
+          </div>
+          <DialogTitle>Manage funnels</DialogTitle>
+          <DialogDescription>Edit or remove the funnels defined for this site.</DialogDescription>
+        </DialogHeader>
+
+        <DialogBody>
+          <div className="space-y-1.5">
+            {funnelsQ.isLoading && (
+              <p className="text-[12.5px] text-[#9B9590]">Loading your funnels…</p>
+            )}
+            {funnelsQ.isError && (
+              <p className="text-[12.5px] text-[#e07a5f]">Couldn&rsquo;t load your funnels.</p>
+            )}
+            {!funnelsQ.isLoading && !funnelsQ.isError && funnels.length === 0 && (
+              <p className="text-[12.5px] text-[#9B9590]">
+                No funnels yet — add one from the panel header.
+              </p>
+            )}
+            {funnels.map(funnel => (
+              <div
+                key={funnel.id}
+                className="flex items-center justify-between rounded-xl border border-[#e6e5ea]/80 px-3.5 py-2.5"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-[13px] font-medium text-[#3D3B4F]">{funnel.name}</p>
+                  <p className="truncate text-[11px] text-[#9B9590]">
+                    {funnel.steps.map(stepLabel).join(' → ')}
+                  </p>
+                </div>
+                <div className="ml-3 flex shrink-0 items-center gap-1">
+                  <button
+                    onClick={() => onEdit(funnel)}
+                    className="flex h-7 w-7 items-center justify-center rounded-lg text-[#B5B0AA] hover:bg-muted hover:text-[#3D3B4F] transition-colors cursor-pointer"
+                    title="Edit funnel"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    onClick={() => deleteFunnel.mutate(funnel.id)}
+                    disabled={deleteFunnel.isPending}
+                    className="flex h-7 w-7 items-center justify-center rounded-lg text-[#B5B0AA] hover:bg-[#e07a5f]/10 hover:text-[#e07a5f] transition-colors cursor-pointer"
+                    title="Delete funnel"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
+            {error && <p className="pt-1 text-[13px] text-[#e07a5f]">{error}</p>}
+          </div>
+        </DialogBody>
+
+        <DialogFooter className="border-t border-[#e6e5ea]/50 mx-6 px-0 pb-5 pt-4">
+          <Button
+            onClick={() => onOpenChange(false)}
+            className="bg-[#3D3B4F] hover:bg-[#2C2B3B] text-white shadow-none text-[13px] px-5 cursor-pointer"
+          >
+            Done
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 function DeleteSiteModal({
   open,
   onOpenChange,
@@ -1625,6 +1795,9 @@ function SiteAnalyticsPage(): ReactElement {
   const [goalForm, setGoalForm] = useState<{ goal: GoalDef | null } | null>(null);
   // An edit launched from the manage list returns to the list on close.
   const [returnToManage, setReturnToManage] = useState(false);
+  // Same trio for funnels: manage list, add/edit form, return-to-list flag.
+  const [funnelForm, setFunnelForm] = useState<{ funnel: FunnelDef | null } | null>(null);
+  const [returnToManageFunnels, setReturnToManageFunnels] = useState(false);
   const [funnelsOpen, setFunnelsOpen] = useState(false);
   const [selectedFunnelId, setSelectedFunnelId] = useState<string | null>(null);
   const [chartMetric, setChartMetric] = useState<ChartMetric>('visitors');
@@ -2279,6 +2452,7 @@ function SiteAnalyticsPage(): ReactElement {
               stat={(funnelStatsQ.data as any)?.data as FunnelStat | undefined}
               isLoading={funnelStatsQ.isLoading}
               isError={funnelStatsQ.isError || funnelsQ.isError}
+              onAdd={canManage ? () => setFunnelForm({ funnel: null }) : undefined}
               onManage={canManage ? () => setFunnelsOpen(true) : undefined}
             />
           </>
@@ -2320,7 +2494,31 @@ function SiteAnalyticsPage(): ReactElement {
         goal={goalForm?.goal ?? null}
       />
 
-      <ManageFunnelsModal open={funnelsOpen} onOpenChange={setFunnelsOpen} siteId={siteId} />
+      <ManageFunnelsModal
+        open={funnelsOpen}
+        onOpenChange={setFunnelsOpen}
+        siteId={siteId}
+        onEdit={funnel => {
+          setFunnelsOpen(false);
+          setReturnToManageFunnels(true);
+          setFunnelForm({ funnel });
+        }}
+      />
+
+      <FunnelFormModal
+        open={funnelForm !== null}
+        onOpenChange={openState => {
+          if (!openState) {
+            setFunnelForm(null);
+            if (returnToManageFunnels) {
+              setReturnToManageFunnels(false);
+              setFunnelsOpen(true);
+            }
+          }
+        }}
+        siteId={siteId}
+        funnel={funnelForm?.funnel ?? null}
+      />
 
       <DeleteSiteModal
         open={deleteOpen}

@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { Target, AlertCircle, Settings2 } from 'lucide-react';
+import { Target, AlertCircle, Settings2, Plus } from 'lucide-react';
 import type { GoalStat } from '@traks/shared';
 import { cn, formatNumber } from '@/lib/utils';
 
@@ -8,6 +8,8 @@ interface GoalsPanelProps {
   isLoading: boolean;
   isError?: boolean;
   /** Absent for view-only members: hides the manage affordances. */
+  onAdd?: () => void;
+  /** Absent for view-only members; hidden while no goals exist. */
   onManage?: () => void;
   className?: string;
 }
@@ -17,10 +19,12 @@ export function GoalsPanel({
   goals,
   isLoading,
   isError,
+  onAdd,
   onManage,
   className,
 }: GoalsPanelProps): ReactElement {
   const maxUniques = goals && goals.length > 0 ? Math.max(...goals.map(g => g.uniques), 1) : 1;
+  const hasGoals = Boolean(goals && goals.length > 0);
 
   return (
     <div className={cn('rounded-[20px] bg-white p-6 shadow-float', className)}>
@@ -28,15 +32,27 @@ export function GoalsPanel({
         <h3 className="text-[15px] font-bold tracking-[-0.01em] text-[#3D3B4F]">
           Goal Conversions
         </h3>
-        {onManage && (
-          <button
-            onClick={onManage}
-            className="flex items-center gap-1.5 rounded-full bg-muted px-3.5 py-1.5 text-[12px] font-semibold text-foreground hover:bg-muted transition-colors cursor-pointer"
-          >
-            <Settings2 className="h-3.5 w-3.5" />
-            Manage goals
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {/* Manage only appears once there's something to manage. */}
+          {onManage && hasGoals && (
+            <button
+              onClick={onManage}
+              className="flex items-center gap-1.5 rounded-full bg-muted px-3.5 py-1.5 text-[12px] font-semibold text-foreground hover:bg-[#E6E4DE] transition-colors cursor-pointer"
+            >
+              <Settings2 className="h-3.5 w-3.5" />
+              Manage goals
+            </button>
+          )}
+          {onAdd && (
+            <button
+              onClick={onAdd}
+              className="flex items-center gap-1.5 rounded-full bg-[#3D3B4F] px-3.5 py-1.5 text-[12px] font-semibold text-white hover:bg-[#2C2B3B] transition-colors cursor-pointer"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add goal
+            </button>
+          )}
+        </div>
       </div>
 
       {isError ? (
@@ -60,9 +76,9 @@ export function GoalsPanel({
           <p className="mt-1 text-[12px] text-[#B5B0AA]">
             Track conversions by marking a custom event or page visit as a goal.
           </p>
-          {onManage && (
+          {onAdd && (
             <button
-              onClick={onManage}
+              onClick={onAdd}
               className="mt-3 rounded-full bg-muted px-4 py-2 text-[12px] font-semibold text-foreground hover:bg-[#E6E4DE] transition-colors cursor-pointer"
             >
               Add your first goal

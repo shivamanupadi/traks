@@ -19,6 +19,7 @@ import {
   Bookmark,
   BookmarkPlus,
   Globe,
+  Pencil,
 } from 'lucide-react';
 import type {
   Period,
@@ -404,14 +405,24 @@ function EditSiteModal({
   );
 }
 
-function ManageGoalsModal({
+interface GoalDef {
+  id: string;
+  name: string;
+  type: 'event' | 'page';
+  target: string;
+}
+
+/** Add or edit a single goal — one form, one purpose. `goal` null = add. */
+function GoalFormModal({
   open,
   onOpenChange,
   siteId,
+  goal,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   siteId: string;
+  goal: GoalDef | null;
 }): ReactElement {
   const queryClient = useQueryClient();
   const [name, setName] = useState('');
@@ -419,15 +430,181 @@ function ManageGoalsModal({
   const [target, setTarget] = useState('');
   const [error, setError] = useState('');
   const [touched, setTouched] = useState<{ name?: boolean; target?: boolean }>({});
+  const editing = goal !== null;
 
   useEffect(() => {
     if (open) {
-      setName('');
-      setType('event');
-      setTarget('');
+      setName(goal?.name ?? '');
+      setType(goal?.type ?? 'event');
+      setTarget(goal?.target ?? '');
       setError('');
       setTouched({});
     }
+  }, [open, goal]);
+
+  const invalidate = (): void => {
+    queryClient.invalidateQueries({ queryKey: ['site-goals', siteId] });
+    queryClient.invalidateQueries({ queryKey: ['site-analytics', siteId] });
+  };
+
+  const saveGoal = useMutation({
+    mutationFn: async () => {
+      const body = { name: name.trim(), type, target: target.trim() };
+      return goal ? api.updateGoal(siteId, goal.id, body) : api.createGoal(siteId, body);
+    },
+    onSuccess: () => {
+      invalidate();
+      onOpenChange(false);
+    },
+    onError: (err: Error) => setError(err.message),
+  });
+
+  // A page goal whose target lacks a leading slash (or an event goal that has
+  // one) silently never converts, so it is caught here rather than discovered
+  // weeks later from an empty panel.
+  const goalNameError = requiredTextError(name, 100, 'Goal name');
+  const goalTargetError = targetError(type, target);
+  const canSave = !goalNameError && !goalTargetError;
+
+  const submit = (): void => {
+    setTouched({ name: true, target: true });
+    if (canSave) saveGoal.mutate();
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent onClose={() => onOpenChange(false)} className="max-w-md">
+        <DialogHeader>
+          <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center mb-3">
+            <Target className="w-5 h-5 text-[#6E6C7C]" strokeWidth={1.7} />
+          </div>
+          <DialogTitle>{editing ? `Edit ${goal.name}` : 'Add a goal'}</DialogTitle>
+          <DialogDescription>
+            A goal is a custom event or a page visit that counts as a conversion.
+          </DialogDescription>
+        </DialogHeader>
+
+        <DialogBody>
+          <div className="space-y-3">
+            <div className="flex gap-2">
+              <button
+                onClick={() => setType('event')}
+                className={cn(
+                  'flex-1 rounded-xl border px-3 py-2 text-[12px] font-medium transition-colors cursor-pointer',
+                  type === 'event'
+                    ? 'border-[#3D3B4F]/40 bg-[#3D3B4F]/[0.04] text-[#3D3B4F]'
+                    : 'border-[#e6e5ea] text-[#9B9590] hover:border-[#cbcad4]'
+                )}
+              >
+                Custom event
+              </button>
+              <button
+                onClick={() => setType('page')}
+                className={cn(
+                  'flex-1 rounded-xl border px-3 py-2 text-[12px] font-medium transition-colors cursor-pointer',
+                  type === 'page'
+                    ? 'border-[#3D3B4F]/40 bg-[#3D3B4F]/[0.04] text-[#3D3B4F]'
+                    : 'border-[#e6e5ea] text-[#9B9590] hover:border-[#cbcad4]'
+                )}
+              >
+                Page visit
+              </button>
+            </div>
+            <div>
+              <Input
+                placeholder="Goal name (e.g. Signed up)"
+                value={name}
+                maxLength={100}
+                aria-invalid={touched.name && !!goalNameError}
+                onChange={e => {
+                  setName(e.target.value);
+                  setError('');
+                }}
+                onBlur={() => setTouched(t => ({ ...t, name: true }))}
+                className="h-10 px-4 text-[13px]"
+                autoFocus
+              />
+              <FieldError message={touched.name ? goalNameError : null} />
+            </div>
+            <div>
+              <Input
+                placeholder={
+                  type === 'event' ? 'Event name (e.g. signup)' : 'Pathname (e.g. /thank-you)'
+                }
+                value={target}
+                maxLength={2048}
+                aria-invalid={touched.target && !!goalTargetError}
+                onChange={e => {
+                  setTarget(e.target.value);
+                  setError('');
+                }}
+                onBlur={() => setTouched(t => ({ ...t, target: true }))}
+                className="h-10 px-4 text-[13px]"
+                onKeyDown={e => {
+                  if (e.key === 'Enter') submit();
+                }}
+              />
+              <FieldError message={touched.target ? goalTargetError : null} />
+            </div>
+            {type === 'event' && (
+              <p className="text-[11px] text-[#B5B0AA]">
+                Fire it from your site with{' '}
+                <code className="rounded bg-muted px-1 py-0.5">traks(&apos;signup&apos;)</code>
+              </p>
+            )}
+            {error && <p className="text-[13px] text-[#e07a5f]">{error}</p>}
+          </div>
+        </DialogBody>
+
+        <DialogFooter className="border-t border-[#e6e5ea]/50 mx-6 px-0 pb-5 pt-4">
+          <Button
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
+            className="text-[13px] cursor-pointer"
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={submit}
+            isLoading={saveGoal.isPending}
+            className="bg-[#3D3B4F] hover:bg-[#2C2B3B] text-white shadow-none text-[13px] px-5 cursor-pointer"
+          >
+            {editing ? (
+              <>
+                <Check className="w-3.5 h-3.5" />
+                Save changes
+              </>
+            ) : (
+              <>
+                <Plus className="w-3.5 h-3.5" />
+                Add goal
+              </>
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** The list of existing goals — edit and delete only; adding lives in its
+ *  own modal, opened from the panel header. */
+function ManageGoalsModal({
+  open,
+  onOpenChange,
+  siteId,
+  onEdit,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  siteId: string;
+  onEdit: (goal: GoalDef) => void;
+}): ReactElement {
+  const queryClient = useQueryClient();
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (open) setError('');
   }, [open]);
 
   const goalsQ = useQuery({
@@ -439,50 +616,18 @@ function ManageGoalsModal({
     staleTime: 60_000,
   });
 
-  const invalidate = (): void => {
-    queryClient.invalidateQueries({ queryKey: ['site-goals', siteId] });
-    queryClient.invalidateQueries({ queryKey: ['site-analytics', siteId] });
-  };
-
-  const createGoal = useMutation({
-    mutationFn: async () => {
-      return api.createGoal(siteId, { name: name.trim(), type, target: target.trim() });
-    },
-    onSuccess: () => {
-      setName('');
-      setTarget('');
-      setError('');
-      setTouched({});
-      invalidate();
-    },
-    onError: (err: Error) => setError(err.message),
-  });
-
   const deleteGoal = useMutation({
     mutationFn: async (goalId: string) => {
       return api.deleteGoal(siteId, goalId);
     },
-    onSuccess: invalidate,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['site-goals', siteId] });
+      queryClient.invalidateQueries({ queryKey: ['site-analytics', siteId] });
+    },
     onError: (err: Error) => setError(err.message),
   });
 
-  const goals = ((goalsQ.data as any)?.data ?? []) as {
-    id: string;
-    name: string;
-    type: 'event' | 'page';
-    target: string;
-  }[];
-  // A page goal whose target lacks a leading slash (or an event goal that has
-  // one) silently never converts, so it is caught here rather than discovered
-  // weeks later from an empty panel.
-  const goalNameError = requiredTextError(name, 100, 'Goal name');
-  const goalTargetError = targetError(type, target);
-  const canCreate = !goalNameError && !goalTargetError;
-
-  const addGoal = (): void => {
-    setTouched({ name: true, target: true });
-    if (canCreate) createGoal.mutate();
-  };
+  const goals = ((goalsQ.data as any)?.data ?? []) as GoalDef[];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -491,140 +636,61 @@ function ManageGoalsModal({
           <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center mb-3">
             <Target className="w-5 h-5 text-[#6E6C7C]" strokeWidth={1.7} />
           </div>
-          <DialogTitle>Goals</DialogTitle>
-          <DialogDescription>
-            A goal is a custom event or a page visit that counts as a conversion.
-          </DialogDescription>
+          <DialogTitle>Manage goals</DialogTitle>
+          <DialogDescription>Edit or remove the goals defined for this site.</DialogDescription>
         </DialogHeader>
 
         <DialogBody>
-          <div className="space-y-5">
-            {/* Existing goals */}
-            {goalsQ.isLoading && (
-              <p className="pb-4 text-[12.5px] text-[#9B9590]">Loading your goals…</p>
-            )}
+          <div className="space-y-1.5">
+            {goalsQ.isLoading && <p className="text-[12.5px] text-[#9B9590]">Loading your goals…</p>}
             {goalsQ.isError && (
-              <p className="pb-4 text-[12.5px] text-[#e07a5f]">
-                Couldn&rsquo;t load your existing goals — adding one now may duplicate it.
+              <p className="text-[12.5px] text-[#e07a5f]">Couldn&rsquo;t load your goals.</p>
+            )}
+            {!goalsQ.isLoading && !goalsQ.isError && goals.length === 0 && (
+              <p className="text-[12.5px] text-[#9B9590]">
+                No goals yet — add one from the panel header.
               </p>
             )}
-            {goals.length > 0 && (
-              <div className="space-y-1.5">
-                {goals.map(goal => (
-                  <div
-                    key={goal.id}
-                    className="flex items-center justify-between rounded-xl border border-[#e6e5ea]/80 px-3.5 py-2.5"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-[13px] font-medium text-[#3D3B4F]">{goal.name}</p>
-                      <p className="truncate text-[11px] text-[#9B9590]">
-                        {goal.type === 'event' ? `event: ${goal.target}` : `visit: ${goal.target}`}
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => deleteGoal.mutate(goal.id)}
-                      disabled={deleteGoal.isPending}
-                      className="ml-3 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[#B5B0AA] hover:bg-[#e07a5f]/10 hover:text-[#e07a5f] transition-colors cursor-pointer"
-                      title="Delete goal"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Add goal */}
-            <div className={goals.length > 0 ? 'border-t border-[#e6e5ea]/60 pt-5' : ''}>
-              <p className="mb-3 text-[13px] font-medium text-[#3D3B4F]">Add a goal</p>
-              <div className="space-y-3">
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setType('event')}
-                    className={cn(
-                      'flex-1 rounded-xl border px-3 py-2 text-[12px] font-medium transition-colors cursor-pointer',
-                      type === 'event'
-                        ? 'border-[#3D3B4F]/40 bg-[#3D3B4F]/[0.04] text-[#3D3B4F]'
-                        : 'border-[#e6e5ea] text-[#9B9590] hover:border-[#cbcad4]'
-                    )}
-                  >
-                    Custom event
-                  </button>
-                  <button
-                    onClick={() => setType('page')}
-                    className={cn(
-                      'flex-1 rounded-xl border px-3 py-2 text-[12px] font-medium transition-colors cursor-pointer',
-                      type === 'page'
-                        ? 'border-[#3D3B4F]/40 bg-[#3D3B4F]/[0.04] text-[#3D3B4F]'
-                        : 'border-[#e6e5ea] text-[#9B9590] hover:border-[#cbcad4]'
-                    )}
-                  >
-                    Page visit
-                  </button>
-                </div>
-                <div>
-                  <Input
-                    placeholder="Goal name (e.g. Signed up)"
-                    value={name}
-                    maxLength={100}
-                    aria-invalid={touched.name && !!goalNameError}
-                    onChange={e => {
-                      setName(e.target.value);
-                      setError('');
-                    }}
-                    onBlur={() => setTouched(t => ({ ...t, name: true }))}
-                    className="h-10 px-4 text-[13px]"
-                  />
-                  <FieldError message={touched.name ? goalNameError : null} />
-                </div>
-                <div>
-                  <Input
-                    placeholder={
-                      type === 'event' ? 'Event name (e.g. signup)' : 'Pathname (e.g. /thank-you)'
-                    }
-                    value={target}
-                    maxLength={2048}
-                    aria-invalid={touched.target && !!goalTargetError}
-                    onChange={e => {
-                      setTarget(e.target.value);
-                      setError('');
-                    }}
-                    onBlur={() => setTouched(t => ({ ...t, target: true }))}
-                    className="h-10 px-4 text-[13px]"
-                    onKeyDown={e => {
-                      if (e.key === 'Enter') addGoal();
-                    }}
-                  />
-                  <FieldError message={touched.target ? goalTargetError : null} />
-                </div>
-                {type === 'event' && (
-                  <p className="text-[11px] text-[#B5B0AA]">
-                    Fire it from your site with{' '}
-                    <code className="rounded bg-muted px-1 py-0.5">traks(&apos;signup&apos;)</code>
+            {goals.map(goal => (
+              <div
+                key={goal.id}
+                className="flex items-center justify-between rounded-xl border border-[#e6e5ea]/80 px-3.5 py-2.5"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-[13px] font-medium text-[#3D3B4F]">{goal.name}</p>
+                  <p className="truncate text-[11px] text-[#9B9590]">
+                    {goal.type === 'event' ? `event: ${goal.target}` : `visit: ${goal.target}`}
                   </p>
-                )}
+                </div>
+                <div className="ml-3 flex shrink-0 items-center gap-1">
+                  <button
+                    onClick={() => onEdit(goal)}
+                    className="flex h-7 w-7 items-center justify-center rounded-lg text-[#B5B0AA] hover:bg-muted hover:text-[#3D3B4F] transition-colors cursor-pointer"
+                    title="Edit goal"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    onClick={() => deleteGoal.mutate(goal.id)}
+                    disabled={deleteGoal.isPending}
+                    className="flex h-7 w-7 items-center justify-center rounded-lg text-[#B5B0AA] hover:bg-[#e07a5f]/10 hover:text-[#e07a5f] transition-colors cursor-pointer"
+                    title="Delete goal"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </div>
-            </div>
-
-            {error && <p className="text-[13px] text-[#e07a5f]">{error}</p>}
+            ))}
+            {error && <p className="pt-1 text-[13px] text-[#e07a5f]">{error}</p>}
           </div>
         </DialogBody>
 
         <DialogFooter className="border-t border-[#e6e5ea]/50 mx-6 px-0 pb-5 pt-4">
           <Button
-            variant="ghost"
             onClick={() => onOpenChange(false)}
-            className="text-[13px] cursor-pointer"
-          >
-            Done
-          </Button>
-          <Button
-            onClick={addGoal}
-            isLoading={createGoal.isPending}
             className="bg-[#3D3B4F] hover:bg-[#2C2B3B] text-white shadow-none text-[13px] px-5 cursor-pointer"
           >
-            <Plus className="w-3.5 h-3.5" />
-            Add goal
+            Done
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -1555,6 +1621,10 @@ function SiteAnalyticsPage(): ReactElement {
   const [installOpen, setInstallOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [goalsOpen, setGoalsOpen] = useState(false);
+  // Add/edit goal form: null = closed, { goal: null } = add, { goal } = edit.
+  const [goalForm, setGoalForm] = useState<{ goal: GoalDef | null } | null>(null);
+  // An edit launched from the manage list returns to the list on close.
+  const [returnToManage, setReturnToManage] = useState(false);
   const [funnelsOpen, setFunnelsOpen] = useState(false);
   const [selectedFunnelId, setSelectedFunnelId] = useState<string | null>(null);
   const [chartMetric, setChartMetric] = useState<ChartMetric>('visitors');
@@ -2147,6 +2217,7 @@ function SiteAnalyticsPage(): ReactElement {
               goals={(goalStatsQ.data as any)?.data}
               isLoading={goalStatsQ.isLoading}
               isError={goalStatsQ.isError}
+              onAdd={canManage ? () => setGoalForm({ goal: null }) : undefined}
               onManage={canManage ? () => setGoalsOpen(true) : undefined}
             />
             {selectedEvent === null ? (
@@ -2223,7 +2294,31 @@ function SiteAnalyticsPage(): ReactElement {
 
       <InstallModal open={installOpen} onOpenChange={setInstallOpen} site={site} />
 
-      <ManageGoalsModal open={goalsOpen} onOpenChange={setGoalsOpen} siteId={siteId} />
+      <ManageGoalsModal
+        open={goalsOpen}
+        onOpenChange={setGoalsOpen}
+        siteId={siteId}
+        onEdit={goal => {
+          setGoalsOpen(false);
+          setReturnToManage(true);
+          setGoalForm({ goal });
+        }}
+      />
+
+      <GoalFormModal
+        open={goalForm !== null}
+        onOpenChange={openState => {
+          if (!openState) {
+            setGoalForm(null);
+            if (returnToManage) {
+              setReturnToManage(false);
+              setGoalsOpen(true);
+            }
+          }
+        }}
+        siteId={siteId}
+        goal={goalForm?.goal ?? null}
+      />
 
       <ManageFunnelsModal open={funnelsOpen} onOpenChange={setFunnelsOpen} siteId={siteId} />
 

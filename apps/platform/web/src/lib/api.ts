@@ -250,6 +250,19 @@ export const api = {
     return res.json();
   },
 
+  async updateGoal(
+    siteId: string,
+    goalId: string,
+    data: { name: string; type: 'event' | 'page'; target: string }
+  ): Promise<any> {
+    const res = await client.api.sites[':id'].goals[':goalId'].$patch({
+      param: { id: siteId, goalId },
+      json: data,
+    });
+    await assertOk(res);
+    return res.json();
+  },
+
   async deleteGoal(siteId: string, goalId: string): Promise<any> {
     const res = await client.api.sites[':id'].goals[':goalId'].$delete({
       param: { id: siteId, goalId },

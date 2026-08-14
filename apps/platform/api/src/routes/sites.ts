@@ -288,6 +288,31 @@ export const sitesRoute = app
     return c.json({ data: goal }, 201);
   })
 
+  // Update a goal (same shape as create — name, type, target)
+  .patch('/:id/goals/:goalId', requireAuth, validate('json', createGoalSchema), async c => {
+    const userId = c.get('userId')!;
+    const siteId = c.req.param('id');
+    const goalId = c.req.param('goalId');
+    const body = c.req.valid('json');
+    const db = c.get('db')!;
+
+    const manage = await checkManage(db, userId, siteId, 'configure');
+    if (!manage.ok) return c.json({ error: manage.error }, manage.status);
+
+    const [existing] = await db
+      .select({ siteId: goals.siteId })
+      .from(goals)
+      .where(eq(goals.id, goalId));
+    if (!existing || existing.siteId !== siteId) return c.json({ error: 'Not found' }, 404);
+
+    await db
+      .update(goals)
+      .set({ name: body.name, type: body.type, target: body.target })
+      .where(eq(goals.id, goalId));
+    const [goal] = await db.select().from(goals).where(eq(goals.id, goalId));
+    return c.json({ data: goal });
+  })
+
   // Delete a goal
   .delete('/:id/goals/:goalId', requireAuth, async c => {
     const userId = c.get('userId')!;

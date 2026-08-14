@@ -29,12 +29,7 @@ import type {
   SegmentDef,
   SegmentFilters,
 } from '@traks/shared';
-import {
-  INSTALL_GUIDES,
-  findInstallGuide,
-  guideWithSnippet,
-  trackerSnippet,
-} from '@traks/shared';
+import { INSTALL_GUIDES, findInstallGuide, guideWithSnippet, trackerSnippet } from '@traks/shared';
 import { cn, formatNumber, formatDuration, formatPercentChange } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -238,7 +233,11 @@ function InstallModal({
         </DialogBody>
 
         <DialogFooter className="border-t border-[#e6e5ea]/50 mx-6 px-0 pb-5 pt-4">
-          <Button variant="ghost" onClick={() => void handleCopy()} className="text-[13px] cursor-pointer">
+          <Button
+            variant="ghost"
+            onClick={() => void handleCopy()}
+            className="text-[13px] cursor-pointer"
+          >
             <Copy className="w-3.5 h-3.5" />
             Copy snippet
           </Button>
@@ -2140,68 +2139,66 @@ function SiteAnalyticsPage(): ReactElement {
               />
             </div>
 
-            {/* Goal conversions + custom events + auto-tracked links, each
-                its own tile: events are business actions with a props
-                drill-down; outbound/downloads share one card as tabs since
-                they're the same shape (URL + clicks). */}
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-              <GoalsPanel
-                goals={(goalStatsQ.data as any)?.data}
-                isLoading={goalStatsQ.isLoading}
-                isError={goalStatsQ.isError}
-                onManage={canManage ? () => setGoalsOpen(true) : undefined}
-              />
-              {selectedEvent === null ? (
-                <PanelCard
-                  title="Custom Events"
-                  labelHeader="Event"
-                  valueHeader="Count"
-                  items={events?.map(e => ({ name: e.name, visitors: e.count }))}
-                  isLoading={eventsQ.isLoading}
-                  isError={eventsQ.isError}
-                  emptyText="No custom events yet"
-                  onItemClick={item => setSelectedEvent(item.name)}
-                />
-              ) : (
-                <PanelCard
-                  title={selectedEvent}
-                  labelHeader="Property"
-                  valueHeader="Events"
-                  items={(
-                    (eventPropsQ.data as any)?.data as
-                      | { key: string; value: string; events: number }[]
-                      | undefined
-                  )?.map(p => ({
-                    name: `${p.key}: ${p.value}`,
-                    visitors: p.events,
-                  }))}
-                  isLoading={eventPropsQ.isLoading}
-                  isError={eventPropsQ.isError}
-                  emptyText="No properties on this event"
-                  headerAction={
-                    <button
-                      onClick={() => setSelectedEvent(null)}
-                      className="ml-auto shrink-0 rounded-full bg-muted px-3 py-1 text-[11px] font-semibold text-foreground hover:bg-muted transition-colors cursor-pointer"
-                    >
-                      ← All events
-                    </button>
-                  }
-                />
-              )}
+            {/* Goal conversions, custom events, and auto-tracked links —
+                each a full-width tile: events are business actions with a
+                props drill-down; outbound/downloads share one card as tabs
+                since they're the same shape (URL + clicks). */}
+            <GoalsPanel
+              goals={(goalStatsQ.data as any)?.data}
+              isLoading={goalStatsQ.isLoading}
+              isError={goalStatsQ.isError}
+              onManage={canManage ? () => setGoalsOpen(true) : undefined}
+            />
+            {selectedEvent === null ? (
               <PanelCard
-                title="Links"
-                labelHeader="URL"
-                items={(linkQ.data as any)?.data}
-                isLoading={linkQ.isLoading}
-                isError={linkQ.isError}
-                tabs={LINK_TABS}
-                activeTab={linkTab}
-                onTabChange={setLinkTab}
-                emptyText={
-                  linkTab === 'outbound' ? 'No outbound clicks yet' : 'No file downloads yet'
+                title="Custom Events"
+                labelHeader="Event"
+                valueHeader="Count"
+                items={events?.map(e => ({ name: e.name, visitors: e.count }))}
+                isLoading={eventsQ.isLoading}
+                isError={eventsQ.isError}
+                emptyText="No custom events yet"
+                onItemClick={item => setSelectedEvent(item.name)}
+              />
+            ) : (
+              <PanelCard
+                title={selectedEvent}
+                labelHeader="Property"
+                valueHeader="Events"
+                items={(
+                  (eventPropsQ.data as any)?.data as
+                    | { key: string; value: string; events: number }[]
+                    | undefined
+                )?.map(p => ({
+                  name: `${p.key}: ${p.value}`,
+                  visitors: p.events,
+                }))}
+                isLoading={eventPropsQ.isLoading}
+                isError={eventPropsQ.isError}
+                emptyText="No properties on this event"
+                headerAction={
+                  <button
+                    onClick={() => setSelectedEvent(null)}
+                    className="ml-auto shrink-0 rounded-full bg-muted px-3 py-1 text-[11px] font-semibold text-foreground hover:bg-muted transition-colors cursor-pointer"
+                  >
+                    ← All events
+                  </button>
                 }
               />
-            </div>
+            )}
+            <PanelCard
+              title="Links"
+              labelHeader="URL"
+              items={(linkQ.data as any)?.data}
+              isLoading={linkQ.isLoading}
+              isError={linkQ.isError}
+              tabs={LINK_TABS}
+              activeTab={linkTab}
+              onTabChange={setLinkTab}
+              emptyText={
+                linkTab === 'outbound' ? 'No outbound clicks yet' : 'No file downloads yet'
+              }
+            />
 
             {/* Funnels */}
             <FunnelsPanel

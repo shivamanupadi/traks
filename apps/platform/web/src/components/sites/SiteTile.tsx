@@ -111,11 +111,9 @@ export function SiteTile({
       >
         {/* Header row: icon + name */}
         <div className="flex items-center gap-3">
-          <div
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] transition-transform duration-300 group-hover:scale-110"
-            style={{ backgroundColor: `${color.pastel}40` }}
-          >
-            <SiteFavicon favicon={site.favicon} size={18} fallbackStyle={{ color: color.deep }} />
+          {/* Neutral chip for every site — the tile's hue lives in the chart line only. */}
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-[#F4F4F6] transition-transform duration-300 group-hover:scale-110">
+            <SiteFavicon favicon={site.favicon} size={24} fallbackClassName="text-[#3D3B4F]" />
           </div>
           <div className="min-w-0 flex-1">
             <h3 className="truncate text-[15px] font-bold leading-tight text-[#3D3B4F]">
@@ -139,7 +137,7 @@ export function SiteTile({
           <span className="mb-2.5 block text-[10.5px] font-bold uppercase tracking-[0.1em] text-[#9B9590]">
             Today
           </span>
-          <SiteTileStats stats={stats} isLoading={isStatsLoading} accent={color.deep} />
+          <SiteTileStats stats={stats} isLoading={isStatsLoading} />
         </div>
 
         {/* View analytics footer */}

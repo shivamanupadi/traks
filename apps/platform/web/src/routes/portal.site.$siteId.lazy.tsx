@@ -129,7 +129,7 @@ function CodeCard({ label, code }: { label?: string; code: string }): ReactEleme
     setTimeout(() => setCopied(false), 2000);
   };
   return (
-    <div className="relative rounded-xl border border-[#e6e5ea] bg-[#F6F5F2] overflow-hidden">
+    <div className="relative rounded-xl border border-[#e6e5ea] bg-[#F9F8F6] overflow-hidden">
       <div className="flex items-center justify-between px-4 py-2 border-b border-[#e6e5ea]/60">
         <span className="font-mono text-[11px] text-[#B5B0AA]">{label ?? 'Snippet'}</span>
         <button
@@ -1547,7 +1547,7 @@ function SegmentsMenu({
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
-            className="flex items-center justify-center w-[38px] h-[38px] rounded-full bg-white shadow-pill text-[#9B9590] hover:text-foreground transition-colors cursor-pointer focus:outline-none"
+            className="flex items-center justify-center w-[38px] h-[38px] rounded-full border border-[#E6E4DE] bg-white text-[#9B9590] hover:text-foreground transition-colors cursor-pointer focus:outline-none"
             title="Segments"
           >
             <Bookmark className="w-[15px] h-[15px]" />
@@ -2168,7 +2168,7 @@ function SiteAnalyticsPage(): ReactElement {
           <div className="flex items-center gap-3">
             <Link
               to="/portal/sites"
-              className="flex h-8 w-8 items-center justify-center rounded-full text-[#B5B0AA] transition-all hover:bg-white hover:text-[#3D3B4F] hover:shadow-pill cursor-pointer"
+              className="flex h-8 w-8 items-center justify-center rounded-full text-[#B5B0AA] transition-all hover:bg-white hover:text-[#3D3B4F] cursor-pointer"
             >
               <ArrowLeft className="w-4 h-4" />
             </Link>
@@ -2196,7 +2196,7 @@ function SiteAnalyticsPage(): ReactElement {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setInstallOpen(true)}
-              className="flex items-center justify-center w-[38px] h-[38px] rounded-full bg-white shadow-pill text-[#9B9590] hover:text-foreground transition-colors cursor-pointer"
+              className="flex items-center justify-center w-[38px] h-[38px] rounded-full border border-[#E6E4DE] bg-white text-[#9B9590] hover:text-foreground transition-colors cursor-pointer"
               title="Installation"
             >
               <Code2 className="w-[15px] h-[15px]" />
@@ -2204,7 +2204,7 @@ function SiteAnalyticsPage(): ReactElement {
             {canManage && (
               <button
                 onClick={() => setEditOpen(true)}
-                className="flex items-center justify-center w-[38px] h-[38px] rounded-full bg-white shadow-pill text-[#9B9590] hover:text-foreground transition-colors cursor-pointer"
+                className="flex items-center justify-center w-[38px] h-[38px] rounded-full border border-[#E6E4DE] bg-white text-[#9B9590] hover:text-foreground transition-colors cursor-pointer"
                 title="Site settings"
               >
                 <Settings className="w-[15px] h-[15px]" />
@@ -2212,7 +2212,7 @@ function SiteAnalyticsPage(): ReactElement {
             )}
             <button
               onClick={handleRefresh}
-              className="flex items-center justify-center w-[38px] h-[38px] rounded-full bg-white shadow-pill text-[#9B9590] hover:text-foreground transition-colors cursor-pointer"
+              className="flex items-center justify-center w-[38px] h-[38px] rounded-full border border-[#E6E4DE] bg-white text-[#9B9590] hover:text-foreground transition-colors cursor-pointer"
               title="Refresh data"
             >
               <RefreshCw className={`w-[15px] h-[15px] ${refreshing ? 'animate-spin' : ''}`} />
@@ -2227,7 +2227,7 @@ function SiteAnalyticsPage(): ReactElement {
             {canManage && (
               <button
                 onClick={() => setDeleteOpen(true)}
-                className="flex items-center justify-center w-[38px] h-[38px] rounded-full bg-white shadow-pill text-coral hover:bg-[#e07a5f]/10 transition-colors cursor-pointer"
+                className="flex items-center justify-center w-[38px] h-[38px] rounded-full border border-[#E6E4DE] bg-white text-coral hover:bg-[#e07a5f]/10 transition-colors cursor-pointer"
                 title="Delete site"
               >
                 <Trash2 className="w-[15px] h-[15px]" />

@@ -23,7 +23,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, { error: E
     if (!error) return this.props.children;
 
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#F6F5F2] px-6">
+      <div className="flex min-h-screen items-center justify-center bg-[#F9F8F6] px-6">
         <div className="w-full max-w-md rounded-[20px] bg-white p-8 text-center shadow-float">
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-muted">
             <AlertCircle className="h-7 w-7 text-[#e07a5f]" strokeWidth={1.6} />

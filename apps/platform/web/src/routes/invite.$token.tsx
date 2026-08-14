@@ -84,7 +84,7 @@ function InvitePage(): ReactElement {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#F6F5F2] px-4 py-12">
+    <div className="flex min-h-screen items-center justify-center bg-[#F9F8F6] px-4 py-12">
       <div className="w-full max-w-[420px]">
         <div className="mb-8 flex flex-col items-center">
           <img src="/logo.svg" alt="Traks" className="h-11 w-11" />

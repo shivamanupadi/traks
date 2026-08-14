@@ -57,7 +57,7 @@ export function FunnelsPanel({
                   className={cn(
                     'rounded-full px-3 py-1 text-[11.5px] font-semibold transition-colors cursor-pointer',
                     f.id === selectedId
-                      ? 'bg-white text-[#3D3B4F] shadow-sm'
+                      ? 'bg-white text-[#3D3B4F]'
                       : 'text-[#9B9590] hover:text-[#3D3B4F]'
                   )}
                 >

@@ -39,7 +39,7 @@ function PortalLayout(): React.ReactNode {
 
   if (isPending) {
     return (
-      <div className="min-h-screen bg-[#F6F5F2] flex items-center justify-center">
+      <div className="min-h-screen bg-[#F9F8F6] flex items-center justify-center">
         <div className="text-[14px] text-[#9B9590]">Loading...</div>
       </div>
     );
@@ -51,7 +51,7 @@ function PortalLayout(): React.ReactNode {
 
   return (
     <WorkspaceProvider>
-      <div className="min-h-screen bg-[#F6F5F2]">
+      <div className="min-h-screen bg-[#F9F8F6]">
         <PortalHeader />
         <UpdateBanner />
 
@@ -181,7 +181,7 @@ function UpdateBanner(): React.ReactNode {
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-4">
-      <div className="flex items-center justify-between gap-3 rounded-2xl bg-white shadow-pill px-4 py-3">
+      <div className="flex items-center justify-between gap-3 rounded-2xl border border-[#E6E4DE] bg-white px-4 py-3">
         <p className="flex items-center gap-2.5 text-[13px] text-[#3D3B4F]">
           <ArrowUpCircle className="w-4 h-4 shrink-0 text-[#3D3B4F]" />
           <span>
@@ -231,7 +231,7 @@ function VersionPill(): React.ReactNode {
         target="_blank"
         rel="noopener noreferrer"
         title={`Traks ${latest} is available — you're running ${config.version}`}
-        className="flex h-8 items-center gap-1.5 rounded-full bg-mint px-3 text-[11.5px] font-bold text-[#123326] transition-all hover:-translate-y-px hover:shadow-[0_4px_14px_rgba(40,233,159,0.35)]"
+        className="flex h-8 items-center gap-1.5 rounded-full bg-mint px-3 text-[11.5px] font-bold text-[#123326] transition-all hover:-translate-y-px"
       >
         <ArrowUpCircle className="h-3.5 w-3.5" strokeWidth={2.2} />
         <span className="font-mono">v{latest}</span>
@@ -242,7 +242,7 @@ function VersionPill(): React.ReactNode {
   return (
     <span
       title={updateAvailable ? `Traks ${latest} is available` : 'Up to date'}
-      className="hidden sm:flex h-8 items-center rounded-full bg-white px-3 font-mono text-[11px] text-[#9B9590] shadow-pill"
+      className="hidden sm:flex h-8 items-center rounded-full border border-[#E6E4DE] bg-white px-3 font-mono text-[11px] text-[#9B9590]"
     >
       v{config.version}
     </span>
@@ -251,6 +251,7 @@ function VersionPill(): React.ReactNode {
 
 function UserMenu(): React.ReactNode {
   const { data: session } = authClient.useSession();
+  const config = useInstanceConfig();
 
   const email: string | undefined = session?.user?.email;
   const displayName = session?.user?.name || email?.split('@')[0] || 'User';
@@ -263,7 +264,7 @@ function UserMenu(): React.ReactNode {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className="flex items-center gap-2 pl-1.5 pr-3 py-1.5 rounded-full bg-white shadow-pill hover:shadow-md transition-shadow focus:outline-none">
+        <button className="flex items-center gap-2 pl-1.5 pr-3 py-1.5 rounded-full bg-white border border-[#E6E4DE] transition-colors hover:border-[#D8D5CD] focus:outline-none">
           <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center">
             <User className="w-4 h-4 text-foreground" />
           </div>
@@ -292,6 +293,19 @@ function UserMenu(): React.ReactNode {
           <LogOut className="w-4 h-4" />
           Sign out
         </DropdownMenuItem>
+
+        {config?.deployInstanceId && (
+          <>
+            <DropdownMenuSeparator />
+            <button
+              onClick={() => void navigator.clipboard.writeText(config.deployInstanceId!)}
+              title="Copy instance id"
+              className="w-full px-4 py-2 text-left font-mono text-[10.5px] text-[#9B9590] hover:text-[#3D3B4F] transition-colors cursor-pointer"
+            >
+              Instance {config.deployInstanceId}
+            </button>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

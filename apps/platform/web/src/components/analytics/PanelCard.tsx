@@ -64,7 +64,7 @@ export function PanelTabs({
           className={cn(
             'rounded-full px-2.5 py-1 text-[11px] font-medium transition-all cursor-pointer',
             activeTab === tab.key
-              ? 'bg-white text-[#3D3B4F] shadow-sm'
+              ? 'bg-white text-[#3D3B4F]'
               : 'text-[#9B9590] hover:text-[#6b6560]'
           )}
         >

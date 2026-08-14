@@ -297,7 +297,7 @@ export function AgentAccessCard(): ReactElement {
             1 · Connect the MCP server
           </p>
           <div className="flex items-center gap-2">
-            <code className="min-w-0 flex-1 truncate rounded-lg bg-[#F6F5F2] px-2.5 py-2 font-mono text-[11px] text-[#6E6C7C]">
+            <code className="min-w-0 flex-1 truncate rounded-lg bg-[#F9F8F6] px-2.5 py-2 font-mono text-[11px] text-[#6E6C7C]">
               {mcpCommand}
             </code>
             <Button

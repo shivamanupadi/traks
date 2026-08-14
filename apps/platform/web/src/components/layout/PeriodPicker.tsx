@@ -21,7 +21,7 @@ const PERIOD_OPTIONS: { label: string; value: Period }[] = [
 /** Floating pill segmented control; the active segment fills with ink. */
 export function PeriodPicker({ value, onChange }: PeriodPickerProps): ReactElement {
   return (
-    <div className="inline-flex rounded-full bg-white p-1 gap-0.5 shadow-pill">
+    <div className="inline-flex rounded-full border border-[#E6E4DE] bg-white p-1 gap-0.5">
       {PERIOD_OPTIONS.map(option => (
         <button
           key={option.value}

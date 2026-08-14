@@ -129,7 +129,7 @@ function LoginPage(): ReactElement {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#F6F5F2]">
+    <div className="flex min-h-screen bg-[#F9F8F6]">
       <BrandPanel />
 
       <div className="relative flex flex-1 flex-col items-center justify-center px-4 py-12">

@@ -1,6 +1,6 @@
 /**
  * The SKILL.md a coding agent reads: instrumentation + MCP conventions,
- * with this instance's real URLs baked in.
+ * with this instance's real URLs baked in. Rendered on the Skill tab.
  */
 export function skillMarkdown(origin: string, collectUrl: string): string {
   return `---
@@ -88,4 +88,19 @@ options as goals:
     { "type": "event", "target": "section_view", "propKey": "section", "propValue": "pricing" },
     { "type": "event", "target": "console_click" }
   ]
+}
+\`\`\`
+
+## Reading results
+
+- \`get_stats {siteId, period}\` — visitors, pageviews, sessions, bounce,
+  timeseries, top pages/referrers/countries/browsers.
+- \`get_goal_stats\`, \`get_funnel_stats\`, \`get_custom_events\` — same periods.
+- Periods: today, yesterday, 7d, 30d, 90d, 6m, 1y, all ('today' is live).
+
+## Privacy rules (do not violate)
+
+Traks is cookieless and stores no PII. Never put emails, user ids, or any
+personal data into event names, props, or pathnames.
+`;
 }

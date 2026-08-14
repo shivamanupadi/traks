@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate, useLocation, Link, Outlet } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { User, ChevronDown, LogOut, ArrowUpCircle, X } from 'lucide-react';
+import { User, ChevronDown, LogOut, ArrowUpCircle, X, Settings, Bot } from 'lucide-react';
 import { authClient } from '@/lib/auth-client';
 import { api } from '@/lib/api';
 import { useInstanceConfig, useLatestVersion } from '@/lib/config';
@@ -86,13 +86,14 @@ function PortalHeader(): React.ReactNode {
     : null;
 
   return (
-    <header className="sticky top-0 z-40 bg-white">
-      {/* Identity row */}
+    // One-line chrome: identity, navigation, and account share a single row —
+    // the old tab rail's 42px goes back to the content.
+    <header className="sticky top-0 z-40 border-b border-[#ECEAE5] bg-white">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
-        <div className="flex min-w-0 items-center">
+        <div className="flex h-full min-w-0 items-center">
           <Link to="/portal/sites" className="flex shrink-0 items-center gap-2">
             <img src="/logo.svg" alt="Traks" className="h-6 w-6" />
-            <span className="hidden sm:block text-[15px] font-semibold tracking-[-0.01em] text-[#3D3B4F]">
+            <span className="hidden lg:block text-[15px] font-semibold tracking-[-0.01em] text-[#3D3B4F]">
               Traks
             </span>
           </Link>
@@ -101,26 +102,25 @@ function PortalHeader(): React.ReactNode {
           {siteCrumb && (
             <>
               <BreadcrumbSlash />
-              <span className="truncate text-[13.5px] text-[#8F8D99]">{siteCrumb}</span>
+              <span className="hidden md:block max-w-[160px] truncate text-[13.5px] text-[#8F8D99]">
+                {siteCrumb}
+              </span>
             </>
           )}
+          <BreadcrumbSlash />
+          <nav className="flex h-full items-center gap-0.5">
+            <HeaderTab to="/portal/sites" alsoMatchPaths={['/portal/site/']}>
+              Sites
+            </HeaderTab>
+            <HeaderTab to="/portal/skill">Skill</HeaderTab>
+            {current?.role === 'owner' && <HeaderTab to="/portal/members">Members</HeaderTab>}
+            <HeaderTab to="/portal/settings">Settings</HeaderTab>
+          </nav>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <VersionPill />
           <UserMenu />
         </div>
-      </div>
-
-      {/* Tab rail: border spans the full width, tabs align with the content column */}
-      <div className="border-b border-[#E9E8EC]">
-        <nav className="mx-auto flex h-[42px] max-w-6xl items-center px-2 sm:px-4">
-          <HeaderTab to="/portal/sites" alsoMatchPaths={['/portal/site/']}>
-            Sites
-          </HeaderTab>
-          <HeaderTab to="/portal/skill">Skill</HeaderTab>
-          {current?.role === 'owner' && <HeaderTab to="/portal/members">Members</HeaderTab>}
-          <HeaderTab to="/portal/settings">Settings</HeaderTab>
-        </nav>
       </div>
     </header>
   );
@@ -253,6 +253,8 @@ function VersionPill(): React.ReactNode {
 function UserMenu(): React.ReactNode {
   const { data: session } = authClient.useSession();
   const config = useInstanceConfig();
+  const latest = useLatestVersion();
+  const navigate = useNavigate();
 
   const email: string | undefined = session?.user?.email;
   const displayName = session?.user?.name || email?.split('@')[0] || 'User';
@@ -288,6 +290,23 @@ function UserMenu(): React.ReactNode {
         <DropdownMenuSeparator />
 
         <DropdownMenuItem
+          onClick={() => void navigate({ to: '/portal/settings' })}
+          className="flex items-center gap-3 px-4 py-2.5 cursor-pointer"
+        >
+          <Settings className="w-4 h-4 text-[#9B9590]" />
+          Settings
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => void navigate({ to: '/portal/skill' })}
+          className="flex items-center gap-3 px-4 py-2.5 cursor-pointer"
+        >
+          <Bot className="w-4 h-4 text-[#9B9590]" />
+          API tokens &amp; agents
+        </DropdownMenuItem>
+
+        <DropdownMenuSeparator />
+
+        <DropdownMenuItem
           onClick={() => void signOut()}
           className="flex items-center gap-3 px-4 py-2.5 text-[#e5484d] focus:text-[#e5484d] focus:bg-red-50 cursor-pointer"
         >
@@ -295,16 +314,28 @@ function UserMenu(): React.ReactNode {
           Sign out
         </DropdownMenuItem>
 
-        {config?.deployInstanceId && (
+        {config?.version && (
           <>
             <DropdownMenuSeparator />
-            <button
-              onClick={() => void navigator.clipboard.writeText(config.deployInstanceId!)}
-              title="Copy instance id"
-              className="w-full px-4 py-2 text-left font-mono text-[10.5px] text-[#9B9590] hover:text-[#3D3B4F] transition-colors cursor-pointer"
-            >
-              Instance {config.deployInstanceId}
-            </button>
+            <div className="px-4 pb-2.5 pt-1.5 font-mono text-[10.5px] leading-relaxed text-[#9B9590]">
+              <p>
+                Traks v{config.version}
+                {latest && (
+                  <span className="text-[#B5B0AA]">
+                    {latest === config.version ? ' · up to date' : ` · v${latest} available`}
+                  </span>
+                )}
+              </p>
+              {config.deployInstanceId && (
+                <button
+                  onClick={() => void navigator.clipboard.writeText(config.deployInstanceId!)}
+                  title="Copy instance id"
+                  className="cursor-pointer text-left hover:text-[#3D3B4F] transition-colors"
+                >
+                  instance {config.deployInstanceId} <span className="text-[#B5B0AA]">⧉</span>
+                </button>
+              )}
+            </div>
           </>
         )}
       </DropdownMenuContent>

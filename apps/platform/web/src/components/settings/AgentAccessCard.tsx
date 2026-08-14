@@ -1,11 +1,10 @@
 import { useState, type ReactElement } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
 import { Bot, Check, Copy, KeyRound, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { api } from '@/lib/api';
-import { useCollectUrl } from '@/lib/config';
-import { Link } from '@tanstack/react-router';
 
 interface TokenRow {
   id: string;
@@ -16,25 +15,8 @@ interface TokenRow {
   lastUsedAt: string | null;
 }
 
-\`\`\`
-
-## Reading results
-
-- \`get_stats {siteId, period}\` — visitors, pageviews, sessions, bounce,
-  timeseries, top pages/referrers/countries/browsers.
-- \`get_goal_stats\`, \`get_funnel_stats\`, \`get_custom_events\` — same periods.
-- Periods: today, yesterday, 7d, 30d, 90d, 6m, 1y, all ('today' is live).
-
-## Privacy rules (do not violate)
-
-Traks is cookieless and stores no PII. Never put emails, user ids, or any
-personal data into event names, props, or pathnames.
-`;
-}
-
 export function AgentAccessCard(): ReactElement {
   const queryClient = useQueryClient();
-  const collectUrl = useCollectUrl();
   const origin = window.location.origin;
 
   const [name, setName] = useState('');
@@ -174,7 +156,7 @@ export function AgentAccessCard(): ReactElement {
           <select
             value={scope}
             onChange={e => setScope(e.target.value as 'read' | 'manage')}
-            className="h-10 shrink-0 cursor-pointer rounded-xl border-none bg-white px-3 text-[13px] text-[#3D3B4F] shadow-[inset_0_0_0_1px_#E5E5EB] focus:outline-none"
+            className="h-10 shrink-0 cursor-pointer rounded-xl border-none bg-[#F2F1ED] px-3 text-[13px] text-[#3D3B4F] focus:outline-none"
           >
             <option value="manage">Manage (configure + read)</option>
             <option value="read">Read-only (stats)</option>

@@ -77,7 +77,22 @@ if (!keyId) {
 const secret = sha256hex(token);
 const host = `${ACCOUNT_ID}.r2.cloudflarestorage.com`;
 
+/** Bulk parallel PUTs to R2 hit transient ECONNRESET/timeouts on flaky
+ *  networks — retry each object a few times before failing the release. */
 async function putObject(key, bytes, contentType = 'application/octet-stream') {
+  let lastErr;
+  for (let attempt = 1; attempt <= 4; attempt++) {
+    try {
+      return await putObjectOnce(key, bytes, contentType);
+    } catch (err) {
+      lastErr = err;
+      await new Promise(r => setTimeout(r, attempt * 800));
+    }
+  }
+  throw lastErr;
+}
+
+async function putObjectOnce(key, bytes, contentType = 'application/octet-stream') {
   const now = new Date();
   const amzDate = now
     .toISOString()

@@ -1217,12 +1217,6 @@ function DeleteSiteModal({
 
 type ChartMetric = 'visitors' | 'pageviews' | 'sessions';
 
-const METRIC_COLORS: Record<ChartMetric, string> = {
-  visitors: '#3D3B4F',
-  pageviews: '#3D3B4F',
-  sessions: '#3D3B4F',
-};
-
 const LINK_TABS = [
   { key: 'outbound', label: 'Outbound' },
   { key: 'download', label: 'Downloads' },
@@ -1244,7 +1238,6 @@ function MetricTile({
   value,
   change,
   active,
-  color,
   onClick,
   higherIsWorse,
 }: {
@@ -1252,7 +1245,6 @@ function MetricTile({
   value: string;
   change: number | null;
   active?: boolean;
-  color?: string;
   onClick?: () => void;
   higherIsWorse?: boolean;
 }): ReactElement {
@@ -1357,7 +1349,6 @@ function ChartCard({
             value={formatNumber(stats.visitors)}
             change={stats.visitorsChange}
             active={metric === 'visitors'}
-            color={METRIC_COLORS.visitors}
             onClick={() => onMetricChange('visitors')}
           />
           <MetricTile
@@ -1365,7 +1356,6 @@ function ChartCard({
             value={formatNumber(stats.pageviews)}
             change={stats.pageviewsChange}
             active={metric === 'pageviews'}
-            color={METRIC_COLORS.pageviews}
             onClick={() => onMetricChange('pageviews')}
           />
           <MetricTile
@@ -1373,7 +1363,6 @@ function ChartCard({
             value={formatNumber(stats.sessions)}
             change={stats.sessionsChange}
             active={metric === 'sessions'}
-            color={METRIC_COLORS.sessions}
             onClick={() => onMetricChange('sessions')}
           />
           <MetricTile label="Views / Visit" value={viewsPerVisit} change={null} />

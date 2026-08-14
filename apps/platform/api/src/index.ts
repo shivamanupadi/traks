@@ -11,6 +11,9 @@ import { analyticsRoute } from './routes/analytics';
 import { meRoute } from './routes/me';
 import { workspacesRoute } from './routes/workspaces';
 import { invitationsRoute } from './routes/invitations';
+import { tokensRoute } from './routes/tokens';
+import { mcpHandler } from './routes/mcp';
+import { requireAuth } from './middleware/auth';
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -110,7 +113,19 @@ const routes = app
   .route('/api/workspaces', workspacesRoute)
   .route('/api/invitations', invitationsRoute)
   .route('/api/sites', sitesRoute)
-  .route('/api/analytics', analyticsRoute);
+  .route('/api/analytics', analyticsRoute)
+  .route('/api/tokens', tokensRoute);
+
+// MCP endpoint (Streamable HTTP, stateless): registered after the routes it
+// dispatches into, closing over `app` so tool calls run in-process through
+// the same middleware, validation, and permission checks as the dashboard.
+app.post(
+  '/api/mcp',
+  requireAuth,
+  mcpHandler((path, init, c) => Promise.resolve(app.request(path, init, c.env, c.executionCtx)))
+);
+// Stateless transport: no SSE stream to resume, no session to delete.
+app.on(['GET', 'DELETE'], '/api/mcp', c => c.json({ error: 'Method not allowed' }, 405));
 
 // Unmatched non-API paths are SPA routes (/login, /portal/…): serve the
 // assets fallback (index.html). Assets that exist never reach the worker.

@@ -283,6 +283,25 @@ export const api = {
     return res.json();
   },
 
+  // Personal API tokens (MCP / coding-agent access)
+  async getTokens(): Promise<any> {
+    const res = await client.api.tokens.$get();
+    await assertOk(res);
+    return res.json();
+  },
+
+  async createToken(data: { name: string; scope: 'read' | 'manage' }): Promise<any> {
+    const res = await client.api.tokens.$post({ json: data });
+    await assertOk(res);
+    return res.json();
+  },
+
+  async revokeToken(tokenId: string): Promise<any> {
+    const res = await client.api.tokens[':tokenId'].$delete({ param: { tokenId } });
+    await assertOk(res);
+    return res.json();
+  },
+
   async getSegments(siteId: string): Promise<any> {
     const res = await client.api.sites[':id'].segments.$get({ param: { id: siteId } });
     await assertOk(res);

@@ -200,6 +200,32 @@ export const apiKeys = sqliteTable(
   ]
 );
 
+// ============ Personal API tokens (MCP / management API) ============
+export const apiTokens = sqliteTable(
+  'api_tokens',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    /** SHA-256 hex of the secret — the secret itself is shown exactly once. */
+    tokenHash: text('token_hash').notNull(),
+    /** Last 4 characters of the secret, for display in the token list. */
+    suffix: text('suffix').notNull(),
+    /** 'read' = stats only (GET); 'manage' = also create/update/delete config. */
+    scope: text('scope').$type<'read' | 'manage'>().default('manage').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+    lastUsedAt: integer('last_used_at', { mode: 'timestamp' }),
+  },
+  table => [
+    uniqueIndex('api_tokens_hash_idx').on(table.tokenHash),
+    index('api_tokens_user_id_idx').on(table.userId),
+  ]
+);
+
 // ============ Goals (conversion targets: a custom event name or a pathname) ============
 export const goals = sqliteTable(
   'goals',

@@ -32,5 +32,7 @@ export type Bindings = {
 export type Variables = {
   userId?: string;
   userEmail?: string;
+  /** Set when the request authenticated with a personal API token. */
+  tokenScope?: 'read' | 'manage';
   db?: import('drizzle-orm/d1').DrizzleD1Database;
 };

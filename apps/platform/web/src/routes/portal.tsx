@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate, useLocation, Link, Outlet } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
-import { User, ChevronDown, LogOut, ArrowUpCircle, X, Bot } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { User, ChevronDown, LogOut, ArrowUpCircle, X, Bot, RefreshCw } from 'lucide-react';
 import { authClient } from '@/lib/auth-client';
 import { useInstanceConfig, useLatestVersion } from '@/lib/config';
 import { useWorkspace, WorkspaceProvider } from '@/lib/workspace';
@@ -231,6 +232,31 @@ function UserMenu(): React.ReactNode {
   const config = useInstanceConfig();
   const latest = useLatestVersion();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [checking, setChecking] = useState(false);
+  const [checkNote, setCheckNote] = useState<string | null>(null);
+
+  /** Force-refresh past every cache layer: the react-query staleTime, the
+   *  browser cache, and traks.dev's 5-minute edge cache (bust param). */
+  const checkForUpdates = async (): Promise<void> => {
+    setChecking(true);
+    setCheckNote(null);
+    try {
+      const res = await fetch(`https://traks.dev/api/deploy/latest-version?bust=${Date.now()}`);
+      const body = (await res.json()) as { data?: { version?: string } };
+      const version = body.data?.version;
+      if (version) {
+        queryClient.setQueryData(['latest-version'], version);
+        setCheckNote(version === config?.version ? 'Up to date' : `v${version} available`);
+      } else {
+        setCheckNote('Check failed');
+      }
+    } catch {
+      setCheckNote('Check failed');
+    }
+    setChecking(false);
+    setTimeout(() => setCheckNote(null), 4000);
+  };
 
   const email: string | undefined = session?.user?.email;
   const displayName = session?.user?.name || email?.split('@')[0] || 'User';
@@ -286,6 +312,19 @@ function UserMenu(): React.ReactNode {
         {config?.version && (
           <>
             <DropdownMenuSeparator />
+            {/* Plain button, not a menu item: keeps the menu open so the
+                result ("Up to date" / "vX available") is actually seen. */}
+            <button
+              onClick={e => {
+                e.stopPropagation();
+                void checkForUpdates();
+              }}
+              disabled={checking}
+              className="flex w-full cursor-pointer items-center gap-3 px-4 py-2.5 text-left text-sm text-[#3D3B4F] hover:bg-muted transition-colors disabled:opacity-60"
+            >
+              <RefreshCw className={`w-4 h-4 text-[#9B9590] ${checking ? 'animate-spin' : ''}`} />
+              {checkNote ?? 'Check for updates'}
+            </button>
             <div className="px-4 pb-2.5 pt-1.5 font-mono text-[10.5px] leading-relaxed text-[#9B9590]">
               <p>
                 Traks v{config.version}

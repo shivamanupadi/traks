@@ -1575,7 +1575,12 @@ function SiteAnalyticsPage(): ReactElement {
   // with their own loading states; they just get their data early.
   const bootstrapData = (bootstrapQ.data as { data?: Record<string, unknown> } | undefined)?.data;
   useEffect(() => {
-    if (!bootstrapData) return;
+    // Seed only while the unfiltered bundle answers the current view. When a
+    // filter chip lands, filterKey changes and this effect re-runs while the
+    // stale unfiltered bundle is still in cache — seeding then would stamp
+    // unfiltered data onto the filtered query keys as fresh, so every panel
+    // keeps showing unfiltered numbers until a manual refresh.
+    if (!bootstrapData || hasFilters) return;
     const seed = (key: readonly unknown[], value: unknown): void => {
       queryClient.setQueryData(['site-analytics', siteId, ...key, period, filterKey], {
         data: value,
@@ -1588,7 +1593,7 @@ function SiteAnalyticsPage(): ReactElement {
     seed(['locations', 'country'], bootstrapData.locations);
     seed(['devices', 'browser'], bootstrapData.browsers);
     seed(['devices', 'os'], bootstrapData.os);
-  }, [bootstrapData, queryClient, siteId, period, filterKey]);
+  }, [bootstrapData, queryClient, siteId, period, filterKey, hasFilters]);
 
   // Panels covered by the bundle wait for it rather than racing it; if it
   // fails they fall back to fetching themselves, so a bundle error degrades

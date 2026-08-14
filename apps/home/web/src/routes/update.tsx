@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { ArrowRight, CheckCircle2, ExternalLink, RotateCw } from 'lucide-react';
+import { ArrowRight, CheckCircle2, ExternalLink, Loader2, RotateCw } from 'lucide-react';
 import {
   Card,
   ConnectSection,
@@ -65,9 +65,11 @@ function UpdateWizard(): ReactElement {
   const [catalogToken, setCatalogToken] = useState('');
   const [catalogStatus, setCatalogStatus] = useState<'checking' | 'ok' | 'bad' | undefined>();
   const [catalogDetail, setCatalogDetail] = useState<string | undefined>();
-  // Whether this update still needs a storage token. Preflight answers per
-  // instance; a probe that fails keeps the conservative default of true.
-  const [catalogRequired, setCatalogRequired] = useState(false);
+  // Whether this update still needs a storage token. `undefined` while the
+  // preflight probe is in flight — the confirm screen shows a neutral
+  // "checking" state instead of flashing the token field in and out. A probe
+  // that fails resolves to the conservative `true`.
+  const [catalogRequired, setCatalogRequired] = useState<boolean | undefined>(undefined);
   const [catalogReason, setCatalogReason] = useState<string | null>(null);
 
   const [versions, setVersions] = useState<{ current?: string; latest?: string }>({});
@@ -183,8 +185,7 @@ function UpdateWizard(): ReactElement {
   const runPreflight = async (session: string, inst: ExistingInstall): Promise<void> => {
     const token = connect.installerToken.trim();
     if (token.length < 20 || !inst.accountId || !inst.instanceName) return;
-    // Conservative until the probe answers: assume a token is needed.
-    setCatalogRequired(true);
+    setCatalogRequired(undefined);
     setCatalogReason(null);
     try {
       const res = await fetch(`/api/deploy/instance/${session}/preflight`, {
@@ -197,14 +198,18 @@ function UpdateWizard(): ReactElement {
           intent: 'update',
         }),
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        // A probe that could not answer must not be read as "nothing needed".
+        setCatalogRequired(true);
+        return;
+      }
       const { data } = (await res.json()) as {
         data: { catalogTokenNeeded: boolean; reason: string | null };
       };
       setCatalogRequired(data.catalogTokenNeeded);
       setCatalogReason(data.reason);
     } catch {
-      /* keep the conservative default */
+      setCatalogRequired(true);
     }
   };
 
@@ -259,7 +264,7 @@ function UpdateWizard(): ReactElement {
     // Only verify a storage token when one is actually in play — a healthy
     // instance updates without one, and the server double-checks anyway.
     const pastedToken = catalogToken.trim().length >= 20;
-    if ((catalogRequired || pastedToken) && catalogStatus !== 'ok' && !(await checkCatalog())) {
+    if ((catalogRequired !== false || pastedToken) && catalogStatus !== 'ok' && !(await checkCatalog())) {
       setBusy(false);
       return;
     }
@@ -404,7 +409,7 @@ function UpdateWizard(): ReactElement {
               <PrimaryButton
                 onClick={() => void runUpdate()}
                 busy={busy}
-                disabled={catalogRequired && catalogToken.trim().length < 20}
+                disabled={catalogRequired !== false && catalogToken.trim().length < 20}
               >
                 <RotateCw className="h-4 w-4" />
                 {upToDate ? 'Re-run update' : `Update to v${versions.latest ?? 'latest'}`}
@@ -451,7 +456,12 @@ function UpdateWizard(): ReactElement {
               </li>
             </ul>
           </div>
-          {catalogRequired ? (
+          {catalogRequired === undefined ? (
+            <p className="flex items-center gap-2 text-[12.5px] text-[#9B99A6]">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Checking what this update needs…
+            </p>
+          ) : catalogRequired ? (
             <>
               <ErrorBox>
                 {catalogReason ??

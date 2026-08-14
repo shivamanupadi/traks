@@ -57,8 +57,9 @@ function DestroyWizard(): ReactElement {
 
   const [catalogToken, setCatalogToken] = useState('');
   // Whether the purge needs a storage token (OAuth sign-ins can't sign S3
-  // deletes). Preflight answers; a failed probe keeps the warning visible.
-  const [catalogRequired, setCatalogRequired] = useState(true);
+  // deletes). `undefined` while the preflight probe is in flight so the
+  // warning doesn't flash in and out; a failed probe resolves to true.
+  const [catalogRequired, setCatalogRequired] = useState<boolean | undefined>(undefined);
   const [catalogReason, setCatalogReason] = useState<string | null>(null);
 
   const [steps, setSteps] = useState<StepEvent[]>([]);
@@ -112,7 +113,7 @@ function DestroyWizard(): ReactElement {
   const runPreflight = async (session: string, inst: ExistingInstall): Promise<void> => {
     const token = connect.installerToken.trim();
     if (token.length < 20 || !inst.accountId || !inst.instanceName) return;
-    setCatalogRequired(true);
+    setCatalogRequired(undefined);
     setCatalogReason(null);
     try {
       const res = await fetch(`/api/deploy/instance/${session}/preflight`, {
@@ -125,14 +126,18 @@ function DestroyWizard(): ReactElement {
           intent: 'destroy',
         }),
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        // A probe that could not answer must not be read as "nothing needed".
+        setCatalogRequired(true);
+        return;
+      }
       const { data } = (await res.json()) as {
         data: { catalogTokenNeeded: boolean; reason: string | null };
       };
       setCatalogRequired(data.catalogTokenNeeded);
       setCatalogReason(data.reason);
     } catch {
-      /* keep the conservative default */
+      setCatalogRequired(true);
     }
   };
 
@@ -319,7 +324,7 @@ function DestroyWizard(): ReactElement {
               within 90 days.
             </p>
           </div>
-          {catalogRequired && catalogToken.trim().length < 20 && (
+          {catalogRequired === true && catalogToken.trim().length < 20 && (
             <>
               <ErrorBox>
                 {catalogReason ??

@@ -1264,22 +1264,26 @@ function MetricTile({
       onClick={onClick}
       disabled={!onClick}
       className={cn(
-        'relative flex flex-col items-start gap-[7px] border-l border-[#F5F2EC] px-[22px] py-5 text-left transition-colors first:border-l-0',
-        onClick && 'cursor-pointer hover:bg-[#F2F1ED]',
-        active && 'bg-[#F2F1ED]'
+        'relative flex flex-col items-start gap-[7px] border-l border-[#F1EFEA] px-[22px] py-5 text-left transition-colors first:border-l-0',
+        onClick && 'cursor-pointer hover:bg-[#FBFAF8]'
       )}
     >
       <span className="text-[10.5px] font-bold uppercase tracking-[0.09em] text-[#9B9590]">
         {label}
       </span>
-      <span className="text-[25px] font-bold leading-none tracking-[-0.02em] tabular-nums text-[#3D3B4F]">
+      <span
+        className={cn(
+          'text-[25px] leading-none tracking-[-0.02em] tabular-nums',
+          active || !onClick ? 'font-bold text-[#3D3B4F]' : 'font-semibold text-[#6E6C7C]'
+        )}
+      >
         {value}
       </span>
       {delta ? (
         <span
           className={cn(
             'flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10.5px] font-bold',
-            isGood ? 'bg-[#F2F1ED] text-[#6E6C7C]' : 'bg-[#F7DCD4] text-[#8F3B2C]'
+            isGood ? 'bg-[#28E99F]/15 text-[#2E7D57]' : 'bg-[#E07A5F]/15 text-[#B3402F]'
           )}
         >
           {delta.isPositive ? (
@@ -1292,13 +1296,12 @@ function MetricTile({
       ) : (
         <span className="text-[10.5px] font-semibold text-[#C9C3BC]">—</span>
       )}
-      {/* Active indicator bar running into the chart below */}
+      {/* Active indicator: the same ink underline as the nav tabs */}
       <span
         className={cn(
-          'absolute inset-x-[22px] bottom-0 h-[3px] rounded-t-full transition-opacity',
+          'absolute inset-x-[22px] bottom-0 h-[2px] rounded-t-full bg-[#3D3B4F] transition-opacity',
           active ? 'opacity-100' : 'opacity-0'
         )}
-        style={{ backgroundColor: color }}
       />
     </button>
   );

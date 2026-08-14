@@ -40,8 +40,7 @@ export function AgentAccessCard(): ReactElement {
   };
 
   const createToken = useMutation({
-    mutationFn: () =>
-      api.createToken({ name: name.trim(), scope, workspaceId: current!.id }),
+    mutationFn: () => api.createToken({ name: name.trim(), scope, workspaceId: current!.id }),
     onSuccess: (result: any) => {
       setCreatedSecret(result.secret as string);
       setName('');
@@ -81,9 +80,9 @@ export function AgentAccessCard(): ReactElement {
             </p>
             <p className="mt-0.5 text-[12px] text-[#9B9590]">
               Tokens are scoped to the current workspace
-              {current ? ` (${current.name})` : ''} — an agent holding one can never see your
-              other workspaces. Connect the MCP server, hand over the skill, and it configures
-              goals and funnels while instrumenting your site&rsquo;s code.
+              {current ? ` (${current.name})` : ''} — an agent holding one can never see your other
+              workspaces. Connect the MCP server, hand over the skill, and it configures goals and
+              funnels while instrumenting your site&rsquo;s code.
             </p>
           </div>
         </div>

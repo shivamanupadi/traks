@@ -82,7 +82,10 @@ export const sitesRoute = app
       return c.json({ data: workspaceSites });
     }
 
-    const userSites = await db.select().from(sites).where(siteAccessFilter(db, userId, c.get('tokenWorkspaceId')));
+    const userSites = await db
+      .select()
+      .from(sites)
+      .where(siteAccessFilter(db, userId, c.get('tokenWorkspaceId')));
 
     return c.json({ data: userSites });
   })
@@ -266,7 +269,8 @@ export const sitesRoute = app
     const siteId = c.req.param('id');
     const db = c.get('db')!;
 
-    if (!(await getAccessibleSite(db, userId, siteId, c.get('tokenWorkspaceId')))) return c.json({ error: 'Not found' }, 404);
+    if (!(await getAccessibleSite(db, userId, siteId, c.get('tokenWorkspaceId'))))
+      return c.json({ error: 'Not found' }, 404);
 
     const siteGoals = await db.select().from(goals).where(eq(goals.siteId, siteId));
     return c.json({ data: siteGoals });
@@ -357,7 +361,8 @@ export const sitesRoute = app
     const siteId = c.req.param('id');
     const db = c.get('db')!;
 
-    if (!(await getAccessibleSite(db, userId, siteId, c.get('tokenWorkspaceId')))) return c.json({ error: 'Not found' }, 404);
+    if (!(await getAccessibleSite(db, userId, siteId, c.get('tokenWorkspaceId'))))
+      return c.json({ error: 'Not found' }, 404);
 
     const siteSegments = await db.select().from(segments).where(eq(segments.siteId, siteId));
     return c.json({ data: siteSegments });
@@ -416,7 +421,8 @@ export const sitesRoute = app
     const siteId = c.req.param('id');
     const db = c.get('db')!;
 
-    if (!(await getAccessibleSite(db, userId, siteId, c.get('tokenWorkspaceId')))) return c.json({ error: 'Not found' }, 404);
+    if (!(await getAccessibleSite(db, userId, siteId, c.get('tokenWorkspaceId'))))
+      return c.json({ error: 'Not found' }, 404);
 
     const siteFunnels = await db.select().from(funnels).where(eq(funnels.siteId, siteId));
     return c.json({ data: siteFunnels });

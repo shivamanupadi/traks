@@ -23,9 +23,10 @@ interface TimeseriesChartProps {
   color?: string;
 }
 
-/* All metrics share the same treatment: ink stroke over a whisper of fill —
- * the metric tabs above the chart carry the "which metric" signal. */
-const INK = '#3D3B4F';
+/* All metrics share the same treatment: the brand's deep mint stroke over a
+ * soft mint wash — the metric rail above carries the "which metric" signal. */
+const STROKE = '#17B877';
+const WASH = '#28E99F';
 
 /**
  * Bucket keys are pre-computed at ingest in the *site's* IANA timezone
@@ -128,8 +129,8 @@ export function TimeseriesChart({
   bare = false,
   color,
 }: TimeseriesChartProps): ReactElement {
-  const stroke = color ?? INK;
-  const fill = stroke;
+  const stroke = color ?? STROKE;
+  const fill = color ?? WASH;
   const frame = bare ? '' : 'rounded-[20px] bg-white shadow-float';
 
   if (isError) {
@@ -178,11 +179,11 @@ export function TimeseriesChart({
       <AreaChart data={data}>
         <defs>
           <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={fill} stopOpacity={0.09} />
+            <stop offset="0%" stopColor={fill} stopOpacity={0.2} />
             <stop offset="100%" stopColor={fill} stopOpacity={0} />
           </linearGradient>
         </defs>
-        <CartesianGrid stroke="#EFEFF3" vertical={false} />
+        <CartesianGrid stroke="#F1EFEA" vertical={false} />
         <XAxis
           dataKey="date"
           tickFormatter={formatAxis}
@@ -203,14 +204,14 @@ export function TimeseriesChart({
           }}
           labelStyle={{ color: '#C9C3BC', marginBottom: 2 }}
           itemStyle={{ color: '#F9F8F6', fontWeight: 700 }}
-          cursor={{ stroke: '#3D3B4F', strokeOpacity: 0.35, strokeDasharray: '3 3' }}
+          cursor={{ stroke: '#17B877', strokeOpacity: 0.4, strokeDasharray: '3 3' }}
           labelFormatter={formatTooltip}
         />
         <Area
           type="monotone"
           dataKey={metric}
           stroke={stroke}
-          strokeWidth={2.25}
+          strokeWidth={2}
           fillOpacity={1}
           fill={`url(#${gradientId})`}
           activeDot={{ r: 4.5, strokeWidth: 2, stroke: '#fff' }}

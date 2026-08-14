@@ -1679,6 +1679,9 @@ function SiteAnalyticsPage(): ReactElement {
       sourceTab === 'utm_campaign'
     )
   );
+  const aiSourcesQ = useQuery(
+    tileOpts(['ai-sources'], () => api.getAiSources(siteId, period, filters), sourceTab === 'ai')
+  );
 
   // Below-fold panels
   const countriesQ = useQuery(
@@ -1833,6 +1836,7 @@ function SiteAnalyticsPage(): ReactElement {
     utm_source: utmSourceQ,
     utm_medium: utmMediumQ,
     utm_campaign: utmCampaignQ,
+    ai: aiSourcesQ,
   };
   const sourceQ = sourceQueries[sourceTab];
   const linkQ = elTab === 'download' ? downloadsQ : outboundQ;
@@ -1992,27 +1996,35 @@ function SiteAnalyticsPage(): ReactElement {
           />
           <PanelCard
             title="Top Sources"
-            labelHeader="Source"
+            labelHeader={sourceTab === 'ai' ? 'AI Assistant' : 'Source'}
             items={(sourceQ.data as any)?.data}
             isLoading={sourceQ.isLoading}
             isError={sourceQ.isError}
+            emptyText={sourceTab === 'ai' ? 'No AI traffic yet' : undefined}
             tabs={[
               { key: 'referrers', label: 'Referrers' },
               { key: 'utm_source', label: 'UTM Source' },
               { key: 'utm_medium', label: 'Medium' },
               { key: 'utm_campaign', label: 'Campaign' },
+              { key: 'ai', label: 'AI' },
             ]}
             activeTab={sourceTab}
             onTabChange={setSourceTab}
-            onItemClick={item => {
-              const keyByTab: Record<string, keyof AnalyticsFilters> = {
-                referrers: 'source',
-                utm_source: 'utmSource',
-                utm_medium: 'utmMedium',
-                utm_campaign: 'utmCampaign',
-              };
-              setFilter(keyByTab[sourceTab], item.name);
-            }}
+            onItemClick={
+              // AI rows are assistant names spanning several referrer
+              // hostnames — no single exact-match filter value exists.
+              sourceTab === 'ai'
+                ? undefined
+                : item => {
+                    const keyByTab: Record<string, keyof AnalyticsFilters> = {
+                      referrers: 'source',
+                      utm_source: 'utmSource',
+                      utm_medium: 'utmMedium',
+                      utm_campaign: 'utmCampaign',
+                    };
+                    setFilter(keyByTab[sourceTab], item.name);
+                  }
+            }
           />
         </div>
 

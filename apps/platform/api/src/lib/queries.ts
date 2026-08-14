@@ -11,6 +11,7 @@ export {
   buildEntryExitPagesQuery,
   buildLinkEventsQuery,
   buildTopReferrersQuery,
+  buildAiSourcesQuery,
   buildUtmQuery,
   buildLocationsQuery,
   buildDevicesQuery,

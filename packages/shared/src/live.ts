@@ -153,6 +153,13 @@ export interface LiveStoreApi {
     limit: number,
     filters?: LiveFilters
   ): Promise<LiveTopListRow[]>;
+  /** Pageviews referred by known AI assistants, grouped by assistant. */
+  aiSources(
+    fromMs: number,
+    toMs: number,
+    limit: number,
+    filters?: LiveFilters
+  ): Promise<LiveTopListRow[]>;
   realtime(nowMs: number): Promise<LiveRealtime>;
   /** Conversion counts for goal targets (event names + pathnames). */
   goalStats(

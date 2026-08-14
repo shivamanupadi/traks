@@ -29,6 +29,7 @@ import {
   buildEntryExitPagesQuery,
   buildLinkEventsQuery,
   buildTopReferrersQuery,
+  buildAiSourcesQuery,
   buildUtmQuery,
   buildLocationsQuery,
   buildDevicesQuery,
@@ -1073,6 +1074,51 @@ export const analyticsRoute = appWithBatch
 
     return c.json({
       data: outcome.map(r => ({ name: r.source, visitors: toNumber(r.visitors) })),
+    });
+  })
+
+  // AI assistants as a traffic channel: visits referred by ChatGPT, Claude,
+  // Perplexity and friends, grouped by assistant (classified from
+  // referrer_hostname at query time — see shared/src/ai-sources.ts).
+  .get('/:siteId/stats/ai-sources', requireAuth, validate('query', periodQuery), async c => {
+    const userId = c.get('userId')!;
+    const siteId = c.req.param('siteId');
+    const query = c.req.valid('query');
+    const { period } = query;
+    const filters = parseFilters(query);
+
+    const site = await getSite(c, siteId, userId);
+    if (!site) return c.json({ error: 'Not found' }, 404);
+
+    if (period === 'today') {
+      try {
+        const range = resolvePeriod('today', new Date(), site.timezone);
+        const rows = await liveStore(c, site.siteId).aiSources(
+          ms(range.from),
+          ms(range.to),
+          10,
+          filters
+        );
+        return c.json({ data: rows.map(r => ({ name: r.name, visitors: r.visitors })) });
+      } catch (err) {
+        logLiveFallback(err);
+      }
+    }
+
+    const range = resolvePeriod(period, queryTime(period), site.timezone);
+    const ttl = cacheTtlSeconds(period);
+
+    const outcome = await runQueries(c, () =>
+      cachedR2Sql<{ name: string; visitors: unknown }>(
+        c,
+        ttl,
+        buildAiSourcesQuery(site.siteId, range, filters)
+      )
+    );
+    if (outcome instanceof Response) return outcome;
+
+    return c.json({
+      data: outcome.map(r => ({ name: r.name, visitors: toNumber(r.visitors) })),
     });
   })
 

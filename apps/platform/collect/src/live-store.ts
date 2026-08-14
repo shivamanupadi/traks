@@ -15,7 +15,7 @@ import type {
   LiveScreenSizeRow,
   LiveMetaRow,
 } from '@traks/shared';
-import { SCREEN_SIZE_CASE } from '@traks/shared';
+import { SCREEN_SIZE_CASE, AI_HOSTNAME_IN, aiSourceCaseSql } from '@traks/shared';
 
 // "Today" plus the full previous-day comparison window needs at most 48h in
 // any timezone; prune with margin.
@@ -526,6 +526,48 @@ export class SiteLiveStore extends DurableObject<unknown> {
             pageviews: n(r.pageviews),
             sessions: n(r.sessions),
             ...(withCountry ? { country: String(r.country ?? '') } : {}),
+          }))
+    );
+  }
+
+  /** Pageviews referred by known AI assistants, grouped by assistant name.
+   *  Classification is query-time from referrer_hostname (shared/ai-sources). */
+  async aiSources(
+    fromMs: number,
+    toMs: number,
+    limit: number,
+    filters?: LiveFilters
+  ): Promise<LiveTopListRow[]> {
+    const boundedLimit = Math.max(1, Math.min(100, limit));
+    const f = SiteLiveStore.filterSql(filters);
+    const caseExpr = aiSourceCaseSql('referrer_hostname');
+    return this.memoized(
+      `aiSources:${SiteLiveStore.q(fromMs)}:${SiteLiveStore.q(toMs)}:${boundedLimit}:${SiteLiveStore.filterKey(filters)}`,
+      MEMO_TTL_MS,
+      () =>
+        this.sql
+          .exec(
+            `SELECT ${caseExpr} AS name,
+                    COUNT(DISTINCT visitor_id) AS visitors,
+                    COUNT(*) AS pageviews,
+                    COUNT(DISTINCT session_id) AS sessions
+             FROM events
+             WHERE event_type = 'pageview' AND ts >= ? AND ts < ?
+               AND referrer_hostname IN (${AI_HOSTNAME_IN})${f.sql}
+             GROUP BY ${caseExpr}
+             ORDER BY visitors DESC
+             LIMIT ?`,
+            fromMs,
+            toMs,
+            ...f.params,
+            boundedLimit
+          )
+          .toArray()
+          .map(r => ({
+            name: String(r.name),
+            visitors: n(r.visitors),
+            pageviews: n(r.pageviews),
+            sessions: n(r.sessions),
           }))
     );
   }

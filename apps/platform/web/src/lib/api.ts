@@ -405,6 +405,15 @@ export const api = {
     return res.json();
   },
 
+  async getAiSources(siteId: string, period: Period, filters?: AnalyticsFilters): Promise<any> {
+    const res = await client.api.analytics[':siteId'].stats['ai-sources'].$get({
+      param: { siteId },
+      query: { period, ...filters },
+    });
+    await assertOk(res);
+    return res.json();
+  },
+
   async getUtm(
     siteId: string,
     period: Period,

@@ -1,5 +1,6 @@
 import type { Period } from './constants';
 import type { LiveDimension, LiveFilters } from './live';
+import { AI_HOSTNAME_IN, aiSourceCaseSql } from './ai-sources';
 
 export interface QueryConfig {
   accountId: string;
@@ -709,6 +710,31 @@ export function buildLocationsQuery(
     WHERE ${whereSiteAndRange(siteKey, range, 'pageview', filters)}
       AND ${col} != ''
     GROUP BY ${groupBy}
+    ORDER BY visitors DESC
+    LIMIT ${limit}
+  `;
+}
+
+/**
+ * AI assistants as a traffic channel: pageviews referred by known AI tools
+ * (ChatGPT, Claude, Perplexity, …), grouped by assistant. Classified at
+ * query time from referrer_hostname — see shared/src/ai-sources.ts.
+ */
+export function buildAiSourcesQuery(
+  siteKey: string,
+  range: PeriodRange,
+  filters?: LiveFilters,
+  limit = 10
+) {
+  const caseExpr = aiSourceCaseSql('referrer_hostname');
+  return (table: string) => `
+    SELECT
+      ${caseExpr} AS name,
+      approx_distinct(visitor_id) AS visitors
+    FROM ${table}
+    WHERE ${whereSiteAndRange(siteKey, range, 'pageview', filters)}
+      AND referrer_hostname IN (${AI_HOSTNAME_IN})
+    GROUP BY ${caseExpr}
     ORDER BY visitors DESC
     LIMIT ${limit}
   `;

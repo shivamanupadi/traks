@@ -99,6 +99,10 @@ function getQueryConfig(c: AppContext): {
 // no data and turns repeat dashboard loads / polls into cache hits.
 
 /** Result cache TTL per period. Long windows barely change; today tracks ingest. */
+/** How far 'today' funnel windows trail real time, covering the Iceberg
+ *  sink's ~60s roll so a window is only queried once fully written. */
+const FUNNEL_SINK_LAG_MS = 90_000;
+
 function cacheTtlSeconds(period: Period): number {
   switch (period) {
     case 'today':
@@ -1447,7 +1451,17 @@ export const analyticsRoute = appWithBatch
     const [funnel] = await db.select().from(funnels).where(eq(funnels.id, funnelId));
     if (!funnel || funnel.siteId !== siteId) return c.json({ error: 'Not found' }, 404);
 
-    const range = resolvePeriod(period, queryTime(period), site.timezone);
+    // Funnels are R2-only, and each funnel's SQL caches independently. A
+    // 'today' window ending at the current minute reads an Iceberg table
+    // the sink is still writing (~60s roll), so two funnels scanned seconds
+    // apart cached contradictory snapshots of the same step. Lagging the
+    // reference behind the sink makes every scan of a window deterministic
+    // — all funnel tiles agree, at the cost of 'today' trailing ~2 minutes.
+    const funnelRef =
+      period === 'today'
+        ? new Date(Math.floor((Date.now() - FUNNEL_SINK_LAG_MS) / 60_000) * 60_000)
+        : queryTime(period);
+    const range = resolvePeriod(period, funnelRef, site.timezone);
     const outcome = await runQueries(c, () =>
       cachedR2Sql<Record<string, unknown>>(
         c,

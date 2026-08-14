@@ -236,6 +236,24 @@ const TOOLS: ToolDef[] = [
     }),
   },
   {
+    name: 'get_event_props',
+    description:
+      "Property breakdown for one custom event in the period — each 'key: value' pair with how many events carried it. Use to see which prop values an event is actually firing with.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        siteId: str('Site id'),
+        period,
+        event: str('The custom event name (from get_custom_events)'),
+      },
+      required: ['siteId', 'period', 'event'],
+    },
+    request: a => ({
+      method: 'GET',
+      path: `/api/analytics/${a.siteId}/stats/event-props?period=${a.period}&event=${encodeURIComponent(String(a.event))}`,
+    }),
+  },
+  {
     name: 'get_custom_events',
     description: 'Custom events fired in the period, with counts and total values.',
     inputSchema: {
@@ -309,6 +327,25 @@ export function mcpHandler(dispatch: Dispatch) {
         const tool = TOOLS.find(t => t.name === params?.name);
         if (!tool) return c.json(rpcError(id, -32602, `Unknown tool: ${String(params?.name)}`));
         const args = (params?.arguments ?? {}) as Record<string, unknown>;
+        // Name the missing argument instead of letting 'undefined' reach a
+        // route and come back as a misleading bare 404.
+        const required = (tool.inputSchema.required ?? []) as string[];
+        const missing = required.filter(k => args[k] === undefined || args[k] === '');
+        if (missing.length > 0) {
+          return c.json(
+            rpcResult(id, {
+              content: [
+                {
+                  type: 'text',
+                  text: JSON.stringify({
+                    error: `Missing required argument(s) for ${tool.name}: ${missing.join(', ')}`,
+                  }),
+                },
+              ],
+              isError: true,
+            })
+          );
+        }
         const { method: httpMethod, path, body } = tool.request(args);
         // Same-app dispatch: the token in the Authorization header flows
         // through, so requireAuth and every permission check run as usual.

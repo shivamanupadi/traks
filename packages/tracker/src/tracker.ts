@@ -67,14 +67,22 @@
     }
   }
 
-  // Send event via fetch (Plausible uses fetch, not sendBeacon)
+  // Send via fetch keepalive; on failure fall back to sendBeacon (survives
+  // rapid navigations where the fetch is rejected before it's queued).
   function sendRequest(payload: Record<string, unknown>): void {
+    const body = JSON.stringify(payload);
     fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
       keepalive: true,
-      body: JSON.stringify(payload),
-    }).catch(function () {});
+      body: body,
+    }).catch(function () {
+      try {
+        if (navigator.sendBeacon) navigator.sendBeacon(endpoint, body);
+      } catch {
+        /* nothing left to try */
+      }
+    });
   }
 
   // ---- Engagement time ----
@@ -229,16 +237,21 @@
     });
   }
 
-  // Prerender and hidden tabs: defer the initial pageview until the page is actually visible.
-  // `prerender` is valid at runtime but not in every @types/dom version; cast narrowly.
-  const initialVis = document.visibilityState as 'visible' | 'hidden' | 'prerender';
-  if (initialVis === 'hidden' || initialVis === 'prerender') {
-    document.addEventListener('visibilitychange', function handler() {
-      if (document.visibilityState === 'visible') {
+  // Prerendered documents (Chrome speculation rules / omnibox) may never be
+  // shown — defer their initial pageview until activation, using the signal
+  // designed for exactly this (prerenderingchange). Everything else — even a
+  // load in a hidden background tab — counts immediately: the old
+  // visibility-based deferral silently LOST pageviews for pages evaluated
+  // hidden and left before ever becoming visible.
+  const doc = document as Document & { prerendering?: boolean };
+  if (doc.prerendering) {
+    doc.addEventListener(
+      'prerenderingchange',
+      function () {
         page();
-        document.removeEventListener('visibilitychange', handler);
-      }
-    });
+      },
+      { once: true }
+    );
   } else {
     page();
   }

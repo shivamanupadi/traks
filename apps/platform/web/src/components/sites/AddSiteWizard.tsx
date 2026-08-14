@@ -1,7 +1,8 @@
 import { useState, type ReactElement } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Globe, ArrowRight, Check, Copy, Code2, Zap } from 'lucide-react';
+import { Globe, ArrowRight, Check, CheckCircle2, Copy, Zap } from 'lucide-react';
+import { SiteFavicon } from './SiteFavicon';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -96,6 +97,21 @@ export function AddSiteWizard({
     setTimeout(reset, 200);
   };
 
+  // The favicon is fetched server-side right after create (waitUntil), so it
+  // isn't in the create response — poll the site briefly until it lands.
+  // Same query key the dashboard uses, so this also warms its cache.
+  const { data: siteDetail } = useQuery({
+    queryKey: ['site', createdSite?.id],
+    queryFn: () => api.getSite(createdSite!.id),
+    enabled: !!createdSite,
+    refetchInterval: query => {
+      const favicon = (query.state.data as any)?.data?.favicon;
+      // Stop once it arrives, or give up after ~15s — some sites have none.
+      return favicon || query.state.dataUpdateCount > 10 ? false : 1500;
+    },
+  });
+  const favicon = ((siteDetail as any)?.data?.favicon ?? null) as string | null;
+
   // Empty until the instance config resolves — never guess the collect origin.
   const snippet =
     createdSite && collectUrl
@@ -162,16 +178,17 @@ export function AddSiteWizard({
                 exit={{ opacity: 0, x: 10 }}
                 transition={{ duration: 0.15 }}
               >
-                <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center mb-3">
-                  <Code2 className="w-5 h-5 text-[#6E6C7C]" strokeWidth={1.7} />
+                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-mint/15">
+                  <SiteFavicon favicon={favicon} size={22} fallbackClassName="text-[#0E9F6E]" />
                 </div>
-                <DialogTitle>Install tracking script</DialogTitle>
+                <DialogTitle className="flex items-center gap-2">
+                  {createdSite?.name} is ready
+                  <CheckCircle2 className="h-[18px] w-[18px] text-[#0E9F6E]" strokeWidth={2} />
+                </DialogTitle>
                 <DialogDescription>
-                  Add this snippet to the{' '}
-                  <code className="text-[12px] bg-muted px-1.5 py-0.5 rounded font-medium">
-                    &lt;head&gt;
-                  </code>{' '}
-                  of <span className="font-semibold text-[#3D3B4F]">{createdSite?.domain}</span>
+                  Your site was created — analytics for{' '}
+                  <span className="font-semibold text-[#3D3B4F]">{createdSite?.domain}</span> starts
+                  as soon as the snippet below is installed.
                 </DialogDescription>
               </motion.div>
             )}
@@ -244,6 +261,13 @@ export function AddSiteWizard({
                 transition={{ duration: 0.15 }}
                 className="space-y-4"
               >
+                <p className="text-[12.5px] text-[#6E6C7C]">
+                  Add this snippet to the{' '}
+                  <code className="rounded bg-muted px-1.5 py-0.5 text-[12px] font-medium">
+                    &lt;head&gt;
+                  </code>{' '}
+                  of <span className="font-semibold text-[#3D3B4F]">{createdSite?.domain}</span>:
+                </p>
                 {/* Snippet card */}
                 <div className="relative rounded-xl border border-[#e6e5ea] bg-[#fafafa] overflow-hidden">
                   <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#e6e5ea]/60">
@@ -306,10 +330,7 @@ export function AddSiteWizard({
                 <Copy className="w-3.5 h-3.5" />
                 {copied ? 'Copied!' : 'Copy snippet'}
               </Button>
-              <Button
-                onClick={handleClose}
-                className="bg-[#3D3B4F] hover:bg-[#2C2B3B] text-white rounded-xl text-[13px] px-5"
-              >
+              <Button onClick={handleClose} className="text-[13px] px-5">
                 <Check className="w-3.5 h-3.5" />
                 Done
               </Button>

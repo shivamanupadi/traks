@@ -1,9 +1,7 @@
 import { createFileRoute, useNavigate, useLocation, Link, Outlet } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { User, ChevronDown, LogOut, ArrowUpCircle, X, Bot } from 'lucide-react';
 import { authClient } from '@/lib/auth-client';
-import { api } from '@/lib/api';
 import { useInstanceConfig, useLatestVersion } from '@/lib/config';
 import { useWorkspace, WorkspaceProvider } from '@/lib/workspace';
 import { WorkspaceSwitcher } from '@/components/layout/WorkspaceSwitcher';
@@ -68,22 +66,7 @@ function PortalLayout(): React.ReactNode {
  * underline on the active tab.
  */
 function PortalHeader(): React.ReactNode {
-  const location = useLocation();
   const { current } = useWorkspace();
-
-  // Third breadcrumb segment: the site name while inside a dashboard. Reads
-  // the same query the dashboard page populates, so it costs no extra fetch.
-  const siteMatch = location.pathname.match(/^\/portal\/site\/([^/]+)/);
-  const siteId = siteMatch?.[1];
-  const { data: siteData } = useQuery({
-    queryKey: ['site', siteId],
-    queryFn: () => api.getSite(siteId!),
-    enabled: !!siteId,
-    staleTime: 60_000,
-  });
-  const siteCrumb = siteId
-    ? ((siteData as any)?.data?.name ?? (siteData as any)?.data?.domain ?? null)
-    : null;
 
   return (
     // One-line chrome: identity, navigation, and account share a single row —
@@ -99,14 +82,6 @@ function PortalHeader(): React.ReactNode {
           </Link>
           <BreadcrumbSlash />
           <WorkspaceSwitcher />
-          {siteCrumb && (
-            <>
-              <BreadcrumbSlash />
-              <span className="hidden md:block max-w-[160px] truncate text-[13.5px] text-[#8F8D99]">
-                {siteCrumb}
-              </span>
-            </>
-          )}
           <BreadcrumbSlash />
           <nav className="flex h-full items-center gap-0.5">
             <HeaderTab to="/portal/sites" alsoMatchPaths={['/portal/site/']}>

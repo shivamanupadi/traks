@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, type ReactElement } from 'react';
+import { useState, useEffect, useCallback, useRef, type ReactElement, type ReactNode } from 'react';
 import { createLazyFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -1404,9 +1404,23 @@ function ChartCard({
   );
 }
 
-/** One slot in the site header's segmented action cluster. */
+/** One slot in the site header's action cluster. Circular hover, no
+ *  dividers — the cluster must NOT clip (the dropdowns inside render
+ *  absolutely within it), so slots round themselves. */
 const SEG_BTN =
-  'flex h-[38px] w-[38px] items-center justify-center border-l border-[#EEEDE9] first:border-l-0 text-[#9B9590] hover:bg-[#F6F5F2] hover:text-foreground transition-colors cursor-pointer';
+  'flex h-[34px] w-[34px] items-center justify-center rounded-full text-[#9B9590] hover:bg-[#F2F1ED] hover:text-foreground transition-colors cursor-pointer';
+
+/** CSS-only tooltip for the cluster icons (works around any wrapper). */
+function IconTip({ label, children }: { label: string; children: ReactNode }): ReactElement {
+  return (
+    <span className="group relative flex">
+      {children}
+      <span className="pointer-events-none absolute -bottom-8 left-1/2 z-50 -translate-x-1/2 whitespace-nowrap rounded-lg bg-[#3D3B4F] px-2.5 py-1 text-[11px] font-medium text-[#F9F8F6] opacity-0 transition-opacity delay-150 duration-100 group-hover:opacity-100">
+        {label}
+      </span>
+    </span>
+  );
+}
 
 const FILTER_LABELS: Record<keyof AnalyticsFilters, string> = {
   page: 'Page',
@@ -2169,16 +2183,20 @@ function SiteAnalyticsPage(): ReactElement {
             >
               <ArrowLeft className="w-4 h-4" />
             </Link>
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px] bg-[#F2F1ED]">
+              {site?.favicon ? (
+                <img
+                  src={site.favicon}
+                  alt=""
+                  draggable={false}
+                  className="h-[22px] w-[22px] rounded-[5px] object-contain"
+                />
+              ) : (
+                <Globe className="h-[18px] w-[18px] text-[#6E6C7C]" strokeWidth={1.7} />
+              )}
+            </span>
             <div>
-              <h1 className="flex items-center gap-2.5 text-[22px] font-bold leading-tight text-[#3D3B4F] tracking-[-0.02em]">
-                {site?.favicon && (
-                  <img
-                    src={site.favicon}
-                    alt=""
-                    draggable={false}
-                    className="h-[22px] w-[22px] rounded-[5px] object-contain"
-                  />
-                )}
+              <h1 className="text-[19px] font-bold leading-tight text-[#3D3B4F] tracking-[-0.02em]">
                 {site?.name || 'Analytics'}
               </h1>
               <div className="mt-1 flex items-center gap-2.5 text-[12.5px]">
@@ -2193,7 +2211,7 @@ function SiteAnalyticsPage(): ReactElement {
           <div className="flex items-center gap-2">
             {/* Actions fused into one segmented cluster; Delete lives in the
                 overflow so it never sits one slip away from Refresh. */}
-            <div className="flex items-center overflow-hidden rounded-full border border-[#E6E4DE] bg-white">
+            <div className="flex items-center gap-0.5 rounded-full border border-[#E6E4DE] bg-white p-0.5">
               <button onClick={() => setInstallOpen(true)} className={SEG_BTN} title="Installation">
                 <Code2 className="w-[15px] h-[15px]" />
               </button>
@@ -2204,33 +2222,39 @@ function SiteAnalyticsPage(): ReactElement {
                 onApply={applySegment}
               />
               {canManage && (
-                <button onClick={() => setEditOpen(true)} className={SEG_BTN} title="Site settings">
-                  <Settings className="w-[15px] h-[15px]" />
-                </button>
+                <IconTip label="Site settings">
+                  <button onClick={() => setEditOpen(true)} className={SEG_BTN}>
+                    <Settings className="w-[15px] h-[15px]" />
+                  </button>
+                </IconTip>
               )}
-              <button onClick={handleRefresh} className={SEG_BTN} title="Refresh data">
-                <RefreshCw className={`w-[15px] h-[15px] ${refreshing ? 'animate-spin' : ''}`} />
-              </button>
+              <IconTip label="Refresh data">
+                <button onClick={handleRefresh} className={SEG_BTN}>
+                  <RefreshCw className={`w-[15px] h-[15px] ${refreshing ? 'animate-spin' : ''}`} />
+                </button>
+              </IconTip>
               {canManage && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button className={SEG_BTN} title="More">
-                      <MoreHorizontal className="w-[15px] h-[15px]" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent
-                    align="end"
-                    className="w-44 rounded-2xl bg-white border-none shadow-float"
-                  >
-                    <DropdownMenuItem
-                      onClick={() => setDeleteOpen(true)}
-                      className="flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-[#e5484d] focus:text-[#e5484d] focus:bg-red-50 cursor-pointer"
+                <IconTip label="More">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button className={SEG_BTN}>
+                        <MoreHorizontal className="w-[15px] h-[15px]" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align="end"
+                      className="w-44 rounded-2xl bg-white border-none shadow-float"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      Delete site
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                      <DropdownMenuItem
+                        onClick={() => setDeleteOpen(true)}
+                        className="flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-[#e5484d] focus:text-[#e5484d] focus:bg-red-50 cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Delete site
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </IconTip>
               )}
             </div>
             <PeriodPicker value={period} onChange={setPeriod} />

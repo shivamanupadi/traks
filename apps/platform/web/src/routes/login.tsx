@@ -133,25 +133,13 @@ function LoginPage(): ReactElement {
       <BrandPanel />
 
       <div className="relative flex flex-1 flex-col items-center justify-center px-4 py-12">
-        {/* faint dot grid, fading out below the card */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0"
-          style={{
-            backgroundImage: 'radial-gradient(circle, rgba(61,59,79,0.06) 1px, transparent 1px)',
-            backgroundSize: '26px 26px',
-            maskImage: 'linear-gradient(to bottom, black 0%, transparent 70%)',
-            WebkitMaskImage: 'linear-gradient(to bottom, black 0%, transparent 70%)',
-          }}
-        />
-
         <div className="relative w-full max-w-[384px]">
           <div className="mb-9 flex flex-col items-center lg:hidden">
             <img src="/logo.svg" alt="Traks" className="h-11 w-11" />
             <span className="mt-3 text-[19px] font-bold tracking-tight text-[#3D3B4F]">Traks</span>
           </div>
 
-          <div className="rounded-[20px] border border-[#E9E9EE] bg-white p-8 shadow-float">
+          <div className="rounded-[20px] bg-white p-8 shadow-float">
             {firstRun === null ? (
               <p className="py-8 text-center text-[14px] text-[#9B99A6]">Loading...</p>
             ) : (
@@ -213,7 +201,6 @@ function LoginPage(): ReactElement {
 
                   <Button
                     type="submit"
-                    variant="dark"
                     isLoading={submitting}
                     className="mt-1 h-[46px] w-full text-[14px]"
                   >

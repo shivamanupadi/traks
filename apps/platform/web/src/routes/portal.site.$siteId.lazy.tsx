@@ -20,6 +20,7 @@ import {
   BookmarkPlus,
   Globe,
   Pencil,
+  MoreHorizontal,
 } from 'lucide-react';
 import type {
   Period,
@@ -1411,6 +1412,10 @@ function ChartCard({
   );
 }
 
+/** One slot in the site header's segmented action cluster. */
+const SEG_BTN =
+  'flex h-[38px] w-[38px] items-center justify-center border-l border-[#EEEDE9] first:border-l-0 text-[#9B9590] hover:bg-[#F6F5F2] hover:text-foreground transition-colors cursor-pointer';
+
 const FILTER_LABELS: Record<keyof AnalyticsFilters, string> = {
   page: 'Page',
   source: 'Source',
@@ -1546,10 +1551,7 @@ function SegmentsMenu({
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button
-            className="flex items-center justify-center w-[38px] h-[38px] rounded-full border border-[#E6E4DE] bg-white text-[#9B9590] hover:text-foreground transition-colors cursor-pointer focus:outline-none"
-            title="Segments"
-          >
+          <button className={SEG_BTN} title="Segments">
             <Bookmark className="w-[15px] h-[15px]" />
           </button>
         </DropdownMenuTrigger>
@@ -2194,45 +2196,49 @@ function SiteAnalyticsPage(): ReactElement {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setInstallOpen(true)}
-              className="flex items-center justify-center w-[38px] h-[38px] rounded-full border border-[#E6E4DE] bg-white text-[#9B9590] hover:text-foreground transition-colors cursor-pointer"
-              title="Installation"
-            >
-              <Code2 className="w-[15px] h-[15px]" />
-            </button>
-            {canManage && (
-              <button
-                onClick={() => setEditOpen(true)}
-                className="flex items-center justify-center w-[38px] h-[38px] rounded-full border border-[#E6E4DE] bg-white text-[#9B9590] hover:text-foreground transition-colors cursor-pointer"
-                title="Site settings"
-              >
-                <Settings className="w-[15px] h-[15px]" />
+            {/* Actions fused into one segmented cluster; Delete lives in the
+                overflow so it never sits one slip away from Refresh. */}
+            <div className="flex items-center overflow-hidden rounded-full border border-[#E6E4DE] bg-white">
+              <button onClick={() => setInstallOpen(true)} className={SEG_BTN} title="Installation">
+                <Code2 className="w-[15px] h-[15px]" />
               </button>
-            )}
-            <button
-              onClick={handleRefresh}
-              className="flex items-center justify-center w-[38px] h-[38px] rounded-full border border-[#E6E4DE] bg-white text-[#9B9590] hover:text-foreground transition-colors cursor-pointer"
-              title="Refresh data"
-            >
-              <RefreshCw className={`w-[15px] h-[15px] ${refreshing ? 'animate-spin' : ''}`} />
-            </button>
-            <SegmentsMenu
-              siteId={siteId}
-              filters={filters}
-              hasFilters={hasFilters}
-              onApply={applySegment}
-            />
+              <SegmentsMenu
+                siteId={siteId}
+                filters={filters}
+                hasFilters={hasFilters}
+                onApply={applySegment}
+              />
+              {canManage && (
+                <button onClick={() => setEditOpen(true)} className={SEG_BTN} title="Site settings">
+                  <Settings className="w-[15px] h-[15px]" />
+                </button>
+              )}
+              <button onClick={handleRefresh} className={SEG_BTN} title="Refresh data">
+                <RefreshCw className={`w-[15px] h-[15px] ${refreshing ? 'animate-spin' : ''}`} />
+              </button>
+              {canManage && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className={SEG_BTN} title="More">
+                      <MoreHorizontal className="w-[15px] h-[15px]" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="end"
+                    className="w-44 rounded-2xl bg-white border-none shadow-float"
+                  >
+                    <DropdownMenuItem
+                      onClick={() => setDeleteOpen(true)}
+                      className="flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-[#e5484d] focus:text-[#e5484d] focus:bg-red-50 cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Delete site
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
             <PeriodPicker value={period} onChange={setPeriod} />
-            {canManage && (
-              <button
-                onClick={() => setDeleteOpen(true)}
-                className="flex items-center justify-center w-[38px] h-[38px] rounded-full border border-[#E6E4DE] bg-white text-coral hover:bg-[#e07a5f]/10 transition-colors cursor-pointer"
-                title="Delete site"
-              >
-                <Trash2 className="w-[15px] h-[15px]" />
-              </button>
-            )}
           </div>
         </div>
 

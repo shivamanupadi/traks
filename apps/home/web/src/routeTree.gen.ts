@@ -8,98 +8,84 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-import { Route as rootRouteImport } from './routes/__root'
-import { Route as UpdateRouteImport } from './routes/update'
-import { Route as DocsRouteImport } from './routes/docs'
-import { Route as DestroyRouteImport } from './routes/destroy'
-import { Route as DeployRouteImport } from './routes/deploy'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as GuidesIndexRouteImport } from './routes/guides.index'
-import { Route as GuidesSlugRouteImport } from './routes/guides.$slug'
+import { Route as rootRouteImport } from './routes/__root';
+import { Route as UpdateRouteImport } from './routes/update';
+import { Route as DocsRouteImport } from './routes/docs';
+import { Route as DestroyRouteImport } from './routes/destroy';
+import { Route as DeployRouteImport } from './routes/deploy';
+import { Route as IndexRouteImport } from './routes/index';
+import { Route as GuidesIndexRouteImport } from './routes/guides.index';
+import { Route as GuidesSlugRouteImport } from './routes/guides.$slug';
 
 const UpdateRoute = UpdateRouteImport.update({
   id: '/update',
   path: '/update',
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const DocsRoute = DocsRouteImport.update({
   id: '/docs',
   path: '/docs',
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const DestroyRoute = DestroyRouteImport.update({
   id: '/destroy',
   path: '/destroy',
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const DeployRoute = DeployRouteImport.update({
   id: '/deploy',
   path: '/deploy',
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
-} as any).lazy(() => import('./routes/index.lazy').then((d) => d.Route))
+} as any).lazy(() => import('./routes/index.lazy').then(d => d.Route));
 const GuidesIndexRoute = GuidesIndexRouteImport.update({
   id: '/guides/',
   path: '/guides/',
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const GuidesSlugRoute = GuidesSlugRouteImport.update({
   id: '/guides/$slug',
   path: '/guides/$slug',
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/deploy': typeof DeployRoute
-  '/destroy': typeof DestroyRoute
-  '/docs': typeof DocsRoute
-  '/update': typeof UpdateRoute
-  '/guides/$slug': typeof GuidesSlugRoute
-  '/guides/': typeof GuidesIndexRoute
+  '/': typeof IndexRoute;
+  '/deploy': typeof DeployRoute;
+  '/destroy': typeof DestroyRoute;
+  '/docs': typeof DocsRoute;
+  '/update': typeof UpdateRoute;
+  '/guides/$slug': typeof GuidesSlugRoute;
+  '/guides/': typeof GuidesIndexRoute;
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/deploy': typeof DeployRoute
-  '/destroy': typeof DestroyRoute
-  '/docs': typeof DocsRoute
-  '/update': typeof UpdateRoute
-  '/guides/$slug': typeof GuidesSlugRoute
-  '/guides': typeof GuidesIndexRoute
+  '/': typeof IndexRoute;
+  '/deploy': typeof DeployRoute;
+  '/destroy': typeof DestroyRoute;
+  '/docs': typeof DocsRoute;
+  '/update': typeof UpdateRoute;
+  '/guides/$slug': typeof GuidesSlugRoute;
+  '/guides': typeof GuidesIndexRoute;
 }
 export interface FileRoutesById {
-  __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/deploy': typeof DeployRoute
-  '/destroy': typeof DestroyRoute
-  '/docs': typeof DocsRoute
-  '/update': typeof UpdateRoute
-  '/guides/$slug': typeof GuidesSlugRoute
-  '/guides/': typeof GuidesIndexRoute
+  __root__: typeof rootRouteImport;
+  '/': typeof IndexRoute;
+  '/deploy': typeof DeployRoute;
+  '/destroy': typeof DestroyRoute;
+  '/docs': typeof DocsRoute;
+  '/update': typeof UpdateRoute;
+  '/guides/$slug': typeof GuidesSlugRoute;
+  '/guides/': typeof GuidesIndexRoute;
 }
 export interface FileRouteTypes {
-  fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths:
-    | '/'
-    | '/deploy'
-    | '/destroy'
-    | '/docs'
-    | '/update'
-    | '/guides/$slug'
-    | '/guides/'
-  fileRoutesByTo: FileRoutesByTo
-  to:
-    | '/'
-    | '/deploy'
-    | '/destroy'
-    | '/docs'
-    | '/update'
-    | '/guides/$slug'
-    | '/guides'
+  fileRoutesByFullPath: FileRoutesByFullPath;
+  fullPaths: '/' | '/deploy' | '/destroy' | '/docs' | '/update' | '/guides/$slug' | '/guides/';
+  fileRoutesByTo: FileRoutesByTo;
+  to: '/' | '/deploy' | '/destroy' | '/docs' | '/update' | '/guides/$slug' | '/guides';
   id:
     | '__root__'
     | '/'
@@ -108,70 +94,70 @@ export interface FileRouteTypes {
     | '/docs'
     | '/update'
     | '/guides/$slug'
-    | '/guides/'
-  fileRoutesById: FileRoutesById
+    | '/guides/';
+  fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  DeployRoute: typeof DeployRoute
-  DestroyRoute: typeof DestroyRoute
-  DocsRoute: typeof DocsRoute
-  UpdateRoute: typeof UpdateRoute
-  GuidesSlugRoute: typeof GuidesSlugRoute
-  GuidesIndexRoute: typeof GuidesIndexRoute
+  IndexRoute: typeof IndexRoute;
+  DeployRoute: typeof DeployRoute;
+  DestroyRoute: typeof DestroyRoute;
+  DocsRoute: typeof DocsRoute;
+  UpdateRoute: typeof UpdateRoute;
+  GuidesSlugRoute: typeof GuidesSlugRoute;
+  GuidesIndexRoute: typeof GuidesIndexRoute;
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
     '/update': {
-      id: '/update'
-      path: '/update'
-      fullPath: '/update'
-      preLoaderRoute: typeof UpdateRouteImport
-      parentRoute: typeof rootRouteImport
-    }
+      id: '/update';
+      path: '/update';
+      fullPath: '/update';
+      preLoaderRoute: typeof UpdateRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/docs': {
-      id: '/docs'
-      path: '/docs'
-      fullPath: '/docs'
-      preLoaderRoute: typeof DocsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
+      id: '/docs';
+      path: '/docs';
+      fullPath: '/docs';
+      preLoaderRoute: typeof DocsRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/destroy': {
-      id: '/destroy'
-      path: '/destroy'
-      fullPath: '/destroy'
-      preLoaderRoute: typeof DestroyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
+      id: '/destroy';
+      path: '/destroy';
+      fullPath: '/destroy';
+      preLoaderRoute: typeof DestroyRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/deploy': {
-      id: '/deploy'
-      path: '/deploy'
-      fullPath: '/deploy'
-      preLoaderRoute: typeof DeployRouteImport
-      parentRoute: typeof rootRouteImport
-    }
+      id: '/deploy';
+      path: '/deploy';
+      fullPath: '/deploy';
+      preLoaderRoute: typeof DeployRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
+      id: '/';
+      path: '/';
+      fullPath: '/';
+      preLoaderRoute: typeof IndexRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/guides/': {
-      id: '/guides/'
-      path: '/guides'
-      fullPath: '/guides/'
-      preLoaderRoute: typeof GuidesIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
+      id: '/guides/';
+      path: '/guides';
+      fullPath: '/guides/';
+      preLoaderRoute: typeof GuidesIndexRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/guides/$slug': {
-      id: '/guides/$slug'
-      path: '/guides/$slug'
-      fullPath: '/guides/$slug'
-      preLoaderRoute: typeof GuidesSlugRouteImport
-      parentRoute: typeof rootRouteImport
-    }
+      id: '/guides/$slug';
+      path: '/guides/$slug';
+      fullPath: '/guides/$slug';
+      preLoaderRoute: typeof GuidesSlugRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
   }
 }
 
@@ -183,7 +169,7 @@ const rootRouteChildren: RootRouteChildren = {
   UpdateRoute: UpdateRoute,
   GuidesSlugRoute: GuidesSlugRoute,
   GuidesIndexRoute: GuidesIndexRoute,
-}
+};
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
-  ._addFileTypes<FileRouteTypes>()
+  ._addFileTypes<FileRouteTypes>();

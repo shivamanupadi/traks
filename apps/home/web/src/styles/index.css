@@ -11,7 +11,7 @@
 :root {
   --radius: 0.625rem;
   /* Mint palette */
-  --background: #F6F5F2;
+  --background: #f6f5f2;
   --foreground: #3d3b4f;
   --card: #ffffff;
   --card-foreground: #3d3b4f;
@@ -20,11 +20,11 @@
   /* Primary: mint green, ink text (AA 6.8:1) */
   --primary: #28e99f;
   --primary-foreground: #3d3b4f;
-  --secondary: #F2F1ED;
+  --secondary: #f2f1ed;
   --secondary-foreground: #3d3b4f;
-  --muted: #F2F1ED;
+  --muted: #f2f1ed;
   --muted-foreground: #6e6c7c;
-  --accent: #F2F1ED;
+  --accent: #f2f1ed;
   --accent-foreground: #3d3b4f;
   --destructive: #e5484d;
   --border: #e5e5eb;
@@ -41,7 +41,7 @@
   --sidebar-foreground: #3d3b4f;
   --sidebar-primary: #28e99f;
   --sidebar-primary-foreground: #3d3b4f;
-  --sidebar-accent: #F2F1ED;
+  --sidebar-accent: #f2f1ed;
   --sidebar-accent-foreground: #3d3b4f;
   --sidebar-border: #e5e5eb;
   --sidebar-ring: #3d3b4f;

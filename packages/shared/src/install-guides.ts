@@ -67,7 +67,11 @@ export const INSTALL_GUIDES: InstallGuide[] = [
       {
         title: 'Add the snippet to your <head>',
         body: 'Paste the tracker tag into the <head> of every page you want to track. It is under 1KB, deferred, and cookieless.',
-        code: { lang: 'html', filename: 'index.html', code: `<head>\n  ...\n  ${SNIPPET_TOKEN}\n</head>` },
+        code: {
+          lang: 'html',
+          filename: 'index.html',
+          code: `<head>\n  ...\n  ${SNIPPET_TOKEN}\n</head>`,
+        },
       },
       {
         title: 'Verify',
@@ -107,7 +111,11 @@ export const INSTALL_GUIDES: InstallGuide[] = [
       {
         title: 'Add the snippet to index.html',
         body: 'SPAs need no extra wiring: the tracker hooks history.pushState, so client-side route changes are tracked as pageviews.',
-        code: { lang: 'html', filename: 'index.html', code: `<head>\n  ...\n  ${SNIPPET_TOKEN}\n</head>` },
+        code: {
+          lang: 'html',
+          filename: 'index.html',
+          code: `<head>\n  ...\n  ${SNIPPET_TOKEN}\n</head>`,
+        },
       },
       {
         title: 'Hash-based routing?',
@@ -123,7 +131,11 @@ export const INSTALL_GUIDES: InstallGuide[] = [
       {
         title: 'Add the snippet to index.html',
         body: 'Router navigations (history mode) are tracked automatically.',
-        code: { lang: 'html', filename: 'index.html', code: `<head>\n  ...\n  ${SNIPPET_TOKEN}\n</head>` },
+        code: {
+          lang: 'html',
+          filename: 'index.html',
+          code: `<head>\n  ...\n  ${SNIPPET_TOKEN}\n</head>`,
+        },
       },
     ],
   },

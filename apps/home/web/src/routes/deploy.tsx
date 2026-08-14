@@ -232,7 +232,10 @@ function DeployWizard(): ReactElement {
     void fetch(`/api/deploy/instance/${sessionId}/zones`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ apiToken: connect.installerToken.trim(), accountId: connect.accountId }),
+      body: JSON.stringify({
+        apiToken: connect.installerToken.trim(),
+        accountId: connect.accountId,
+      }),
     })
       .then(r =>
         r.ok ? (r.json() as Promise<{ data: { id: string; name: string }[] }>) : Promise.reject(r)
@@ -423,8 +426,8 @@ function DeployWizard(): ReactElement {
               <>
                 Each link opens Cloudflare with the permissions pre-selected — click{' '}
                 <span className="font-medium text-[#6E6C7C]">Continue to summary</span>, then{' '}
-                <span className="font-medium text-[#6E6C7C]">Create Token</span>, and paste it
-                here. Tokens are used for this deploy only and never stored.
+                <span className="font-medium text-[#6E6C7C]">Create Token</span>, and paste it here.
+                Tokens are used for this deploy only and never stored.
               </>
             )}
           </p>
@@ -434,7 +437,10 @@ function DeployWizard(): ReactElement {
             {connect.existingInstalls.length > 0 && (
               <div className="space-y-3">
                 {connect.existingInstalls.map(inst => (
-                  <div key={inst.id} className="rounded-2xl border border-[#EEEEF2] bg-[#F6F5F2] p-4">
+                  <div
+                    key={inst.id}
+                    className="rounded-2xl border border-[#EEEEF2] bg-[#F6F5F2] p-4"
+                  >
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
                         <p className="text-[13px] font-semibold text-[#3D3B4F]">

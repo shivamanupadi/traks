@@ -704,7 +704,9 @@ function ManageGoalsModal({
 
         <DialogBody>
           <div className="space-y-1.5">
-            {goalsQ.isLoading && <p className="text-[12.5px] text-[#9B9590]">Loading your goals…</p>}
+            {goalsQ.isLoading && (
+              <p className="text-[12.5px] text-[#9B9590]">Loading your goals…</p>
+            )}
             {goalsQ.isError && (
               <p className="text-[12.5px] text-[#e07a5f]">Couldn&rsquo;t load your goals.</p>
             )}

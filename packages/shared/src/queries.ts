@@ -583,8 +583,7 @@ export function buildFunnelQuery(
     if (s.type === 'page') {
       return `(event_type = 'pageview' AND ${pathMatchSql('pathname', s.target)})`;
     }
-    const prop =
-      s.propKey && s.propValue ? ` AND ${propMatchSql(s.propKey, s.propValue)}` : '';
+    const prop = s.propKey && s.propValue ? ` AND ${propMatchSql(s.propKey, s.propValue)}` : '';
     return `(event_type = 'event' AND event_name = '${esc(s.target)}'${prop})`;
   });
   const stepCols = conds

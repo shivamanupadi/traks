@@ -639,7 +639,10 @@ export class SiteLiveStore extends DurableObject<unknown> {
     );
     const f = SiteLiveStore.filterSql(filters);
     const defKey = defs
-      .map(g => `${g.id}\u0001${g.type}\u0001${g.target}\u0001${g.propKey ?? ''}\u0001${g.propValue ?? ''}`)
+      .map(
+        g =>
+          `${g.id}\u0001${g.type}\u0001${g.target}\u0001${g.propKey ?? ''}\u0001${g.propValue ?? ''}`
+      )
       .join('\u0002');
     const memoKey = `goals:${SiteLiveStore.q(fromMs)}:${SiteLiveStore.q(toMs)}:${defKey}:${SiteLiveStore.filterKey(filters)}`;
     return this.memoized(memoKey, MEMO_TTL_MS, () => {

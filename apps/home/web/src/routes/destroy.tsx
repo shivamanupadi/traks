@@ -191,8 +191,7 @@ function DestroyWizard(): ReactElement {
           setRetainedReason(payload.retainedReason ?? null);
           connect.setExistingInstalls(prev =>
             prev.filter(
-              i =>
-                !(i.accountId === target.accountId && i.instanceName === target.instanceName)
+              i => !(i.accountId === target.accountId && i.instanceName === target.instanceName)
             )
           );
           setPhase('destroyed');
@@ -245,7 +244,8 @@ function DestroyWizard(): ReactElement {
                         <span className="font-mono">{inst.instanceName}</span>
                         <span className="font-normal text-[#9B99A6]">
                           {' '}
-                          in {connect.accounts.find(a => a.id === inst.accountId)?.name ?? 'account'}
+                          in{' '}
+                          {connect.accounts.find(a => a.id === inst.accountId)?.name ?? 'account'}
                         </span>
                       </p>
                       <p className="mt-0.5 truncate text-[12px] text-[#9B99A6]">

@@ -73,8 +73,8 @@ function GuidePage(): ReactElement {
         <div className="mt-12 rounded-2xl border border-[#EEEEF2] bg-white p-5 shadow-float">
           <p className="text-[14px] font-semibold text-[#3D3B4F]">Don&rsquo;t have Traks yet?</p>
           <p className="mt-1 text-[13px] leading-relaxed text-[#8A8580]">
-            Deploy your own instance into your Cloudflare account in about two minutes — free,
-            open, and your data never leaves your account.
+            Deploy your own instance into your Cloudflare account in about two minutes — free, open,
+            and your data never leaves your account.
           </p>
           <Link
             to="/deploy"

@@ -264,7 +264,11 @@ function UpdateWizard(): ReactElement {
     // Only verify a storage token when one is actually in play — a healthy
     // instance updates without one, and the server double-checks anyway.
     const pastedToken = catalogToken.trim().length >= 20;
-    if ((catalogRequired !== false || pastedToken) && catalogStatus !== 'ok' && !(await checkCatalog())) {
+    if (
+      (catalogRequired !== false || pastedToken) &&
+      catalogStatus !== 'ok' &&
+      !(await checkCatalog())
+    ) {
       setBusy(false);
       return;
     }
@@ -336,10 +340,8 @@ function UpdateWizard(): ReactElement {
             {versions.latest && (
               <>
                 {' '}
-                Latest release: <span className="font-semibold text-[#3D3B4F]">
-                  v{versions.latest}
-                </span>
-                .
+                Latest release:{' '}
+                <span className="font-semibold text-[#3D3B4F]">v{versions.latest}</span>.
               </>
             )}
           </p>
@@ -370,7 +372,8 @@ function UpdateWizard(): ReactElement {
                         <span className="font-mono">{inst.instanceName}</span>
                         <span className="font-normal text-[#9B99A6]">
                           {' '}
-                          in {connect.accounts.find(a => a.id === inst.accountId)?.name ?? 'account'}
+                          in{' '}
+                          {connect.accounts.find(a => a.id === inst.accountId)?.name ?? 'account'}
                         </span>
                       </p>
                       <p className="mt-0.5 truncate text-[12px] text-[#9B99A6]">

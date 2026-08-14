@@ -117,6 +117,7 @@ function PortalHeader(): React.ReactNode {
           <HeaderTab to="/portal/sites" alsoMatchPaths={['/portal/site/']}>
             Sites
           </HeaderTab>
+          <HeaderTab to="/portal/skill">Skill</HeaderTab>
           {current?.role === 'owner' && <HeaderTab to="/portal/members">Members</HeaderTab>}
           <HeaderTab to="/portal/settings">Settings</HeaderTab>
         </nav>

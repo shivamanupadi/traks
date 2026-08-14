@@ -985,8 +985,7 @@ const METRIC_COLORS: Record<ChartMetric, string> = {
   sessions: '#3D3B4F',
 };
 
-const EL_TABS = [
-  { key: 'events', label: 'Events' },
+const LINK_TABS = [
   { key: 'outbound', label: 'Outbound' },
   { key: 'download', label: 'Downloads' },
 ];
@@ -1566,14 +1565,10 @@ function SiteAnalyticsPage(): ReactElement {
   const [sourceTab, setSourceTab] = useState('referrers');
   const [locationTab, setLocationTab] = useState('country');
   const [deviceTab, setDeviceTab] = useState('browser');
-  // Merged panel: custom events + auto-tracked links share one card
-  const [elTab, setElTab] = useState('events');
+  // Links panel: outbound clicks and file downloads share one card
+  const [linkTab, setLinkTab] = useState('outbound');
   // Drill-down: when set, the Custom Events panel shows this event's props
   const [selectedEvent, setSelectedEvent] = useState<string | null>(null);
-  const handleElTab = useCallback((key: string): void => {
-    setElTab(key);
-    setSelectedEvent(null);
-  }, []);
 
   // Lazy-render sentinels for below-fold sections
   const [belowFoldRef, belowFoldVisible] = useLazyVisible();
@@ -1783,14 +1778,14 @@ function SiteAnalyticsPage(): ReactElement {
     tileOpts(
       ['links', 'outbound'],
       () => api.getLinks(siteId, period, 'outbound', filters),
-      belowFoldVisible && elTab === 'outbound'
+      belowFoldVisible && linkTab === 'outbound'
     )
   );
   const downloadsQ = useQuery(
     tileOpts(
       ['links', 'download'],
       () => api.getLinks(siteId, period, 'download', filters),
-      belowFoldVisible && elTab === 'download'
+      belowFoldVisible && linkTab === 'download'
     )
   );
   const goalStatsQ = useQuery(
@@ -1880,7 +1875,7 @@ function SiteAnalyticsPage(): ReactElement {
     ai: aiSourcesQ,
   };
   const sourceQ = sourceQueries[sourceTab];
-  const linkQ = elTab === 'download' ? downloadsQ : outboundQ;
+  const linkQ = linkTab === 'download' ? downloadsQ : outboundQ;
 
   const locationQueries: Record<string, typeof countriesQ> = {
     country: countriesQ,
@@ -2145,70 +2140,67 @@ function SiteAnalyticsPage(): ReactElement {
               />
             </div>
 
-            {/* Goal conversions + custom events / links */}
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            {/* Goal conversions + custom events + auto-tracked links, each
+                its own tile: events are business actions with a props
+                drill-down; outbound/downloads share one card as tabs since
+                they're the same shape (URL + clicks). */}
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
               <GoalsPanel
                 goals={(goalStatsQ.data as any)?.data}
                 isLoading={goalStatsQ.isLoading}
                 isError={goalStatsQ.isError}
                 onManage={canManage ? () => setGoalsOpen(true) : undefined}
               />
-              {elTab === 'events' ? (
-                selectedEvent === null ? (
-                  <PanelCard
-                    title="Custom Events"
-                    labelHeader="Event"
-                    valueHeader="Count"
-                    items={events?.map(e => ({ name: e.name, visitors: e.count }))}
-                    isLoading={eventsQ.isLoading}
-                    isError={eventsQ.isError}
-                    emptyText="No custom events yet"
-                    tabs={EL_TABS}
-                    activeTab={elTab}
-                    onTabChange={handleElTab}
-                    onItemClick={item => setSelectedEvent(item.name)}
-                  />
-                ) : (
-                  <PanelCard
-                    title={selectedEvent}
-                    labelHeader="Property"
-                    valueHeader="Events"
-                    items={(
-                      (eventPropsQ.data as any)?.data as
-                        | { key: string; value: string; events: number }[]
-                        | undefined
-                    )?.map(p => ({
-                      name: `${p.key}: ${p.value}`,
-                      visitors: p.events,
-                    }))}
-                    isLoading={eventPropsQ.isLoading}
-                    isError={eventPropsQ.isError}
-                    emptyText="No properties on this event"
-                    headerAction={
-                      <button
-                        onClick={() => setSelectedEvent(null)}
-                        className="ml-auto shrink-0 rounded-full bg-muted px-3 py-1 text-[11px] font-semibold text-foreground hover:bg-muted transition-colors cursor-pointer"
-                      >
-                        ← All events
-                      </button>
-                    }
-                  />
-                )
+              {selectedEvent === null ? (
+                <PanelCard
+                  title="Custom Events"
+                  labelHeader="Event"
+                  valueHeader="Count"
+                  items={events?.map(e => ({ name: e.name, visitors: e.count }))}
+                  isLoading={eventsQ.isLoading}
+                  isError={eventsQ.isError}
+                  emptyText="No custom events yet"
+                  onItemClick={item => setSelectedEvent(item.name)}
+                />
               ) : (
                 <PanelCard
-                  title="Links"
-                  labelHeader="URL"
-                  items={(linkQ.data as any)?.data}
-                  isLoading={linkQ.isLoading}
-                  isError={linkQ.isError}
-                  tabs={EL_TABS}
-                  activeTab={elTab}
-                  onTabChange={handleElTab}
-                  emptyText={
-                    elTab === 'outbound' ? 'No outbound clicks yet' : 'No file downloads yet'
+                  title={selectedEvent}
+                  labelHeader="Property"
+                  valueHeader="Events"
+                  items={(
+                    (eventPropsQ.data as any)?.data as
+                      | { key: string; value: string; events: number }[]
+                      | undefined
+                  )?.map(p => ({
+                    name: `${p.key}: ${p.value}`,
+                    visitors: p.events,
+                  }))}
+                  isLoading={eventPropsQ.isLoading}
+                  isError={eventPropsQ.isError}
+                  emptyText="No properties on this event"
+                  headerAction={
+                    <button
+                      onClick={() => setSelectedEvent(null)}
+                      className="ml-auto shrink-0 rounded-full bg-muted px-3 py-1 text-[11px] font-semibold text-foreground hover:bg-muted transition-colors cursor-pointer"
+                    >
+                      ← All events
+                    </button>
                   }
                 />
               )}
+              <PanelCard
+                title="Links"
+                labelHeader="URL"
+                items={(linkQ.data as any)?.data}
+                isLoading={linkQ.isLoading}
+                isError={linkQ.isError}
+                tabs={LINK_TABS}
+                activeTab={linkTab}
+                onTabChange={setLinkTab}
+                emptyText={
+                  linkTab === 'outbound' ? 'No outbound clicks yet' : 'No file downloads yet'
+                }
+              />
             </div>
 
             {/* Funnels */}

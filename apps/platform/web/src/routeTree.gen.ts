@@ -16,6 +16,7 @@ import { Route as PortalSkillRouteImport } from './routes/portal.skill'
 import { Route as PortalSitesRouteImport } from './routes/portal.sites'
 import { Route as PortalSettingsRouteImport } from './routes/portal.settings'
 import { Route as PortalMembersRouteImport } from './routes/portal.members'
+import { Route as PortalApiRouteImport } from './routes/portal.api'
 import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as PortalSiteSiteIdRouteImport } from './routes/portal.site.$siteId'
 
@@ -54,6 +55,11 @@ const PortalMembersRoute = PortalMembersRouteImport.update({
   path: '/members',
   getParentRoute: () => PortalRoute,
 } as any)
+const PortalApiRoute = PortalApiRouteImport.update({
+  id: '/api',
+  path: '/api',
+  getParentRoute: () => PortalRoute,
+} as any)
 const InviteTokenRoute = InviteTokenRouteImport.update({
   id: '/invite/$token',
   path: '/invite/$token',
@@ -72,6 +78,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/portal': typeof PortalRouteWithChildren
   '/invite/$token': typeof InviteTokenRoute
+  '/portal/api': typeof PortalApiRoute
   '/portal/members': typeof PortalMembersRoute
   '/portal/settings': typeof PortalSettingsRoute
   '/portal/sites': typeof PortalSitesRoute
@@ -83,6 +90,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/portal': typeof PortalRouteWithChildren
   '/invite/$token': typeof InviteTokenRoute
+  '/portal/api': typeof PortalApiRoute
   '/portal/members': typeof PortalMembersRoute
   '/portal/settings': typeof PortalSettingsRoute
   '/portal/sites': typeof PortalSitesRoute
@@ -95,6 +103,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/portal': typeof PortalRouteWithChildren
   '/invite/$token': typeof InviteTokenRoute
+  '/portal/api': typeof PortalApiRoute
   '/portal/members': typeof PortalMembersRoute
   '/portal/settings': typeof PortalSettingsRoute
   '/portal/sites': typeof PortalSitesRoute
@@ -108,6 +117,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/portal'
     | '/invite/$token'
+    | '/portal/api'
     | '/portal/members'
     | '/portal/settings'
     | '/portal/sites'
@@ -119,6 +129,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/portal'
     | '/invite/$token'
+    | '/portal/api'
     | '/portal/members'
     | '/portal/settings'
     | '/portal/sites'
@@ -130,6 +141,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/portal'
     | '/invite/$token'
+    | '/portal/api'
     | '/portal/members'
     | '/portal/settings'
     | '/portal/sites'
@@ -195,6 +207,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PortalMembersRouteImport
       parentRoute: typeof PortalRoute
     }
+    '/portal/api': {
+      id: '/portal/api'
+      path: '/api'
+      fullPath: '/portal/api'
+      preLoaderRoute: typeof PortalApiRouteImport
+      parentRoute: typeof PortalRoute
+    }
     '/invite/$token': {
       id: '/invite/$token'
       path: '/invite/$token'
@@ -213,6 +232,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface PortalRouteChildren {
+  PortalApiRoute: typeof PortalApiRoute
   PortalMembersRoute: typeof PortalMembersRoute
   PortalSettingsRoute: typeof PortalSettingsRoute
   PortalSitesRoute: typeof PortalSitesRoute
@@ -221,6 +241,7 @@ interface PortalRouteChildren {
 }
 
 const PortalRouteChildren: PortalRouteChildren = {
+  PortalApiRoute: PortalApiRoute,
   PortalMembersRoute: PortalMembersRoute,
   PortalSettingsRoute: PortalSettingsRoute,
   PortalSitesRoute: PortalSitesRoute,

@@ -12,7 +12,6 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { AgentAccessCard } from '@/components/settings/AgentAccessCard';
 import { TimezoneSelect } from '@/components/ui/timezone-select';
 import { api, ApiError } from '@/lib/api';
 import { FieldError } from '@/components/ui/field-error';
@@ -142,8 +141,6 @@ function SettingsPage(): ReactElement {
             </div>
           </section>
         )}
-
-        <AgentAccessCard />
       </div>
     </main>
   );

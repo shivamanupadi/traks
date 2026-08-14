@@ -54,10 +54,10 @@ function SkillPage(): ReactElement {
             site&rsquo;s code and configure goals and funnels here, in one task. Mint the API token
             in{' '}
             <Link
-              to="/portal/settings"
+              to="/portal/api"
               className="font-semibold text-[#3D3B4F] underline-offset-2 hover:underline"
             >
-              Settings
+              the API tab
             </Link>
             .
           </p>

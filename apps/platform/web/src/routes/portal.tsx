@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate, useLocation, Link, Outlet } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { User, ChevronDown, LogOut, ArrowUpCircle, X, Settings, Bot } from 'lucide-react';
+import { User, ChevronDown, LogOut, ArrowUpCircle, X, Bot } from 'lucide-react';
 import { authClient } from '@/lib/auth-client';
 import { api } from '@/lib/api';
 import { useInstanceConfig, useLatestVersion } from '@/lib/config';
@@ -113,6 +113,7 @@ function PortalHeader(): React.ReactNode {
               Sites
             </HeaderTab>
             <HeaderTab to="/portal/skill">Skill</HeaderTab>
+            <HeaderTab to="/portal/api">API</HeaderTab>
             {current?.role === 'owner' && <HeaderTab to="/portal/members">Members</HeaderTab>}
             <HeaderTab to="/portal/settings">Settings</HeaderTab>
           </nav>
@@ -290,14 +291,7 @@ function UserMenu(): React.ReactNode {
         <DropdownMenuSeparator />
 
         <DropdownMenuItem
-          onClick={() => void navigate({ to: '/portal/settings' })}
-          className="flex items-center gap-3 px-4 py-2.5 cursor-pointer"
-        >
-          <Settings className="w-4 h-4 text-[#9B9590]" />
-          Settings
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={() => void navigate({ to: '/portal/skill' })}
+          onClick={() => void navigate({ to: '/portal/api' })}
           className="flex items-center gap-3 px-4 py-2.5 cursor-pointer"
         >
           <Bot className="w-4 h-4 text-[#9B9590]" />
@@ -330,7 +324,7 @@ function UserMenu(): React.ReactNode {
                 <button
                   onClick={() => void navigator.clipboard.writeText(config.deployInstanceId!)}
                   title="Copy instance id"
-                  className="cursor-pointer text-left hover:text-[#3D3B4F] transition-colors"
+                  className="cursor-pointer break-all text-left hover:text-[#3D3B4F] transition-colors"
                 >
                   instance {config.deployInstanceId} <span className="text-[#B5B0AA]">⧉</span>
                 </button>

@@ -71,7 +71,7 @@ async function getSite(c: AppContext, siteId: string, userId: string): Promise<S
   const [result] = await db
     .select({ siteId: sites.id, timezone: sites.timezone })
     .from(sites)
-    .where(and(eq(sites.id, siteId), siteAccessFilter(db, userId)))
+    .where(and(eq(sites.id, siteId), siteAccessFilter(db, userId, c.get('tokenWorkspaceId'))))
     .limit(1);
 
   return result ?? null;

@@ -20,11 +20,19 @@ function memberWorkspaceIds(db: DrizzleD1Database, userId: string) {
  * rows would mean removing someone from a workspace never revoked access to
  * the sites they happened to create there.
  */
-export function siteAccessFilter(db: DrizzleD1Database, userId: string): SQL {
-  return or(
+export function siteAccessFilter(
+  db: DrizzleD1Database,
+  userId: string,
+  scopeWorkspaceId?: string
+): SQL {
+  const base = or(
     and(eq(sites.userId, userId), isNull(sites.workspaceId)),
     inArray(sites.workspaceId, memberWorkspaceIds(db, userId))
   )!;
+  // A workspace-bound API token sees exactly one workspace's sites — never
+  // the owner's other workspaces, and never legacy un-workspaced rows.
+  if (!scopeWorkspaceId) return base;
+  return and(eq(sites.workspaceId, scopeWorkspaceId), base)!;
 }
 
 type SiteRow = typeof sites.$inferSelect;
@@ -33,12 +41,13 @@ type SiteRow = typeof sites.$inferSelect;
 export async function getAccessibleSite(
   db: DrizzleD1Database,
   userId: string,
-  siteId: string
+  siteId: string,
+  scopeWorkspaceId?: string
 ): Promise<SiteRow | null> {
   const [site] = await db
     .select()
     .from(sites)
-    .where(and(eq(sites.id, siteId), siteAccessFilter(db, userId)))
+    .where(and(eq(sites.id, siteId), siteAccessFilter(db, userId, scopeWorkspaceId)))
     .limit(1);
   return site ?? null;
 }
@@ -51,9 +60,10 @@ export async function getAccessibleSite(
 export async function getSiteAccess(
   db: DrizzleD1Database,
   userId: string,
-  siteId: string
+  siteId: string,
+  scopeWorkspaceId?: string
 ): Promise<{ site: SiteRow; role: 'owner' | 'member' } | null> {
-  const site = await getAccessibleSite(db, userId, siteId);
+  const site = await getAccessibleSite(db, userId, siteId, scopeWorkspaceId);
   if (!site) return null;
   // Legacy un-workspaced row: its creator is effectively its owner.
   if (!site.workspaceId) return { site, role: 'owner' };
@@ -67,8 +77,12 @@ export async function getSiteAccess(
 
 /** Like siteAccessFilter, but only sites the user may MANAGE: workspaces
  *  where they hold the owner role, plus legacy un-workspaced creations. */
-export function siteManageFilter(db: DrizzleD1Database, userId: string): SQL {
-  return or(
+export function siteManageFilter(
+  db: DrizzleD1Database,
+  userId: string,
+  scopeWorkspaceId?: string
+): SQL {
+  const base = or(
     and(eq(sites.userId, userId), isNull(sites.workspaceId)),
     inArray(
       sites.workspaceId,
@@ -78,6 +92,8 @@ export function siteManageFilter(db: DrizzleD1Database, userId: string): SQL {
         .where(and(eq(workspaceMembers.userId, userId), eq(workspaceMembers.role, 'owner')))
     )
   )!;
+  if (!scopeWorkspaceId) return base;
+  return and(eq(sites.workspaceId, scopeWorkspaceId), base)!;
 }
 
 type MembershipRow = typeof workspaceMembers.$inferSelect;

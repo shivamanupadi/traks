@@ -13,7 +13,7 @@ import { workspacesRoute } from './routes/workspaces';
 import { invitationsRoute } from './routes/invitations';
 import { tokensRoute } from './routes/tokens';
 import { mcpHandler } from './routes/mcp';
-import { requireAuth } from './middleware/auth';
+import { requireAuth, sessionOnly } from './middleware/auth';
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -106,6 +106,14 @@ app.get('/api/config', c =>
     deployInstanceId: c.env.DEPLOY_INSTANCE_ID,
   })
 );
+
+// Workspace/member management and token minting are session-only surfaces:
+// an API token must not manage workspaces, invite members, or mint tokens.
+app.use('/api/workspaces/*', sessionOnly);
+app.use('/api/invitations/*', sessionOnly);
+app.use('/api/me', sessionOnly);
+app.use('/api/tokens', sessionOnly);
+app.use('/api/tokens/*', sessionOnly);
 
 // Routes - chained for Hono RPC type inference
 const routes = app

@@ -34,5 +34,7 @@ export type Variables = {
   userEmail?: string;
   /** Set when the request authenticated with a personal API token. */
   tokenScope?: 'read' | 'manage';
+  /** The token's workspace binding — site access is constrained to it. */
+  tokenWorkspaceId?: string;
   db?: import('drizzle-orm/d1').DrizzleD1Database;
 };

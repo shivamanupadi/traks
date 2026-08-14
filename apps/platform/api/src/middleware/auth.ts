@@ -5,6 +5,18 @@ import { resolveToken, TOKEN_PREFIX } from '../lib/tokens';
 import { apiTokens } from '../db/schema';
 import type { Bindings, Variables } from '../types';
 
+/** For routes that must never be driven by an API token (workspace/member
+ *  management, token minting): reject bearer-token requests outright. */
+export async function sessionOnly(
+  c: Context<{ Bindings: Bindings; Variables: Variables }>,
+  next: Next
+): Promise<Response | void> {
+  if (c.req.header('authorization')?.startsWith(`Bearer ${TOKEN_PREFIX}`)) {
+    return c.json({ error: 'Not available to API tokens' }, 403);
+  }
+  await next();
+}
+
 /**
  * Session auth (dashboard cookie) or a personal API token
  * (`Authorization: Bearer traks_pat_…` — coding agents and the MCP
@@ -26,6 +38,7 @@ export async function requireAuth(
     }
     c.set('userId', token.userId);
     c.set('tokenScope', token.scope);
+    c.set('tokenWorkspaceId', token.workspaceId ?? undefined);
     // Touch lastUsedAt out-of-band; per-request precision isn't needed.
     try {
       c.executionCtx.waitUntil(

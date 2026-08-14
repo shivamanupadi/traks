@@ -52,9 +52,10 @@ async function checkManage(
   db: NonNullable<Variables['db']>,
   userId: string,
   siteId: string,
-  action: 'update' | 'delete' | 'configure'
+  action: 'update' | 'delete' | 'configure',
+  scopeWorkspaceId?: string
 ): Promise<ManageCheck> {
-  const access = await getSiteAccess(db, userId, siteId);
+  const access = await getSiteAccess(db, userId, siteId, scopeWorkspaceId);
   if (!access) return { ok: false, status: 404, error: 'Not found' };
   if (!roleAllows(access.role, { site: [action] })) {
     return { ok: false, status: 403, error: 'Your workspace role does not allow this change' };
@@ -70,6 +71,8 @@ export const sitesRoute = app
     const db = c.get('db')!;
 
     if (workspaceId) {
+      const tokenWs = c.get('tokenWorkspaceId');
+      if (tokenWs && workspaceId !== tokenWs) return c.json({ error: 'Not found' }, 404);
       const membership = await getMembership(db, workspaceId, userId);
       if (!membership) return c.json({ error: 'Not found' }, 404);
       const workspaceSites = await db
@@ -79,7 +82,7 @@ export const sitesRoute = app
       return c.json({ data: workspaceSites });
     }
 
-    const userSites = await db.select().from(sites).where(siteAccessFilter(db, userId));
+    const userSites = await db.select().from(sites).where(siteAccessFilter(db, userId, c.get('tokenWorkspaceId')));
 
     return c.json({ data: userSites });
   })
@@ -94,6 +97,11 @@ export const sitesRoute = app
     // the user's default. Every new site lands in a workspace, and only
     // workspace OWNERS create sites — members are view-only.
     let workspaceId = body.workspaceId;
+    const tokenWs = c.get('tokenWorkspaceId');
+    if (tokenWs) {
+      if (workspaceId && workspaceId !== tokenWs) return c.json({ error: 'Not found' }, 404);
+      workspaceId = tokenWs;
+    }
     if (!workspaceId) {
       const defaultWorkspaceId = await ensureDefaultWorkspace(db, userId);
       if (!defaultWorkspaceId) return c.json({ error: 'You are not in any workspace' }, 403);
@@ -168,6 +176,8 @@ export const sitesRoute = app
     const db = c.get('db')!;
 
     if (workspaceId) {
+      const tokenWs = c.get('tokenWorkspaceId');
+      if (tokenWs && workspaceId !== tokenWs) return c.json({ error: 'Not found' }, 404);
       const membership = await getMembership(db, workspaceId, userId);
       if (!membership) return c.json({ error: 'Not found' }, 404);
       if (!roleAllows(membership.role, { site: ['update'] })) {
@@ -183,7 +193,7 @@ export const sitesRoute = app
     await db
       .update(sites)
       .set({ timezone, updatedAt: new Date() })
-      .where(siteManageFilter(db, userId));
+      .where(siteManageFilter(db, userId, c.get('tokenWorkspaceId')));
 
     return c.json({ data: { timezone } });
   })
@@ -195,7 +205,7 @@ export const sitesRoute = app
     const siteId = c.req.param('id');
     const db = c.get('db')!;
 
-    const access = await getSiteAccess(db, userId, siteId);
+    const access = await getSiteAccess(db, userId, siteId, c.get('tokenWorkspaceId'));
     if (!access) return c.json({ error: 'Not found' }, 404);
 
     // The ingest key is withheld from view-only members: it is a write
@@ -214,7 +224,7 @@ export const sitesRoute = app
     const body = c.req.valid('json');
     const db = c.get('db')!;
 
-    const manageSite = await checkManage(db, userId, siteId, 'update');
+    const manageSite = await checkManage(db, userId, siteId, 'update', c.get('tokenWorkspaceId'));
     if (!manageSite.ok) return c.json({ error: manageSite.error }, manageSite.status);
 
     const [before] = await db
@@ -256,7 +266,7 @@ export const sitesRoute = app
     const siteId = c.req.param('id');
     const db = c.get('db')!;
 
-    if (!(await getAccessibleSite(db, userId, siteId))) return c.json({ error: 'Not found' }, 404);
+    if (!(await getAccessibleSite(db, userId, siteId, c.get('tokenWorkspaceId')))) return c.json({ error: 'Not found' }, 404);
 
     const siteGoals = await db.select().from(goals).where(eq(goals.siteId, siteId));
     return c.json({ data: siteGoals });
@@ -269,7 +279,7 @@ export const sitesRoute = app
     const body = c.req.valid('json');
     const db = c.get('db')!;
 
-    const manage = await checkManage(db, userId, siteId, 'configure');
+    const manage = await checkManage(db, userId, siteId, 'configure', c.get('tokenWorkspaceId'));
     if (!manage.ok) return c.json({ error: manage.error }, manage.status);
 
     // Bound per-site goal count (query cost scales with the IN list).
@@ -298,7 +308,7 @@ export const sitesRoute = app
     const body = c.req.valid('json');
     const db = c.get('db')!;
 
-    const manage = await checkManage(db, userId, siteId, 'configure');
+    const manage = await checkManage(db, userId, siteId, 'configure', c.get('tokenWorkspaceId'));
     if (!manage.ok) return c.json({ error: manage.error }, manage.status);
 
     const [existing] = await db
@@ -328,7 +338,7 @@ export const sitesRoute = app
     const goalId = c.req.param('goalId');
     const db = c.get('db')!;
 
-    const manage = await checkManage(db, userId, siteId, 'configure');
+    const manage = await checkManage(db, userId, siteId, 'configure', c.get('tokenWorkspaceId'));
     if (!manage.ok) return c.json({ error: manage.error }, manage.status);
 
     const [goal] = await db
@@ -347,7 +357,7 @@ export const sitesRoute = app
     const siteId = c.req.param('id');
     const db = c.get('db')!;
 
-    if (!(await getAccessibleSite(db, userId, siteId))) return c.json({ error: 'Not found' }, 404);
+    if (!(await getAccessibleSite(db, userId, siteId, c.get('tokenWorkspaceId')))) return c.json({ error: 'Not found' }, 404);
 
     const siteSegments = await db.select().from(segments).where(eq(segments.siteId, siteId));
     return c.json({ data: siteSegments });
@@ -360,7 +370,7 @@ export const sitesRoute = app
     const body = c.req.valid('json');
     const db = c.get('db')!;
 
-    const manage = await checkManage(db, userId, siteId, 'configure');
+    const manage = await checkManage(db, userId, siteId, 'configure', c.get('tokenWorkspaceId'));
     if (!manage.ok) return c.json({ error: manage.error }, manage.status);
 
     const existing = await db
@@ -387,7 +397,7 @@ export const sitesRoute = app
     const segmentId = c.req.param('segmentId');
     const db = c.get('db')!;
 
-    const manage = await checkManage(db, userId, siteId, 'configure');
+    const manage = await checkManage(db, userId, siteId, 'configure', c.get('tokenWorkspaceId'));
     if (!manage.ok) return c.json({ error: manage.error }, manage.status);
 
     const [segment] = await db
@@ -406,7 +416,7 @@ export const sitesRoute = app
     const siteId = c.req.param('id');
     const db = c.get('db')!;
 
-    if (!(await getAccessibleSite(db, userId, siteId))) return c.json({ error: 'Not found' }, 404);
+    if (!(await getAccessibleSite(db, userId, siteId, c.get('tokenWorkspaceId')))) return c.json({ error: 'Not found' }, 404);
 
     const siteFunnels = await db.select().from(funnels).where(eq(funnels.siteId, siteId));
     return c.json({ data: siteFunnels });
@@ -419,7 +429,7 @@ export const sitesRoute = app
     const body = c.req.valid('json');
     const db = c.get('db')!;
 
-    const manage = await checkManage(db, userId, siteId, 'configure');
+    const manage = await checkManage(db, userId, siteId, 'configure', c.get('tokenWorkspaceId'));
     if (!manage.ok) return c.json({ error: manage.error }, manage.status);
 
     // Bound per-site funnel count (each funnel stat render is a paid R2 SQL scan).
@@ -448,7 +458,7 @@ export const sitesRoute = app
     const body = c.req.valid('json');
     const db = c.get('db')!;
 
-    const manage = await checkManage(db, userId, siteId, 'configure');
+    const manage = await checkManage(db, userId, siteId, 'configure', c.get('tokenWorkspaceId'));
     if (!manage.ok) return c.json({ error: manage.error }, manage.status);
 
     const [existing] = await db
@@ -472,7 +482,7 @@ export const sitesRoute = app
     const funnelId = c.req.param('funnelId');
     const db = c.get('db')!;
 
-    const manage = await checkManage(db, userId, siteId, 'configure');
+    const manage = await checkManage(db, userId, siteId, 'configure', c.get('tokenWorkspaceId'));
     if (!manage.ok) return c.json({ error: manage.error }, manage.status);
 
     const [funnel] = await db
@@ -491,7 +501,7 @@ export const sitesRoute = app
     const siteId = c.req.param('id');
     const db = c.get('db')!;
 
-    const manage = await checkManage(db, userId, siteId, 'delete');
+    const manage = await checkManage(db, userId, siteId, 'delete', c.get('tokenWorkspaceId'));
     if (!manage.ok) return c.json({ error: manage.error }, manage.status);
 
     await db.delete(sites).where(eq(sites.id, siteId));

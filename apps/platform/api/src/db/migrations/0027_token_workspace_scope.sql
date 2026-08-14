@@ -1,0 +1,1 @@
+ALTER TABLE `api_tokens` ADD `workspace_id` text REFERENCES workspaces(id);

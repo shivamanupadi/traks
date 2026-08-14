@@ -5,18 +5,21 @@ import { Bot, Check, Copy, KeyRound, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { api } from '@/lib/api';
+import { useWorkspace } from '@/lib/workspace';
 
 interface TokenRow {
   id: string;
   name: string;
   suffix: string;
   scope: 'read' | 'manage';
+  workspaceId: string | null;
   createdAt: string | null;
   lastUsedAt: string | null;
 }
 
 export function AgentAccessCard(): ReactElement {
   const queryClient = useQueryClient();
+  const { current, workspaces } = useWorkspace();
   const origin = window.location.origin;
 
   const [name, setName] = useState('');
@@ -37,7 +40,8 @@ export function AgentAccessCard(): ReactElement {
   };
 
   const createToken = useMutation({
-    mutationFn: () => api.createToken({ name: name.trim(), scope }),
+    mutationFn: () =>
+      api.createToken({ name: name.trim(), scope, workspaceId: current!.id }),
     onSuccess: (result: any) => {
       setCreatedSecret(result.secret as string);
       setName('');
@@ -76,8 +80,10 @@ export function AgentAccessCard(): ReactElement {
               Let a coding agent run your analytics
             </p>
             <p className="mt-0.5 text-[12px] text-[#9B9590]">
-              Mint an API token, connect the MCP server, and hand your agent the skill — it can
-              instrument your site&rsquo;s code and configure goals and funnels here in one go.
+              Tokens are scoped to the current workspace
+              {current ? ` (${current.name})` : ''} — an agent holding one can never see your
+              other workspaces. Connect the MCP server, hand over the skill, and it configures
+              goals and funnels while instrumenting your site&rsquo;s code.
             </p>
           </div>
         </div>
@@ -95,6 +101,9 @@ export function AgentAccessCard(): ReactElement {
                   {t.name}
                   <span className="rounded-full bg-muted px-2 py-0.5 font-mono text-[10px] text-[#9B9590]">
                     …{t.suffix} · {t.scope}
+                  </span>
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-[#9B9590]">
+                    {workspaces.find(w => w.id === t.workspaceId)?.name ?? 'workspace'}
                   </span>
                 </p>
                 <p className="mt-0.5 truncate text-[11px] text-[#9B9590]">
@@ -163,7 +172,7 @@ export function AgentAccessCard(): ReactElement {
           </select>
           <Button
             onClick={() => createToken.mutate()}
-            disabled={name.trim().length === 0}
+            disabled={name.trim().length === 0 || !current}
             isLoading={createToken.isPending}
             className="shrink-0 text-[13px] px-4"
           >

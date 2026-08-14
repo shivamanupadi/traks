@@ -190,6 +190,13 @@
       "when": 1786697601158,
       "tag": "0026_api_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "6",
+      "when": 1786699484900,
+      "tag": "0027_token_workspace_scope",
+      "breakpoints": true
     }
   ]
 }

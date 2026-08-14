@@ -290,7 +290,11 @@ export const api = {
     return res.json();
   },
 
-  async createToken(data: { name: string; scope: 'read' | 'manage' }): Promise<any> {
+  async createToken(data: {
+    name: string;
+    scope: 'read' | 'manage';
+    workspaceId: string;
+  }): Promise<any> {
     const res = await client.api.tokens.$post({ json: data });
     await assertOk(res);
     return res.json();

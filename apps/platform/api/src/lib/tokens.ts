@@ -23,6 +23,7 @@ export interface ResolvedToken {
   id: string;
   userId: string;
   scope: 'read' | 'manage';
+  workspaceId: string | null;
 }
 
 /** Look up a presented secret; null when unknown. High-entropy secrets make
@@ -34,7 +35,12 @@ export async function resolveToken(
   if (!secret.startsWith(TOKEN_PREFIX)) return null;
   const tokenHash = await hashToken(secret);
   const [row] = await db
-    .select({ id: apiTokens.id, userId: apiTokens.userId, scope: apiTokens.scope })
+    .select({
+      id: apiTokens.id,
+      userId: apiTokens.userId,
+      scope: apiTokens.scope,
+      workspaceId: apiTokens.workspaceId,
+    })
     .from(apiTokens)
     .where(eq(apiTokens.tokenHash, tokenHash));
   return row ?? null;

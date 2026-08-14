@@ -211,6 +211,9 @@ export const apiTokens = sqliteTable(
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
+    /** The single workspace this token can reach. Tokens never span the
+     *  owner's other workspaces — mint one per workspace instead. */
+    workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'cascade' }),
     /** SHA-256 hex of the secret — the secret itself is shown exactly once. */
     tokenHash: text('token_hash').notNull(),
     /** Last 4 characters of the secret, for display in the token list. */

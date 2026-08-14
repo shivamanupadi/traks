@@ -2,10 +2,11 @@ import type { ReactElement } from 'react';
 import { Link } from '@tanstack/react-router';
 import { motion } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
-import { Globe, ArrowRight } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import type { TimeseriesPoint } from '@traks/shared';
 import { api } from '@/lib/api';
 import { SiteTileStats } from './SiteTileStats';
+import { SiteFavicon } from './SiteFavicon';
 
 export interface TileColor {
   /** Deep companion: icon, sparkline stroke, arrow. */
@@ -77,7 +78,7 @@ export function SiteTile({
   isNew,
   batchIndex,
 }: {
-  site: { id: string; name: string; domain: string };
+  site: { id: string; name: string; domain: string; favicon?: string | null };
   color: TileColor;
   stats: { visitors: number; pageviews: number; sessions: number } | undefined;
   isStatsLoading: boolean;
@@ -114,7 +115,7 @@ export function SiteTile({
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] transition-transform duration-300 group-hover:scale-110"
             style={{ backgroundColor: `${color.pastel}40` }}
           >
-            <Globe className="h-[18px] w-[18px]" style={{ color: color.deep }} strokeWidth={1.7} />
+            <SiteFavicon favicon={site.favicon} size={18} fallbackStyle={{ color: color.deep }} />
           </div>
           <div className="min-w-0 flex-1">
             <h3 className="truncate text-[15px] font-bold leading-tight text-[#3D3B4F]">

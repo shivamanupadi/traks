@@ -7,6 +7,12 @@ export interface PanelItem {
   visitors: number;
   pageviews?: number;
   percentage?: number;
+  /** Display text when it differs from `name` (which stays the filter value). */
+  label?: string;
+  /** Small leading element (e.g. a country flag). */
+  icon?: ReactElement;
+  /** Row key when `name` alone may not be unique (e.g. city + country). */
+  id?: string;
 }
 
 export interface PanelTab {
@@ -155,22 +161,24 @@ export function PanelCard({
               (totalVisitors > 0 ? Math.round((item.visitors / totalVisitors) * 100) : 0);
             const clickable = Boolean(onItemClick && item.name);
             const Row = clickable ? 'button' : 'div';
+            const display = item.label ?? item.name;
             return (
               <Row
-                key={item.name || '(none)'}
+                key={item.id ?? (item.name || '(none)')}
                 onClick={clickable ? () => onItemClick!(item) : undefined}
                 className={cn(
                   'relative flex h-[30px] w-full items-center justify-between rounded-md px-2.5',
                   clickable && 'cursor-pointer transition-colors hover:bg-muted'
                 )}
-                title={clickable ? `Filter by ${item.name}` : undefined}
+                title={clickable ? `Filter by ${display}` : undefined}
               >
                 <div
                   className="absolute inset-y-0 left-0 rounded-md bg-[#3D3B4F]/[0.05]"
                   style={{ width: `${(item.visitors / maxVisitors) * 100}%` }}
                 />
-                <span className="relative z-10 truncate pr-4 text-[13px] text-[#3D3B4F]">
-                  {item.name || '(none)'}
+                <span className="relative z-10 flex min-w-0 items-center gap-2 pr-4">
+                  {item.icon && <span className="flex shrink-0 items-center">{item.icon}</span>}
+                  <span className="truncate text-[13px] text-[#3D3B4F]">{display || '(none)'}</span>
                 </span>
                 <div className="relative z-10 flex shrink-0 gap-5 text-[13px] font-medium tabular-nums text-[#3D3B4F]">
                   <span className="w-12 text-right">{formatNumber(item.visitors)}</span>

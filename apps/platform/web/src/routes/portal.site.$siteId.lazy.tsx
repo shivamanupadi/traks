@@ -51,7 +51,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { TimeseriesChart } from '@/components/analytics/TimeseriesChart';
-import { PanelCard } from '@/components/analytics/PanelCard';
+import { PanelCard, type PanelItem } from '@/components/analytics/PanelCard';
+import { CountryFlag, countryName } from '@/components/analytics/CountryFlag';
+import { DimensionIcon } from '@/components/analytics/DimensionIcon';
 import { GoalsPanel } from '@/components/analytics/GoalsPanel';
 import { FunnelsPanel } from '@/components/analytics/FunnelsPanel';
 import { PeriodPicker } from '@/components/layout/PeriodPicker';
@@ -1170,7 +1172,9 @@ function FilterChips({
           className="flex items-center gap-1.5 rounded-full bg-muted py-1 pl-3 pr-1.5 text-[12px] text-[#3D3B4F]"
         >
           <span className="text-[#9B9590]">{FILTER_LABELS[key]}</span>
-          <span className="max-w-[180px] truncate font-medium">{value}</span>
+          <span className="max-w-[180px] truncate font-medium">
+            {key === 'country' ? countryName(value) : value}
+          </span>
           <button
             onClick={() => onRemove(key)}
             className="flex h-4.5 w-4.5 items-center justify-center rounded-full hover:bg-[#E4E4E9] transition-colors cursor-pointer"
@@ -1303,7 +1307,10 @@ function SegmentsMenu({
                   <span className="block truncate text-[11px] text-[#9B9590]">
                     {Object.entries(segment.filters)
                       .filter(([, v]) => v)
-                      .map(([k, v]) => `${FILTER_LABELS[k as keyof AnalyticsFilters] ?? k}: ${v}`)
+                      .map(
+                        ([k, v]) =>
+                          `${FILTER_LABELS[k as keyof AnalyticsFilters] ?? k}: ${k === 'country' ? countryName(v) : v}`
+                      )
                       .join(' · ')}
                   </span>
                 </span>
@@ -1831,6 +1838,21 @@ function SiteAnalyticsPage(): ReactElement {
     city: citiesQ,
   };
   const locationQ = locationQueries[locationTab];
+  // Location rows keep `name` as the raw filter value (ISO code for the
+  // country tab) and get a flag + readable label for display.
+  const locationItems: PanelItem[] | undefined = (
+    (locationQ.data as any)?.data as
+      | { name: string; country?: string; visitors: number }[]
+      | undefined
+  )?.map(r => {
+    const cc = locationTab === 'country' ? r.name : r.country;
+    return {
+      ...r,
+      label: locationTab === 'country' ? countryName(r.name) : r.name,
+      icon: <CountryFlag code={cc} />,
+      id: `${cc ?? ''}|${r.name}`,
+    };
+  });
   const deviceQueries: Record<string, typeof browsersQ> = {
     browser: browsersQ,
     os: osQ,
@@ -1838,6 +1860,12 @@ function SiteAnalyticsPage(): ReactElement {
     size: screenSizeQ,
   };
   const deviceQ = deviceQueries[deviceTab];
+  const deviceItems: PanelItem[] | undefined = (
+    (deviceQ.data as any)?.data as PanelItem[] | undefined
+  )?.map(r => ({
+    ...r,
+    icon: <DimensionIcon kind={deviceTab as 'browser' | 'os' | 'device' | 'size'} name={r.name} />,
+  }));
 
   const events = (eventsQ.data as any)?.data as
     | { name: string; count: number; totalValue: number }[]
@@ -1856,7 +1884,15 @@ function SiteAnalyticsPage(): ReactElement {
               <ArrowLeft className="w-4 h-4" />
             </Link>
             <div>
-              <h1 className="text-[22px] font-bold leading-tight text-[#3D3B4F] tracking-[-0.02em]">
+              <h1 className="flex items-center gap-2.5 text-[22px] font-bold leading-tight text-[#3D3B4F] tracking-[-0.02em]">
+                {site?.favicon && (
+                  <img
+                    src={site.favicon}
+                    alt=""
+                    draggable={false}
+                    className="h-[22px] w-[22px] rounded-[5px] object-contain"
+                  />
+                )}
                 {site?.name || 'Analytics'}
               </h1>
               <div className="mt-1 flex items-center gap-2.5 text-[12.5px]">
@@ -1990,7 +2026,7 @@ function SiteAnalyticsPage(): ReactElement {
                       ? 'Region'
                       : 'City'
                 }
-                items={(locationQ.data as any)?.data}
+                items={locationItems}
                 isLoading={locationQ.isLoading}
                 isError={locationQ.isError}
                 tabs={[
@@ -2022,7 +2058,7 @@ function SiteAnalyticsPage(): ReactElement {
                         ? 'Device'
                         : 'Size'
                 }
-                items={(deviceQ.data as any)?.data}
+                items={deviceItems}
                 showPercentage
                 isLoading={deviceQ.isLoading}
                 isError={deviceQ.isError}

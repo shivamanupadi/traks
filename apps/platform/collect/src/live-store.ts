@@ -496,19 +496,22 @@ export class SiteLiveStore extends DurableObject<unknown> {
     const orderBy = dimension === 'pathname' ? 'pageviews' : 'visitors';
     const boundedLimit = Math.max(1, Math.min(100, limit));
     const f = SiteLiveStore.filterSql(filters);
+    // Region/city rows also carry the country code so the UI can show a flag;
+    // grouping by (name, country) keeps same-named places apart.
+    const withCountry = dimension === 'region' || dimension === 'city';
     return this.memoized(
       `topList:${col}:${SiteLiveStore.q(fromMs)}:${SiteLiveStore.q(toMs)}:${boundedLimit}:${SiteLiveStore.filterKey(filters)}`,
       MEMO_TTL_MS,
       () =>
         this.sql
           .exec(
-            `SELECT ${col} AS name,
+            `SELECT ${col} AS name,${withCountry ? ' country,' : ''}
                     COUNT(DISTINCT visitor_id) AS visitors,
                     COUNT(*) AS pageviews,
                     COUNT(DISTINCT session_id) AS sessions
              FROM events
              WHERE event_type = 'pageview' AND ts >= ? AND ts < ? AND ${col} != ''${f.sql}
-             GROUP BY ${col}
+             GROUP BY ${withCountry ? `${col}, country` : col}
              ORDER BY ${orderBy} DESC
              LIMIT ?`,
             fromMs,
@@ -522,6 +525,7 @@ export class SiteLiveStore extends DurableObject<unknown> {
             visitors: n(r.visitors),
             pageviews: n(r.pageviews),
             sessions: n(r.sessions),
+            ...(withCountry ? { country: String(r.country ?? '') } : {}),
           }))
     );
   }

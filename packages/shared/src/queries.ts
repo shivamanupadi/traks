@@ -696,14 +696,19 @@ export function buildLocationsQuery(
   limit = 10
 ) {
   const col = type;
+  // Region/city rows also carry the country code so the UI can show a flag;
+  // grouping by (name, country) keeps same-named places in different
+  // countries as distinct rows.
+  const select = type === 'country' ? `${col} AS name` : `${col} AS name, country`;
+  const groupBy = type === 'country' ? col : `${col}, country`;
   return (table: string) => `
     SELECT
-      ${col} AS name,
+      ${select},
       approx_distinct(visitor_id) AS visitors
     FROM ${table}
     WHERE ${whereSiteAndRange(siteKey, range, 'pageview', filters)}
       AND ${col} != ''
-    GROUP BY ${col}
+    GROUP BY ${groupBy}
     ORDER BY visitors DESC
     LIMIT ${limit}
   `;

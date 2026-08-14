@@ -169,6 +169,13 @@
       "when": 1786077813587,
       "tag": "0023_instance_owner",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1786685313147,
+      "tag": "0024_site_favicon",
+      "breakpoints": true
     }
   ]
 }

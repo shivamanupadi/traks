@@ -159,6 +159,9 @@ export const sites = sqliteTable(
     workspaceId: text('workspace_id').references(() => workspaces.id),
     name: text('name').notNull(),
     domain: text('domain').notNull(),
+    /** Site favicon as a data URL, fetched server-side on create/domain
+     *  change (never from the browser — no third-party favicon services). */
+    favicon: text('favicon'),
     timezone: text('timezone').default('UTC').notNull(),
     public: integer('public', { mode: 'boolean' }).default(false).notNull(),
     createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),

@@ -22,9 +22,25 @@ import {
   ensureDefaultWorkspace,
 } from '../lib/workspaces';
 import { roleAllows } from '../lib/permissions';
+import { fetchSiteFavicon } from '../lib/favicon';
 import type { Bindings, Variables } from '../types';
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
+
+/** Resolve the domain's favicon and stamp it on the site row. Runs behind
+ *  waitUntil so saving a site never waits on someone else's web server. */
+async function refreshFavicon(
+  db: NonNullable<Variables['db']>,
+  siteId: string,
+  domain: string
+): Promise<void> {
+  try {
+    const favicon = await fetchSiteFavicon(domain);
+    if (favicon) await db.update(sites).set({ favicon }).where(eq(sites.id, siteId));
+  } catch {
+    /* favicon is decorative — never let it surface an error */
+  }
+}
 
 const listSitesQuery = z.object({ workspaceId: z.string().optional() });
 
@@ -136,6 +152,8 @@ export const sitesRoute = app
       throw err;
     }
 
+    c.executionCtx.waitUntil(refreshFavicon(db, siteId, body.domain));
+
     const [site] = await db.select().from(sites).where(eq(sites.id, siteId));
 
     return c.json({ data: site, key: siteKey }, 201);
@@ -199,6 +217,11 @@ export const sitesRoute = app
     const manageSite = await checkManage(db, userId, siteId, 'update');
     if (!manageSite.ok) return c.json({ error: manageSite.error }, manageSite.status);
 
+    const [before] = await db
+      .select({ domain: sites.domain })
+      .from(sites)
+      .where(eq(sites.id, siteId));
+
     try {
       await db
         .update(sites)
@@ -214,6 +237,10 @@ export const sitesRoute = app
         return c.json({ error: 'Domain is already in use' }, 409);
       }
       throw err;
+    }
+
+    if (before && before.domain !== body.domain) {
+      c.executionCtx.waitUntil(refreshFavicon(db, siteId, body.domain));
     }
 
     const [updated] = await db.select().from(sites).where(eq(sites.id, siteId));

@@ -84,6 +84,8 @@ export interface LiveTopListRow {
   visitors: number;
   pageviews: number;
   sessions: number;
+  /** ISO country code accompanying region/city rows (for flag display). */
+  country?: string;
 }
 
 export interface LiveRealtimeRow {

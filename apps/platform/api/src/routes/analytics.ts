@@ -677,7 +677,12 @@ export async function fetchDashboard(
           pageviews: r.pageviews,
         })),
         referrers: referrers.map(r => ({ name: r.name, visitors: r.visitors })),
-        locations: locations.map(r => ({ name: r.name, code: r.name, visitors: r.visitors })),
+        locations: locations.map(r => ({
+          name: r.name,
+          code: r.name,
+          country: r.name,
+          visitors: r.visitors,
+        })),
         browsers: formatDevices(browsers.map(r => ({ name: r.name, visitors: r.visitors }))),
         os: formatDevices(osList.map(r => ({ name: r.name, visitors: r.visitors }))),
       };
@@ -763,6 +768,7 @@ export async function fetchDashboard(
     locations: locationsRows.map(r => ({
       name: r.name,
       code: r.name,
+      country: r.name,
       visitors: toNumber(r.visitors),
     })),
     browsers: formatDevices(
@@ -1142,7 +1148,12 @@ export const analyticsRoute = appWithBatch
           filters
         );
         return c.json({
-          data: rows.map(r => ({ name: r.name, code: r.name, visitors: r.visitors })),
+          data: rows.map(r => ({
+            name: r.name,
+            code: r.name,
+            country: type === 'country' ? r.name : (r.country ?? ''),
+            visitors: r.visitors,
+          })),
         });
       } catch (err) {
         logLiveFallback(err);
@@ -1153,7 +1164,7 @@ export const analyticsRoute = appWithBatch
     const ttl = cacheTtlSeconds(period);
 
     const outcome = await runQueries(c, () =>
-      cachedR2Sql<{ name: string; visitors: unknown }>(
+      cachedR2Sql<{ name: string; country?: string; visitors: unknown }>(
         c,
         ttl,
         buildLocationsQuery(site.siteId, range, type, filters)
@@ -1162,7 +1173,12 @@ export const analyticsRoute = appWithBatch
     if (outcome instanceof Response) return outcome;
 
     return c.json({
-      data: outcome.map(r => ({ name: r.name, code: r.name, visitors: toNumber(r.visitors) })),
+      data: outcome.map(r => ({
+        name: r.name,
+        code: r.name,
+        country: type === 'country' ? r.name : (r.country ?? ''),
+        visitors: toNumber(r.visitors),
+      })),
     });
   })
 

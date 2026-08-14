@@ -29,6 +29,12 @@ import type {
   SegmentDef,
   SegmentFilters,
 } from '@traks/shared';
+import {
+  INSTALL_GUIDES,
+  findInstallGuide,
+  guideWithSnippet,
+  trackerSnippet,
+} from '@traks/shared';
 import { cn, formatNumber, formatDuration, formatPercentChange } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -112,6 +118,42 @@ export const Route = createLazyFileRoute('/portal/site/$siteId')({
   component: SiteAnalyticsPage,
 });
 
+/** One copyable code card (used per guide step). */
+function CodeCard({ label, code }: { label?: string; code: string }): ReactElement {
+  const [copied, setCopied] = useState(false);
+  const copy = async (): Promise<void> => {
+    await navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  return (
+    <div className="relative rounded-xl border border-[#e6e5ea] bg-[#fafafa] overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-[#e6e5ea]/60">
+        <span className="font-mono text-[11px] text-[#B5B0AA]">{label ?? 'Snippet'}</span>
+        <button
+          onClick={() => void copy()}
+          className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium text-[#9B9590] hover:text-foreground transition-colors cursor-pointer"
+        >
+          {copied ? (
+            <>
+              <Check className="w-3 h-3 text-[#6E6C7C]" />
+              Copied
+            </>
+          ) : (
+            <>
+              <Copy className="w-3 h-3" />
+              Copy
+            </>
+          )}
+        </button>
+      </div>
+      <pre className="text-[12px] leading-relaxed text-[#3D3B4F] font-mono whitespace-pre-wrap break-all select-all px-4 py-3.5">
+        {code}
+      </pre>
+    </div>
+  );
+}
+
 function InstallModal({
   open,
   onOpenChange,
@@ -122,67 +164,66 @@ function InstallModal({
   site: { domain: string; apiKeys?: { key: string }[] } | null;
 }): ReactElement {
   const collectUrl = useCollectUrl();
-  const [copied, setCopied] = useState(false);
+  const [platform, setPlatform] = useState('html');
 
   const siteKey = site?.apiKeys?.[0]?.key ?? '';
   // Empty until the instance config resolves — never guess the collect origin.
-  const snippet =
-    siteKey && collectUrl
-      ? `<script defer data-site="${siteKey}" src="${collectUrl}/t.js"></script>`
-      : '';
+  const snippet = siteKey && collectUrl ? trackerSnippet(siteKey, collectUrl) : '';
+  // The shared install guides, with THIS site's real snippet substituted in —
+  // the same content traks.dev/guides shows with a placeholder key.
+  const rawGuide = findInstallGuide(platform) ?? INSTALL_GUIDES[0];
+  const guide = snippet ? guideWithSnippet(rawGuide, siteKey, collectUrl!) : rawGuide;
 
   const handleCopy = async (): Promise<void> => {
     if (!snippet) return;
     await navigator.clipboard.writeText(snippet);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent onClose={() => onOpenChange(false)} className="max-w-md">
+      <DialogContent onClose={() => onOpenChange(false)} className="max-w-lg">
         <DialogHeader>
           <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center mb-3">
             <Code2 className="w-5 h-5 text-[#6E6C7C]" strokeWidth={1.7} />
           </div>
           <DialogTitle>Installation</DialogTitle>
           <DialogDescription>
-            Add this snippet to the{' '}
-            <code className="text-[12px] bg-muted px-1.5 py-0.5 rounded font-medium">
-              &lt;head&gt;
-            </code>{' '}
-            of <span className="font-semibold text-[#3D3B4F]">{site?.domain}</span>
+            Install the tracker on{' '}
+            <span className="font-semibold text-[#3D3B4F]">{site?.domain}</span> — pick your stack
+            for exact steps with your site key filled in.
           </DialogDescription>
         </DialogHeader>
 
         <DialogBody>
           <div className="space-y-4">
-            {/* Snippet card */}
-            <div className="relative rounded-xl border border-[#e6e5ea] bg-[#fafafa] overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#e6e5ea]/60">
-                <span className="text-[11px] font-medium text-[#B5B0AA] uppercase tracking-wider">
-                  HTML Snippet
-                </span>
-                <button
-                  onClick={handleCopy}
-                  className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium text-[#9B9590] hover:text-foreground transition-colors cursor-pointer"
-                >
-                  {copied ? (
-                    <>
-                      <Check className="w-3 h-3 text-[#6E6C7C]" />
-                      Copied
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3 h-3" />
-                      Copy
-                    </>
+            <select
+              value={platform}
+              onChange={e => setPlatform(e.target.value)}
+              className="h-10 w-full cursor-pointer rounded-xl border-none bg-white px-3 text-[13px] text-[#3D3B4F] shadow-[inset_0_0_0_1px_#E5E5EB] focus:shadow-[inset_0_0_0_1.5px_#3D3B4F] focus:outline-none"
+            >
+              {INSTALL_GUIDES.map(g => (
+                <option key={g.slug} value={g.slug}>
+                  {g.name}
+                </option>
+              ))}
+            </select>
+
+            <div className="space-y-4">
+              {guide.steps.map((step, i) => (
+                <div key={step.title}>
+                  <p className="text-[13px] font-semibold text-[#3D3B4F]">
+                    {i + 1}. {step.title}
+                  </p>
+                  {step.body && (
+                    <p className="mt-1 text-[12px] leading-relaxed text-[#6E6C7C]">{step.body}</p>
                   )}
-                </button>
-              </div>
-              <pre className="text-[12px] leading-relaxed text-[#3D3B4F] font-mono whitespace-pre-wrap break-all select-all px-4 py-3.5">
-                {snippet}
-              </pre>
+                  {step.code && (
+                    <div className="mt-2">
+                      <CodeCard label={step.code.filename} code={step.code.code} />
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
 
             {/* Info note */}
@@ -197,9 +238,9 @@ function InstallModal({
         </DialogBody>
 
         <DialogFooter className="border-t border-[#e6e5ea]/50 mx-6 px-0 pb-5 pt-4">
-          <Button variant="ghost" onClick={handleCopy} className="text-[13px] cursor-pointer">
+          <Button variant="ghost" onClick={() => void handleCopy()} className="text-[13px] cursor-pointer">
             <Copy className="w-3.5 h-3.5" />
-            {copied ? 'Copied!' : 'Copy snippet'}
+            Copy snippet
           </Button>
           <Button
             onClick={() => onOpenChange(false)}

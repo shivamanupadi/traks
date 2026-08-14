@@ -48,6 +48,13 @@ function DocsPage(): ReactElement {
           </p>
           <Code>{`<script defer data-site="YOUR_SITE_KEY" src="${EXAMPLE_COLLECT_URL}/t.js"></script>`}</Code>
           <p>
+            Using a framework or site builder? There are{' '}
+            <Link to="/guides" className="font-semibold text-foreground hover:underline">
+              tailored install guides
+            </Link>{' '}
+            for Next.js, WordPress, Astro, Shopify, Webflow and more.
+          </p>
+          <p>
             Optional attributes: add <code>data-hash</code> if your app uses hash-based routing (
             <code>#/route</code> becomes part of the page path), and put <code>data-404</code> on
             the snippet in your 404 template to record broken URLs as a <code>404</code> event

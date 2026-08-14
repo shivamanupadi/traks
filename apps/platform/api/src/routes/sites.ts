@@ -218,7 +218,7 @@ export const sitesRoute = app
     if (!manageSite.ok) return c.json({ error: manageSite.error }, manageSite.status);
 
     const [before] = await db
-      .select({ domain: sites.domain })
+      .select({ domain: sites.domain, favicon: sites.favicon })
       .from(sites)
       .where(eq(sites.id, siteId));
 
@@ -239,7 +239,9 @@ export const sitesRoute = app
       throw err;
     }
 
-    if (before && before.domain !== body.domain) {
+    // Refetch on domain change, and also when the row has no favicon yet —
+    // that backfills sites created before favicons existed on any edit.
+    if (before && (before.domain !== body.domain || !before.favicon)) {
       c.executionCtx.waitUntil(refreshFavicon(db, siteId, body.domain));
     }
 

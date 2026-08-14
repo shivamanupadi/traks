@@ -105,7 +105,10 @@ function PortalHeader(): React.ReactNode {
             </>
           )}
         </div>
-        <UserMenu />
+        <div className="flex shrink-0 items-center gap-2">
+          <VersionPill />
+          <UserMenu />
+        </div>
       </div>
 
       {/* Tab rail: border spans the full width, tabs align with the content column */}
@@ -211,10 +214,43 @@ function UpdateBanner(): React.ReactNode {
   );
 }
 
-function UserMenu(): React.ReactNode {
-  const { data: session } = authClient.useSession();
+/**
+ * Running version beside the account menu: a quiet mono pill normally, a
+ * mint "update" pill linking to the wizard when a newer release exists.
+ */
+function VersionPill(): React.ReactNode {
   const config = useInstanceConfig();
   const latest = useLatestVersion();
+  if (!config?.version) return null;
+
+  const updateAvailable = Boolean(latest && latest !== config.version);
+  if (updateAvailable && config.deployInstanceId) {
+    return (
+      <a
+        href={`https://traks.dev/update?instance=${encodeURIComponent(config.deployInstanceId)}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        title={`Traks ${latest} is available — you're running ${config.version}`}
+        className="flex h-8 items-center gap-1.5 rounded-full bg-mint px-3 text-[11.5px] font-bold text-[#123326] transition-all hover:-translate-y-px hover:shadow-[0_4px_14px_rgba(40,233,159,0.35)]"
+      >
+        <ArrowUpCircle className="h-3.5 w-3.5" strokeWidth={2.2} />
+        <span className="font-mono">v{latest}</span>
+        <span className="hidden sm:inline">available</span>
+      </a>
+    );
+  }
+  return (
+    <span
+      title={updateAvailable ? `Traks ${latest} is available` : 'Up to date'}
+      className="hidden sm:flex h-8 items-center rounded-full bg-white px-3 font-mono text-[11px] text-[#9B9590] shadow-pill"
+    >
+      v{config.version}
+    </span>
+  );
+}
+
+function UserMenu(): React.ReactNode {
+  const { data: session } = authClient.useSession();
 
   const email: string | undefined = session?.user?.email;
   const displayName = session?.user?.name || email?.split('@')[0] || 'User';
@@ -256,21 +292,6 @@ function UserMenu(): React.ReactNode {
           <LogOut className="w-4 h-4" />
           Sign out
         </DropdownMenuItem>
-
-        {config?.version && (
-          <>
-            <DropdownMenuSeparator />
-            <p className="px-4 py-2 font-mono text-[10.5px] text-[#9B9590]">
-              Traks v{config.version}
-              {latest &&
-                (latest === config.version ? (
-                  <span> · up to date</span>
-                ) : (
-                  <span className="font-semibold text-[#3D3B4F]"> · v{latest} available</span>
-                ))}
-            </p>
-          </>
-        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

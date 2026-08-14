@@ -32,7 +32,6 @@
     "lucide-react": "^0.561.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "react-icons": "^5.7.0",
     "recharts": "^2.15.0",
     "tailwind-merge": "^3.4.0",
     "tailwindcss": "^4.1.17",

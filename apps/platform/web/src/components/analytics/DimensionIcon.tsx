@@ -1,43 +1,33 @@
 import type { ReactElement } from 'react';
-import type { IconType } from 'react-icons';
-import {
-  FaChrome,
-  FaFirefoxBrowser,
-  FaSafari,
-  FaEdge,
-  FaOpera,
-  FaInternetExplorer,
-  FaWindows,
-  FaApple,
-  FaAndroid,
-  FaLinux,
-} from 'react-icons/fa';
-import { SiBrave, SiVivaldi, SiSamsung } from 'react-icons/si';
 import { Globe, Monitor, Smartphone, Tablet, Laptop, type LucideIcon } from 'lucide-react';
 
-// Keys mirror the closed vocabularies emitted by the collect worker's UA
-// parser (apps/platform/collect/src/lib/ua.ts) plus the screen-size buckets.
-const BROWSER_ICONS: Record<string, IconType> = {
-  chrome: FaChrome,
-  firefox: FaFirefoxBrowser,
-  safari: FaSafari,
-  edge: FaEdge,
-  opera: FaOpera,
-  brave: SiBrave,
-  vivaldi: SiVivaldi,
-  ie: FaInternetExplorer,
-  'samsung internet': SiSamsung,
+// Original full-color brand logos, vendored into public/icons (browsers from
+// alrra/browser-logos, OS from operating-system-logos — both MIT). Keys
+// mirror the closed vocabularies emitted by the collect worker's UA parser
+// (apps/platform/collect/src/lib/ua.ts).
+const BROWSER_ICONS: Record<string, string> = {
+  chrome: 'chrome.svg',
+  firefox: 'firefox.svg',
+  safari: 'safari.svg',
+  edge: 'edge.svg',
+  opera: 'opera.svg',
+  brave: 'brave.svg',
+  vivaldi: 'vivaldi.svg',
+  ie: 'ie.png',
+  'samsung internet': 'samsung-internet.svg',
 };
 
-const OS_ICONS: Record<string, IconType> = {
-  windows: FaWindows,
-  macos: FaApple,
-  ios: FaApple,
-  android: FaAndroid,
-  linux: FaLinux,
-  'chrome os': FaChrome,
+const OS_ICONS: Record<string, string> = {
+  windows: 'windows.png',
+  macos: 'macos.png',
+  ios: 'ios.png',
+  android: 'android.png',
+  linux: 'linux.png',
+  'chrome os': 'chrome-os.png',
 };
 
+// Device types and screen-size buckets have no brand mark — the neutral
+// outline glyphs stay.
 const DEVICE_ICONS: Record<string, LucideIcon> = {
   desktop: Monitor,
   laptop: Laptop,
@@ -59,7 +49,15 @@ export function DimensionIcon({
     const Icon = DEVICE_ICONS[key] ?? Monitor;
     return <Icon className="h-3.5 w-3.5 text-[#6E6C7C]" strokeWidth={1.7} />;
   }
-  const Icon = (kind === 'browser' ? BROWSER_ICONS : OS_ICONS)[key];
-  if (!Icon) return <Globe className="h-3.5 w-3.5 text-[#B5B0AA]" strokeWidth={1.7} />;
-  return <Icon className="h-3.5 w-3.5 text-[#6E6C7C]" />;
+  const file = (kind === 'browser' ? BROWSER_ICONS : OS_ICONS)[key];
+  if (!file) return <Globe className="h-3.5 w-3.5 text-[#B5B0AA]" strokeWidth={1.7} />;
+  return (
+    <img
+      src={`/icons/${file}`}
+      alt=""
+      loading="lazy"
+      draggable={false}
+      className="h-3.5 w-3.5 object-contain"
+    />
+  );
 }

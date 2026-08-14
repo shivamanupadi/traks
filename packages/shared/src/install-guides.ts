@@ -9,8 +9,13 @@
 
 export const SNIPPET_TOKEN = '__TRAKS_SNIPPET__';
 
+/** The queue stub lets window.traks() be called before t.js executes —
+ *  the tracker drains window.traks.q on load. One line, two tags. */
+export const TRACKER_STUB =
+  '<script>window.traks=window.traks||function(){(window.traks.q=window.traks.q||[]).push(arguments)}</script>';
+
 export function trackerSnippet(siteKey: string, collectUrl: string): string {
-  return `<script defer data-site="${siteKey}" src="${collectUrl}/t.js"></script>`;
+  return `${TRACKER_STUB}<script defer data-site="${siteKey}" src="${collectUrl}/t.js"></script>`;
 }
 
 export interface GuideCode {
@@ -90,7 +95,7 @@ export const INSTALL_GUIDES: InstallGuide[] = [
         code: {
           lang: 'tsx',
           filename: 'app/layout.tsx',
-          code: `import Script from 'next/script';\n\nexport default function RootLayout({ children }: { children: React.ReactNode }) {\n  return (\n    <html lang="en">\n      <body>\n        {children}\n        <Script defer data-site="TRAKS_KEY" src="TRAKS_SRC" strategy="afterInteractive" />\n      </body>\n    </html>\n  );\n}`,
+          code: `import Script from 'next/script';\n\nconst TRAKS_STUB =\n  'window.traks=window.traks||function(){(window.traks.q=window.traks.q||[]).push(arguments)}';\n\nexport default function RootLayout({ children }: { children: React.ReactNode }) {\n  return (\n    <html lang="en">\n      <body>\n        {children}\n        <Script id="traks-stub" strategy="beforeInteractive">{TRAKS_STUB}</Script>\n        <Script defer data-site="TRAKS_KEY" src="TRAKS_SRC" strategy="afterInteractive" />\n      </body>\n    </html>\n  );\n}`,
         },
       },
       {
@@ -150,7 +155,7 @@ export const INSTALL_GUIDES: InstallGuide[] = [
         code: {
           lang: 'ts',
           filename: 'nuxt.config.ts',
-          code: `export default defineNuxtConfig({\n  app: {\n    head: {\n      script: [\n        {\n          src: 'TRAKS_SRC',\n          defer: true,\n          'data-site': 'TRAKS_KEY',\n        },\n      ],\n    },\n  },\n});`,
+          code: `export default defineNuxtConfig({\n  app: {\n    head: {\n      script: [\n        {\n          innerHTML:\n            'window.traks=window.traks||function(){(window.traks.q=window.traks.q||[]).push(arguments)}',\n        },\n        {\n          src: 'TRAKS_SRC',\n          defer: true,\n          'data-site': 'TRAKS_KEY',\n        },\n      ],\n    },\n  },\n});`,
         },
       },
       {
@@ -170,7 +175,7 @@ export const INSTALL_GUIDES: InstallGuide[] = [
         code: {
           lang: 'astro',
           filename: 'src/layouts/Layout.astro',
-          code: `<head>\n  ...\n  <script is:inline defer data-site="TRAKS_KEY" src="TRAKS_SRC"></script>\n</head>`,
+          code: `<head>\n  ...\n  <script is:inline>window.traks=window.traks||function(){(window.traks.q=window.traks.q||[]).push(arguments)}</script>\n  <script is:inline defer data-site="TRAKS_KEY" src="TRAKS_SRC"></script>\n</head>`,
         },
       },
       {

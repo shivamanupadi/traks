@@ -46,7 +46,7 @@ function DocsPage(): ReactElement {
             the <code>Outbound Link: Click</code> / <code>File Download</code> events, usable as
             goals).
           </p>
-          <Code>{`<script defer data-site="YOUR_SITE_KEY" src="${EXAMPLE_COLLECT_URL}/t.js"></script>`}</Code>
+          <Code>{`<script>window.traks=window.traks||function(){(window.traks.q=window.traks.q||[]).push(arguments)}</script>\n<script defer data-site="YOUR_SITE_KEY" src="${EXAMPLE_COLLECT_URL}/t.js"></script>`}</Code>
           <p>
             Using a framework or site builder? There are{' '}
             <Link to="/guides" className="font-semibold text-foreground hover:underline">
@@ -64,7 +64,9 @@ function DocsPage(): ReactElement {
 
         <Section title="2. Track custom events">
           <p>
-            Call <code>window.traks(name, props?, value?)</code> anywhere after the script loads:
+            Call <code>window.traks(name, props?, value?)</code> anywhere — calls made before the
+            script loads are queued by the one-line stub and flushed on load (dropped only if the
+            script never loads, e.g. an ad blocker):
           </p>
           <Code>{`traks('signup', { plan: 'pro' });\ntraks('purchase', { sku: 'T100' }, 49.99);`}</Code>
         </Section>

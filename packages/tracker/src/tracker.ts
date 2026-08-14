@@ -149,7 +149,12 @@
     });
   }
 
-  // Custom event API: window.traks('event_name', { props }, value)
+  // Custom event API: window.traks('event_name', { props }, value).
+  // The install snippet ships a stub that queues calls made before this
+  // script executes (window.traks.q) — capture and replay them in order,
+  // so early CTA clicks and hydration-effect events are never lost.
+  const pending: IArguments[] =
+    typeof w.traks === 'function' && Array.isArray(w.traks.q) ? w.traks.q : [];
   w.traks = function (name: string, props?: Record<string, unknown>, value?: number): void {
     sendRequest({
       t: 'event',
@@ -162,6 +167,9 @@
       ev: value || 0,
     });
   };
+  for (let q = 0; q < pending.length; q++) {
+    w.traks.apply(null, pending[q]);
+  }
 
   // ---- Outbound links + file downloads ----
   // Auto-fired as reserved custom events ("Outbound Link: Click" /

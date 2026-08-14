@@ -12,7 +12,7 @@
  *     --header "Authorization: Bearer traks_pat_…"
  */
 import type { Context } from 'hono';
-import { PERIODS } from '@traks/shared';
+import { PERIODS, trackerSnippet } from '@traks/shared';
 import type { Bindings, Variables } from '../types';
 
 type Ctx = Context<{ Bindings: Bindings; Variables: Variables }>;
@@ -370,10 +370,8 @@ export function mcpHandler(dispatch: Dispatch) {
             const key = site?.apiKeys?.[0]?.key;
             payload = JSON.stringify({
               siteKey: key ?? null,
-              snippet: key
-                ? `<script defer data-site="${key}" src="${c.env.COLLECT_URL}/t.js"></script>`
-                : null,
-              docs: "Place the snippet in the <head>. Custom events: window.traks('signup', { plan: 'pro' }, 49.99) — name, optional flat props object, optional numeric value. SPA navigations, outbound links, and file downloads are tracked automatically.",
+              snippet: key ? trackerSnippet(key, c.env.COLLECT_URL) : null,
+              docs: "Place the snippet in the <head>. Custom events: window.traks('signup', { plan: 'pro' }, 49.99) — name, optional flat props object, optional numeric value. Calls made before t.js loads are queued by the stub and flushed on load. SPA navigations, outbound links, and file downloads are tracked automatically.",
             });
           } catch {
             /* fall through with raw text */

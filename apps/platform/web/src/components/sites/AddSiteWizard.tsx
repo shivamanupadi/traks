@@ -16,7 +16,12 @@ import {
 } from '@/components/ui/dialog';
 import { api } from '@/lib/api';
 import { FieldError } from '@/components/ui/field-error';
-import { domainInputError, normalizeDomain, requiredTextError } from '@traks/shared';
+import {
+  domainInputError,
+  normalizeDomain,
+  requiredTextError,
+  trackerSnippet,
+} from '@traks/shared';
 import { useCollectUrl } from '@/lib/config';
 
 type WizardStep = 'details' | 'snippet';
@@ -113,10 +118,7 @@ export function AddSiteWizard({
   const favicon = ((siteDetail as any)?.data?.favicon ?? null) as string | null;
 
   // Empty until the instance config resolves — never guess the collect origin.
-  const snippet =
-    createdSite && collectUrl
-      ? `<script defer data-site="${createdSite.key}" src="${collectUrl}/t.js"></script>`
-      : '';
+  const snippet = createdSite && collectUrl ? trackerSnippet(createdSite.key, collectUrl) : '';
 
   const handleCopy = async (): Promise<void> => {
     if (!snippet) return;

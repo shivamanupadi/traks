@@ -335,7 +335,7 @@ function DeployWizard(): ReactElement {
             <>
               <button
                 onClick={() => void navigate({ to: '/' })}
-                className="mr-auto inline-flex h-11 items-center gap-1.5 rounded-full px-4 text-[13.5px] font-semibold text-[#6E6C7C] transition-colors hover:bg-[#F4F4F6] hover:text-[#3D3B4F] cursor-pointer"
+                className="mr-auto inline-flex h-11 items-center gap-1.5 rounded-full px-4 text-[13.5px] font-semibold text-[#6E6C7C] transition-colors hover:bg-[#F2F1ED] hover:text-[#3D3B4F] cursor-pointer"
               >
                 <ArrowLeft className="h-4 w-4" />
                 Back to traks.dev
@@ -378,7 +378,7 @@ function DeployWizard(): ReactElement {
             ].map(item => (
               <div
                 key={item.title}
-                className="flex items-start gap-3.5 rounded-2xl border border-[#EEEEF2] bg-[#FAFAFA] p-4"
+                className="flex items-start gap-3.5 rounded-2xl border border-[#EEEEF2] bg-[#F6F5F2] p-4"
               >
                 <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white shadow-pill">
                   <item.icon className="h-4 w-4 text-[#3D3B4F]" strokeWidth={1.8} />
@@ -434,7 +434,7 @@ function DeployWizard(): ReactElement {
             {connect.existingInstalls.length > 0 && (
               <div className="space-y-3">
                 {connect.existingInstalls.map(inst => (
-                  <div key={inst.id} className="rounded-2xl border border-[#EEEEF2] bg-[#FAFAFA] p-4">
+                  <div key={inst.id} className="rounded-2xl border border-[#EEEEF2] bg-[#F6F5F2] p-4">
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
                         <p className="text-[13px] font-semibold text-[#3D3B4F]">
@@ -513,7 +513,7 @@ function DeployWizard(): ReactElement {
           </p>
           <div className="space-y-4">
             {connect.accounts.length > 0 && (
-              <p className="rounded-xl bg-[#F4F4F6] px-4 py-3 text-[12.5px] text-[#6E6C7C]">
+              <p className="rounded-xl bg-[#F2F1ED] px-4 py-3 text-[12.5px] text-[#6E6C7C]">
                 Deploying into{' '}
                 <span className="font-semibold text-[#3D3B4F]">
                   {connect.accounts.find(a => a.id === connect.accountId)?.name}
@@ -528,7 +528,7 @@ function DeployWizard(): ReactElement {
                 Instance name
               </label>
               {!showNameEdit ? (
-                <div className="flex h-11 w-full items-center justify-between rounded-2xl bg-[#F4F4F6] px-4">
+                <div className="flex h-11 w-full items-center justify-between rounded-2xl bg-[#F2F1ED] px-4">
                   <span className="font-mono text-[13.5px] text-[#3D3B4F]">{instanceName}</span>
                   <button
                     onClick={() => setShowNameEdit(true)}
@@ -696,7 +696,7 @@ function DeployWizard(): ReactElement {
               {result.apiUrl.replace('https://', '')}
               <ExternalLink className="h-3.5 w-3.5" />
             </a>
-            <div className="w-full rounded-2xl border border-[#EEEEF2] bg-[#FAFAFA] p-4 text-left">
+            <div className="w-full rounded-2xl border border-[#EEEEF2] bg-[#F6F5F2] p-4 text-left">
               <p className="flex items-center gap-2 text-[13px] font-semibold text-[#3D3B4F]">
                 <ShieldCheck className="h-4 w-4" strokeWidth={1.8} />
                 Claim your instance

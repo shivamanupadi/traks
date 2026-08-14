@@ -198,11 +198,11 @@ export function TimeseriesChart({
             border: 'none',
             borderRadius: '10px',
             fontSize: '12px',
-            color: '#FAFAFA',
+            color: '#F6F5F2',
             boxShadow: '0 8px 20px rgba(61,59,79,0.25)',
           }}
           labelStyle={{ color: '#C9C3BC', marginBottom: 2 }}
-          itemStyle={{ color: '#FAFAFA', fontWeight: 700 }}
+          itemStyle={{ color: '#F6F5F2', fontWeight: 700 }}
           cursor={{ stroke: '#3D3B4F', strokeOpacity: 0.35, strokeDasharray: '3 3' }}
           labelFormatter={formatTooltip}
         />

@@ -134,7 +134,7 @@ export function WizardShell({
   children: ReactNode;
 }): ReactElement {
   return (
-    <div className="min-h-screen bg-[#FAFAFA] px-4 py-10">
+    <div className="min-h-screen bg-[#F6F5F2] px-4 py-10">
       {/* dot grid */}
       <div
         aria-hidden
@@ -167,7 +167,7 @@ export function WizardShell({
                   ? 'w-10 bg-mint'
                   : i < progress.current
                     ? 'w-5 bg-[#3D3B4F]/40'
-                    : 'w-5 bg-[#E4E4E9]'
+                    : 'w-5 bg-[#E6E4DE]'
               }`}
             />
           ))}
@@ -256,7 +256,7 @@ export function BackButton({
     <button
       onClick={onClick}
       disabled={disabled}
-      className="mr-auto inline-flex h-11 items-center gap-1.5 rounded-full px-4 text-[13.5px] font-semibold text-[#6E6C7C] transition-colors hover:bg-[#F4F4F6] hover:text-[#3D3B4F] disabled:pointer-events-none disabled:opacity-40 cursor-pointer"
+      className="mr-auto inline-flex h-11 items-center gap-1.5 rounded-full px-4 text-[13.5px] font-semibold text-[#6E6C7C] transition-colors hover:bg-[#F2F1ED] hover:text-[#3D3B4F] disabled:pointer-events-none disabled:opacity-40 cursor-pointer"
     >
       <ArrowLeft className="h-4 w-4" />
       {label}
@@ -274,7 +274,7 @@ export function ErrorBox({ children }: { children: ReactNode }): ReactElement {
 
 export function NoteBox({ children }: { children: ReactNode }): ReactElement {
   return (
-    <p className="mb-4 rounded-xl bg-[#F4F4F6] px-4 py-3 text-[12.5px] leading-relaxed text-[#6E6C7C]">
+    <p className="mb-4 rounded-xl bg-[#F2F1ED] px-4 py-3 text-[12.5px] leading-relaxed text-[#6E6C7C]">
       {children}
     </p>
   );
@@ -388,7 +388,7 @@ export function StepList({
             >
               {s.label}
               {s.status === 'retry' && (
-                <span className="ml-2 rounded-full bg-[#F4F4F6] px-2 py-0.5 text-[10.5px] font-semibold text-[#6E6C7C]">
+                <span className="ml-2 rounded-full bg-[#F2F1ED] px-2 py-0.5 text-[10.5px] font-semibold text-[#6E6C7C]">
                   retrying
                 </span>
               )}
@@ -556,7 +556,7 @@ export function ConnectSection({
   return (
     <div className="space-y-5">
       {c.oauthSignedIn ? (
-        <div className="flex items-center justify-between gap-3 rounded-2xl border border-[#EEEEF2] bg-[#FAFAFA] px-4 py-3.5">
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-[#EEEEF2] bg-[#F6F5F2] px-4 py-3.5">
           <p className="flex items-center gap-2.5 text-[13px] font-semibold text-[#3D3B4F]">
             <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-mint/15">
               <Check className="h-4 w-4 text-[#0E9F6E]" strokeWidth={2.4} />

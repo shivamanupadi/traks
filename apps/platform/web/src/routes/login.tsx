@@ -129,7 +129,7 @@ function LoginPage(): ReactElement {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#FAFAFA]">
+    <div className="flex min-h-screen bg-[#F6F5F2]">
       <BrandPanel />
 
       <div className="relative flex flex-1 flex-col items-center justify-center px-4 py-12">
@@ -180,7 +180,7 @@ function LoginPage(): ReactElement {
                       onChange={e => setEmail(e.target.value)}
                       readOnly={firstRun && ownerEmail !== ''}
                       className={`h-11 px-4 text-[14px] ${
-                        firstRun && ownerEmail ? 'bg-[#F4F4F6] text-[#6E6C7C]' : ''
+                        firstRun && ownerEmail ? 'bg-[#F2F1ED] text-[#6E6C7C]' : ''
                       }`}
                       autoFocus={!(firstRun && ownerEmail)}
                     />

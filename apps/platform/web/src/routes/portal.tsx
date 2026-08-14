@@ -39,7 +39,7 @@ function PortalLayout(): React.ReactNode {
 
   if (isPending) {
     return (
-      <div className="min-h-screen bg-[#fafafa] flex items-center justify-center">
+      <div className="min-h-screen bg-[#F6F5F2] flex items-center justify-center">
         <div className="text-[14px] text-[#9B9590]">Loading...</div>
       </div>
     );
@@ -51,7 +51,7 @@ function PortalLayout(): React.ReactNode {
 
   return (
     <WorkspaceProvider>
-      <div className="min-h-screen bg-[#fafafa]">
+      <div className="min-h-screen bg-[#F6F5F2]">
         <PortalHeader />
         <UpdateBanner />
 

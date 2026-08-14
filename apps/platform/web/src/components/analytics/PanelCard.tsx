@@ -122,7 +122,7 @@ export function PanelCard({
           {onRetry && (
             <button
               onClick={onRetry}
-              className="mt-2 rounded-full bg-muted px-3 py-1 text-[12px] font-semibold text-[#3D3B4F] transition-colors hover:bg-[#E4E4E9]"
+              className="mt-2 rounded-full bg-muted px-3 py-1 text-[12px] font-semibold text-[#3D3B4F] transition-colors hover:bg-[#E6E4DE]"
             >
               Try again
             </button>

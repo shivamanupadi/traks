@@ -66,7 +66,7 @@ export function FunnelsPanel({
           {onManage && (
             <button
               onClick={onManage}
-              className="flex items-center gap-1.5 rounded-full bg-muted px-3.5 py-1.5 text-[12px] font-semibold text-foreground hover:bg-[#E4E4E9] transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 rounded-full bg-muted px-3.5 py-1.5 text-[12px] font-semibold text-foreground hover:bg-[#E6E4DE] transition-colors cursor-pointer"
             >
               <Settings2 className="h-3.5 w-3.5" />
               Manage funnels
@@ -90,7 +90,7 @@ export function FunnelsPanel({
           {onManage && (
             <button
               onClick={onManage}
-              className="mt-3 rounded-full bg-muted px-4 py-2 text-[12px] font-semibold text-foreground hover:bg-[#E4E4E9] transition-colors cursor-pointer"
+              className="mt-3 rounded-full bg-muted px-4 py-2 text-[12px] font-semibold text-foreground hover:bg-[#E6E4DE] transition-colors cursor-pointer"
             >
               Create your first funnel
             </button>
@@ -127,7 +127,7 @@ export function FunnelsPanel({
                   style={{ width: `${width}%` }}
                 />
                 <span className="relative z-10 flex min-w-0 items-center gap-2.5 pr-4">
-                  <span className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border border-[#E4E4E9] bg-white font-mono text-[10px] font-semibold text-[#6E6C7C]">
+                  <span className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border border-[#E6E4DE] bg-white font-mono text-[10px] font-semibold text-[#6E6C7C]">
                     {i + 1}
                   </span>
                   <span className="truncate text-[13px] text-[#3D3B4F]">{step.target}</span>

@@ -316,7 +316,7 @@ function InviteDialog({
 
         <DialogBody>
           {inviteUrl ? (
-            <div className="relative overflow-hidden rounded-xl border border-[#e6e5ea] bg-[#fafafa]">
+            <div className="relative overflow-hidden rounded-xl border border-[#e6e5ea] bg-[#F6F5F2]">
               <div className="flex items-center justify-between border-b border-[#e6e5ea]/60 px-4 py-2.5">
                 <span className="text-[11px] font-medium uppercase tracking-wider text-[#B5B0AA]">
                   Invite link — shown once

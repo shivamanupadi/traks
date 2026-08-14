@@ -269,7 +269,7 @@ export function AddSiteWizard({
                   of <span className="font-semibold text-[#3D3B4F]">{createdSite?.domain}</span>:
                 </p>
                 {/* Snippet card */}
-                <div className="relative rounded-xl border border-[#e6e5ea] bg-[#fafafa] overflow-hidden">
+                <div className="relative rounded-xl border border-[#e6e5ea] bg-[#F6F5F2] overflow-hidden">
                   <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#e6e5ea]/60">
                     <span className="text-[11px] font-medium text-[#B5B0AA] uppercase tracking-wider">
                       HTML Snippet
@@ -297,7 +297,7 @@ export function AddSiteWizard({
                 </div>
 
                 {/* Info note */}
-                <div className="flex gap-3 rounded-xl bg-[#F4F4F6] border border-[#E4E4E9] px-4 py-3.5">
+                <div className="flex gap-3 rounded-xl bg-[#F2F1ED] border border-[#E6E4DE] px-4 py-3.5">
                   <Zap className="w-4 h-4 text-[#6E6C7C] shrink-0 mt-0.5" strokeWidth={1.7} />
                   <p className="text-[12px] text-[#6E6C7C] leading-relaxed">
                     Under 1KB, loads async - zero impact on page speed. Data appears within seconds

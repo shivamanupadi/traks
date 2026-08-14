@@ -363,7 +363,7 @@ function UpdateWizard(): ReactElement {
                 installs.map(inst => (
                   <div
                     key={inst.id}
-                    className="flex items-center justify-between gap-3 rounded-2xl border border-[#EEEEF2] bg-[#FAFAFA] p-4"
+                    className="flex items-center justify-between gap-3 rounded-2xl border border-[#EEEEF2] bg-[#F6F5F2] p-4"
                   >
                     <div className="min-w-0">
                       <p className="text-[13px] font-semibold text-[#3D3B4F]">
@@ -429,7 +429,7 @@ function UpdateWizard(): ReactElement {
               re-applies it.
             </NoteBox>
           )}
-          <div className="mb-4 rounded-2xl border border-[#EEEEF2] bg-[#FAFAFA] p-4">
+          <div className="mb-4 rounded-2xl border border-[#EEEEF2] bg-[#F6F5F2] p-4">
             <ul className="space-y-1.5 text-[12.5px] leading-relaxed text-[#6E6C7C]">
               <li>
                 Instance: <span className="font-mono text-[#3D3B4F]">{target.instanceName}</span>

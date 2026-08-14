@@ -63,7 +63,7 @@ export function GoalsPanel({
           {onManage && (
             <button
               onClick={onManage}
-              className="mt-3 rounded-full bg-muted px-4 py-2 text-[12px] font-semibold text-foreground hover:bg-[#E4E4E9] transition-colors cursor-pointer"
+              className="mt-3 rounded-full bg-muted px-4 py-2 text-[12px] font-semibold text-foreground hover:bg-[#E6E4DE] transition-colors cursor-pointer"
             >
               Add your first goal
             </button>

@@ -238,7 +238,7 @@ function DestroyWizard(): ReactElement {
                 installs.map(inst => (
                   <div
                     key={inst.id}
-                    className="flex items-center justify-between gap-3 rounded-2xl border border-[#EEEEF2] bg-[#FAFAFA] p-4"
+                    className="flex items-center justify-between gap-3 rounded-2xl border border-[#EEEEF2] bg-[#F6F5F2] p-4"
                   >
                     <div className="min-w-0">
                       <p className="text-[13px] font-semibold text-[#3D3B4F]">
@@ -293,7 +293,7 @@ function DestroyWizard(): ReactElement {
             <span className="font-semibold text-[#3D3B4F]">all of its analytics data</span>. It
             cannot be undone.
           </p>
-          <div className="mb-4 rounded-2xl border border-[#EEEEF2] bg-[#FAFAFA] p-4">
+          <div className="mb-4 rounded-2xl border border-[#EEEEF2] bg-[#F6F5F2] p-4">
             <p className="mb-2 text-[12.5px] font-semibold text-[#3D3B4F]">
               Deleted from your Cloudflare account:
             </p>

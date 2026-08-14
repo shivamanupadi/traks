@@ -112,7 +112,7 @@ export function SiteTile({
         {/* Header row: icon + name */}
         <div className="flex items-center gap-3">
           {/* Neutral chip for every site — the tile's hue lives in the chart line only. */}
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-[#F4F4F6] transition-transform duration-300 group-hover:scale-110">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-[#F2F1ED] transition-transform duration-300 group-hover:scale-110">
             <SiteFavicon favicon={site.favicon} size={24} fallbackClassName="text-[#3D3B4F]" />
           </div>
           <div className="min-w-0 flex-1">

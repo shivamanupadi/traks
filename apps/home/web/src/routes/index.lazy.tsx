@@ -55,7 +55,7 @@ function Mono({
 
 function SectionRule({ n, label }: { n: string; label: string }): ReactElement {
   return (
-    <div className="flex items-baseline gap-4 border-t border-[#E4E4E9] pt-5">
+    <div className="flex items-baseline gap-4 border-t border-[#E6E4DE] pt-5">
       <Mono className="text-[#B3B1BE]">{n}</Mono>
       <Mono className="text-[#6E6C7C]">{label}</Mono>
     </div>
@@ -128,14 +128,14 @@ function MockList({ title, rows }: { title: string; rows: typeof MOCK_PAGES }): 
 function DashboardMock(): ReactElement {
   const { line, area } = sparkPath(SPARK, 720, 120);
   return (
-    <div className="overflow-hidden rounded-[18px] border border-[#E4E4E9] bg-white shadow-[0_1px_2px_rgba(61,59,79,0.04),0_16px_48px_rgba(61,59,79,0.07)]">
+    <div className="overflow-hidden rounded-[18px] border border-[#E6E4DE] bg-white shadow-[0_1px_2px_rgba(61,59,79,0.04),0_16px_48px_rgba(61,59,79,0.07)]">
       {/* window chrome */}
       <div className="flex items-center justify-between border-b border-[#EEEEF2] px-5 py-3">
         <div className="flex items-center gap-2.5">
           <img src="/logo.svg" alt="" className="h-4.5 w-4.5" />
           <span className="text-[13px] font-semibold text-[#3D3B4F]">yoursite.com</span>
         </div>
-        <span className="flex items-center gap-2 rounded-full bg-[#F4F4F6] py-1 pl-2.5 pr-3">
+        <span className="flex items-center gap-2 rounded-full bg-[#F2F1ED] py-1 pl-2.5 pr-3">
           <span className="relative flex h-1.5 w-1.5">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-mint opacity-60" />
             <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-mint" />
@@ -263,7 +263,7 @@ function NavLink({ id, children }: { id: string; children: ReactNode }): ReactEl
 function LandingPage(): ReactElement {
   const latestVersion = useLatestVersion();
   return (
-    <div className="min-h-screen bg-[#FAFAFA] text-[#3D3B4F]">
+    <div className="min-h-screen bg-[#F6F5F2] text-[#3D3B4F]">
       {/* dot grid ground */}
       <div
         aria-hidden
@@ -396,7 +396,7 @@ function LandingPage(): ReactElement {
             </h2>
           </motion.div>
 
-          <div className="mt-12 grid grid-cols-1 gap-px overflow-hidden rounded-[18px] border border-[#E4E4E9] bg-[#E4E4E9] sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-12 grid grid-cols-1 gap-px overflow-hidden rounded-[18px] border border-[#E6E4DE] bg-[#E6E4DE] sm:grid-cols-2 lg:grid-cols-3">
             {FEATURES.map((f, i) => (
               <motion.div key={f.title} {...rise(i * 0.05)} className="bg-white p-7">
                 <f.icon className="h-[18px] w-[18px] text-[#8C8A99]" strokeWidth={1.6} />
@@ -441,7 +441,7 @@ function LandingPage(): ReactElement {
                 },
               ].map((s, i) => (
                 <motion.div key={s.n} {...rise(i * 0.07)} className="flex gap-5">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#E4E4E9] bg-white font-mono text-[12px] font-semibold text-[#3D3B4F]">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#E6E4DE] bg-white font-mono text-[12px] font-semibold text-[#3D3B4F]">
                     {s.n}
                   </span>
                   <div>
@@ -535,7 +535,7 @@ function LandingPage(): ReactElement {
                 {STACK.map(s => (
                   <span
                     key={s}
-                    className="rounded-full border border-[#E4E4E9] bg-white px-3.5 py-1.5 font-mono text-[11px] font-medium text-[#6E6C7C]"
+                    className="rounded-full border border-[#E6E4DE] bg-white px-3.5 py-1.5 font-mono text-[11px] font-medium text-[#6E6C7C]"
                   >
                     {s}
                   </span>
@@ -605,13 +605,13 @@ function LandingPage(): ReactElement {
       </main>
 
       {/* footer */}
-      <footer className="relative z-10 border-t border-[#E4E4E9]">
+      <footer className="relative z-10 border-t border-[#E6E4DE]">
         <div className="mx-auto flex w-full max-w-[1060px] flex-wrap items-center justify-between gap-4 px-6 py-8">
           <div className="flex items-center gap-2">
             <img src="/logo.svg" alt="Traks" className="h-5 w-5" />
             <span className="text-[13px] font-semibold">Traks</span>
             {latestVersion && (
-              <span className="ml-1 rounded-full bg-[#F4F4F6] px-2 py-0.5 font-mono text-[10.5px] font-medium text-[#8C8A99]">
+              <span className="ml-1 rounded-full bg-[#F2F1ED] px-2 py-0.5 font-mono text-[10.5px] font-medium text-[#8C8A99]">
                 v{latestVersion}
               </span>
             )}
@@ -759,7 +759,7 @@ function CostCalculator(): ReactElement {
   const perMillion = events >= 1e6 ? total / (events / 1e6) : null;
 
   return (
-    <div className="rounded-[18px] border border-[#E4E4E9] bg-white p-7 sm:p-9">
+    <div className="rounded-[18px] border border-[#E6E4DE] bg-white p-7 sm:p-9">
       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-3">
         <label htmlFor="cost-events" className="text-[13px] font-semibold text-[#3D3B4F]">
           Events per month
@@ -809,7 +809,7 @@ function CostCalculator(): ReactElement {
       <p className="mt-6 mb-1 text-[11px] font-semibold uppercase tracking-[0.09em] text-[#B3B1BE]">
         Where it goes
       </p>
-      <div className="divide-y divide-[#F4F4F6]">
+      <div className="divide-y divide-[#F2F1ED]">
         {lines.map(line => (
           <CostLineRow key={line.label} line={line} total={total} />
         ))}

@@ -127,7 +127,7 @@ function CodeCard({ label, code }: { label?: string; code: string }): ReactEleme
     setTimeout(() => setCopied(false), 2000);
   };
   return (
-    <div className="relative rounded-xl border border-[#e6e5ea] bg-[#fafafa] overflow-hidden">
+    <div className="relative rounded-xl border border-[#e6e5ea] bg-[#F6F5F2] overflow-hidden">
       <div className="flex items-center justify-between px-4 py-2 border-b border-[#e6e5ea]/60">
         <span className="font-mono text-[11px] text-[#B5B0AA]">{label ?? 'Snippet'}</span>
         <button
@@ -227,7 +227,7 @@ function InstallModal({
             </div>
 
             {/* Info note */}
-            <div className="flex gap-3 rounded-xl bg-[#F4F4F6] border border-[#E4E4E9] px-4 py-3.5">
+            <div className="flex gap-3 rounded-xl bg-[#F2F1ED] border border-[#E6E4DE] px-4 py-3.5">
               <Zap className="w-4 h-4 text-[#6E6C7C] shrink-0 mt-0.5" strokeWidth={1.7} />
               <p className="text-[12px] text-[#6E6C7C] leading-relaxed">
                 Under 1KB, loads async - zero impact on page speed. Data appears within seconds of
@@ -1028,8 +1028,8 @@ function MetricTile({
       disabled={!onClick}
       className={cn(
         'relative flex flex-col items-start gap-[7px] border-l border-[#F5F2EC] px-[22px] py-5 text-left transition-colors first:border-l-0',
-        onClick && 'cursor-pointer hover:bg-[#F4F4F6]',
-        active && 'bg-[#F4F4F6]'
+        onClick && 'cursor-pointer hover:bg-[#F2F1ED]',
+        active && 'bg-[#F2F1ED]'
       )}
     >
       <span className="text-[10.5px] font-bold uppercase tracking-[0.09em] text-[#9B9590]">
@@ -1042,7 +1042,7 @@ function MetricTile({
         <span
           className={cn(
             'flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10.5px] font-bold',
-            isGood ? 'bg-[#F4F4F6] text-[#6E6C7C]' : 'bg-[#F7DCD4] text-[#8F3B2C]'
+            isGood ? 'bg-[#F2F1ED] text-[#6E6C7C]' : 'bg-[#F7DCD4] text-[#8F3B2C]'
           )}
         >
           {delta.isPositive ? (
@@ -1218,7 +1218,7 @@ function FilterChips({
           </span>
           <button
             onClick={() => onRemove(key)}
-            className="flex h-4.5 w-4.5 items-center justify-center rounded-full hover:bg-[#E4E4E9] transition-colors cursor-pointer"
+            className="flex h-4.5 w-4.5 items-center justify-center rounded-full hover:bg-[#E6E4DE] transition-colors cursor-pointer"
             title="Remove filter"
           >
             <X className="h-3 w-3 text-[#9B9590]" />

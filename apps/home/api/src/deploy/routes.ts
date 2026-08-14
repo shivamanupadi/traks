@@ -73,15 +73,19 @@ export async function oauthCallback(
   const url = new URL(c.req.url);
   const state = url.searchParams.get('state') ?? '';
   const [instanceId, nonce] = state.split('.');
+  const cookie = getCookie(c, OAUTH_COOKIE) ?? '';
+  const [cookieNonce, verifier, cookieInstance, cookieFlow] = cookie.split('.');
+  // The registered redirect URI is fixed at /deploy/callback, but each flow
+  // has its own page now — return to whichever one started the sign-in.
+  // Server-set cookie only; a missing/old cookie falls back to /deploy.
+  const flow = cookieFlow === 'update' || cookieFlow === 'destroy' ? cookieFlow : 'deploy';
   const back = (params: string): Response =>
-    c.redirect(`/deploy?instance=${encodeURIComponent(instanceId ?? '')}${params}`);
+    c.redirect(`/${flow}?instance=${encodeURIComponent(instanceId ?? '')}${params}`);
 
   const denied = url.searchParams.get('error');
   if (denied) return back(`&oauth_error=${encodeURIComponent(denied)}`);
 
   const code = url.searchParams.get('code');
-  const cookie = getCookie(c, OAUTH_COOKIE) ?? '';
-  const [cookieNonce, verifier, cookieInstance] = cookie.split('.');
   deleteCookie(c, OAUTH_COOKIE, { path: '/' });
   // The instance id is bound to the cookie, not just carried in `state`:
   // otherwise a crafted start URL could land a victim's completed sign-in on
@@ -240,12 +244,15 @@ export const deployRoute = app
     if (!instanceId || !/^[a-zA-Z0-9-]{8,64}$/.test(instanceId)) {
       return c.json({ error: 'instance required' }, 400);
     }
+    // Which wizard page started this sign-in — the callback returns there.
+    const flowParam = c.req.query('flow');
+    const flow = flowParam === 'update' || flowParam === 'destroy' ? flowParam : 'deploy';
     const nonce = b64url(crypto.getRandomValues(new Uint8Array(16)));
     const verifier = b64url(crypto.getRandomValues(new Uint8Array(32)));
     const challenge = b64url(
       await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))
     );
-    setCookie(c, OAUTH_COOKIE, `${nonce}.${verifier}.${instanceId}`, {
+    setCookie(c, OAUTH_COOKIE, `${nonce}.${verifier}.${instanceId}.${flow}`, {
       path: '/',
       httpOnly: true,
       secure: true,

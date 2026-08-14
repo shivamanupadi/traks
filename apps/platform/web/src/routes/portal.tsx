@@ -188,7 +188,7 @@ function UpdateBanner(): React.ReactNode {
         </p>
         <div className="flex items-center gap-2">
           <a
-            href={`https://traks.dev/deploy?instance=${encodeURIComponent(config.deployInstanceId)}`}
+            href={`https://traks.dev/update?instance=${encodeURIComponent(config.deployInstanceId)}`}
             target="_blank"
             rel="noopener noreferrer"
             className="rounded-full bg-[#3D3B4F] px-4 py-1.5 text-[12px] font-semibold text-white hover:bg-[#2C2B3B] transition-colors"

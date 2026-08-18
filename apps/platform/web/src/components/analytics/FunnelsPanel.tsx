@@ -1,7 +1,13 @@
 import type { ReactElement } from 'react';
-import { Filter, AlertCircle, Settings2, Plus } from 'lucide-react';
+import { Filter, AlertCircle, Settings2, Plus, ChevronDown, Check } from 'lucide-react';
 import type { FunnelDef, FunnelStat } from '@traks/shared';
 import { cn, formatNumber } from '@/lib/utils';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface FunnelsPanelProps {
   funnels: FunnelDef[] | undefined;
@@ -33,6 +39,7 @@ export function FunnelsPanel({
   className,
 }: FunnelsPanelProps): ReactElement {
   const hasFunnels = funnels !== undefined && funnels.length > 0;
+  const selected = funnels?.find(f => f.id === selectedId);
   const overall =
     stat && stat.steps.length > 0 ? stat.steps[stat.steps.length - 1].rateFromFirst : null;
 
@@ -41,6 +48,29 @@ export function FunnelsPanel({
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <h3 className="text-[15px] font-bold tracking-[-0.01em] text-[#3D3B4F]">Funnels</h3>
+          {hasFunnels && funnels.length > 1 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger className="flex max-w-[16rem] items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-[12px] font-semibold text-[#3D3B4F] hover:bg-[#E6E4DE] transition-colors cursor-pointer">
+                <span className="truncate">{selected?.name ?? 'Select funnel'}</span>
+                <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[#9B9590]" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="max-h-72 w-56 overflow-y-auto">
+                {funnels.map(f => (
+                  <DropdownMenuItem
+                    key={f.id}
+                    onClick={() => onSelect(f.id)}
+                    className={cn(
+                      'justify-between text-[12.5px]',
+                      f.id === selectedId ? 'font-semibold text-[#3D3B4F]' : 'text-[#6E6C7C]'
+                    )}
+                  >
+                    <span className="truncate">{f.name}</span>
+                    {f.id === selectedId && <Check className="h-3.5 w-3.5 shrink-0" />}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
           {overall !== null && (
             <span className="rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-semibold tabular-nums text-[#6E6C7C]">
               {overall}% end-to-end
@@ -48,24 +78,6 @@ export function FunnelsPanel({
           )}
         </div>
         <div className="flex items-center gap-2">
-          {hasFunnels && funnels.length > 1 && (
-            <div className="flex items-center gap-1 rounded-full bg-muted p-1">
-              {funnels.map(f => (
-                <button
-                  key={f.id}
-                  onClick={() => onSelect(f.id)}
-                  className={cn(
-                    'rounded-full px-3 py-1 text-[11.5px] font-semibold transition-colors cursor-pointer',
-                    f.id === selectedId
-                      ? 'bg-white text-[#3D3B4F]'
-                      : 'text-[#9B9590] hover:text-[#3D3B4F]'
-                  )}
-                >
-                  {f.name}
-                </button>
-              ))}
-            </div>
-          )}
           {onManage && hasFunnels && (
             <button
               onClick={onManage}

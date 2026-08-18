@@ -302,8 +302,8 @@ export function AddSiteWizard({
                 <div className="flex gap-3 rounded-xl bg-[#F2F1ED] border border-[#E6E4DE] px-4 py-3.5">
                   <Zap className="w-4 h-4 text-[#6E6C7C] shrink-0 mt-0.5" strokeWidth={1.7} />
                   <p className="text-[12px] text-[#6E6C7C] leading-relaxed">
-                    Under 1KB, loads async - zero impact on page speed. Data appears within seconds
-                    of the first visit.
+                    1.4 KB gzipped, loads deferred - zero impact on page speed. Data appears within
+                    seconds of the first visit.
                   </p>
                 </div>
               </motion.div>

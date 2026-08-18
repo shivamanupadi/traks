@@ -1,19 +1,23 @@
 import { useMemo, useState, type ReactElement, type ReactNode } from 'react';
 import { createLazyFileRoute } from '@tanstack/react-router';
-import { EXAMPLE_COLLECT_URL, useLatestVersion } from '@/lib/config';
+import { EXAMPLE_API_URL, EXAMPLE_COLLECT_URL, useLatestVersion } from '@/lib/config';
 import { motion } from 'framer-motion';
 import {
   ArrowRight,
   ArrowUpRight,
   Activity,
+  Bookmark,
+  Bot,
   Check,
   FileText,
   Filter,
+  Funnel,
   Globe,
   MapPin,
   MousePointerClick,
   Smartphone,
   Target,
+  Users,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -205,17 +209,17 @@ const FEATURES: { icon: LucideIcon; title: string; desc: string }[] = [
   {
     icon: Activity,
     title: 'Real-time',
-    desc: 'A live visitor count served from the edge, with today’s numbers updating every few seconds. No ingest delay.',
+    desc: 'A live visitor count served from the edge, with today’s numbers refreshing every few seconds. No ingest delay, and every metric is compared with the period before.',
   },
   {
     icon: FileText,
     title: 'Pages',
-    desc: 'Pageviews and unique visitors for every URL, including entry and exit pages, so you see where journeys start and stall.',
+    desc: 'Pageviews, unique visitors, bounce rate, and visit duration for every URL, plus entry and exit pages, so you see where journeys start and stall.',
   },
   {
     icon: ArrowUpRight,
     title: 'Sources',
-    desc: 'Referrers plus full UTM breakdowns (source, medium, and campaign) to tell you which channels actually convert.',
+    desc: 'Referrers, UTM source, medium, and campaign, and a dedicated AI tab that names the assistant (ChatGPT, Claude, Perplexity, and a dozen more) sending you visitors.',
   },
   {
     icon: MapPin,
@@ -225,23 +229,51 @@ const FEATURES: { icon: LucideIcon; title: string; desc: string }[] = [
   {
     icon: Smartphone,
     title: 'Devices',
-    desc: 'Browser, operating system, and screen size: enough to know what to test on, nothing you don’t need.',
+    desc: 'Browser, operating system, device type, and screen size: enough to know what to test on, nothing you don’t need.',
   },
   {
     icon: Target,
     title: 'Events & goals',
-    desc: 'Custom events with one call to window.traks(). Outbound clicks and file downloads are tracked automatically. Turn any of them into a goal with a conversion value.',
+    desc: 'Custom events with one call to window.traks(). Outbound clicks, file downloads, and 404s are tracked automatically. Turn any event or page (or a /path/* prefix) into a goal, with prop conditions and values.',
+  },
+  {
+    icon: Funnel,
+    title: 'Funnels',
+    desc: 'Chain two to eight pages and events into an ordered funnel and see how many sessions reach each step and where they drop off.',
+  },
+  {
+    icon: Bookmark,
+    title: 'Filters & segments',
+    desc: 'Every row is a filter: click a page, country, or referrer to segment the whole dashboard. Save the combination as a named segment and re-apply it in one click.',
+  },
+  {
+    icon: Users,
+    title: 'Workspaces & teams',
+    desc: 'Group sites into workspaces, invite teammates by link, and choose who can manage and who can only view. Every site keeps its own reporting timezone.',
   },
 ];
 
 const PRIVACY_POINTS = [
-  'No cookies and nothing stored in the browser, so no consent banner is required',
+  'No cookies and no persistent identifiers, only a session id that dies with the tab, so no consent banner is required',
   'Visitors are counted with daily-rotating hashed identifiers, never profiles',
-  'IP addresses are used in-memory to resolve geography, then discarded',
+  'IP addresses are used in-memory to resolve geography, then discarded; referrer query strings are stripped before anything is stored',
+  'Known bots and crawlers are filtered at the edge, and your site key only accepts events from your own domain',
   'GDPR, ePrivacy, and PECR compliant by design, not by checkbox',
 ];
 
-const STACK = ['Workers', 'D1', 'R2 SQL', 'Durable Objects'];
+const STACK = ['Workers', 'Durable Objects', 'D1', 'Pipelines', 'R2 SQL'];
+
+const MCP_TOOLS = [
+  'list_sites',
+  'get_stats',
+  'get_goal_stats',
+  'get_funnel_stats',
+  'get_custom_events',
+  'get_event_props',
+  'create_goal',
+  'create_funnel',
+  'get_tracking_snippet',
+];
 
 /* ── page ────────────────────────────────────────────────────── */
 
@@ -286,6 +318,7 @@ function LandingPage(): ReactElement {
           <div className="hidden sm:flex sm:items-center sm:gap-1">
             <NavLink id="features">Features</NavLink>
             <NavLink id="how">How it works</NavLink>
+            <NavLink id="agents">Agents</NavLink>
             <NavLink id="cost">Cost</NavLink>
             <a
               href="/docs"
@@ -339,9 +372,9 @@ function LandingPage(): ReactElement {
             transition={{ duration: 0.55, delay: 0.18, ease: EASE }}
             className="mt-6 max-w-[52ch] text-[16px] leading-relaxed text-[#6E6C7C] sm:text-[17px]"
           >
-            Traks runs entirely in your own Cloudflare account: a cookieless tracker under
-            1&nbsp;KB, a real-time dashboard, and traffic data that never touches anyone
-            else&rsquo;s servers.
+            Traks runs entirely in your own Cloudflare account: a 1.4&nbsp;KB cookieless tracker, a
+            real-time dashboard, an MCP server your coding agent can query, and traffic data that
+            never touches anyone else&rsquo;s servers.
           </motion.p>
 
           <motion.div
@@ -358,10 +391,10 @@ function LandingPage(): ReactElement {
               <ArrowRight className="h-4 w-4" />
             </a>
             <a
-              href="/docs"
+              href="/guides"
               className="inline-flex h-12 items-center gap-1.5 rounded-full px-4 text-[14px] font-semibold text-[#3D3B4F] underline-offset-4 transition-colors hover:underline"
             >
-              Read the docs
+              Install guides for 11 stacks
             </a>
           </motion.div>
 
@@ -372,7 +405,8 @@ function LandingPage(): ReactElement {
             className="mt-8"
           >
             <Mono className="text-[#B3B1BE]">
-              No cookies&ensp;·&ensp;No consent banner&ensp;·&ensp;&lt;&thinsp;1 KB script
+              No cookies&ensp;·&ensp;No consent banner&ensp;·&ensp;1.4 KB script&ensp;·&ensp;Free
+              forever
             </Mono>
           </motion.div>
 
@@ -409,8 +443,8 @@ function LandingPage(): ReactElement {
           <motion.div {...rise(0.1)} className="mt-6 flex items-center gap-3 px-1">
             <Filter className="h-3.5 w-3.5 shrink-0 text-[#B3B1BE]" strokeWidth={1.6} />
             <p className="text-[13px] text-[#8C8A99]">
-              Every row is a filter. Click any page, country, or referrer to segment the whole
-              dashboard by it.
+              Multi-site from day one: every site gets its own tile with today&rsquo;s numbers and a
+              sparkline, and clicking a custom event drills into its properties.
             </p>
           </motion.div>
         </section>
@@ -427,7 +461,7 @@ function LandingPage(): ReactElement {
                 {
                   n: '1',
                   title: 'Drop in one script tag',
-                  desc: 'Under 1 KB, loads deferred, zero impact on Core Web Vitals. Works with SPAs, hash routers, and plain HTML alike.',
+                  desc: '1.4 KB gzipped, loads deferred, zero impact on Core Web Vitals. Works with SPAs, hash routers, and plain HTML alike, with tailored guides for Next.js, WordPress, Astro, Shopify, and seven more.',
                 },
                 {
                   n: '2',
@@ -437,7 +471,7 @@ function LandingPage(): ReactElement {
                 {
                   n: '3',
                   title: 'Track what matters',
-                  desc: 'Fire custom events for signups and purchases, then promote them to goals with conversion values. Outbound links and downloads come free.',
+                  desc: 'Fire custom events for signups and purchases, promote them to goals with values, and chain them into funnels. Outbound links, downloads, and 404s come free.',
                 },
               ].map((s, i) => (
                 <motion.div key={s.n} {...rise(i * 0.07)} className="flex gap-5">
@@ -499,11 +533,91 @@ function LandingPage(): ReactElement {
           </div>
         </section>
 
+        {/* agents */}
+        <section id="agents" className="mx-auto w-full max-w-[1060px] px-6 py-16 sm:py-20">
+          <motion.div {...rise()}>
+            <SectionRule n="03" label="Built for agents" />
+          </motion.div>
+
+          <div className="mt-12 grid grid-cols-1 gap-12 lg:grid-cols-[5fr_6fr] lg:gap-16">
+            <motion.div {...rise(0.05)}>
+              <h2 className="max-w-[20ch] text-[28px] font-bold leading-tight tracking-[-0.02em] sm:text-[36px]">
+                Hand your coding agent the keys.
+              </h2>
+              <p className="mt-5 text-[13.5px] leading-relaxed text-[#6E6C7C]">
+                Every Traks instance ships an MCP server. Mint an API token, add it to Claude Code,
+                Cursor, or any MCP client, and your agent can pull stats, inspect custom events, and
+                create goals and funnels for the feature it just shipped, without you opening the
+                dashboard.
+              </p>
+              <ul className="mt-6 space-y-3.5">
+                {[
+                  'Tokens are bound to one workspace and scoped read-only or manage; the secret is shown once and revocable any time',
+                  'Every tool call runs through the same permission checks as the dashboard',
+                  'A ready-made SKILL.md, pre-filled with your instance URLs, teaches the agent how to instrument a site',
+                ].map(p => (
+                  <li
+                    key={p}
+                    className="flex items-start gap-3 text-[13.5px] leading-relaxed text-[#6E6C7C]"
+                  >
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#3D3B4F]" strokeWidth={2} />
+                    {p}
+                  </li>
+                ))}
+              </ul>
+            </motion.div>
+
+            <motion.div {...rise(0.12)}>
+              <div className="overflow-hidden rounded-[18px] bg-[#34324A] shadow-[0_16px_48px_rgba(61,59,79,0.18)]">
+                <div className="flex items-center justify-between border-b border-white/[0.07] px-5 py-3">
+                  <Mono className="text-[#8C8A99]">terminal</Mono>
+                  <Mono className="text-mint">Streamable HTTP MCP</Mono>
+                </div>
+                <pre className="overflow-x-auto p-5 font-mono text-[12.5px] leading-[1.8] text-[#C9C8D4]">
+                  <code>
+                    <span className="text-[#75738C]">$ </span>
+                    <span className="text-white">claude</span> mcp add{' '}
+                    <span className="text-[#93F4CF]">--transport</span> http traks \{'\n    '}
+                    <span className="text-[#F2B5A4]">{EXAMPLE_API_URL}/api/mcp</span> \{'\n    '}
+                    <span className="text-[#93F4CF]">--header</span>{' '}
+                    <span className="text-[#F2B5A4]">
+                      &quot;Authorization: Bearer traks_pat_&hellip;&quot;
+                    </span>
+                    {'\n\n'}
+                    <span className="text-[#75738C]">
+                      {'// then, in your agent: "how did the new pricing page do this week?"'}
+                    </span>
+                  </code>
+                </pre>
+                <div className="flex flex-wrap gap-1.5 border-t border-white/[0.07] px-5 py-4">
+                  {MCP_TOOLS.map(t => (
+                    <span
+                      key={t}
+                      className="rounded-full border border-white/[0.1] px-2.5 py-1 font-mono text-[10.5px] text-[#C9C8D4]"
+                    >
+                      {t}
+                    </span>
+                  ))}
+                  <span className="rounded-full px-2.5 py-1 font-mono text-[10.5px] text-[#75738C]">
+                    + update / delete / list
+                  </span>
+                </div>
+              </div>
+              <div className="mt-4 flex items-center gap-2.5 px-1">
+                <Bot className="h-3.5 w-3.5 text-[#B3B1BE]" strokeWidth={1.6} />
+                <p className="text-[12.5px] text-[#8C8A99]">
+                  The same tokens work against the plain REST API too.
+                </p>
+              </div>
+            </motion.div>
+          </div>
+        </section>
+
         {/* privacy + stack */}
         <section className="mx-auto w-full max-w-[1060px] px-6 py-16 sm:py-20">
           <div className="grid grid-cols-1 gap-14 lg:grid-cols-2 lg:gap-16">
             <motion.div {...rise()}>
-              <SectionRule n="03" label="Private by default" />
+              <SectionRule n="04" label="Private by default" />
               <h2 className="mt-8 text-[24px] font-bold tracking-[-0.02em] sm:text-[28px]">
                 Respectful of every visitor.
               </h2>
@@ -521,15 +635,16 @@ function LandingPage(): ReactElement {
             </motion.div>
 
             <motion.div {...rise(0.08)}>
-              <SectionRule n="04" label="Your stack" />
+              <SectionRule n="05" label="Your stack" />
               <h2 className="mt-8 text-[24px] font-bold tracking-[-0.02em] sm:text-[28px]">
                 Deployed once, yours forever.
               </h2>
               <p className="mt-4 text-[13.5px] leading-relaxed text-[#6E6C7C]">
-                Traks isn&rsquo;t a subscription dashboard holding your history hostage. It deploys
-                into your own Cloudflare account, stores events in your own database, and serves the
-                dashboard from your own domain. Cloudflare&rsquo;s $5/mo Workers plan covers
-                millions of events, and if you ever leave, the data is already yours.
+                Traks isn&rsquo;t a subscription dashboard holding your history hostage. The
+                traks.dev wizard signs in with Cloudflare, deploys into your own account, stores
+                events in your own bucket, and serves the dashboard from your own domain.
+                Cloudflare&rsquo;s $5/mo Workers plan covers millions of events, updates are one
+                click from the same wizard, and if you ever leave, the data is already yours.
               </p>
               <div className="mt-6 flex flex-wrap gap-2">
                 {STACK.map(s => (
@@ -544,7 +659,7 @@ function LandingPage(): ReactElement {
               <div className="mt-6 flex items-center gap-2.5">
                 <Globe className="h-3.5 w-3.5 text-[#B3B1BE]" strokeWidth={1.6} />
                 <p className="text-[12.5px] text-[#8C8A99]">
-                  One worker, one database, one cron. Nothing else to operate.
+                  Two Workers, one database, one bucket. No servers, no crons, nothing to patch.
                 </p>
               </div>
             </motion.div>
@@ -554,7 +669,7 @@ function LandingPage(): ReactElement {
         {/* cost */}
         <section id="cost" className="mx-auto w-full max-w-[1060px] px-6 py-16 sm:py-20">
           <motion.div {...rise()}>
-            <SectionRule n="05" label="What it costs" />
+            <SectionRule n="06" label="What it costs" />
             <h2 className="mt-8 max-w-[26ch] text-[28px] font-bold leading-tight tracking-[-0.02em] sm:text-[36px]">
               Your Cloudflare bill, not our subscription.
             </h2>
@@ -622,6 +737,12 @@ function LandingPage(): ReactElement {
               className="font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-[#8C8A99] transition-colors hover:text-[#3D3B4F]"
             >
               Docs
+            </a>
+            <a
+              href="/guides"
+              className="font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-[#8C8A99] transition-colors hover:text-[#3D3B4F]"
+            >
+              Guides
             </a>
             <MousePointerClick
               className="hidden h-3.5 w-3.5 text-[#D8D7DE] sm:block"
@@ -820,8 +941,8 @@ function CostCalculator(): ReactElement {
         Pipelines, R2 SQL and R2 Data Catalog began 3 Aug 2026, so these are live charges. Assumes
         one request per event, ~800 B through the pipeline, ~250 B stored as Parquet and six months
         of history; Analytics Engine is not yet billed by Cloudflare. Your real bill moves with how
-        often dashboards are opened and how much history you keep. Excludes the one-time Traks
-        licence.
+        often dashboards are opened and how much history you keep. Traks itself is free: there is
+        nothing to pay us, ever.
       </p>
     </div>
   );

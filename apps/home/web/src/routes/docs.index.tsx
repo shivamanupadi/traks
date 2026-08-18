@@ -17,7 +17,7 @@ function DocsIndex(): ReactElement {
   }, [hash]);
   return (
     <>
-      <h1 className="mt-6 text-[32px] font-bold tracking-[-0.02em] text-[#3D3B4F] lg:mt-2">
+      <h1 className="mt-6 text-[32px] font-bold tracking-[-0.02em] text-[#3D3B4F] lg:mt-0">
         Documentation
       </h1>
       <p className="mt-2 max-w-[58ch] text-[15px] leading-relaxed text-[#8A8580]">

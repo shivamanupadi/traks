@@ -20,7 +20,7 @@ function GuidePage(): ReactElement {
 
   if (!guide) {
     return (
-      <div className="mt-6 lg:mt-2">
+      <div className="mt-6 lg:mt-0">
         <h1 className="text-[26px] font-bold text-[#3D3B4F]">Guide not found</h1>
         <p className="mt-2 text-[14px] text-[#8A8580]">
           No guide for &ldquo;{slug}&rdquo;. The{' '}
@@ -38,7 +38,7 @@ function GuidePage(): ReactElement {
   }
 
   return (
-    <div className="mt-6 lg:mt-2">
+    <div className="mt-6 lg:mt-0">
       <span className="font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-[#B3B1BE]">
         Install guide
       </span>

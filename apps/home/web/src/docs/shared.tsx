@@ -40,7 +40,7 @@ export function Section({
     <section
       id={id}
       data-doc-section
-      className="scroll-mt-24 rounded-[18px] border border-[#E6E4DE] bg-white p-6 shadow-float sm:p-8"
+      className="scroll-mt-32 rounded-[18px] lg:scroll-mt-24 border border-[#E6E4DE] bg-white p-6 shadow-float sm:p-8"
     >
       <span className="font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-[#B3B1BE]">
         {n}
@@ -252,7 +252,7 @@ export function JumpMenu({ active }: { active: string }): ReactElement {
   const known =
     TOC.some(t => t.id === active) || INSTALL_GUIDES.some(g => `guide:${g.slug}` === active);
   return (
-    <div className="sticky top-0 z-20 -mx-4 border-b border-[#E6E4DE] bg-[#F6F5F2]/95 px-4 py-2.5 backdrop-blur lg:hidden">
+    <div className="sticky top-16 z-20 -mx-4 border-b border-[#E6E4DE] bg-[#F6F5F2]/95 px-4 py-2.5 backdrop-blur lg:hidden">
       <label className="flex items-center gap-2">
         <span className="font-mono text-[10.5px] font-medium uppercase tracking-[0.14em] text-[#B3B1BE]">
           Section

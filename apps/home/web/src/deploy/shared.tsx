@@ -548,11 +548,19 @@ export function useConnect(flow: Flow, sessionId: string | undefined): Connect {
 export function ConnectSection({
   connect,
   onAccountChange,
+  compactToken = false,
 }: {
   connect: Connect;
   onAccountChange?: (accountId: string) => void;
+  /** Hide the installer-token field behind a "use a token instead" link
+   *  while "Sign in with Cloudflare" is available, so the card leads with
+   *  one action. */
+  compactToken?: boolean;
 }): ReactElement {
   const c = connect;
+  const [tokenOpen, setTokenOpen] = useState(false);
+  const showToken =
+    !c.oauthSignedIn && (!compactToken || !c.oauthEnabled || tokenOpen || c.installerToken !== '');
   return (
     <div className="space-y-5">
       {c.oauthSignedIn ? (
@@ -584,22 +592,34 @@ export function ConnectSection({
             <CloudGlyph />
             Sign in with Cloudflare
           </button>
-          <p className="mt-1.5 text-[11.5px] leading-relaxed text-[#9B99A6]">
-            Opens Cloudflare&rsquo;s consent screen listing every permission. Approve once and
-            you&rsquo;re back here. Prefer not to?{' '}
-            <a
-              href={INSTALLER_TOKEN_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-semibold text-[#3D3B4F] underline-offset-2 hover:underline"
-            >
-              Create a token manually
-            </a>{' '}
-            and paste it below instead.
-          </p>
+          {compactToken && !showToken ? (
+            <p className="mt-2 text-center text-[11.5px] text-[#9B99A6]">
+              Approve once on Cloudflare&rsquo;s consent screen and you&rsquo;re back here.{' '}
+              <button
+                onClick={() => setTokenOpen(true)}
+                className="font-semibold text-[#3D3B4F] underline-offset-2 hover:underline cursor-pointer"
+              >
+                Use a token instead
+              </button>
+            </p>
+          ) : (
+            <p className="mt-1.5 text-[11.5px] leading-relaxed text-[#9B99A6]">
+              Opens Cloudflare&rsquo;s consent screen listing every permission. Approve once and
+              you&rsquo;re back here. Prefer not to?{' '}
+              <a
+                href={INSTALLER_TOKEN_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold text-[#3D3B4F] underline-offset-2 hover:underline"
+              >
+                Create a token manually
+              </a>{' '}
+              and paste it below instead.
+            </p>
+          )}
         </div>
       ) : null}
-      {!c.oauthSignedIn && (
+      {showToken && (
         <TokenField
           id="installer-token"
           label="Installer token"

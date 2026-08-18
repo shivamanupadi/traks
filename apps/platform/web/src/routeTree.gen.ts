@@ -8,108 +8,110 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-import { Route as rootRouteImport } from './routes/__root';
-import { Route as PortalRouteImport } from './routes/portal';
-import { Route as LoginRouteImport } from './routes/login';
-import { Route as IndexRouteImport } from './routes/index';
-import { Route as PortalSkillRouteImport } from './routes/portal.skill';
-import { Route as PortalSitesRouteImport } from './routes/portal.sites';
-import { Route as PortalSettingsRouteImport } from './routes/portal.settings';
-import { Route as PortalMembersRouteImport } from './routes/portal.members';
-import { Route as PortalApiRouteImport } from './routes/portal.api';
-import { Route as InviteTokenRouteImport } from './routes/invite.$token';
-import { Route as PortalSiteSiteIdRouteImport } from './routes/portal.site.$siteId';
+import { Route as rootRouteImport } from './routes/__root'
+import { Route as PortalRouteImport } from './routes/portal'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as IndexRouteImport } from './routes/index'
+import { Route as PortalSkillRouteImport } from './routes/portal.skill'
+import { Route as PortalSitesRouteImport } from './routes/portal.sites'
+import { Route as PortalSettingsRouteImport } from './routes/portal.settings'
+import { Route as PortalMembersRouteImport } from './routes/portal.members'
+import { Route as PortalApiRouteImport } from './routes/portal.api'
+import { Route as InviteTokenRouteImport } from './routes/invite.$token'
+import { Route as PortalSiteSiteIdRouteImport } from './routes/portal.site.$siteId'
 
 const PortalRoute = PortalRouteImport.update({
   id: '/portal',
   path: '/portal',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const PortalSkillRoute = PortalSkillRouteImport.update({
   id: '/skill',
   path: '/skill',
   getParentRoute: () => PortalRoute,
-} as any);
+} as any)
 const PortalSitesRoute = PortalSitesRouteImport.update({
   id: '/sites',
   path: '/sites',
   getParentRoute: () => PortalRoute,
-} as any).lazy(() => import('./routes/portal.sites.lazy').then(d => d.Route));
+} as any).lazy(() => import('./routes/portal.sites.lazy').then((d) => d.Route))
 const PortalSettingsRoute = PortalSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
   getParentRoute: () => PortalRoute,
-} as any);
+} as any)
 const PortalMembersRoute = PortalMembersRouteImport.update({
   id: '/members',
   path: '/members',
   getParentRoute: () => PortalRoute,
-} as any);
+} as any)
 const PortalApiRoute = PortalApiRouteImport.update({
   id: '/api',
   path: '/api',
   getParentRoute: () => PortalRoute,
-} as any);
+} as any)
 const InviteTokenRoute = InviteTokenRouteImport.update({
   id: '/invite/$token',
   path: '/invite/$token',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const PortalSiteSiteIdRoute = PortalSiteSiteIdRouteImport.update({
   id: '/site/$siteId',
   path: '/site/$siteId',
   getParentRoute: () => PortalRoute,
-} as any).lazy(() => import('./routes/portal.site.$siteId.lazy').then(d => d.Route));
+} as any).lazy(() =>
+  import('./routes/portal.site.$siteId.lazy').then((d) => d.Route),
+)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute;
-  '/login': typeof LoginRoute;
-  '/portal': typeof PortalRouteWithChildren;
-  '/invite/$token': typeof InviteTokenRoute;
-  '/portal/api': typeof PortalApiRoute;
-  '/portal/members': typeof PortalMembersRoute;
-  '/portal/settings': typeof PortalSettingsRoute;
-  '/portal/sites': typeof PortalSitesRoute;
-  '/portal/skill': typeof PortalSkillRoute;
-  '/portal/site/$siteId': typeof PortalSiteSiteIdRoute;
+  '/': typeof IndexRoute
+  '/login': typeof LoginRoute
+  '/portal': typeof PortalRouteWithChildren
+  '/invite/$token': typeof InviteTokenRoute
+  '/portal/api': typeof PortalApiRoute
+  '/portal/members': typeof PortalMembersRoute
+  '/portal/settings': typeof PortalSettingsRoute
+  '/portal/sites': typeof PortalSitesRoute
+  '/portal/skill': typeof PortalSkillRoute
+  '/portal/site/$siteId': typeof PortalSiteSiteIdRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute;
-  '/login': typeof LoginRoute;
-  '/portal': typeof PortalRouteWithChildren;
-  '/invite/$token': typeof InviteTokenRoute;
-  '/portal/api': typeof PortalApiRoute;
-  '/portal/members': typeof PortalMembersRoute;
-  '/portal/settings': typeof PortalSettingsRoute;
-  '/portal/sites': typeof PortalSitesRoute;
-  '/portal/skill': typeof PortalSkillRoute;
-  '/portal/site/$siteId': typeof PortalSiteSiteIdRoute;
+  '/': typeof IndexRoute
+  '/login': typeof LoginRoute
+  '/portal': typeof PortalRouteWithChildren
+  '/invite/$token': typeof InviteTokenRoute
+  '/portal/api': typeof PortalApiRoute
+  '/portal/members': typeof PortalMembersRoute
+  '/portal/settings': typeof PortalSettingsRoute
+  '/portal/sites': typeof PortalSitesRoute
+  '/portal/skill': typeof PortalSkillRoute
+  '/portal/site/$siteId': typeof PortalSiteSiteIdRoute
 }
 export interface FileRoutesById {
-  __root__: typeof rootRouteImport;
-  '/': typeof IndexRoute;
-  '/login': typeof LoginRoute;
-  '/portal': typeof PortalRouteWithChildren;
-  '/invite/$token': typeof InviteTokenRoute;
-  '/portal/api': typeof PortalApiRoute;
-  '/portal/members': typeof PortalMembersRoute;
-  '/portal/settings': typeof PortalSettingsRoute;
-  '/portal/sites': typeof PortalSitesRoute;
-  '/portal/skill': typeof PortalSkillRoute;
-  '/portal/site/$siteId': typeof PortalSiteSiteIdRoute;
+  __root__: typeof rootRouteImport
+  '/': typeof IndexRoute
+  '/login': typeof LoginRoute
+  '/portal': typeof PortalRouteWithChildren
+  '/invite/$token': typeof InviteTokenRoute
+  '/portal/api': typeof PortalApiRoute
+  '/portal/members': typeof PortalMembersRoute
+  '/portal/settings': typeof PortalSettingsRoute
+  '/portal/sites': typeof PortalSitesRoute
+  '/portal/skill': typeof PortalSkillRoute
+  '/portal/site/$siteId': typeof PortalSiteSiteIdRoute
 }
 export interface FileRouteTypes {
-  fileRoutesByFullPath: FileRoutesByFullPath;
+  fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/login'
@@ -120,8 +122,8 @@ export interface FileRouteTypes {
     | '/portal/settings'
     | '/portal/sites'
     | '/portal/skill'
-    | '/portal/site/$siteId';
-  fileRoutesByTo: FileRoutesByTo;
+    | '/portal/site/$siteId'
+  fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/login'
@@ -132,7 +134,7 @@ export interface FileRouteTypes {
     | '/portal/settings'
     | '/portal/sites'
     | '/portal/skill'
-    | '/portal/site/$siteId';
+    | '/portal/site/$siteId'
   id:
     | '__root__'
     | '/'
@@ -144,98 +146,98 @@ export interface FileRouteTypes {
     | '/portal/settings'
     | '/portal/sites'
     | '/portal/skill'
-    | '/portal/site/$siteId';
-  fileRoutesById: FileRoutesById;
+    | '/portal/site/$siteId'
+  fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute;
-  LoginRoute: typeof LoginRoute;
-  PortalRoute: typeof PortalRouteWithChildren;
-  InviteTokenRoute: typeof InviteTokenRoute;
+  IndexRoute: typeof IndexRoute
+  LoginRoute: typeof LoginRoute
+  PortalRoute: typeof PortalRouteWithChildren
+  InviteTokenRoute: typeof InviteTokenRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
     '/portal': {
-      id: '/portal';
-      path: '/portal';
-      fullPath: '/portal';
-      preLoaderRoute: typeof PortalRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: '/portal'
+      path: '/portal'
+      fullPath: '/portal'
+      preLoaderRoute: typeof PortalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
-      id: '/login';
-      path: '/login';
-      fullPath: '/login';
-      preLoaderRoute: typeof LoginRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
-      id: '/';
-      path: '/';
-      fullPath: '/';
-      preLoaderRoute: typeof IndexRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/portal/skill': {
-      id: '/portal/skill';
-      path: '/skill';
-      fullPath: '/portal/skill';
-      preLoaderRoute: typeof PortalSkillRouteImport;
-      parentRoute: typeof PortalRoute;
-    };
+      id: '/portal/skill'
+      path: '/skill'
+      fullPath: '/portal/skill'
+      preLoaderRoute: typeof PortalSkillRouteImport
+      parentRoute: typeof PortalRoute
+    }
     '/portal/sites': {
-      id: '/portal/sites';
-      path: '/sites';
-      fullPath: '/portal/sites';
-      preLoaderRoute: typeof PortalSitesRouteImport;
-      parentRoute: typeof PortalRoute;
-    };
+      id: '/portal/sites'
+      path: '/sites'
+      fullPath: '/portal/sites'
+      preLoaderRoute: typeof PortalSitesRouteImport
+      parentRoute: typeof PortalRoute
+    }
     '/portal/settings': {
-      id: '/portal/settings';
-      path: '/settings';
-      fullPath: '/portal/settings';
-      preLoaderRoute: typeof PortalSettingsRouteImport;
-      parentRoute: typeof PortalRoute;
-    };
+      id: '/portal/settings'
+      path: '/settings'
+      fullPath: '/portal/settings'
+      preLoaderRoute: typeof PortalSettingsRouteImport
+      parentRoute: typeof PortalRoute
+    }
     '/portal/members': {
-      id: '/portal/members';
-      path: '/members';
-      fullPath: '/portal/members';
-      preLoaderRoute: typeof PortalMembersRouteImport;
-      parentRoute: typeof PortalRoute;
-    };
+      id: '/portal/members'
+      path: '/members'
+      fullPath: '/portal/members'
+      preLoaderRoute: typeof PortalMembersRouteImport
+      parentRoute: typeof PortalRoute
+    }
     '/portal/api': {
-      id: '/portal/api';
-      path: '/api';
-      fullPath: '/portal/api';
-      preLoaderRoute: typeof PortalApiRouteImport;
-      parentRoute: typeof PortalRoute;
-    };
+      id: '/portal/api'
+      path: '/api'
+      fullPath: '/portal/api'
+      preLoaderRoute: typeof PortalApiRouteImport
+      parentRoute: typeof PortalRoute
+    }
     '/invite/$token': {
-      id: '/invite/$token';
-      path: '/invite/$token';
-      fullPath: '/invite/$token';
-      preLoaderRoute: typeof InviteTokenRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: '/invite/$token'
+      path: '/invite/$token'
+      fullPath: '/invite/$token'
+      preLoaderRoute: typeof InviteTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/portal/site/$siteId': {
-      id: '/portal/site/$siteId';
-      path: '/site/$siteId';
-      fullPath: '/portal/site/$siteId';
-      preLoaderRoute: typeof PortalSiteSiteIdRouteImport;
-      parentRoute: typeof PortalRoute;
-    };
+      id: '/portal/site/$siteId'
+      path: '/site/$siteId'
+      fullPath: '/portal/site/$siteId'
+      preLoaderRoute: typeof PortalSiteSiteIdRouteImport
+      parentRoute: typeof PortalRoute
+    }
   }
 }
 
 interface PortalRouteChildren {
-  PortalApiRoute: typeof PortalApiRoute;
-  PortalMembersRoute: typeof PortalMembersRoute;
-  PortalSettingsRoute: typeof PortalSettingsRoute;
-  PortalSitesRoute: typeof PortalSitesRoute;
-  PortalSkillRoute: typeof PortalSkillRoute;
-  PortalSiteSiteIdRoute: typeof PortalSiteSiteIdRoute;
+  PortalApiRoute: typeof PortalApiRoute
+  PortalMembersRoute: typeof PortalMembersRoute
+  PortalSettingsRoute: typeof PortalSettingsRoute
+  PortalSitesRoute: typeof PortalSitesRoute
+  PortalSkillRoute: typeof PortalSkillRoute
+  PortalSiteSiteIdRoute: typeof PortalSiteSiteIdRoute
 }
 
 const PortalRouteChildren: PortalRouteChildren = {
@@ -245,16 +247,17 @@ const PortalRouteChildren: PortalRouteChildren = {
   PortalSitesRoute: PortalSitesRoute,
   PortalSkillRoute: PortalSkillRoute,
   PortalSiteSiteIdRoute: PortalSiteSiteIdRoute,
-};
+}
 
-const PortalRouteWithChildren = PortalRoute._addFileChildren(PortalRouteChildren);
+const PortalRouteWithChildren =
+  PortalRoute._addFileChildren(PortalRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LoginRoute: LoginRoute,
   PortalRoute: PortalRouteWithChildren,
   InviteTokenRoute: InviteTokenRoute,
-};
+}
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
-  ._addFileTypes<FileRouteTypes>();
+  ._addFileTypes<FileRouteTypes>()

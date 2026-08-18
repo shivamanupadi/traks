@@ -309,31 +309,33 @@ function LandingPage(): ReactElement {
       />
 
       {/* header */}
-      <header className="relative z-10 mx-auto flex w-full max-w-[1060px] items-center justify-between px-6 py-6">
-        <div className="flex items-center gap-2.5">
-          <img src="/logo.svg" alt="Traks" className="h-7 w-7" />
-          <span className="text-[16px] font-bold tracking-tight">Traks</span>
-        </div>
-        <nav className="flex items-center gap-1">
-          <div className="hidden sm:flex sm:items-center sm:gap-1">
-            <NavLink id="features">Features</NavLink>
-            <NavLink id="how">How it works</NavLink>
-            <NavLink id="agents">Agents</NavLink>
-            <NavLink id="cost">Cost</NavLink>
-            <a
-              href="/docs"
-              className="rounded-md px-3 py-2 font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-[#6E6C7C] transition-colors hover:text-[#3D3B4F]"
-            >
-              Docs
-            </a>
+      <header className="sticky top-0 z-30 border-b border-[#E6E4DE]/70 bg-[#F6F5F2]/90 backdrop-blur">
+        <div className="mx-auto flex h-16 w-full max-w-[1060px] items-center justify-between px-6">
+          <div className="flex items-center gap-2.5">
+            <img src="/logo.svg" alt="Traks" className="h-7 w-7" />
+            <span className="text-[16px] font-bold tracking-tight">Traks</span>
           </div>
-          <a
-            href="/deploy"
-            className="ml-2 inline-flex h-9 items-center gap-1.5 rounded-full bg-[#3D3B4F] px-4 text-[12.5px] font-semibold text-white transition-all hover:-translate-y-px hover:bg-[#2C2B3B] hover:shadow-md"
-          >
-            Deploy now
-          </a>
-        </nav>
+          <nav className="flex items-center gap-1">
+            <div className="hidden sm:flex sm:items-center sm:gap-1">
+              <NavLink id="features">Features</NavLink>
+              <NavLink id="how">How it works</NavLink>
+              <NavLink id="agents">Agents</NavLink>
+              <NavLink id="cost">Cost</NavLink>
+              <a
+                href="/docs"
+                className="rounded-md px-3 py-2 font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-[#6E6C7C] transition-colors hover:text-[#3D3B4F]"
+              >
+                Docs
+              </a>
+            </div>
+            <a
+              href="/deploy"
+              className="ml-2 inline-flex h-9 items-center gap-1.5 rounded-full bg-[#3D3B4F] px-4 text-[12.5px] font-semibold text-white transition-all hover:-translate-y-px hover:bg-[#2C2B3B] hover:shadow-md"
+            >
+              Deploy now
+            </a>
+          </nav>
+        </div>
       </header>
 
       <main className="relative z-10">
@@ -422,7 +424,10 @@ function LandingPage(): ReactElement {
         </section>
 
         {/* features */}
-        <section id="features" className="mx-auto w-full max-w-[1060px] px-6 py-16 sm:py-20">
+        <section
+          id="features"
+          className="scroll-mt-16 mx-auto w-full max-w-[1060px] px-6 py-16 sm:py-20"
+        >
           <motion.div {...rise()}>
             <SectionRule n="01" label="Everything measured" />
             <h2 className="mt-8 max-w-[24ch] text-[28px] font-bold leading-tight tracking-[-0.02em] sm:text-[36px]">
@@ -450,7 +455,10 @@ function LandingPage(): ReactElement {
         </section>
 
         {/* how it works */}
-        <section id="how" className="mx-auto w-full max-w-[1060px] px-6 py-16 sm:py-20">
+        <section
+          id="how"
+          className="scroll-mt-16 mx-auto w-full max-w-[1060px] px-6 py-16 sm:py-20"
+        >
           <motion.div {...rise()}>
             <SectionRule n="02" label="How it works" />
           </motion.div>
@@ -534,7 +542,10 @@ function LandingPage(): ReactElement {
         </section>
 
         {/* agents */}
-        <section id="agents" className="mx-auto w-full max-w-[1060px] px-6 py-16 sm:py-20">
+        <section
+          id="agents"
+          className="scroll-mt-16 mx-auto w-full max-w-[1060px] px-6 py-16 sm:py-20"
+        >
           <motion.div {...rise()}>
             <SectionRule n="03" label="Built for agents" />
           </motion.div>
@@ -667,7 +678,10 @@ function LandingPage(): ReactElement {
         </section>
 
         {/* cost */}
-        <section id="cost" className="mx-auto w-full max-w-[1060px] px-6 py-16 sm:py-20">
+        <section
+          id="cost"
+          className="scroll-mt-16 mx-auto w-full max-w-[1060px] px-6 py-16 sm:py-20"
+        >
           <motion.div {...rise()}>
             <SectionRule n="06" label="What it costs" />
             <h2 className="mt-8 max-w-[26ch] text-[28px] font-bold leading-tight tracking-[-0.02em] sm:text-[36px]">

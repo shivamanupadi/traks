@@ -309,7 +309,7 @@ function InviteDialog({
           <DialogTitle>Invite to {workspaceName}</DialogTitle>
           <DialogDescription>
             {inviteUrl
-              ? 'Share this link with them however you like — chat, text, carrier pigeon. This instance doesn’t send emails.'
+              ? 'Share this link with them however you like: chat, text, carrier pigeon. This instance doesn’t send emails.'
               : 'Creates an invite link, valid for 7 days. Only the invited email can use it.'}
           </DialogDescription>
         </DialogHeader>
@@ -319,7 +319,7 @@ function InviteDialog({
             <div className="relative overflow-hidden rounded-xl border border-[#e6e5ea] bg-[#F9F8F6]">
               <div className="flex items-center justify-between border-b border-[#e6e5ea]/60 px-4 py-2.5">
                 <span className="text-[11px] font-medium uppercase tracking-wider text-[#B5B0AA]">
-                  Invite link — shown once
+                  Invite link (shown once)
                 </span>
                 <button
                   onClick={() => void handleCopy()}

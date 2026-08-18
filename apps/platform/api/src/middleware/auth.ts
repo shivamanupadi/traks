@@ -19,7 +19,7 @@ export async function sessionOnly(
 
 /**
  * Session auth (dashboard cookie) or a personal API token
- * (`Authorization: Bearer traks_pat_…` — coding agents and the MCP
+ * (`Authorization: Bearer traks_pat_…` - coding agents and the MCP
  * endpoint). Tokens resolve to their owner's userId, so every downstream
  * permission check works identically for both. Read-scoped tokens are
  * limited to GET requests.
@@ -34,7 +34,7 @@ export async function requireAuth(
     const token = await resolveToken(db, bearer.slice('Bearer '.length));
     if (!token) return c.json({ error: 'Invalid API token' }, 401);
     // Read-only means read-only ROUTES. The MCP transport is always a POST
-    // envelope, so it is exempt here — its tool calls dispatch internally as
+    // envelope, so it is exempt here - its tool calls dispatch internally as
     // real GET/POST/PATCH requests and pass through this check again, where
     // a write tool under a read token is rejected.
     if (token.scope === 'read' && c.req.method !== 'GET' && c.req.path !== '/api/mcp') {

@@ -17,12 +17,12 @@ const createTokenSchema = z.object({
     .transform(s => s.trim())
     .refine(s => s.length > 0, 'Token name is required'),
   scope: z.enum(['read', 'manage']).default('manage'),
-  /** Every token binds to one workspace — site access never crosses it. */
+  /** Every token binds to one workspace - site access never crosses it. */
   workspaceId: z.string().min(1).max(64),
 });
 
 export const tokensRoute = app
-  // List the caller's tokens — metadata only, never secrets or hashes.
+  // List the caller's tokens - metadata only, never secrets or hashes.
   .get('/', requireAuth, async c => {
     const userId = c.get('userId')!;
     const db = c.get('db')!;
@@ -80,7 +80,7 @@ export const tokensRoute = app
     return c.json({ data: row, secret }, 201);
   })
 
-  // Revoke — only the owner's own token; effective immediately.
+  // Revoke - only the owner's own token; effective immediately.
   .delete('/:tokenId', requireAuth, async c => {
     const userId = c.get('userId')!;
     const tokenId = c.req.param('tokenId');

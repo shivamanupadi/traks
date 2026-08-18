@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 
-/** Example collect hostname for docs/marketing snippets — every install gets
+/** Example collect hostname for docs/marketing snippets - every install gets
  *  its own (wizard: `<sub>-collect.<domain>` or `<name>-collect.workers.dev`). */
 export const EXAMPLE_COLLECT_URL = 'https://analytics-collect.your-domain.com';
 

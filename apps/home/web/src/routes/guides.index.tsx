@@ -17,7 +17,7 @@ function GuidesIndex(): ReactElement {
           Install guides
         </h1>
         <p className="mt-2 text-[15px] text-[#8A8580]">
-          Tailored walkthroughs for every stack. The snippet is the same everywhere — under 1KB,
+          Tailored walkthroughs for every stack. The snippet is the same everywhere: under 1KB,
           cookieless, zero config.
         </p>
 

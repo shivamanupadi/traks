@@ -30,7 +30,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, { error: E
           </div>
           <h1 className="text-[17px] font-semibold text-[#3D3B4F]">Something went wrong</h1>
           <p className="mx-auto mt-2 max-w-sm text-[13.5px] leading-relaxed text-[#9B9590]">
-            This screen hit an unexpected error. Your analytics data is unaffected — reloading
+            This screen hit an unexpected error. Your analytics data is unaffected. Reloading
             usually clears it.
           </p>
           <div className="mt-6 flex items-center justify-center gap-3">

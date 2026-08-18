@@ -8,7 +8,7 @@
  *
  * The bump is anchored to the PUBLISHED version (traks.dev latest-version):
  * bump only when the local version equals what's live; a local version
- * already ahead (failed prior attempt, manual bump) is used as-is — so
+ * already ahead (failed prior attempt, manual bump) is used as-is - so
  * re-running after a failed upload never double-bumps.
  *
  * The version commit + tag happen only after a successful upload.
@@ -58,7 +58,7 @@ if (liveVersion === pkg.version) {
   console.log(`version: ${liveVersion} (published) → ${version}`);
 } else {
   console.log(
-    `version: keeping local ${pkg.version} (published is ${liveVersion ?? 'unknown'} — already bumped)`
+    `version: keeping local ${pkg.version} (published is ${liveVersion ?? 'unknown'} - already bumped)`
   );
 }
 

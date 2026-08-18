@@ -6,7 +6,7 @@ import type { ZodSchema } from 'zod';
  * zValidator with an error body the UI can actually show.
  *
  * The default hook responds with the raw Zod error under `error`, i.e. an
- * object — while every other endpoint here returns `{ error: string }`. The
+ * object - while every other endpoint here returns `{ error: string }`. The
  * web client reads that one field, so a validation failure surfaced as
  * "[object Object]" and the carefully worded messages in @traks/shared never
  * reached anyone. Emit the first issue's message instead, which is written for

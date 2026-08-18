@@ -70,7 +70,7 @@ function PortalHeader(): React.ReactNode {
   const { current } = useWorkspace();
 
   return (
-    // One-line chrome: identity, navigation, and account share a single row —
+    // One-line chrome: identity, navigation, and account share a single row -
     // the old tab rail's 42px goes back to the content.
     <header className="sticky top-0 z-40 border-b border-[#ECEAE5] bg-white">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
@@ -140,7 +140,7 @@ function HeaderTab({
 }
 
 /**
- * "A newer Traks is available" — only on wizard-deployed instances (version +
+ * "A newer Traks is available" - only on wizard-deployed instances (version +
  * deployInstanceId vars present). Checks traks.dev's public latest-version
  * endpoint (CORS-open) and links back to this instance's wizard session,
  * which re-runs the deploy idempotently. Dismissal is per-version.
@@ -164,7 +164,7 @@ function UpdateBanner(): React.ReactNode {
           <ArrowUpCircle className="w-4 h-4 shrink-0 text-[#3D3B4F]" />
           <span>
             <span className="font-semibold">Traks {latest} is available</span>
-            <span className="text-[#9B9590]"> — you&rsquo;re running {config.version}.</span>
+            <span className="text-[#9B9590]"> (you&rsquo;re running {config.version})</span>
           </span>
         </p>
         <div className="flex items-center gap-2">
@@ -208,7 +208,7 @@ function VersionPill(): React.ReactNode {
         href={`https://traks.dev/update?instance=${encodeURIComponent(config.deployInstanceId)}`}
         target="_blank"
         rel="noopener noreferrer"
-        title={`Traks ${latest} is available — you're running ${config.version}`}
+        title={`Traks ${latest} is available (you're running ${config.version})`}
         className="flex h-8 items-center gap-1.5 rounded-full bg-mint px-3 text-[11.5px] font-bold text-[#123326] transition-all hover:-translate-y-px"
       >
         <ArrowUpCircle className="h-3.5 w-3.5" strokeWidth={2.2} />

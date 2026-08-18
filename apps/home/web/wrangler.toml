@@ -1,4 +1,4 @@
-# traks.dev marketing site + deploy wizard UI — a static-assets-only worker.
+# traks.dev marketing site + deploy wizard UI - a static-assets-only worker.
 # All dynamic paths on this hostname are claimed by the traks-api worker via
 # zone routes (traks.dev/api/*, /login*, /portal*, /deploy/callback*), which
 # take precedence over this worker's custom domain. This worker only ever

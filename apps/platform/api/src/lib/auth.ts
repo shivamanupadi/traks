@@ -20,7 +20,7 @@ import { findPendingInvitation, consumeInvitation } from './invitations';
 import { ac, workspaceRoles } from './permissions';
 import type { Bindings } from '../types';
 
-// Once the instance is claimed it stays claimed — skip the D1 count.
+// Once the instance is claimed it stays claimed - skip the D1 count.
 let claimedCache = false;
 // Marker for a legacy row whose email was freed for an in-flight claim. The
 // pairing lives in the DATABASE, not an isolate-local Map: the before- and
@@ -42,7 +42,7 @@ async function isClaimed(db: DrizzleD1Database): Promise<boolean> {
  * First-run claim support: a pre-Better-Auth `users` row (Clerk-era owner, or
  * a recovery re-claim) holds the email the owner signs up with. The unique
  * email index means sign-up cannot insert the new row until that email is
- * freed, so it is parked under a marker address that ENCODES the original —
+ * freed, so it is parked under a marker address that ENCODES the original -
  * making it discoverable from any isolate and recoverable on retry if the
  * sign-up it was made for fails. Everything that can cheaply invalidate a
  * sign-up (claimed instance, wrong owner email, short password) is checked
@@ -51,7 +51,7 @@ async function isClaimed(db: DrizzleD1Database): Promise<boolean> {
  */
 async function stashLegacyUser(db: DrizzleD1Database, email: string): Promise<void> {
   const [legacy] = await db.select({ id: users.id }).from(users).where(eq(users.email, email));
-  // Already parked by an earlier attempt that failed downstream — nothing to
+  // Already parked by an earlier attempt that failed downstream - nothing to
   // do, and the retry will still find it by marker. The stash is therefore
   // idempotent and self-healing rather than one-shot destructive.
   if (!legacy) return;
@@ -86,11 +86,11 @@ function createAuth(env: Bindings, origin: string) {
   return betterAuth({
     secret: env.BETTER_AUTH_SECRET,
     // Domain-agnostic by design: the SPA and API are served by this same
-    // worker, so the origin of the incoming request (request.url — set by the
+    // worker, so the origin of the incoming request (request.url - set by the
     // edge, not attacker-controllable) IS the site's canonical origin. Deriving
     // baseURL/trustedOrigins from it keeps CSRF semantics intact (cross-site
     // POSTs carry a mismatched Origin header and are rejected) while letting
-    // any deployment — custom domain or bare workers.dev — authenticate
+    // any deployment - custom domain or bare workers.dev - authenticate
     // without per-instance config.
     baseURL: origin,
     basePath: '/api/auth',
@@ -128,7 +128,7 @@ function createAuth(env: Bindings, origin: string) {
         // the same statements/roles (lib/permissions.ts).
         ac,
         roles: workspaceRoles,
-        // Workspaces predate the plugin — its models are mapped onto the
+        // Workspaces predate the plugin - its models are mapped onto the
         // existing tables so sites.workspace_id and the access filters in
         // lib/workspaces.ts keep working unchanged.
         schema: {
@@ -151,13 +151,13 @@ function createAuth(env: Bindings, origin: string) {
             .where(eq(users.id, user.id));
           return row?.isInstanceOwner === true;
         },
-        invitationExpiresIn: 7 * 24 * 60 * 60, // links travel by hand — give them a week
+        invitationExpiresIn: 7 * 24 * 60 * 60, // links travel by hand - give them a week
         // No sendInvitationEmail on purpose: deployed instances cannot send
         // email, so the UI surfaces the invite link for out-of-band delivery.
         organizationHooks: {
           beforeDeleteOrganization: async ({ organization: org, user }) => {
             // Refuse rather than cascade: deleting sites drops their
-            // analytics identity (DO + partition) — far too destructive to
+            // analytics identity (DO + partition) - far too destructive to
             // imply from a workspace delete.
             const [{ n: siteCount }] = await db
               .select({ n: sql<number>`count(*)` })
@@ -181,7 +181,7 @@ function createAuth(env: Bindings, origin: string) {
             await evictOrphanedMembers(db);
           },
           afterDeleteOrganization: async () => {
-            // Deleting a workspace cascades its memberships — members whose
+            // Deleting a workspace cascades its memberships - members whose
             // last workspace this was are orphaned and must be evicted too.
             await evictOrphanedMembers(db);
           },
@@ -232,7 +232,7 @@ function createAuth(env: Bindings, origin: string) {
           });
         }
         // Claimed instance: sign-up is closed EXCEPT to a valid workspace
-        // invitation (link-based — deployed instances cannot send email).
+        // invitation (link-based - deployed instances cannot send email).
         // Rejections are uniform: no oracle for expired vs revoked vs bogus.
         if (await isClaimed(db)) {
           const invite = body?.inviteToken
@@ -244,7 +244,7 @@ function createAuth(env: Bindings, origin: string) {
           return;
         }
         // First-run claim path. Wizard-deployed instances are pinned to the
-        // Cloudflare account email captured at deploy time — the owner
+        // Cloudflare account email captured at deploy time - the owner
         // identity isn't chosen at claim.
         if (env.OWNER_EMAIL && email !== env.OWNER_EMAIL.toLowerCase()) {
           throw new APIError('FORBIDDEN', {
@@ -261,19 +261,19 @@ function createAuth(env: Bindings, origin: string) {
         }
         if (ctx.path !== '/sign-up/email') return;
         // Post-signup wiring needs the request context (was the sign-up an
-        // invite acceptance?), which databaseHooks don't carry — hence here.
+        // invite acceptance?), which databaseHooks don't carry - hence here.
         const user = ctx.context.newSession?.user;
         if (!user) return;
         const token = (ctx.body as { inviteToken?: string })?.inviteToken;
         // Re-validated rather than carried over from the before-hook: the two
         // can run in different isolates, like the claim stash below. The
         // branch turns on a CONSUMED invitation, never on the token field
-        // merely being present — otherwise a junk inviteToken on an unclaimed
+        // merely being present - otherwise a junk inviteToken on an unclaimed
         // instance would take the member path and leave the claimer with no
         // owner flag and no workspace, bricking a fresh install.
         const invite = token ? await findPendingInvitation(db, token, user.email) : null;
         if (invite) {
-          // Invited members join exactly the invited workspace — no personal
+          // Invited members join exactly the invited workspace - no personal
           // default workspace is created for them.
           await consumeInvitation(db, invite, user.id);
           return;
@@ -290,7 +290,7 @@ function createAuth(env: Bindings, origin: string) {
   });
 }
 
-// One instance per serving origin (apex, www, workers.dev, localhost — a
+// One instance per serving origin (apex, www, workers.dev, localhost - a
 // small bounded set), so per-request calls stay cheap.
 const authInstances = new Map<string, ReturnType<typeof createAuth>>();
 

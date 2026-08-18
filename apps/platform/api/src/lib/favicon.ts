@@ -1,6 +1,6 @@
 /**
  * Server-side favicon resolution for a site domain, run on create/domain
- * change. The api worker (the buyer's own instance) does the fetching — the
+ * change. The api worker (the buyer's own instance) does the fetching - the
  * dashboard never calls the tracked site or a third-party favicon service.
  *
  * Result is a data URL small enough to live in the sites row and ride along

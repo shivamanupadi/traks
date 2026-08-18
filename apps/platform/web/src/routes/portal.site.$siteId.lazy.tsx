@@ -53,6 +53,7 @@ import { TimeseriesChart } from '@/components/analytics/TimeseriesChart';
 import { PanelCard, type PanelItem } from '@/components/analytics/PanelCard';
 import { CountryFlag, countryName } from '@/components/analytics/CountryFlag';
 import { DimensionIcon } from '@/components/analytics/DimensionIcon';
+import { PlatformSelect } from '@/components/install/PlatformSelect';
 import { GoalsPanel } from '@/components/analytics/GoalsPanel';
 import { GoalFormModal, type GoalDef } from '@/components/analytics/GoalFormModal';
 import { GoalsDrawer } from '@/components/analytics/GoalsDrawer';
@@ -164,9 +165,9 @@ function InstallModal({
   const [platform, setPlatform] = useState('html');
 
   const siteKey = site?.apiKeys?.[0]?.key ?? '';
-  // Empty until the instance config resolves — never guess the collect origin.
+  // Empty until the instance config resolves - never guess the collect origin.
   const snippet = siteKey && collectUrl ? trackerSnippet(siteKey, collectUrl) : '';
-  // The shared install guides, with THIS site's real snippet substituted in —
+  // The shared install guides, with THIS site's real snippet substituted in -
   // the same content traks.dev/guides shows with a placeholder key.
   const rawGuide = findInstallGuide(platform) ?? INSTALL_GUIDES[0];
   const guide = snippet ? guideWithSnippet(rawGuide, siteKey, collectUrl!) : rawGuide;
@@ -186,24 +187,14 @@ function InstallModal({
           <DialogTitle>Installation</DialogTitle>
           <DialogDescription>
             Install the tracker on{' '}
-            <span className="font-semibold text-[#3D3B4F]">{site?.domain}</span> — pick your stack
+            <span className="font-semibold text-[#3D3B4F]">{site?.domain}</span>. Pick your stack
             for exact steps with your site key filled in.
           </DialogDescription>
         </DialogHeader>
 
         <DialogBody>
           <div className="space-y-4">
-            <select
-              value={platform}
-              onChange={e => setPlatform(e.target.value)}
-              className="h-10 w-full cursor-pointer rounded-xl border-none bg-white px-3 text-[13px] text-[#3D3B4F] shadow-[inset_0_0_0_1px_#E5E5EB] focus:shadow-[inset_0_0_0_1.5px_#3D3B4F] focus:outline-none"
-            >
-              {INSTALL_GUIDES.map(g => (
-                <option key={g.slug} value={g.slug}>
-                  {g.name}
-                </option>
-              ))}
-            </select>
+            <PlatformSelect guides={INSTALL_GUIDES} value={platform} onChange={setPlatform} />
 
             <div className="space-y-4">
               {guide.steps.map((step, i) => (
@@ -372,7 +363,7 @@ function EditSiteModal({
                 <p className="mt-2 text-[12px] text-[#B5B0AA]">
                   {domain.trim() && normalizeDomain(domain) !== domain.trim()
                     ? `Will be saved as ${normalizeDomain(domain)}`
-                    : 'Just the domain — a pasted URL works too'}
+                    : 'Just the domain (a pasted URL works too)'}
                 </p>
               )}
             </div>
@@ -578,7 +569,7 @@ function MetricTile({
           {delta.text}
         </span>
       ) : (
-        <span className="text-[10.5px] font-semibold text-[#C9C3BC]">—</span>
+        <span className="text-[10.5px] font-semibold text-[#C9C3BC]">-</span>
       )}
       {/* Active indicator: the same ink underline as the nav tabs */}
       <span
@@ -697,7 +688,7 @@ function ChartCard({
 }
 
 /** One slot in the site header's action cluster. Circular hover, no
- *  dividers — the cluster must NOT clip (the dropdowns inside render
+ *  dividers - the cluster must NOT clip (the dropdowns inside render
  *  absolutely within it), so slots round themselves. */
 const SEG_BTN =
   'flex h-[34px] w-[34px] items-center justify-center rounded-full text-[#9B9590] hover:bg-[#F2F1ED] hover:text-foreground transition-colors cursor-pointer';
@@ -1135,7 +1126,7 @@ function SiteAnalyticsPage(): ReactElement {
 
   // One request for the whole default view. /stats/all answers main,
   // timeseries, top pages, referrers, countries, browsers and OS from a single
-  // server round-trip (and, on 'today', a single fan-out to the live store) —
+  // server round-trip (and, on 'today', a single fan-out to the live store) -
   // seven browser requests collapsed into one. It has no filtered variant, so
   // the moment a filter chip is active we fall back to per-panel requests.
   const useBootstrap = !hasFilters;
@@ -1154,7 +1145,7 @@ function SiteAnalyticsPage(): ReactElement {
   useEffect(() => {
     // Seed only while the unfiltered bundle answers the current view. When a
     // filter chip lands, filterKey changes and this effect re-runs while the
-    // stale unfiltered bundle is still in cache — seeding then would stamp
+    // stale unfiltered bundle is still in cache - seeding then would stamp
     // unfiltered data onto the filtered query keys as fresh, so every panel
     // keeps showing unfiltered numbers until a manual refresh.
     if (!bootstrapData || hasFilters) return;
@@ -1177,7 +1168,7 @@ function SiteAnalyticsPage(): ReactElement {
   // to the old behaviour instead of an empty dashboard.
   const bootstrapSettled = !useBootstrap || bootstrapQ.isSuccess || bootstrapQ.isError;
 
-  // Per-tile parallel queries — each tile renders as its own request resolves.
+  // Per-tile parallel queries - each tile renders as its own request resolves.
   // Tabbed panels pass `enabled` so only the active tab's query runs (each
   // R2 SQL query is a paid distributed scan; don't fetch hidden tabs).
   // `inBundle` marks the panels /stats/all already answers.
@@ -1606,7 +1597,7 @@ function SiteAnalyticsPage(): ReactElement {
             onTabChange={setSourceTab}
             onItemClick={
               // AI rows are assistant names spanning several referrer
-              // hostnames — no single exact-match filter value exists.
+              // hostnames - no single exact-match filter value exists.
               sourceTab === 'ai'
                 ? undefined
                 : item => {
@@ -1698,7 +1689,7 @@ function SiteAnalyticsPage(): ReactElement {
               />
             </div>
 
-            {/* Goal conversions, custom events, and auto-tracked links —
+            {/* Goal conversions, custom events, and auto-tracked links,
                 each a full-width tile: events are business actions with a
                 props drill-down; outbound/downloads share one card as tabs
                 since they're the same shape (URL + clicks). */}

@@ -2,7 +2,7 @@ import type { ReactElement } from 'react';
 import { Globe, Monitor, Smartphone, Tablet, Laptop, type LucideIcon } from 'lucide-react';
 
 // Original full-color brand logos, vendored into public/icons (browsers from
-// alrra/browser-logos, OS from operating-system-logos — both MIT). Keys
+// alrra/browser-logos, OS from operating-system-logos - both MIT). Keys
 // mirror the closed vocabularies emitted by the collect worker's UA parser
 // (apps/platform/collect/src/lib/ua.ts).
 const BROWSER_ICONS: Record<string, string> = {
@@ -26,7 +26,7 @@ const OS_ICONS: Record<string, string> = {
   'chrome os': 'chrome-os.png',
 };
 
-// Device types and screen-size buckets have no brand mark — the neutral
+// Device types and screen-size buckets have no brand mark - the neutral
 // outline glyphs stay.
 const DEVICE_ICONS: Record<string, LucideIcon> = {
   desktop: Monitor,

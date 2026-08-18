@@ -41,8 +41,8 @@ const COUNTER_PERSIST_EVERY = 50;
 // Writes go to SQLite on the same tick they arrive. An earlier version held
 // events in memory behind a 1s timer to batch inserts, but a pending timer
 // does not keep a Durable Object alive: on eviction the buffer was dropped.
-// For a low-traffic site — never reaching the batch size, so ALWAYS flushing
-// on the timer — that meant losing a batch on every eviction, leaving live
+// For a low-traffic site - never reaching the batch size, so ALWAYS flushing
+// on the timer - that meant losing a batch on every eviction, leaving live
 // stats permanently short of the Iceberg system of record. The buffer remains
 // only as the insert path's staging array, drained on every record().
 
@@ -205,7 +205,7 @@ export class SiteLiveStore extends DurableObject<unknown> {
    * Write the in-memory monthly counters to SQLite.
    *
    * Deliberately NOT done per event. Nothing reads the `usage` table on the
-   * hot path — monthCounts is authoritative in memory — so the table is only
+   * hot path - monthCounts is authoritative in memory - so the table is only
    * a durable copy for when the object is evicted. Rewriting one integer on
    * every event made it the second-largest source of billable row writes
    * (Cloudflare bills per row written), for no observable benefit. Persisting
@@ -311,7 +311,7 @@ export class SiteLiveStore extends DurableObject<unknown> {
     this.flushBuffer();
 
     // Arm the retention alarm. The flag is only latched AFTER the alarm is
-    // actually scheduled — setting it first meant one failed setAlarm() (or an
+    // actually scheduled - setting it first meant one failed setAlarm() (or an
     // alarm handler that exhausted its retries) permanently disarmed pruning
     // for the life of the instance, and rows then grew without bound.
     if (!this.alarmArmed) {
@@ -590,7 +590,7 @@ export class SiteLiveStore extends DurableObject<unknown> {
   async realtime(nowMs: number): Promise<LiveRealtime> {
     return this.memoized(`realtime:${SiteLiveStore.q(nowMs)}`, MEMO_TTL_REALTIME_MS, () => {
       const from = nowMs - 5 * 60 * 1000;
-      // Distinct across ALL pages — a visitor on 3 pages is still 1 visitor
+      // Distinct across ALL pages - a visitor on 3 pages is still 1 visitor
       // (and the per-page top-10 below can't be summed to get this).
       const total = n(
         this.sql

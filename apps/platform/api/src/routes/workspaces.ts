@@ -39,7 +39,7 @@ export const workspacesRoute = app
     return c.json({ data: rows });
   })
 
-  // List members (owners only — members don't get the workspace roster)
+  // List members (owners only - members don't get the workspace roster)
   .get('/:id/members', requireAuth, async c => {
     const userId = c.get('userId')!;
     const workspaceId = c.req.param('id');

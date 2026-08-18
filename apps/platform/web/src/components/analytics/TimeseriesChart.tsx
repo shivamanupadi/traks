@@ -23,7 +23,7 @@ interface TimeseriesChartProps {
   color?: string;
 }
 
-/* All metrics share the same treatment: ink stroke over a whisper of fill —
+/* All metrics share the same treatment: ink stroke over a whisper of fill -
  * the metric rail above carries the "which metric" signal. */
 const STROKE = '#3D3B4F';
 const WASH = '#3D3B4F';
@@ -32,13 +32,13 @@ const WASH = '#3D3B4F';
  * Bucket keys are pre-computed at ingest in the *site's* IANA timezone
  * (see packages/shared/src/queries.ts → computeBucketKeys). The chart must
  * therefore render them as local wall-clock values without any Date-parsing
- * translation, so an IST site's "11 AM bucket" shows as "11 AM" — not as
+ * translation, so an IST site's "11 AM bucket" shows as "11 AM" - not as
  * whatever the viewer's browser would convert UTC 11:00 to.
  *
  * Shapes produced by the server:
- *   - day   "YYYY-MM-DD"       (7d / 30d / 90d / 6m)
- *   - hour  "YYYY-MM-DDTHH"    (today)
- *   - week  "YYYY-Www"         (1y / all)
+ *  - day   "YYYY-MM-DD"       (7d / 30d / 90d / 6m)
+ *  - hour  "YYYY-MM-DDTHH"    (today)
+ *  - week  "YYYY-Www"         (1y / all)
  */
 type Granularity = 'hour' | 'week' | 'day';
 
@@ -62,7 +62,7 @@ function monthDayLabel(year: number, month: number, day: number): string {
 
 /**
  * Compute the Monday of a given ISO-8601 week number. Used purely for display,
- * so UTC arithmetic is fine — we only need the Y/M/D components out.
+ * so UTC arithmetic is fine - we only need the Y/M/D components out.
  */
 function mondayOfIsoWeek(year: number, week: number): { year: number; month: number; day: number } {
   const jan4 = new Date(Date.UTC(year, 0, 4));

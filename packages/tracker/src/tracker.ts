@@ -11,9 +11,9 @@
   if (!siteKey) return;
 
   // Opt-in script attributes:
-  //   data-hash  - hash-based SPA routing: '#/route' becomes part of the page
+  //   data-hash - hash-based SPA routing: '#/route' becomes part of the page
   //                path and hashchange fires pageviews
-  //   data-404   - put on the 404 template's snippet: fires a '404' event with
+  //   data-404  - put on the 404 template's snippet: fires a '404' event with
   //                the broken path as a prop (view it via the props breakdown)
   const useHash = scriptEl.hasAttribute('data-hash');
   const is404Page = scriptEl.hasAttribute('data-404');
@@ -27,7 +27,7 @@
 
   // Random session ID via sessionStorage (not a fingerprint - just a random
   // token). Storage access THROWS in partitioned iframes, Safari Lockdown
-  // Mode, and when site data is blocked — so every access is guarded and we
+  // Mode, and when site data is blocked - so every access is guarded and we
   // fall back to an in-memory id. Losing session continuity is acceptable;
   // losing every event from that visitor is not.
   let memorySession = '';
@@ -151,7 +151,7 @@
 
   // Custom event API: window.traks('event_name', { props }, value).
   // The install snippet ships a stub that queues calls made before this
-  // script executes (window.traks.q) — capture and replay them in order,
+  // script executes (window.traks.q) - capture and replay them in order,
   // so early CTA clicks and hydration-effect events are never lost.
   const pending: IArguments[] =
     typeof w.traks === 'function' && Array.isArray(w.traks.q) ? w.traks.q : [];
@@ -246,9 +246,9 @@
   }
 
   // Prerendered documents (Chrome speculation rules / omnibox) may never be
-  // shown — defer their initial pageview until activation, using the signal
-  // designed for exactly this (prerenderingchange). Everything else — even a
-  // load in a hidden background tab — counts immediately: the old
+  // shown - defer their initial pageview until activation, using the signal
+  // designed for exactly this (prerenderingchange). Everything else - even a
+  // load in a hidden background tab - counts immediately: the old
   // visibility-based deferral silently LOST pageviews for pages evaluated
   // hidden and left before ever becoming visible.
   const doc = document as Document & { prerendering?: boolean };

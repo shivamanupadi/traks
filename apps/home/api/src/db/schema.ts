@@ -1,8 +1,8 @@
 import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
 import { createId } from '@paralleldrive/cuid2';
 
-// Deploy-wizard registry — the ONLY table in the home (traks.dev) database.
-// Tracks wizard deployments into USER accounts. Never stores tokens — only
+// Deploy-wizard registry - the ONLY table in the home (traks.dev) database.
+// Tracks wizard deployments into USER accounts. Never stores tokens - only
 // non-sensitive state so a returning ?instance= URL can resume its screen.
 // Completely separate from the platform schema that ships to customer
 // instances; nothing here ever appears in a customer's D1.

@@ -4,12 +4,12 @@
  * traks.dev renders these publicly with a placeholder snippet; the dashboard
  * renders the same guides with the site's REAL snippet substituted, so every
  * code sample is copy-paste-ready. Code samples embed SNIPPET_TOKEN wherever
- * the tracker tag belongs — replace it via guideWithSnippet().
+ * the tracker tag belongs - replace it via guideWithSnippet().
  */
 
 export const SNIPPET_TOKEN = '__TRAKS_SNIPPET__';
 
-/** The queue stub lets window.traks() be called before t.js executes —
+/** The queue stub lets window.traks() be called before t.js executes -
  *  the tracker drains window.traks.q on load. One line, two tags. */
 export const TRACKER_STUB =
   '<script>window.traks=window.traks||function(){(window.traks.q=window.traks.q||[]).push(arguments)}</script>';
@@ -67,7 +67,7 @@ export const INSTALL_GUIDES: InstallGuide[] = [
   {
     slug: 'html',
     name: 'HTML',
-    blurb: 'Any site that serves HTML — no framework required.',
+    blurb: 'Any site that serves HTML, no framework required.',
     steps: [
       {
         title: 'Add the snippet to your <head>',
@@ -104,7 +104,7 @@ export const INSTALL_GUIDES: InstallGuide[] = [
       },
       {
         title: 'Verify',
-        body: 'Run the site and click between pages — each route change appears as a pageview in the dashboard.',
+        body: 'Run the site and click between pages. Each route change appears as a pageview in the dashboard.',
       },
     ],
   },
@@ -131,7 +131,7 @@ export const INSTALL_GUIDES: InstallGuide[] = [
   {
     slug: 'vue',
     name: 'Vue',
-    blurb: 'Vue 3 with Vite — one tag in index.html.',
+    blurb: 'Vue 3 with Vite: one tag in index.html.',
     steps: [
       {
         title: 'Add the snippet to index.html',
@@ -160,7 +160,7 @@ export const INSTALL_GUIDES: InstallGuide[] = [
       },
       {
         title: 'Verify',
-        body: 'Run the app and navigate between routes — each shows up as a pageview.',
+        body: 'Run the app and navigate between routes. Each shows up as a pageview.',
       },
     ],
   },
@@ -180,7 +180,7 @@ export const INSTALL_GUIDES: InstallGuide[] = [
       },
       {
         title: 'View transitions?',
-        body: 'Astro view transitions use the history API, which the tracker follows automatically — no extra setup.',
+        body: 'Astro view transitions use the history API, which the tracker follows automatically, so there is no extra setup.',
       },
     ],
   },
@@ -203,7 +203,7 @@ export const INSTALL_GUIDES: InstallGuide[] = [
   {
     slug: 'wordpress',
     name: 'WordPress',
-    blurb: 'A one-line hook — no plugin required.',
+    blurb: 'A one-line hook, no plugin required.',
     steps: [
       {
         title: 'Add a wp_head hook',
@@ -232,7 +232,7 @@ export const INSTALL_GUIDES: InstallGuide[] = [
       },
       {
         title: 'Publish',
-        body: 'Custom code only ships on publish — hit Publish and then load your live site to verify.',
+        body: 'Custom code only ships on publish. Hit Publish and then load your live site to verify.',
       },
     ],
   },

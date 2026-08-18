@@ -24,7 +24,7 @@ interface FunnelsPanelProps {
 }
 
 /**
- * Funnel panel: one row per step — count bar (width relative to step 1),
+ * Funnel panel: one row per step - count bar (width relative to step 1),
  * sessions, and step-over-step conversion. Overall conversion in the header.
  */
 export function FunnelsPanel({
@@ -170,7 +170,7 @@ export function FunnelsPanel({
                 <div className="relative z-10 flex shrink-0 gap-5 text-[13px] font-medium tabular-nums text-[#3D3B4F]">
                   <span className="w-16 text-right">{formatNumber(step.sessions)}</span>
                   <span className={cn('w-14 text-right', i === 0 && 'text-[#B5B0AA]')}>
-                    {i === 0 ? '—' : `${step.rateFromPrev}%`}
+                    {i === 0 ? '-' : `${step.rateFromPrev}%`}
                   </span>
                 </div>
               </div>

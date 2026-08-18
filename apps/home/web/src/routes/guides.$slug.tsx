@@ -23,7 +23,7 @@ function GuidePage(): ReactElement {
           </Link>
           <h1 className="mt-4 text-[26px] font-bold text-[#3D3B4F]">Guide not found</h1>
           <p className="mt-2 text-[14px] text-[#8A8580]">
-            No guide for &ldquo;{slug}&rdquo; — the HTML guide covers any stack that renders a
+            No guide for &ldquo;{slug}&rdquo;. The HTML guide covers any stack that renders a
             &lt;head&gt;.
           </p>
         </main>
@@ -41,7 +41,7 @@ function GuidePage(): ReactElement {
           Install Traks on {guide.name}
         </h1>
         <p className="mt-2 text-[15px] text-[#8A8580]">
-          {guide.blurb} Create a site in your dashboard first — its settings page shows this exact
+          {guide.blurb} Create a site in your dashboard first; its settings page shows this exact
           snippet with your real site key filled in.
         </p>
 
@@ -73,7 +73,7 @@ function GuidePage(): ReactElement {
         <div className="mt-12 rounded-2xl border border-[#EEEEF2] bg-white p-5 shadow-float">
           <p className="text-[14px] font-semibold text-[#3D3B4F]">Don&rsquo;t have Traks yet?</p>
           <p className="mt-1 text-[13px] leading-relaxed text-[#8A8580]">
-            Deploy your own instance into your Cloudflare account in about two minutes — free, open,
+            Deploy your own instance into your Cloudflare account in about two minutes: free, open,
             and your data never leaves your account.
           </p>
           <Link

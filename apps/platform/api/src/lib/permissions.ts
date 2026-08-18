@@ -3,7 +3,7 @@ import { defaultStatements, ownerAc, memberAc } from 'better-auth/plugins/organi
 
 /**
  * The single source of truth for workspace permissions, declared on Better
- * Auth's access-control engine — the same evaluator that guards the org
+ * Auth's access-control engine - the same evaluator that guards the org
  * plugin's own endpoints (invites, member removal, org update/delete, via
  * the `ac`/`roles` options in lib/auth.ts). Custom resources extend the
  * plugin's defaults:
@@ -29,7 +29,7 @@ const owner = ac.newRole({
 });
 
 /** Members are view-only: dashboards and stats, no mutations, no roster.
- *  `ac: []` deliberately overrides the plugin default of `ac: ['read']` — it
+ *  `ac: []` deliberately overrides the plugin default of `ac: ['read']` - it
  *  is inert today but would hand members the role-introspection endpoints the
  *  moment dynamic access control is ever enabled. */
 const member = ac.newRole({

@@ -71,7 +71,7 @@ function DestroyWizard(): ReactElement {
     if (connect.oauthError) setError(connect.oauthError);
   }, [connect.oauthError]);
 
-  // A session is needed for OAuth state and every API call — mint one when
+  // A session is needed for OAuth state and every API call - mint one when
   // the page is opened directly without ?instance=.
   useEffect(() => {
     if (sessionId) return;
@@ -81,7 +81,7 @@ function DestroyWizard(): ReactElement {
         void navigate({ to: '/destroy', search: { instance: id }, replace: true });
       })
       .catch(() =>
-        setError('Could not reach the server to start — check your connection and try again.')
+        setError('Could not reach the server to start. Check your connection and try again.')
       );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
@@ -151,7 +151,7 @@ function DestroyWizard(): ReactElement {
       setPhase('confirm');
       void runPreflight(session, inst);
     } catch {
-      setError('Could not reach the server — check your connection and try again.');
+      setError('Could not reach the server. Check your connection and try again.');
     } finally {
       setBusy(false);
     }
@@ -221,7 +221,7 @@ function DestroyWizard(): ReactElement {
           </h2>
           <p className="mb-5 text-[13px] leading-relaxed text-[#9B99A6]">
             Sign in (or paste your installer token) so we can find the instance to remove. Nothing
-            is stored — access is for this teardown only.
+            is stored; access is for this teardown only.
           </p>
           {error && <ErrorBox>{error}</ErrorBox>}
           <ConnectSection connect={connect} />
@@ -230,7 +230,7 @@ function DestroyWizard(): ReactElement {
               {installs.length === 0 ? (
                 <NoteBox>
                   No Traks instance was found in{' '}
-                  {connect.accounts.length === 1 ? 'this account' : 'these accounts'} — nothing to
+                  {connect.accounts.length === 1 ? 'this account' : 'these accounts'}, nothing to
                   destroy.
                 </NoteBox>
               ) : (
@@ -274,8 +274,8 @@ function DestroyWizard(): ReactElement {
                 onClick={() => void destroyRun()}
                 busy={busy}
                 // Deliberately NOT gated on the storage token. Teardown
-                // survives an un-emptiable bucket — everything else is
-                // removed and the bucket is reported back — so a missing
+                // survives an un-emptiable bucket - everything else is
+                // removed and the bucket is reported back - so a missing
                 // token is a disclosed consequence, not a dead end.
                 disabled={confirmName.trim() !== target.instanceName}
               >
@@ -304,17 +304,17 @@ function DestroyWizard(): ReactElement {
                 return [
                   [
                     `${n}-api`,
-                    'worker — your dashboard' +
+                    'worker, your dashboard' +
                       (target.customDomain ? ' (custom domain detaches)' : ''),
                   ],
-                  [`${n}-collect`, 'worker — the tracker endpoint'],
-                  [`${n}-db`, 'D1 database — sites, users, settings'],
-                  [`${n}-events`, 'R2 bucket — every analytics event ever collected'],
-                  [`${n}-r2sql-cache`, 'KV namespace — query cache'],
+                  [`${n}-collect`, 'worker, the tracker endpoint'],
+                  [`${n}-db`, 'D1 database: sites, users, settings'],
+                  [`${n}-events`, 'R2 bucket: every analytics event ever collected'],
+                  [`${n}-r2sql-cache`, 'KV namespace: query cache'],
                   [`${us}_events`, 'pipeline, stream, and sink'],
                 ].map(([name, what]) => (
                   <li key={name}>
-                    <span className="font-mono text-[#3D3B4F]">{name}</span> — {what}
+                    <span className="font-mono text-[#3D3B4F]">{name}</span>: {what}
                   </li>
                 ));
               })()}
@@ -328,7 +328,7 @@ function DestroyWizard(): ReactElement {
             <>
               <ErrorBox>
                 {catalogReason ??
-                  'Removing your stored analytics needs a Cloudflare API token — the sign-in alone cannot delete R2 objects.'}{' '}
+                  'Removing your stored analytics needs a Cloudflare API token; the sign-in alone cannot delete R2 objects.'}{' '}
                 Paste a storage token below, or destroy without it: everything else is removed and
                 the events bucket stays, still costing R2 storage until you delete it yourself.
               </ErrorBox>
@@ -389,7 +389,7 @@ function DestroyWizard(): ReactElement {
           <StepList steps={steps} startingLabel="Starting the teardown…" showStarting={!error} />
           {error && (
             <p className="mt-4 rounded-xl bg-[#F7DCD4] px-4 py-3 text-[12.5px] leading-relaxed text-[#8F3B2C]">
-              {error} — retries are safe; already-deleted resources are skipped.
+              {error}. Retries are safe; already-deleted resources are skipped.
             </p>
           )}
         </Card>
@@ -410,12 +410,12 @@ function DestroyWizard(): ReactElement {
           <div className="flex flex-col items-center pt-2 text-center">
             <CheckCircle2 className="mb-3 h-12 w-12 text-[#3D3B4F]" strokeWidth={1.5} />
             <h2 className="text-[17px] font-bold text-[#3D3B4F]">
-              {retainedBucket ? 'Instance destroyed — one thing left' : 'Instance destroyed'}
+              {retainedBucket ? 'Instance destroyed, one thing left' : 'Instance destroyed'}
             </h2>
             <p className="mb-2 mt-1 text-[13px] leading-relaxed text-[#9B99A6]">
               {retainedBucket
-                ? 'The workers, database, KV namespace and pipeline are gone. Your tokens were used for this teardown only — you can revoke them now.'
-                : 'Everything was removed from your Cloudflare account. Your tokens were used for this teardown only — you can revoke them in the Cloudflare dashboard now.'}
+                ? 'The workers, database, KV namespace and pipeline are gone. Your tokens were used for this teardown only, so you can revoke them now.'
+                : 'Everything was removed from your Cloudflare account. Your tokens were used for this teardown only, so you can revoke them in the Cloudflare dashboard now.'}
             </p>
             {retainedBucket && (
               <div className="mb-2 w-full rounded-xl bg-[#F7DCD4] px-4 py-3 text-left text-[12.5px] leading-relaxed text-[#8F3B2C]">
@@ -425,7 +425,7 @@ function DestroyWizard(): ReactElement {
                 </p>
                 <p className="mt-1">
                   {retainedReason ?? 'It could not be emptied during teardown.'} It keeps costing R2
-                  storage until you delete it — do that from R2 in the Cloudflare dashboard, or
+                  storage until you delete it. Do that from R2 in the Cloudflare dashboard, or
                   re-run this destroy with a storage token.
                 </p>
               </div>

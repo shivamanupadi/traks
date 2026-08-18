@@ -116,7 +116,7 @@ function cacheTtlSeconds(period: Period): number {
 
 /**
  * `now` quantized to the period's cache TTL. Query builders embed `now` in the
- * SQL text, and the SQL text IS the cache key — so quantizing any finer than
+ * SQL text, and the SQL text IS the cache key - so quantizing any finer than
  * the TTL would mint a new key every tick and make the cache unreachable
  * (every dashboard tile re-scanning R2 on a timer). Windows shift by at most
  * one TTL, which is far below the sink's roll interval anyway.
@@ -134,7 +134,7 @@ async function sha256Hex(text: string): Promise<string> {
 /**
  * How long a KV entry outlives its logical freshness. Past `fetchedAt +
  * ttlSeconds` the rows are stale but still returned instantly while a refresh
- * runs behind the response — without this, every TTL boundary handed the next
+ * runs behind the response - without this, every TTL boundary handed the next
  * viewer a full cold scan (0.5-3s per query, up to nine of them in parallel).
  */
 const STALE_GRACE_SECONDS = 24 * 60 * 60;
@@ -147,7 +147,7 @@ interface CachedPayload<T> {
 /**
  * Entries written before results carried a timestamp are bare arrays. Treat
  * them as infinitely stale so they are served once and immediately refreshed
- * into the new shape — without this, the deploy that ships this code would
+ * into the new shape - without this, the deploy that ships this code would
  * read `.rows` off an array and hand every dashboard `undefined`.
  */
 function asPayload<T>(parsed: unknown): CachedPayload<T> {
@@ -158,13 +158,13 @@ function asPayload<T>(parsed: unknown): CachedPayload<T> {
 /**
  * Coalesces identical in-flight scans within one isolate. Two panels are built
  * to emit byte-identical SQL precisely so they share a cache entry, but they
- * fire in the same tick — without this both miss and both pay for the scan.
+ * fire in the same tick - without this both miss and both pay for the scan.
  */
 const inFlightScans = new Map<string, Promise<unknown[]>>();
 
 /**
  * queryR2Sql behind three cache layers: the per-colo Workers Cache API
- * (fastest, free), a KV namespace (global — a scan any colo already paid for
+ * (fastest, free), a KV namespace (global - a scan any colo already paid for
  * is reused worldwide), and an isolate-local in-flight map that stops
  * concurrent duplicates. KV reads/writes are wrapped so a KV outage degrades
  * to per-colo behavior instead of failing the request. Results are served
@@ -229,7 +229,7 @@ async function cachedR2Sql<T = Record<string, unknown>>(
   if (hit) {
     const payload = asPayload<T>(await hit.json());
     // Colo entries expire at the logical TTL, so a hit here is always fresh
-    // — except a legacy bare-array entry, which is refreshed in the
+    // - except a legacy bare-array entry, which is refreshed in the
     // background rather than blocking this request.
     if (payload.fetchedAt === 0) c.executionCtx.waitUntil(runScan().then(() => undefined));
     return payload.rows;
@@ -259,7 +259,7 @@ async function cachedR2Sql<T = Record<string, unknown>>(
     return payload.rows;
   }
 
-  // Nothing cached anywhere — this one has to wait.
+  // Nothing cached anywhere - this one has to wait.
   return runScan();
 }
 
@@ -536,7 +536,7 @@ async function runQueries<T>(c: AppContext, fn: () => Promise<T>): Promise<T | R
   } catch (err) {
     if (err instanceof R2SqlError) {
       // Full detail goes to the instance owner's logs; the response stays
-      // generic — the upstream body echoes SQL fragments and schema names.
+      // generic - the upstream body echoes SQL fragments and schema names.
       console.error(`[analytics] R2 SQL failed: ${err.message}`);
       return c.json({ error: 'analytics query failed' }, 502);
     }
@@ -555,7 +555,7 @@ const appWithBatch = app
     const db = c.get('db')!;
     // Bounded: each id becomes a D1 bind parameter and (on 'today') a DO
     // subrequest, so an unbounded list blows D1's parameter ceiling and the
-    // per-request subrequest budget. Dedup too — a repeated id multiplied both.
+    // per-request subrequest budget. Dedup too - a repeated id multiplied both.
     const siteIdList = siteIdsParam
       ? [...new Set(siteIdsParam.split(',').filter(Boolean))].slice(0, MAX_BATCH_SITES)
       : null;
@@ -649,7 +649,7 @@ const appWithBatch = app
   });
 
 /**
- * Full dashboard payload for a site — DO hot path for 'today', cached R2 SQL
+ * Full dashboard payload for a site - DO hot path for 'today', cached R2 SQL
  * cold path otherwise. Shared by the authed /stats/all route and the public
  * share-page route. Returns a Response only on query failure (502).
  */
@@ -796,10 +796,10 @@ export const analyticsRoute = appWithBatch
     const { period } = query;
     // This route serves the whole unfiltered dashboard in one scan and has no
     // filtered variant. Accepting filter params and ignoring them would return
-    // site-wide numbers under a filter chip — refuse instead.
+    // site-wide numbers under a filter chip - refuse instead.
     if (Object.keys(parseFilters(query) ?? {}).length > 0) {
       return c.json(
-        { error: 'stats/all does not support filters — use the per-panel endpoints' },
+        { error: 'stats/all does not support filters; use the per-panel endpoints' },
         400
       );
     }
@@ -1086,7 +1086,7 @@ export const analyticsRoute = appWithBatch
 
   // AI assistants as a traffic channel: visits referred by ChatGPT, Claude,
   // Perplexity and friends, grouped by assistant (classified from
-  // referrer_hostname at query time — see shared/src/ai-sources.ts).
+  // referrer_hostname at query time - see shared/src/ai-sources.ts).
   .get('/:siteId/stats/ai-sources', requireAuth, validate('query', periodQuery), async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('siteId');
@@ -1303,7 +1303,7 @@ export const analyticsRoute = appWithBatch
     if (siteGoals.length === 0) return c.json({ data: [] });
 
     // Plain goals keep the batched IN/GROUP BY queries; prop-filtered event
-    // goals and '/section/*' prefix page goals each run their own count —
+    // goals and '/section/*' prefix page goals each run their own count -
     // two goals on one event with different prop conditions can't share a
     // GROUP BY event_name row.
     const hasProp = (g: (typeof siteGoals)[number]): boolean => Boolean(g.propKey && g.propValue);
@@ -1433,8 +1433,8 @@ export const analyticsRoute = appWithBatch
     return respond(byGoal, totalVisitors);
   })
 
-  // Funnel completion stats. Always answered from R2 SQL — funnels need
-  // cross-event ordering per session, which the live DO doesn't track — so
+  // Funnel completion stats. Always answered from R2 SQL - funnels need
+  // cross-event ordering per session, which the live DO doesn't track - so
   // 'today' numbers trail ingest by the sink roll interval (~1 min).
   .get('/:siteId/stats/funnel/:funnelId', requireAuth, validate('query', periodQuery), async c => {
     const userId = c.get('userId')!;
@@ -1456,7 +1456,7 @@ export const analyticsRoute = appWithBatch
     // the sink is still writing (~60s roll), so two funnels scanned seconds
     // apart cached contradictory snapshots of the same step. Lagging the
     // reference behind the sink makes every scan of a window deterministic
-    // — all funnel tiles agree, at the cost of 'today' trailing ~2 minutes.
+    // - all funnel tiles agree, at the cost of 'today' trailing ~2 minutes.
     const funnelRef =
       period === 'today'
         ? new Date(Math.floor((Date.now() - FUNNEL_SINK_LAG_MS) / 60_000) * 60_000)

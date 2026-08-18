@@ -27,7 +27,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = path.join(ROOT, 'installer/dist');
 const BUCKET = 'traks-releases';
 const ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID ?? '4cf68c768770ccda55d287d6ecbdeb4f';
-// blake3-wasm ships inside wrangler (resolved via the api workspace) — the
+// blake3-wasm ships inside wrangler (resolved via the api workspace) - the
 // same implementation wrangler uses for asset hashes, which must match.
 const apiRequire = createRequire(path.join(ROOT, 'apps/platform/api/package.json'));
 const require = createRequire(apiRequire.resolve('wrangler/package.json'));
@@ -42,11 +42,11 @@ if (!token) {
       stdio: ['ignore', 'pipe', 'ignore'],
     }).trim();
   } catch {
-    /* doppler unavailable — fall through to the error below */
+    /* doppler unavailable - fall through to the error below */
   }
 }
 if (!token) {
-  console.error('CATALOG_TOKEN required (R2 storage write) — set it or log in to Doppler');
+  console.error('CATALOG_TOKEN required (R2 storage write) - set it or log in to Doppler');
   process.exit(1);
 }
 
@@ -59,7 +59,7 @@ const live = await fetch(`https://traks.dev/api/deploy/latest-version?bust=${Dat
   .catch(() => null);
 if (live?.data?.version === localVersion && process.env.FORCE_RELEASE !== '1') {
   console.error(
-    `✗ version ${localVersion} is already the published release — bump the root package.json version first (or FORCE_RELEASE=1 to overwrite in place)`
+    `✗ version ${localVersion} is already the published release - bump the root package.json version first (or FORCE_RELEASE=1 to overwrite in place)`
   );
   process.exit(1);
 }
@@ -78,7 +78,7 @@ const secret = sha256hex(token);
 const host = `${ACCOUNT_ID}.r2.cloudflarestorage.com`;
 
 /** Bulk parallel PUTs to R2 hit transient ECONNRESET/timeouts on flaky
- *  networks — retry each object a few times before failing the release. */
+ *  networks - retry each object a few times before failing the release. */
 async function putObject(key, bytes, contentType = 'application/octet-stream') {
   let lastErr;
   for (let attempt = 1; attempt <= 4; attempt++) {

@@ -7,7 +7,7 @@ import { deployRoute, oauthCallback } from './deploy/routes';
 
 /**
  * traks.dev home worker: the deploy-wizard BACKEND only. Physically separate
- * from the platform api that ships to customer instances — different worker,
+ * from the platform api that ships to customer instances - different worker,
  * different codebase entry, different D1. The marketing site + wizard UI is
  * the traks-site static worker; this one claims traks.dev/api/* and
  * /deploy/callback via zone routes.
@@ -40,7 +40,7 @@ export type AppType = typeof routes;
 
 /**
  * Nightly registry sweep. Creating a wizard session is anonymous and cheap, so
- * without this the table only ever grows — every abandoned visit, bot, and
+ * without this the table only ever grows - every abandoned visit, bot, and
  * probe leaves a row behind. Only sessions that never got past 'new' are
  * removed, and only after a day: anything that reached deploying/ready/failed
  * is real deployment history and is kept.

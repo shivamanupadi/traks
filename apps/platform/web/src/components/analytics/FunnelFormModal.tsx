@@ -35,7 +35,7 @@ function Label({ children, extra }: { children: ReactNode; extra?: ReactNode }):
   );
 }
 
-/** Compact inline radio pair for a step's type — same radio idiom as goals,
+/** Compact inline radio pair for a step's type - same radio idiom as goals,
  *  shrunk so eight of them don't dominate the form. */
 function StepTypeRadios({
   index,
@@ -116,7 +116,7 @@ function funnelPreview(steps: FunnelStep[]): ReactNode | null {
   );
 }
 
-/** Add or edit a single funnel — name + ordered steps. `funnel` null = add. */
+/** Add or edit a single funnel - name + ordered steps. `funnel` null = add. */
 export function FunnelFormModal({
   open,
   onOpenChange,

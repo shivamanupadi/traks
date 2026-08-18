@@ -18,7 +18,7 @@ const FEATURES = [
   {
     icon: Lock,
     title: 'Yours, entirely',
-    desc: 'Runs in your own Cloudflare account — data never leaves it.',
+    desc: 'Runs in your own Cloudflare account. Data never leaves it.',
   },
   {
     icon: Activity,
@@ -150,7 +150,7 @@ function LoginPage(): ReactElement {
                   </h1>
                   <p className="mt-1.5 text-[13px] leading-relaxed text-[#9B99A6]">
                     {firstRun
-                      ? 'This instance is unclaimed. The account you create here becomes its owner — sign-ups close afterwards.'
+                      ? 'This instance is unclaimed. The account you create here becomes its owner, and sign-ups close afterwards.'
                       : 'Welcome back. Sign in to your dashboard.'}
                   </p>
                 </div>
@@ -174,7 +174,7 @@ function LoginPage(): ReactElement {
                     />
                     {firstRun && ownerEmail && (
                       <p className="mt-1.5 text-[12px] text-[#B3B1BE]">
-                        Your Cloudflare account email — fixed when this instance was deployed.
+                        Your Cloudflare account email, fixed when this instance was deployed.
                       </p>
                     )}
                   </div>

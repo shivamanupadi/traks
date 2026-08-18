@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { lockScroll } from '@/lib/scroll-lock';
 
 interface DrawerProps {
   open: boolean;
@@ -24,13 +25,12 @@ function Drawer({ open, onOpenChange, children, className }: DrawerProps): React
     const handleEscape = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') onOpenChange(false);
     };
-    if (open) {
-      document.addEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'hidden';
-    }
+    if (!open) return;
+    document.addEventListener('keydown', handleEscape);
+    const unlock = lockScroll();
     return () => {
       document.removeEventListener('keydown', handleEscape);
-      document.body.style.overflow = '';
+      unlock();
     };
   }, [open, onOpenChange]);
 

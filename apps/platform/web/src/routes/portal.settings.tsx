@@ -83,7 +83,7 @@ function SettingsPage(): ReactElement {
       <div className="flex max-w-[620px] flex-col gap-7">
         <WorkspaceCard isLastWorkspace={workspaces.length <= 1} />
 
-        {/* Timezone (owners only — the bulk endpoint skips member workspaces) */}
+        {/* Timezone (owners only; the bulk endpoint skips member workspaces) */}
         {isOwner && (
           <section>
             <p className="mb-3 text-[10.5px] font-bold uppercase tracking-[0.1em] text-[#9B9590]">
@@ -124,7 +124,7 @@ function SettingsPage(): ReactElement {
 
               {applyError && (
                 <p className="mt-3 text-[12px] text-[#e07a5f]">
-                  {applyError} — nothing was changed. Check your connection and try again.
+                  {applyError}. Nothing was changed. Check your connection and try again.
                 </p>
               )}
 
@@ -199,7 +199,7 @@ function WorkspaceCard({ isLastWorkspace }: { isLastWorkspace: boolean }): React
       const next = workspaces.find(w => w.id !== current!.id);
       if (next) setCurrentId(next.id);
       queryClient.invalidateQueries({ queryKey: ['workspaces'] });
-      // If this was their last workspace the account is gone too — the next
+      // If this was their last workspace the account is gone too - the next
       // request 401s and lands on /login by itself.
       navigate({ to: '/portal/sites' });
     },
@@ -215,7 +215,7 @@ function WorkspaceCard({ isLastWorkspace }: { isLastWorkspace: boolean }): React
   const wsNameError = requiredTextError(name, 100, 'Workspace name');
   const nameChanged = !wsNameError && name.trim() !== current.name;
   // Deletion blockers are explained inside the dialog, not by disabling the
-  // button — a dead button never tells anyone why.
+  // button - a dead button never tells anyone why.
   const deleteBlocked = current.siteCount > 0 || isLastWorkspace;
 
   return (
@@ -326,7 +326,7 @@ function WorkspaceCard({ isLastWorkspace }: { isLastWorkspace: boolean }): React
             <DialogTitle>Leave {current.name}?</DialogTitle>
             <DialogDescription>
               {workspaces.length <= 1
-                ? 'You immediately lose access to its sites and dashboards. Since this is your only workspace on this instance, your account here is removed as well — you would need a new invitation to come back. Nothing happens to the sites or their data.'
+                ? 'You immediately lose access to its sites and dashboards. Since this is your only workspace on this instance, your account here is removed as well, and you would need a new invitation to come back. Nothing happens to the sites or their data.'
                 : 'You immediately lose access to its sites and dashboards. Your other workspaces are unaffected, and you can only return if an owner invites you again.'}
             </DialogDescription>
           </DialogHeader>
@@ -364,7 +364,7 @@ function WorkspaceCard({ isLastWorkspace }: { isLastWorkspace: boolean }): React
               {current.siteCount > 0
                 ? `This workspace still has ${current.siteCount} ${
                     current.siteCount === 1 ? 'site' : 'sites'
-                  }. Deleting a workspace would take its analytics with it, so a workspace must be empty first — delete its sites, then come back here.`
+                  }. Deleting a workspace would take its analytics with it, so a workspace must be empty first: delete its sites, then come back here.`
                 : isLastWorkspace
                   ? 'This is your only workspace, and your account needs at least one. Create another workspace from the switcher in the header first, then delete this one.'
                   : 'Its members lose access and any pending invites stop working. The workspace is empty, so no sites or analytics data are affected.'}

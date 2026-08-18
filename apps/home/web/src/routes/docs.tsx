@@ -64,7 +64,7 @@ function DocsPage(): ReactElement {
 
         <Section title="2. Track custom events">
           <p>
-            Call <code>window.traks(name, props?, value?)</code> anywhere — calls made before the
+            Call <code>window.traks(name, props?, value?)</code> anywhere; calls made before the
             script loads are queued by the one-line stub and flushed on load (dropped only if the
             script never loads, e.g. an ad blocker):
           </p>

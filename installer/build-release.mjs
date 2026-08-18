@@ -32,7 +32,7 @@ function bundleWorker(app, outName) {
     ['wrangler', 'deploy', '--dry-run', `--outdir=${outdir}`],
     path.join(ROOT, 'apps', app)
   );
-  // wrangler writes one bundled .js (name varies) — normalize to worker.js
+  // wrangler writes one bundled .js (name varies) - normalize to worker.js
   const js = readdirSync(outdir).find(f => f.endsWith('.js'));
   if (!js) {
     console.error(`✗ no bundle produced for ${app}`);
@@ -67,5 +67,5 @@ for (const f of readdirSync(path.join(ROOT, 'apps/platform/api/src/db/migrations
   }
 }
 
-console.log('\n✓ Release built at installer/dist — upload with:');
+console.log('\n✓ Release built at installer/dist - upload with:');
 console.log('  CATALOG_TOKEN=<token> node installer/upload-release.mjs');

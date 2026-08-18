@@ -163,8 +163,8 @@ function SitesPage(): ReactElement {
           </div>
           <p className="text-[17px] font-semibold text-[#3D3B4F]">Couldn&rsquo;t load your sites</p>
           <p className="mx-auto mt-2 max-w-sm text-[14px] text-[#9B9590]">
-            Your sites are safe — this instance just couldn&rsquo;t be reached. Check your
-            connection and try again.
+            Your sites are safe; this instance just couldn&rsquo;t be reached. Check your connection
+            and try again.
           </p>
           <button
             onClick={() => void refetch()}

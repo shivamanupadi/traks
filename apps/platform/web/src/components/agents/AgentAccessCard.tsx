@@ -80,9 +80,9 @@ export function AgentAccessCard(): ReactElement {
             </p>
             <p className="mt-0.5 text-[12px] text-[#9B9590]">
               Tokens are scoped to the current workspace
-              {current ? ` (${current.name})` : ''} — an agent holding one can never see your other
-              workspaces. Connect the MCP server, hand over the skill, and it configures goals and
-              funnels while instrumenting your site&rsquo;s code.
+              {current ? ` (${current.name})` : ''}, so an agent holding one can never see your
+              other workspaces. Connect the MCP server, hand over the skill, and it configures goals
+              and funnels while instrumenting your site&rsquo;s code.
             </p>
           </div>
         </div>
@@ -123,11 +123,11 @@ export function AgentAccessCard(): ReactElement {
           ))}
         </div>
 
-        {/* Freshly minted secret — visible exactly once */}
+        {/* Freshly minted secret, visible exactly once */}
         {createdSecret && (
           <div className="mt-3 rounded-xl border border-[#28E99F]/40 bg-mint/10 px-3.5 py-3">
             <p className="text-[12px] font-semibold text-[#123326]">
-              Token created — copy it now, it won&rsquo;t be shown again.
+              Token created. Copy it now, it won&rsquo;t be shown again.
             </p>
             <div className="mt-1.5 flex items-center gap-2">
               <code className="min-w-0 flex-1 truncate rounded-lg bg-white px-2.5 py-1.5 font-mono text-[11.5px] text-[#3D3B4F]">

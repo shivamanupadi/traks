@@ -81,7 +81,7 @@ export const verifications = sqliteTable('verifications', {
 
 // ============ Workspaces (a workspace groups sites; members join per-workspace) ============
 // Storage for Better Auth's organization plugin (model "organization" is
-// mapped onto this table in lib/auth.ts) — slug/logo/metadata are its fields.
+// mapped onto this table in lib/auth.ts) - slug/logo/metadata are its fields.
 export const workspaces = sqliteTable(
   'workspaces',
   {
@@ -160,7 +160,7 @@ export const sites = sqliteTable(
     name: text('name').notNull(),
     domain: text('domain').notNull(),
     /** Site favicon as a data URL, fetched server-side on create/domain
-     *  change (never from the browser — no third-party favicon services). */
+     *  change (never from the browser - no third-party favicon services). */
     favicon: text('favicon'),
     timezone: text('timezone').default('UTC').notNull(),
     public: integer('public', { mode: 'boolean' }).default(false).notNull(),
@@ -212,9 +212,9 @@ export const apiTokens = sqliteTable(
       .references(() => users.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     /** The single workspace this token can reach. Tokens never span the
-     *  owner's other workspaces — mint one per workspace instead. */
+     *  owner's other workspaces - mint one per workspace instead. */
     workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'cascade' }),
-    /** SHA-256 hex of the secret — the secret itself is shown exactly once. */
+    /** SHA-256 hex of the secret - the secret itself is shown exactly once. */
     tokenHash: text('token_hash').notNull(),
     /** Last 4 characters of the secret, for display in the token list. */
     suffix: text('suffix').notNull(),

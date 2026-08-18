@@ -1,5 +1,5 @@
 /**
- * MCP server for coding agents — stateless Streamable HTTP transport.
+ * MCP server for coding agents - stateless Streamable HTTP transport.
  *
  * One POST endpoint speaking JSON-RPC 2.0 (initialize / tools/list /
  * tools/call). Auth is the personal API token via requireAuth, exactly like
@@ -17,7 +17,7 @@ import type { Bindings, Variables } from '../types';
 
 type Ctx = Context<{ Bindings: Bindings; Variables: Variables }>;
 
-/** Internal dispatcher — index.ts passes app.request bound to the live app. */
+/** Internal dispatcher - index.ts passes app.request bound to the live app. */
 export type Dispatch = (path: string, init: RequestInit, c: Ctx) => Promise<Response>;
 
 const PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'];
@@ -238,7 +238,7 @@ const TOOLS: ToolDef[] = [
   {
     name: 'get_event_props',
     description:
-      "Property breakdown for one custom event in the period — each 'key: value' pair with how many events carried it. Use to see which prop values an event is actually firing with.",
+      "Property breakdown for one custom event in the period: each 'key: value' pair with how many events carried it. Use to see which prop values an event is actually firing with.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -371,7 +371,7 @@ export function mcpHandler(dispatch: Dispatch) {
             payload = JSON.stringify({
               siteKey: key ?? null,
               snippet: key ? trackerSnippet(key, c.env.COLLECT_URL) : null,
-              docs: "Place the snippet in the <head>. Custom events: window.traks('signup', { plan: 'pro' }, 49.99) — name, optional flat props object, optional numeric value. Calls made before t.js loads are queued by the stub and flushed on load. SPA navigations, outbound links, and file downloads are tracked automatically.",
+              docs: "Place the snippet in the <head>. Custom events: window.traks('signup', { plan: 'pro' }, 49.99): name, optional flat props object, optional numeric value. Calls made before t.js loads are queued by the stub and flushed on load. SPA navigations, outbound links, and file downloads are tracked automatically.",
             });
           } catch {
             /* fall through with raw text */

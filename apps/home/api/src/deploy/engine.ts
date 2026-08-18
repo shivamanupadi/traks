@@ -1,7 +1,7 @@
 /**
  * Web-installer provisioning engine.
  *
- * Pure fetch against the Cloudflare REST API — provisions a complete Traks
+ * Pure fetch against the Cloudflare REST API - provisions a complete Traks
  * instance into a USER'S account using tokens they supply, which live only
  * for the duration of the request and are never persisted or logged.
  *
@@ -35,7 +35,7 @@ export interface DeployArtifacts {
   }[];
   migrations: { name: string; getSql: () => Promise<string> }[];
   schema: { fields: unknown[] };
-  /** Release version from manifest.json — stamped on the instance. */
+  /** Release version from manifest.json - stamped on the instance. */
   version?: string;
 }
 
@@ -55,7 +55,7 @@ export interface EngineCtx {
   artifacts: DeployArtifacts;
   /** Deploy onto one of the account's own domains instead of workers.dev. */
   customDomain?: CustomDomain;
-  /** Wizard session id — stamped on the instance so it can link back to
+  /** Wizard session id - stamped on the instance so it can link back to
    *  traks.dev/deploy?instance=<id> for updates. */
   deploySessionId?: string;
   randomHex: (bytes: number) => string;
@@ -140,7 +140,7 @@ async function step<T>(
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     // Details are persisted to the registry and can carry an entire upstream
-    // HTTP body — bound them where they're produced, not only where read.
+    // HTTP body - bound them where they're produced, not only where read.
     await ctx.emit({ stepId, label, status: 'fail', detail: message.slice(0, MAX_DETAIL) });
     throw new StepFailure(stepId, message);
   }
@@ -286,7 +286,7 @@ async function ensureBucketAndCatalog(ctx: EngineCtx, cf: Cf, bucket: string): P
 /**
  * Drop a table from the bucket's Iceberg REST catalog. The catalog service
  * remembers tables per warehouse (account_bucket) even across bucket
- * delete/recreate, and Pipelines sinks refuse to write to existing tables —
+ * delete/recreate, and Pipelines sinks refuse to write to existing tables  -
  * so both destroy and reinstall need to be able to clear stale registrations.
  */
 async function dropCatalogTable(
@@ -345,7 +345,7 @@ async function ensurePipeline(
       // Misconfigured sink from an earlier engine bug: table_name held the
       // full "traks.events" with no namespace, so the table landed in the
       // "default" namespace where dashboard queries never find it. Recreate
-      // (pipeline first — it references the sink).
+      // (pipeline first - it references the sink).
       const pipes = await cf('GET', `${base}/pipelines?per_page=100`);
       const pipe = ((pipes ?? []) as { id: string; name: string }[]).find(
         pl => pl.name === N.pipeline
@@ -377,7 +377,7 @@ async function ensurePipeline(
           return await createSink();
         } catch (raw) {
           // Reinstall after destroy: the catalog remembered the previous
-          // bucket's table — drop the stale registration and try once more.
+          // bucket's table - drop the stale registration and try once more.
           if (isExistingTable(raw as CfError)) {
             await dropCatalogTable(ctx.accountId, N.bucket, ctx.catalogToken, 'traks', 'events');
             return createSink();
@@ -388,7 +388,7 @@ async function ensurePipeline(
       {
         attempts: 6,
         delayMs: 60_000,
-        // 1012 also means "catalog not ready yet" on fresh installs — retry
+        // 1012 also means "catalog not ready yet" on fresh installs - retry
         // that, but not the existing-table flavor (permanent until dropped).
         transient: err =>
           (Boolean(err.codes?.includes(1012)) && !isExistingTable(err)) ||
@@ -427,7 +427,7 @@ async function uploadWorker(
 ): Promise<void> {
   const fd = new FormData();
   // The script-upload API replaces the ENTIRE binding set with what's in
-  // `bindings` — secrets included. Without keep_bindings, every update drops
+  // `bindings` - secrets included. Without keep_bindings, every update drops
   // the worker's secrets and ensureSecrets then regenerates them: a new
   // BETTER_AUTH_SECRET invalidates every session (all users logged out) and
   // VISITOR_HASH_SECRET resets visitor identity. Same list wrangler sends.
@@ -589,14 +589,14 @@ export async function provisionInstance(ctx: EngineCtx): Promise<ProvisionResult
       main_module: 'worker.js',
       compatibility_date: '2026-06-01',
       compatibility_flags: ['nodejs_compat'],
-      // Dashboard requests chain several hops to D1, the live DO and R2 SQL —
-      // none at the edge — so placing the worker near the data beats placing
+      // Dashboard requests chain several hops to D1, the live DO and R2 SQL  -
+      // none at the edge - so placing the worker near the data beats placing
       // it near the viewer. The collect worker deliberately stays at the edge.
       placement: { mode: 'smart' },
       bindings: [
         { type: 'd1', name: 'DB', id: d1Id },
         { type: 'kv_namespace', name: 'R2SQL_CACHE', namespace_id: kvId },
-        // Brute-force guard on /api/auth/* — Better Auth's own limiter is
+        // Brute-force guard on /api/auth/* - Better Auth's own limiter is
         // in-memory, i.e. per-isolate and therefore absent on Workers.
         {
           type: 'ratelimit',
@@ -824,7 +824,7 @@ export interface DestroyCtx {
   accountId: string;
   instance: string;
   emit: (e: StepEvent) => void | Promise<void>;
-  /** R2 objects only die via the S3 API — callers that can sign SigV4 supply
+  /** R2 objects only die via the S3 API - callers that can sign SigV4 supply
    *  an emptier; without one, a non-empty bucket fails its delete. */
   emptyBucket?: (bucket: string) => Promise<void>;
 }
@@ -837,7 +837,7 @@ export interface DestroyResult {
   retainedReason: string | null;
 }
 
-/** Tear down everything provisionInstance created. Idempotent — every delete
+/** Tear down everything provisionInstance created. Idempotent - every delete
  *  tolerates already-gone resources, so partial teardowns can be re-run. */
 export async function destroyInstance(ctx: DestroyCtx): Promise<DestroyResult> {
   const cf = makeApi(ctx);
@@ -885,7 +885,7 @@ export async function destroyInstance(ctx: DestroyCtx): Promise<DestroyResult> {
     }).catch(() => {});
 
     // R2 refuses to delete a non-empty bucket, and objects only die via the
-    // S3 API — which needs a real API token to sign with. An OAuth access
+    // S3 API - which needs a real API token to sign with. An OAuth access
     // token cannot, so this leg fails for OAuth installs. It must NOT abort
     // the run: this step used to throw, and everything after it (the D1
     // database and the KV namespace) was then never deleted at all. Record
@@ -960,7 +960,7 @@ export async function canSignR2(accountId: string, token: string): Promise<boole
  * The catalog token is only consumed when the Iceberg sink has to be created
  * (an existing, correctly-configured sink short-circuits that step) or when
  * the api worker is missing its R2_SQL_TOKEN secret. On a healthy instance
- * neither holds, so an update needs nothing beyond the account connection —
+ * neither holds, so an update needs nothing beyond the account connection  -
  * and asking for a token anyway sends people to the Cloudflare dashboard to
  * mint a credential that is then never read.
  */

@@ -1,7 +1,7 @@
 /**
  * AI assistants as a traffic channel.
  *
- * Classification happens at QUERY time from `referrer_hostname` — no event
+ * Classification happens at QUERY time from `referrer_hostname` - no event
  * schema change, and the list can grow in a release without touching stored
  * data. Hostnames are matched exactly (the collect worker stores the URL
  * hostname verbatim), so common variants are enumerated per assistant.
@@ -37,11 +37,11 @@ export const AI_ASSISTANTS: { name: string; hosts: string[] }[] = [
 /** Every AI referrer hostname, for WHERE ... IN clauses. */
 export const AI_HOSTNAMES: string[] = AI_ASSISTANTS.flatMap(a => a.hosts);
 
-/** The IN-list literal. Hostnames are our own constants — no user input. */
+/** The IN-list literal. Hostnames are our own constants - no user input. */
 export const AI_HOSTNAME_IN: string = AI_HOSTNAMES.map(h => `'${h}'`).join(', ');
 
 /** Hostname column -> assistant display name. Searched CASE (not simple
- *  CASE) — the form both R2 SQL and the DO's SQLite support. */
+ *  CASE) - the form both R2 SQL and the DO's SQLite support. */
 export function aiSourceCaseSql(col: string): string {
   const whens = AI_ASSISTANTS.flatMap(a =>
     a.hosts.map(h => `WHEN ${col} = '${h}' THEN '${a.name}'`)

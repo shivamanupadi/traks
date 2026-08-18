@@ -6,7 +6,7 @@ type InvitationRow = typeof workspaceInvitations.$inferSelect;
 
 /**
  * The pending invitation for an invite-link id, iff still usable and the
- * presented email matches its pinned recipient. Null otherwise — callers
+ * presented email matches its pinned recipient. Null otherwise - callers
  * reject uniformly, no oracle for which check failed. Lifecycle writes go
  * through the Better Auth organization plugin; this read (plus
  * consumeInvitation) exists only for the sign-up gate, where the invitee has
@@ -30,7 +30,7 @@ export async function findPendingInvitation(
   return invite;
 }
 
-/** Mark the invitation accepted and add the member — atomically, so a used
+/** Mark the invitation accepted and add the member - atomically, so a used
  *  invite can never exist without its membership (or vice versa). */
 export async function consumeInvitation(
   db: DrizzleD1Database,

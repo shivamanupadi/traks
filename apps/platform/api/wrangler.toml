@@ -5,7 +5,7 @@ compatibility_flags = ["nodejs_compat"]
 
 # Dashboard requests are back-end bound: each one makes several sequential hops
 # to D1, the live Durable Object and R2 SQL, none of which live at the edge.
-# Running near the data beats running near the viewer here — the opposite of
+# Running near the data beats running near the viewer here - the opposite of
 # the collect worker, which stays at the edge because ingest latency is felt on
 # the visitor's page.
 [placement]
@@ -39,7 +39,7 @@ id = "fc5eb93cfb8f4cb18969af2ccd4f9ea5"
 # No cron triggers; explicit empty list so deploys delete any previously
 # registered schedules (omitting [triggers] would leave them in place).
 # Brute-force guard on the auth surface, keyed by client IP. Better Auth's
-# built-in limiter is in-memory — per-isolate on Workers, so effectively no
+# built-in limiter is in-memory - per-isolate on Workers, so effectively no
 # limiter at all. A single-owner instance has one known account, so this is
 # the only thing standing between it and offline-speed guessing.
 [[unsafe.bindings]]
@@ -58,6 +58,6 @@ R2_ACCOUNT_ID = "4cf68c768770ccda55d287d6ecbdeb4f"
 COLLECT_URL = "http://localhost:5010"
 
 # The platform ships to customers as a release bundle; the ONLY install path
-# is the traks.dev deploy wizard. There is no wrangler prod deploy — our own
+# is the traks.dev deploy wizard. There is no wrangler prod deploy - our own
 # instance (and any staging one) is installed through the wizard like any
 # other customer. Dev config above is for local iteration only.

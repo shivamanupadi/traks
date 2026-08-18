@@ -40,12 +40,12 @@ const PHASE_INDEX: Record<Phase, number> = {
 };
 
 const INTERRUPTED_MSG =
-  'The previous update was interrupted before it finished. Re-connect and run it again — updates are safe to re-run.';
+  'The previous update was interrupted before it finished. Re-connect and run it again; updates are safe to re-run.';
 
 /**
  * Update flow: connect → confirm the instance → run. Its URL is what the
  * dashboards' "new version available" banner links to. Updating a healthy
- * instance needs NO storage token — the token field only appears when the
+ * instance needs NO storage token - the token field only appears when the
  * preflight probe says this specific instance is missing something.
  */
 function UpdateWizard(): ReactElement {
@@ -66,7 +66,7 @@ function UpdateWizard(): ReactElement {
   const [catalogStatus, setCatalogStatus] = useState<'checking' | 'ok' | 'bad' | undefined>();
   const [catalogDetail, setCatalogDetail] = useState<string | undefined>();
   // Whether this update still needs a storage token. `undefined` while the
-  // preflight probe is in flight — the confirm screen shows a neutral
+  // preflight probe is in flight - the confirm screen shows a neutral
   // "checking" state instead of flashing the token field in and out. A probe
   // that fails resolves to the conservative `true`.
   const [catalogRequired, setCatalogRequired] = useState<boolean | undefined>(undefined);
@@ -82,7 +82,7 @@ function UpdateWizard(): ReactElement {
     if (connect.oauthError) setError(connect.oauthError);
   }, [connect.oauthError]);
 
-  // A session is needed for OAuth state and every API call — mint one when
+  // A session is needed for OAuth state and every API call - mint one when
   // the page is opened directly without ?instance=.
   useEffect(() => {
     if (sessionId) return;
@@ -92,7 +92,7 @@ function UpdateWizard(): ReactElement {
         void navigate({ to: '/update', search: { instance: id }, replace: true });
       })
       .catch(() =>
-        setError('Could not reach the server to start — check your connection and try again.')
+        setError('Could not reach the server to start. Check your connection and try again.')
       );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
@@ -167,7 +167,7 @@ function UpdateWizard(): ReactElement {
   }, [sessionId]);
 
   /**
-   * A session row bound to one instance can only drive that instance — pick
+   * A session row bound to one instance can only drive that instance - pick
    * a different target and we mint a fresh session for it.
    */
   const ensureSessionFor = async (inst: ExistingInstall): Promise<string> => {
@@ -224,7 +224,7 @@ function UpdateWizard(): ReactElement {
       setPhase('confirm');
       void runPreflight(session, inst);
     } catch {
-      setError('Could not reach the server — check your connection and try again.');
+      setError('Could not reach the server. Check your connection and try again.');
     } finally {
       setBusy(false);
     }
@@ -252,7 +252,7 @@ function UpdateWizard(): ReactElement {
       return false;
     } catch {
       setCatalogStatus('bad');
-      setCatalogDetail('Could not reach the server — check your connection and try again.');
+      setCatalogDetail('Could not reach the server. Check your connection and try again.');
       return false;
     }
   };
@@ -261,7 +261,7 @@ function UpdateWizard(): ReactElement {
     if (!target?.instanceName || !target.accountId || !sessionId) return;
     setBusy(true);
     setError('');
-    // Only verify a storage token when one is actually in play — a healthy
+    // Only verify a storage token when one is actually in play - a healthy
     // instance updates without one, and the server double-checks anyway.
     const pastedToken = catalogToken.trim().length >= 20;
     if (
@@ -326,7 +326,7 @@ function UpdateWizard(): ReactElement {
   return (
     <WizardShell
       title="Update Traks"
-      subtitle="Bring your instance to the latest release — data and settings stay"
+      subtitle="Bring your instance to the latest release. Data and settings stay"
       progress={{ current: PHASE_INDEX[phase], total: 3 }}
     >
       {phase === 'connect' && (
@@ -336,7 +336,7 @@ function UpdateWizard(): ReactElement {
           </h2>
           <p className="mb-5 text-[13px] leading-relaxed text-[#9B99A6]">
             Sign in (or paste the same installer token you used before) so we can find your
-            instance. Nothing is stored — access is for this update only.
+            instance. Nothing is stored; access is for this update only.
             {versions.latest && (
               <>
                 {' '}
@@ -422,13 +422,13 @@ function UpdateWizard(): ReactElement {
         >
           <h2 className="mb-1 text-[16.5px] font-bold text-[#3D3B4F]">Confirm the update</h2>
           <p className="mb-5 text-[13px] leading-relaxed text-[#9B99A6]">
-            The deploy re-runs on this same instance — your sites, data, and settings stay exactly
-            as they are.
+            The deploy re-runs on this same instance. Your sites, data, and settings stay exactly as
+            they are.
           </p>
           {error && <ErrorBox>{error}</ErrorBox>}
           {upToDate && (
             <NoteBox>
-              This instance already runs the latest release — re-running is safe and simply
+              This instance already runs the latest release. Re-running is safe and simply
               re-applies it.
             </NoteBox>
           )}
@@ -473,7 +473,7 @@ function UpdateWizard(): ReactElement {
               <TokenField
                 id="catalog-token"
                 label="Analytics storage token"
-                help="Needed for this one repair — it stays with your instance."
+                help="Needed for this one repair; it stays with your instance."
                 linkLabel="Create storage token (pre-filled)"
                 linkUrl={catalogTokenUrl(target.accountId ?? undefined)}
                 value={catalogToken}
@@ -483,12 +483,12 @@ function UpdateWizard(): ReactElement {
                 }}
                 status={catalogStatus}
                 statusDetail={catalogDetail}
-                errorHelp="Use the pre-filled storage-token link (scoped to the selected account), click “Create Token”, and paste the token value — not the token ID."
+                errorHelp="Use the pre-filled storage-token link (scoped to the selected account), click “Create Token”, and paste the token value, not the token ID."
               />
             </>
           ) : (
             <p className="text-[11.5px] leading-relaxed text-[#9B99A6]">
-              No storage token needed — this instance&rsquo;s data warehouse is healthy, so the
+              No storage token needed. This instance&rsquo;s data warehouse is healthy, so the
               update only refreshes the workers, dashboard, and database schema.
             </p>
           )}
@@ -513,12 +513,12 @@ function UpdateWizard(): ReactElement {
         >
           <h2 className="mb-1 text-[16.5px] font-bold text-[#3D3B4F]">Updating Traks</h2>
           <p className="mb-5 text-[13px] text-[#9B99A6]">
-            Re-running the deploy on your instance — safe to leave open
+            Re-running the deploy on your instance. Safe to leave open
           </p>
           <StepList steps={steps} startingLabel="Starting the update…" />
           {phase === 'failed' && error && (
             <p className="mt-4 rounded-xl bg-[#F7DCD4] px-4 py-3 text-[12.5px] leading-relaxed text-[#8F3B2C]">
-              {error} — retries are safe; updates re-use everything already in place.
+              {error}. Retries are safe; updates re-use everything already in place.
             </p>
           )}
         </Card>
@@ -544,7 +544,7 @@ function UpdateWizard(): ReactElement {
               Updated to v{versions.latest ?? 'the latest release'} 🎉
             </h2>
             <p className="mb-5 mt-1 text-[13px] text-[#9B99A6]">
-              Your data and settings are untouched — the new version is live now.
+              Your data and settings are untouched. The new version is live now.
             </p>
             <a
               href={result.apiUrl}

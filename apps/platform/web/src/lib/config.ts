@@ -2,8 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 
 /**
  * Instance config served by the api worker (/api/config). Runtime, not
- * build-time: the same prebuilt SPA bundle works on any deployment —
- * custom domain or bare workers.dev — because the worker tells it where
+ * build-time: the same prebuilt SPA bundle works on any deployment -
+ * custom domain or bare workers.dev - because the worker tells it where
  * the collect endpoint lives.
  */
 interface InstanceConfig {
@@ -31,7 +31,7 @@ export function useInstanceConfig(): InstanceConfig | undefined {
 
 /**
  * This deployment's collect origin. Returns undefined until /api/config
- * resolves — deliberately NOT defaulted: a fallback to some other host would
+ * resolves - deliberately NOT defaulted: a fallback to some other host would
  * hand the customer an install snippet that ships their events elsewhere.
  * Callers must render a loading/error state instead of a wrong snippet.
  */

@@ -55,7 +55,7 @@ export async function queryR2Sql<T = Record<string, unknown>>(
   if (!response.ok) {
     const text = await response.text();
     // A fresh instance has no Iceberg table until the pipeline sink's first
-    // flush creates it (minutes after the first event) — an absent table
+    // flush creates it (minutes after the first event) - an absent table
     // means "no events yet", not a failure. [40010] = iceberg table not found.
     if (response.status === 404 && text.includes('40010')) return [];
     throw new R2SqlError(`HTTP ${response.status}: ${text.slice(0, 500)}`);
@@ -82,7 +82,7 @@ export function isPagePrefix(target: string): boolean {
   return target.endsWith('/*') && target.length > 2;
 }
 
-/** SQL matching a page target: exact, or prefix for '/docs/*' — the bare
+/** SQL matching a page target: exact, or prefix for '/docs/*' - the bare
  *  prefix itself plus everything under it (never '/docsfoo'). */
 export function pathMatchSql(col: string, target: string): string {
   if (!isPagePrefix(target)) return `${col} = '${esc(target)}'`;
@@ -113,7 +113,7 @@ export function propMatchSql(key: string, value: string): string {
 // ============ Timezone-aware period math ============
 
 /**
- * Intl.DateTimeFormat construction dominates this function — measured ~46µs to
+ * Intl.DateTimeFormat construction dominates this function - measured ~46µs to
  * build one versus ~2.2µs to reuse it. computeBucketKeys() calls this on every
  * ingested event, so the formatters are cached per timezone. The set of
  * timezones an isolate sees is bounded by the sites it serves; the cap is a
@@ -197,7 +197,7 @@ function startOfDayNDays(date: Date, tz: string, n: number): Date {
   return startOfDayInTz(noonish, tz);
 }
 
-/** Floor for the 'all time' window — predates any possible event. */
+/** Floor for the 'all time' window - predates any possible event. */
 const ALL_TIME_FLOOR_MS = Date.UTC(2000, 0, 1);
 
 function pad2(n: number): string {
@@ -206,7 +206,7 @@ function pad2(n: number): string {
 
 /**
  * ISO-8601 week key (YYYY-Www) computed from plain date components.
- * Tz-agnostic — callers pass Y/M/D already rendered in whatever zone they care about.
+ * Tz-agnostic - callers pass Y/M/D already rendered in whatever zone they care about.
  */
 function isoWeekKeyFromParts(year: number, month: number, day: number): string {
   // ISO week: the Thursday of a week determines its year/week.
@@ -235,7 +235,7 @@ export function computeBucketKeys(
 }
 
 /**
- * Resolve a period to a PeriodRange. All boundaries are aligned to the *site's* timezone —
+ * Resolve a period to a PeriodRange. All boundaries are aligned to the *site's* timezone -
  * "today" means 00:00 local time in that zone, not UTC midnight.
  *
  * The `buckets` array lets routes zero-fill timeseries gaps.
@@ -299,7 +299,7 @@ export function previousRange(range: PeriodRange): { from: string; to: string } 
   const curFrom = new Date(range.from).getTime();
   const curTo = new Date(range.to).getTime();
   // 'all' starts at the epoch floor (2000-01-01), so mirroring its span would
-  // scan ~26 further years of partitions that cannot contain data — doubling
+  // scan ~26 further years of partitions that cannot contain data - doubling
   // the cost of the most expensive view to compare against a guaranteed zero.
   // Collapse it to an empty window instead.
   if (curFrom <= ALL_TIME_FLOOR_MS) {
@@ -524,7 +524,7 @@ export function buildGoalEventPropQuery(
   `;
 }
 
-/** One section-prefix page goal ('/docs/*') — LIKE can't ride the IN batch. */
+/** One section-prefix page goal ('/docs/*') - LIKE can't ride the IN batch. */
 export function buildGoalPagePrefixQuery(
   siteKey: string,
   range: PeriodRange,
@@ -567,7 +567,7 @@ export function buildGoalPagesQuery(
  * Per session, take the first-occurrence time of each step (MIN over a CASE),
  * then count a session into step N only when steps 0..N all occurred and
  * their first occurrences are non-decreasing in time. This is first-touch
- * ordering — the standard funnel approximation; a session that re-enters a
+ * ordering - the standard funnel approximation; a session that re-enters a
  * step later doesn't change its counted position.
  *
  * NULL comparisons make missing steps drop out naturally: if sN is NULL,
@@ -804,7 +804,7 @@ export function buildLocationsQuery(
 /**
  * AI assistants as a traffic channel: pageviews referred by known AI tools
  * (ChatGPT, Claude, Perplexity, …), grouped by assistant. Classified at
- * query time from referrer_hostname — see shared/src/ai-sources.ts.
+ * query time from referrer_hostname - see shared/src/ai-sources.ts.
  */
 export function buildAiSourcesQuery(
   siteKey: string,
@@ -895,10 +895,10 @@ export function buildEventMetaQuery(
 
 /**
  * Realtime = last 5 minutes. Freshness is bounded by the sink's `roll-interval`
- * (60s in our setup script — the documented minimum, safe alongside automatic
+ * (60s in our setup script - the documented minimum, safe alongside automatic
  * compaction), not this query.
  */
-/** Overall distinct visitors in the 5-min window — per-page rows can't be
+/** Overall distinct visitors in the 5-min window - per-page rows can't be
  *  summed for this (multi-page visitors would double-count). */
 export function buildRealtimeTotalQuery(siteKey: string, now: Date) {
   const range = {

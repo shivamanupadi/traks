@@ -1,5 +1,5 @@
 /**
- * Minified output of packages/tracker/src/tracker.ts — regenerate with:
+ * Minified output of packages/tracker/src/tracker.ts - regenerate with:
  *   yarn workspace @traks/tracker build && node scripts/inline-tracker.mjs
  * Do not hand-edit.
  */

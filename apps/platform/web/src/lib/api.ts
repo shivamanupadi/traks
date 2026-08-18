@@ -33,7 +33,7 @@ export class ApiError extends Error {
   }
 }
 
-/** 401/403/404/409 are decisions, not blips — retrying them just multiplies load. */
+/** 401/403/404/409 are decisions, not blips - retrying them just multiplies load. */
 export const isRetryableError = (err: unknown): boolean =>
   !(err instanceof ApiError) || ![401, 403, 404, 409].includes(err.status);
 
@@ -60,7 +60,7 @@ async function assertOk(res: Response): Promise<void> {
   }
 }
 
-/** Better Auth client calls return {data, error} — normalize to throwing
+/** Better Auth client calls return {data, error} - normalize to throwing
  *  ApiError so react-query error paths stay identical to the REST calls. */
 function unwrap<T>(res: {
   data: T | null;
@@ -90,7 +90,7 @@ export const api = {
     return res.json();
   },
 
-  // Workspaces — reads come from the custom aggregation endpoint (role +
+  // Workspaces - reads come from the custom aggregation endpoint (role +
   // siteCount + bootstrap); lifecycle goes through the org plugin.
   async getWorkspaces(): Promise<any> {
     const res = await client.api.workspaces.$get();
@@ -142,7 +142,7 @@ export const api = {
     return { ok: true };
   },
 
-  // Invitations — created/canceled/accepted via the org plugin; the row id
+  // Invitations - created/canceled/accepted via the org plugin; the row id
   // IS the invite-link token. Public preview stays a custom endpoint (the
   // plugin's getInvitation requires a session the invitee doesn't have).
   async createInvitation(

@@ -16,7 +16,7 @@ function memberWorkspaceIds(db: DrizzleD1Database, userId: string) {
 /**
  * The access rule for sites: workspace membership. The direct-creator arm is
  * deliberately restricted to rows that have NO workspace yet (expand-contract
- * — the column is nullable during rollout). Letting it apply to workspaced
+ * - the column is nullable during rollout). Letting it apply to workspaced
  * rows would mean removing someone from a workspace never revoked access to
  * the sites they happened to create there.
  */
@@ -29,7 +29,7 @@ export function siteAccessFilter(
     and(eq(sites.userId, userId), isNull(sites.workspaceId)),
     inArray(sites.workspaceId, memberWorkspaceIds(db, userId))
   )!;
-  // A workspace-bound API token sees exactly one workspace's sites — never
+  // A workspace-bound API token sees exactly one workspace's sites - never
   // the owner's other workspaces, and never legacy un-workspaced rows.
   if (!scopeWorkspaceId) return base;
   return and(eq(sites.workspaceId, scopeWorkspaceId), base)!;
@@ -54,7 +54,7 @@ export async function getAccessibleSite(
 
 /**
  * Site access WITH the caller's role in its workspace. Members can read;
- * only owners mutate — mutation routes 403 on role !== 'owner'. Legacy
+ * only owners mutate - mutation routes 403 on role !== 'owner'. Legacy
  * sites (no workspace yet) are owner-managed by their creator.
  */
 export async function getSiteAccess(
@@ -68,7 +68,7 @@ export async function getSiteAccess(
   // Legacy un-workspaced row: its creator is effectively its owner.
   if (!site.workspaceId) return { site, role: 'owner' };
   // Membership is the ONLY source of role for a workspaced site. Never fall
-  // back to the creator — a removed member would otherwise keep owner rights
+  // back to the creator - a removed member would otherwise keep owner rights
   // over every site they had created.
   const membership = await getMembership(db, site.workspaceId, userId);
   if (!membership) return null;
@@ -115,7 +115,7 @@ export async function getMembership(
  * Idempotent bootstrap: the caller's default workspace (their oldest
  * membership), with any of their pre-workspace sites (workspace_id NULL)
  * pulled into it. Only the INSTANCE OWNER self-provisions a workspace when
- * they have none — members exist solely through invitations, so a
+ * they have none - members exist solely through invitations, so a
  * member with zero memberships gets null (and is evicted, see below), never
  * a fresh workspace to squat on.
  */
@@ -140,7 +140,7 @@ export async function ensureDefaultWorkspace(
     if (!isInstanceOwner) return null;
     workspaceId = createId();
     // Atomic: a workspace without its owner membership would be unreachable.
-    // slug: the org plugin requires one and it's unique — the id always is.
+    // slug: the org plugin requires one and it's unique - the id always is.
     await db.batch([
       db
         .insert(workspaces)
@@ -167,7 +167,7 @@ export async function ensureDefaultWorkspace(
  * with zero memberships (removed, left, or their workspace was deleted) is
  * evicted from the instance. Sites they created are re-parented to the
  * instance owner (the FK requires a user; the sites themselves live on in
- * their workspaces), then the user row is deleted — cascading accounts and
+ * their workspaces), then the user row is deleted - cascading accounts and
  * sessions, so their login stops working immediately. A later re-invite
  * simply creates a fresh account.
  */

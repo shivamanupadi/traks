@@ -22,17 +22,17 @@ app.use('/api/*', async (c, next) => {
   await next();
 });
 
-// Health — /api/health is the canonical path (the traks.dev/api/* zone route
+// Health - /api/health is the canonical path (the traks.dev/api/* zone route
 // only forwards /api/*); the root paths remain for direct worker access.
 app.get('/', c => c.json({ name: 'traks-api', status: 'ok' }));
 app.get('/health', c => c.json({ status: 'ok', timestamp: new Date().toISOString() }));
 app.get('/api/health', c => c.json({ status: 'ok', timestamp: new Date().toISOString() }));
 
 // Better Auth: sign-up/sign-in/sign-out/session under /api/auth/*
-// Credential attempts are IP-throttled first — reads (session lookups) are
+// Credential attempts are IP-throttled first - reads (session lookups) are
 // left alone so an open dashboard is never throttled out of its own session.
 // Organization-plugin endpoints that embed the member roster or invitation
-// list — i.e. other people's email addresses. The plugin gates them on mere
+// list - i.e. other people's email addresses. The plugin gates them on mere
 // membership, but our policy reserves the roster for owners (roster:read), so
 // they are checked here before the plugin ever sees them. Without this, our
 // owner-only /api/workspaces/:id/members would be trivially bypassed.
@@ -51,7 +51,7 @@ app.on(['GET', 'POST'], '/api/auth/*', async c => {
     const ip = c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for') || 'unknown';
     const { success } = await c.env.AUTH_LIMIT.limit({ key: ip });
     if (!success) {
-      return c.json({ error: 'Too many attempts — try again in a minute' }, 429);
+      return c.json({ error: 'Too many attempts. Try again in a minute' }, 429);
     }
   }
 
@@ -89,7 +89,7 @@ app.on(['GET', 'POST'], '/api/auth/*', async c => {
 });
 
 // Login page switch: first-run claim screen vs sign-in screen. On unclaimed
-// wizard-deployed instances the owner email is fixed at deploy time — expose
+// wizard-deployed instances the owner email is fixed at deploy time - expose
 // it (pre-claim only) so the claim form can prefill and lock the field.
 app.get('/api/claim-status', async c => {
   const claimed = await claimStatus(c.env);

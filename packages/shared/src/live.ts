@@ -103,7 +103,7 @@ export interface LiveRealtimeRow {
 }
 
 /** Realtime window result: per-page rows plus the TRUE overall distinct
- *  visitor count — summing per-page rows double-counts multi-page visitors. */
+ *  visitor count - summing per-page rows double-counts multi-page visitors. */
 export interface LiveRealtime {
   total: number;
   rows: LiveRealtimeRow[];
@@ -143,7 +143,7 @@ export interface LiveMetaRow {
 
 /** RPC surface of SiteLiveStore. All ranges are [fromMs, toMs) epoch ms. */
 export interface LiveStoreApi {
-  /** Stores the event and returns the site's event count for its calendar month (site tz) — used for quota enforcement. */
+  /** Stores the event and returns the site's event count for its calendar month (site tz) - used for quota enforcement. */
   record(event: LiveEvent): Promise<number>;
   /** Wipes all stored data for this site (site deletion). */
   purge(): Promise<void>;

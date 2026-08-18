@@ -1,11 +1,11 @@
 /**
- * Web-installer API (public, unauthenticated — it acts on the CALLER'S
+ * Web-installer API (public, unauthenticated - it acts on the CALLER'S
  * Cloudflare account using tokens they supply per request; tokens are never
  * stored, logged, or echoed). Powers the traks.dev/deploy wizard.
  *
  * State model mirrors the Cloudflare OS hosted deploy: a registry row per
  * wizard session (?instance=<id> in the URL), holding only non-sensitive
- * resume state — status, chosen names, step log, final URLs.
+ * resume state - status, chosen names, step log, final URLs.
  */
 import { Hono, type Context } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
@@ -66,7 +66,7 @@ const b64url = (bytes: ArrayBuffer | Uint8Array): string => {
 
 const redirectUri = (c: Context): string => `${new URL(c.req.url).origin}/deploy/callback`;
 
-/** Top-level GET /deploy/callback (registered redirect URI — outside /api). */
+/** Top-level GET /deploy/callback (registered redirect URI - outside /api). */
 export async function oauthCallback(
   c: Context<{ Bindings: Bindings; Variables: Variables }>
 ): Promise<Response> {
@@ -76,7 +76,7 @@ export async function oauthCallback(
   const cookie = getCookie(c, OAUTH_COOKIE) ?? '';
   const [cookieNonce, verifier, cookieInstance, cookieFlow] = cookie.split('.');
   // The registered redirect URI is fixed at /deploy/callback, but each flow
-  // has its own page now — return to whichever one started the sign-in.
+  // has its own page now - return to whichever one started the sign-in.
   // Server-set cookie only; a missing/old cookie falls back to /deploy.
   const flow = cookieFlow === 'update' || cookieFlow === 'destroy' ? cookieFlow : 'deploy';
   const back = (params: string): Response =>
@@ -157,7 +157,7 @@ function resolveCustomDomain(
 
 async function loadArtifacts(releases: R2Bucket): Promise<DeployArtifacts> {
   const manifestObj = await releases.get('current/manifest.json');
-  if (!manifestObj) throw new Error('release artifacts missing — run upload-release');
+  if (!manifestObj) throw new Error('release artifacts missing. Run upload-release');
   const manifest = (await manifestObj.json()) as {
     version?: string;
     assets: { path: string; hash: string; size: number; contentType: string | null }[];
@@ -196,7 +196,7 @@ async function loadArtifacts(releases: R2Bucket): Promise<DeployArtifacts> {
  * so possession of an id must never be sufficient. Two checks:
  *  1. the supplied token really can act on the claimed account, and
  *  2. a row already bound to an account/instance can only be driven by that
- *     same pair — otherwise anyone could repoint or retire someone else's row.
+ *     same pair - otherwise anyone could repoint or retire someone else's row.
  */
 async function authorizeRow(
   row: { accountId: string | null; instanceName: string | null; status: string },
@@ -232,7 +232,7 @@ async function limited(
 ): Promise<Response | null> {
   if (!limiter) return null; // binding absent (local dev)
   const { success } = await limiter.limit({ key: clientIp(c) });
-  return success ? null : c.json({ error: 'Too many requests — try again shortly' }, 429);
+  return success ? null : c.json({ error: 'Too many requests. Try again shortly' }, 429);
 }
 
 export const deployRoute = app
@@ -244,7 +244,7 @@ export const deployRoute = app
     if (!instanceId || !/^[a-zA-Z0-9-]{8,64}$/.test(instanceId)) {
       return c.json({ error: 'instance required' }, 400);
     }
-    // Which wizard page started this sign-in — the callback returns there.
+    // Which wizard page started this sign-in - the callback returns there.
     const flowParam = c.req.query('flow');
     const flow = flowParam === 'update' || flowParam === 'destroy' ? flowParam : 'deploy';
     const nonce = b64url(crypto.getRandomValues(new Uint8Array(16)));
@@ -333,7 +333,7 @@ export const deployRoute = app
           return c.json({ error: 'This token cannot access any Cloudflare account' }, 400);
         }
         // Existing installs in these accounts (proving account access via the
-        // token is the authorization) — lets the wizard steer returning users
+        // token is the authorization) - lets the wizard steer returning users
         // into the update path instead of an accidental second instance.
         const db = c.get('db')!;
         const rows = await db
@@ -364,7 +364,7 @@ export const deployRoute = app
           const prev = byInstance.get(key);
           if (!prev || (r.updatedAt ?? 0) > (prev.updatedAt ?? 0)) byInstance.set(key, r);
         }
-        // OAuth sign-ins can also tell us who this is — the instance's owner
+        // OAuth sign-ins can also tell us who this is - the instance's owner
         // account gets pinned to this email at deploy time.
         return c.json({
           data: accounts,
@@ -442,9 +442,9 @@ export const deployRoute = app
    * What this operation still needs from the operator, asked before the
    * wizard renders its form.
    *
-   * Updating a healthy instance consumes no catalog token at all — the sink
+   * Updating a healthy instance consumes no catalog token at all - the sink
    * step short-circuits on an existing sink and the R2_SQL_TOKEN secret is
-   * already in place — so the wizard should not send anyone to the Cloudflare
+   * already in place - so the wizard should not send anyone to the Cloudflare
    * dashboard to mint one. Destroying, by contrast, needs a token that can
    * sign S3 requests, because R2 will not delete a bucket with objects in it
    * and only the S3 API can remove them.
@@ -479,7 +479,7 @@ export const deployRoute = app
             catalogTokenNeeded: !canPurge,
             reason: canPurge
               ? null
-              : 'Removing your stored analytics needs a Cloudflare API token — the sign-in alone cannot delete R2 objects.',
+              : 'Removing your stored analytics needs a Cloudflare API token; the sign-in alone cannot delete R2 objects.',
           },
         });
       }
@@ -489,7 +489,7 @@ export const deployRoute = app
     }
   )
 
-  // Run the deploy, streaming step events as SSE. Idempotent — a retry after
+  // Run the deploy, streaming step events as SSE. Idempotent - a retry after
   // a failure resumes from existing resources.
   .post('/instance/:id/provision', zValidator('json', startSchema), async c => {
     const db = c.get('db')!;
@@ -497,7 +497,7 @@ export const deployRoute = app
     const [row] = await db.select().from(deployInstances).where(eq(deployInstances.id, id));
     if (!row) return c.json({ error: 'Not found' }, 404);
     // Reject double-starts, but let a stale 'deploying' row (client vanished
-    // mid-run, worker died) be retaken — provisioning is idempotent. The window
+    // mid-run, worker died) be retaken - provisioning is idempotent. The window
     // must exceed the longest silent step: the smoke probe can wait ~5 min on
     // DNS + certificate issuance without emitting anything.
     const staleMs = 7 * 60_000;
@@ -541,7 +541,7 @@ export const deployRoute = app
           try {
             controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
           } catch {
-            // Tab refreshed or navigated away — keep provisioning; the row
+            // Tab refreshed or navigated away - keep provisioning; the row
             // keeps updating and the wizard reattaches by polling it.
             clientGone = true;
           }
@@ -608,7 +608,7 @@ export const deployRoute = app
       },
     });
     // Survive client disconnects: a refresh mid-deploy no longer kills the
-    // run — it finishes in the background and the wizard resumes by polling.
+    // run - it finishes in the background and the wizard resumes by polling.
     try {
       c.executionCtx.waitUntil(runPromise);
     } catch {
@@ -624,7 +624,7 @@ export const deployRoute = app
     });
   })
 
-  // Tear down an instance, streaming step events as SSE. Idempotent — every
+  // Tear down an instance, streaming step events as SSE. Idempotent - every
   // delete tolerates already-gone resources. The confirmation name is checked
   // server-side too; tokens are used for this run only and never stored.
   .post(
@@ -703,7 +703,7 @@ export const deployRoute = app
                 .update(deployInstances)
                 .set({ status: 'destroyed', steps, error: null, updatedAt: new Date() })
                 .where(eq(deployInstances.id, id));
-              // Say plainly when the data bucket outlived the teardown —
+              // Say plainly when the data bucket outlived the teardown  -
               // it keeps costing R2 storage until someone removes it.
               send({
                 type: 'done',

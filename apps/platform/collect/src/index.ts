@@ -51,7 +51,7 @@ app.get('/health', c => c.json({ status: 'ok', timestamp: new Date().toISOString
 app.get('/t.js', c => {
   return c.text(TRACKER_SCRIPT, 200, {
     'Content-Type': 'application/javascript',
-    // Highest-volume response the product serves — cache it explicitly rather
+    // Highest-volume response the product serves - cache it explicitly rather
     // than leaving it to browser heuristics. Short enough that a tracker fix
     // reaches visitors the same day; stale-while-revalidate hides the refetch.
     'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400',
@@ -63,7 +63,7 @@ interface SiteAuth {
   timezone: string;
   /** Registered domain, used to reject events forged from other origins. */
   domain: string;
-  /** Stable site id. This — never the API key — is the analytics identity:
+  /** Stable site id. This - never the API key - is the analytics identity:
    *  the Iceberg partition value and the live DO name. Keys can be rotated or
    *  revoked; the id cannot, so history survives a key change. */
   siteId: string;
@@ -81,8 +81,8 @@ const authInFlight = new Map<string, Promise<SiteAuth>>();
  * Cached site auth, stale-while-revalidate.
  *
  * Returns a hit immediately even once past its TTL and refreshes in the
- * background, because the refresh is a D1 round trip — 50-250ms from a distant
- * colo — and it used to sit inline on the event response every 60s per key per
+ * background, because the refresh is a D1 round trip - 50-250ms from a distant
+ * colo - and it used to sit inline on the event response every 60s per key per
  * isolate, plus on every cold isolate. Only a key never seen by this isolate
  * blocks. Worst-case revocation lag doubles to ~120s, which is acceptable for
  * a credential that ships publicly in a script tag.
@@ -103,7 +103,7 @@ function authenticateSiteCached(
     }
     return cached.auth;
   }
-  // First contact for this key in this isolate — must block.
+  // First contact for this key in this isolate - must block.
   const inFlight = authInFlight.get(siteKey);
   if (inFlight) return inFlight;
   const p = authenticateSite(db, siteKey).finally(() => authInFlight.delete(siteKey));
@@ -142,7 +142,7 @@ async function authenticateSite(db: D1Database, siteKey: string): Promise<SiteAu
   return auth;
 }
 
-// Cache the HMAC CryptoKey per (site-local) day — avoids importKey() per
+// Cache the HMAC CryptoKey per (site-local) day - avoids importKey() per
 // request. Keyed by a Map rather than a single slot: `date` is the SITE's
 // local date, so an isolate serving sites either side of a date boundary
 // (Asia/Kolkata is already on tomorrow while America/LA is on today, for
@@ -180,7 +180,7 @@ async function getDailyCryptoKey(secret: string, date: string): Promise<CryptoKe
  *
  * - Same visitor on same day = same hash (accurate daily uniques)
  * - Same visitor on different days = different hash (no cross-day linking)
- * - Raw IP is never stored — only the hash
+ * - Raw IP is never stored - only the hash
  *
  * The key MUST rotate on the site's own day boundary: dashboards bucket by
  * site-local date, so a UTC rotation would split one visitor into two inside
@@ -244,7 +244,7 @@ app.post('/api/event', async c => {
 
   const event = result.data;
 
-  // Bot filter first — cheap regex check avoids a D1 round-trip for crawler traffic.
+  // Bot filter first - cheap regex check avoids a D1 round-trip for crawler traffic.
   // The header is capped first: it feeds 30 bot regexes, the UA parser, and the
   // visitor HMAC, so an oversized UA would burn CPU on the cheapest request.
   const ua = (c.req.header('user-agent') || '').slice(0, 512);

@@ -94,7 +94,7 @@ export function domainError(normalized: string): string | null {
   }
   const labels = normalized.split('.');
   for (const label of labels) {
-    if (!label) return 'Domain has an empty part — check for a doubled dot';
+    if (!label) return 'Domain has an empty part. Check for a doubled dot';
     if (label.length > 63) return 'One part of the domain is too long';
     if (!/^[a-z0-9-]+$/.test(label)) {
       return 'Use only letters, numbers and hyphens in a domain';
@@ -140,7 +140,7 @@ export const allSitesTimezoneSchema = z.object({
 
 /**
  * A goal/funnel target means different things per type, and a mismatch is
- * silent — the goal simply never converts — so it is rejected up front rather
+ * silent - the goal simply never converts - so it is rejected up front rather
  * than left for the customer to discover from a permanently empty panel.
  * Returns a message or null.
  */
@@ -163,7 +163,7 @@ export function targetError(type: 'event' | 'page', rawTarget: string): string |
     return null;
   }
   if (target.startsWith('/')) {
-    return 'That looks like a path — switch the type to Page, or enter an event name';
+    return 'That looks like a path. Switch the type to Page, or enter an event name';
   }
   if (target.length > 256) return 'Event name must be 256 characters or fewer';
   return null;
@@ -290,7 +290,7 @@ export function emailError(raw: string): string | null {
   const value = raw.trim();
   if (!value) return 'Email is required';
   if (value.length > 256) return 'Email is too long';
-  // Deliberately permissive — one @, something either side, a dotted domain.
+  // Deliberately permissive - one @, something either side, a dotted domain.
   // Anything stricter rejects addresses that genuinely deliver.
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value)) return 'Enter a valid email address';
   return null;

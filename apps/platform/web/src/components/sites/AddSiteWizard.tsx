@@ -103,7 +103,7 @@ export function AddSiteWizard({
   };
 
   // The favicon is fetched server-side right after create (waitUntil), so it
-  // isn't in the create response — poll the site briefly until it lands.
+  // isn't in the create response - poll the site briefly until it lands.
   // Same query key the dashboard uses, so this also warms its cache.
   const { data: siteDetail } = useQuery({
     queryKey: ['site', createdSite?.id],
@@ -111,13 +111,13 @@ export function AddSiteWizard({
     enabled: !!createdSite,
     refetchInterval: query => {
       const favicon = (query.state.data as any)?.data?.favicon;
-      // Stop once it arrives, or give up after ~15s — some sites have none.
+      // Stop once it arrives, or give up after ~15s - some sites have none.
       return favicon || query.state.dataUpdateCount > 10 ? false : 1500;
     },
   });
   const favicon = ((siteDetail as any)?.data?.favicon ?? null) as string | null;
 
-  // Empty until the instance config resolves — never guess the collect origin.
+  // Empty until the instance config resolves - never guess the collect origin.
   const snippet = createdSite && collectUrl ? trackerSnippet(createdSite.key, collectUrl) : '';
 
   const handleCopy = async (): Promise<void> => {
@@ -188,7 +188,7 @@ export function AddSiteWizard({
                   <CheckCircle2 className="h-[18px] w-[18px] text-[#0E9F6E]" strokeWidth={2} />
                 </DialogTitle>
                 <DialogDescription>
-                  Your site was created — analytics for{' '}
+                  Your site was created. Analytics for{' '}
                   <span className="font-semibold text-[#3D3B4F]">{createdSite?.domain}</span> starts
                   as soon as the snippet below is installed.
                 </DialogDescription>
@@ -246,7 +246,7 @@ export function AddSiteWizard({
                     <p className="mt-2 text-[12px] text-[#B5B0AA]">
                       {domain.trim() && normalizeDomain(domain) !== domain.trim()
                         ? `Will be saved as ${normalizeDomain(domain)}`
-                        : 'Just the domain — a pasted URL works too'}
+                        : 'Just the domain (a pasted URL works too)'}
                     </p>
                   )}
                 </div>

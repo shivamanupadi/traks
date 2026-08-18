@@ -85,7 +85,7 @@ export function SiteTile({
   isNew: boolean;
   batchIndex: number;
 }): ReactElement {
-  // Today's hourly sparkline — matches the "Today" stats below it. 'today'
+  // Today's hourly sparkline - matches the "Today" stats below it. 'today'
   // is served live from the site's DO, so this stays cheap per tile.
   const { data: sparkData, isLoading: sparkLoading } = useQuery({
     queryKey: ['site-analytics', site.id, 'spark', 'today'],
@@ -111,7 +111,7 @@ export function SiteTile({
       >
         {/* Header row: icon + name */}
         <div className="flex items-center gap-3">
-          {/* Neutral chip for every site — the tile's hue lives in the chart line only. */}
+          {/* Neutral chip for every site; the tile's hue lives in the chart line only. */}
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-[#F2F1ED] transition-transform duration-300 group-hover:scale-110">
             <SiteFavicon favicon={site.favicon} size={24} fallbackClassName="text-[#3D3B4F]" />
           </div>

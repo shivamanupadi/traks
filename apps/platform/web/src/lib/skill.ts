@@ -13,8 +13,8 @@ description: Instrument a website with Traks analytics (privacy-first, self-host
 Traks is a privacy-first, cookieless analytics instance at ${origin}.
 You have two jobs, done together:
 
-1. **Instrument the site's code** — install the tracker, fire custom events.
-2. **Configure Traks over MCP** — create the matching goals and funnels.
+1. **Instrument the site's code**: install the tracker, fire custom events.
+2. **Configure Traks over MCP**: create the matching goals and funnels.
 
 ## Connect (MCP)
 
@@ -53,8 +53,8 @@ traks('console_click', { location: 'pricing' });
 \`\`\`
 
 - \`name\`: short snake_case verb phrases ('signup', 'trial_start').
-- \`props\`: a FLAT object of scalar values — no nesting. Prop values are
-  what goals filter on, so keep them low-cardinality ('claimed', 'timeout' —
+- \`props\`: a FLAT object of scalar values, no nesting. Prop values are
+  what goals filter on, so keep them low-cardinality ('claimed', 'timeout',
   not timestamps or ids).
 - \`value\`: optional number, summed in the dashboard.
 - Guard for SSR: only call in browser context, after the script tag exists.
@@ -64,10 +64,10 @@ traks('console_click', { location: 'pricing' });
 
 A goal counts conversions. Two kinds:
 
-- Event goal: \`create_goal {type: 'event', target: 'signup'}\` — optionally
+- Event goal: \`create_goal {type: 'event', target: 'signup'}\`, optionally
   add \`propKey\`/\`propValue\` to count only matching events, e.g.
   \`{target: 'try_session_end', propKey: 'reason', propValue: 'claimed'}\`.
-- Page goal: \`create_goal {type: 'page', target: '/thank-you'}\` — a trailing
+- Page goal: \`create_goal {type: 'page', target: '/thank-you'}\`. A trailing
   \`/*\` matches a whole section: \`/blog/*\` counts /blog and everything under
   it (never /blogfoo).
 
@@ -93,9 +93,9 @@ options as goals:
 
 ## Reading results
 
-- \`get_stats {siteId, period}\` — visitors, pageviews, sessions, bounce,
+- \`get_stats {siteId, period}\`: visitors, pageviews, sessions, bounce,
   timeseries, top pages/referrers/countries/browsers.
-- \`get_goal_stats\`, \`get_funnel_stats\`, \`get_custom_events\` — same periods.
+- \`get_goal_stats\`, \`get_funnel_stats\`, \`get_custom_events\`: same periods.
 - Periods: today, yesterday, 7d, 30d, 90d, 6m, 1y, all ('today' is live).
 
 ## Privacy rules (do not violate)

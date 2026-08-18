@@ -38,7 +38,7 @@ async function refreshFavicon(
     const favicon = await fetchSiteFavicon(domain);
     if (favicon) await db.update(sites).set({ favicon }).where(eq(sites.id, siteId));
   } catch {
-    /* favicon is decorative — never let it surface an error */
+    /* favicon is decorative - never let it surface an error */
   }
 }
 
@@ -98,7 +98,7 @@ export const sitesRoute = app
 
     // Resolve the target workspace: the requested one (must be a member) or
     // the user's default. Every new site lands in a workspace, and only
-    // workspace OWNERS create sites — members are view-only.
+    // workspace OWNERS create sites - members are view-only.
     let workspaceId = body.workspaceId;
     const tokenWs = c.get('tokenWorkspaceId');
     if (tokenWs) {
@@ -170,9 +170,9 @@ export const sitesRoute = app
     return c.json({ data: site, key: siteKey }, 201);
   })
 
-  // Set one timezone across sites — the given workspace's sites (requires
+  // Set one timezone across sites - the given workspace's sites (requires
   // the owner role there), or every manageable site when none is given.
-  // Static path — declared before the /:id routes so it can't be shadowed.
+  // Static path - declared before the /:id routes so it can't be shadowed.
   .post('/timezone', requireAuth, validate('json', allSitesTimezoneSchema), async c => {
     const userId = c.get('userId')!;
     const { timezone, workspaceId } = c.req.valid('json');
@@ -252,7 +252,7 @@ export const sitesRoute = app
       throw err;
     }
 
-    // Refetch on domain change, and also when the row has no favicon yet —
+    // Refetch on domain change, and also when the row has no favicon yet -
     // that backfills sites created before favicons existed on any edit.
     if (before && (before.domain !== body.domain || !before.favicon)) {
       c.executionCtx.waitUntil(refreshFavicon(db, siteId, body.domain));
@@ -304,7 +304,7 @@ export const sitesRoute = app
     return c.json({ data: goal }, 201);
   })
 
-  // Update a goal (same shape as create — name, type, target)
+  // Update a goal (same shape as create - name, type, target)
   .patch('/:id/goals/:goalId', requireAuth, validate('json', createGoalSchema), async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('id');
@@ -456,7 +456,7 @@ export const sitesRoute = app
     return c.json({ data: funnel }, 201);
   })
 
-  // Update a funnel (same shape as create — name + ordered steps)
+  // Update a funnel (same shape as create - name + ordered steps)
   .patch('/:id/funnels/:funnelId', requireAuth, validate('json', createFunnelSchema), async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('id');

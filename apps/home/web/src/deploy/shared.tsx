@@ -1,5 +1,5 @@
 /**
- * Shared pieces of the three wizard flows — /deploy (install), /update, and
+ * Shared pieces of the three wizard flows - /deploy (install), /update, and
  * /destroy. Each flow is its own route with its own URL and screens; what
  * lives here is the design system (cards, buttons, token fields, step list),
  * the wizard session/connect logic, and the SSE plumbing they all share.
@@ -483,7 +483,7 @@ export function useConnect(flow: Flow, sessionId: string | undefined): Connect {
       }
     } catch {
       setInstallerStatus('bad');
-      setInstallerDetail('Could not reach the server — check your connection and try again.');
+      setInstallerDetail('Could not reach the server. Check your connection and try again.');
     }
   };
 
@@ -503,14 +503,14 @@ export function useConnect(flow: Flow, sessionId: string | undefined): Connect {
     } else {
       setOauthError(
         err === 'access_denied'
-          ? 'Cloudflare sign-in was cancelled — try again, or paste a token instead.'
-          : 'Cloudflare sign-in failed — try again, or paste a token instead.'
+          ? 'Cloudflare sign-in was cancelled. Try again, or paste a token instead.'
+          : 'Cloudflare sign-in failed. Try again, or paste a token instead.'
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
-  // Auto-verify a pasted token shortly after typing stops — no extra clicks.
+  // Auto-verify a pasted token shortly after typing stops - no extra clicks.
   useEffect(() => {
     if (oauthSignedIn || installerStatus !== undefined || installerToken.trim().length < 20) {
       return;
@@ -585,7 +585,7 @@ export function ConnectSection({
             Sign in with Cloudflare
           </button>
           <p className="mt-1.5 text-[11.5px] leading-relaxed text-[#9B99A6]">
-            Opens Cloudflare&rsquo;s consent screen listing every permission — approve once and
+            Opens Cloudflare&rsquo;s consent screen listing every permission. Approve once and
             you&rsquo;re back here. Prefer not to?{' '}
             <a
               href={INSTALLER_TOKEN_URL}
@@ -613,7 +613,7 @@ export function ConnectSection({
           }}
           status={c.installerStatus}
           statusDetail={c.installerDetail}
-          errorHelp="Recreate it with the pre-filled link — keep all pre-selected permissions, click “Continue to summary”, then “Create Token”, and copy the full value."
+          errorHelp="Recreate it with the pre-filled link. Keep all pre-selected permissions, click “Continue to summary”, then “Create Token”, and copy the full value."
         />
       )}
       {c.accounts.length > 1 && (

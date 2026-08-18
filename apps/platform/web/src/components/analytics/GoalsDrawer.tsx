@@ -214,7 +214,7 @@ export function GoalsDrawer({
                         uniques === undefined && 'text-[#B5B0AA]'
                       )}
                     >
-                      {uniques === undefined ? '—' : formatNumber(uniques)}
+                      {uniques === undefined ? '-' : formatNumber(uniques)}
                     </span>
                     <div className="absolute right-0 flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
                       <button

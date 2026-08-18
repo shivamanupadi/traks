@@ -210,12 +210,12 @@ const FEATURES: { icon: LucideIcon; title: string; desc: string }[] = [
   {
     icon: FileText,
     title: 'Pages',
-    desc: 'Pageviews and unique visitors for every URL — including entry and exit pages, so you see where journeys start and stall.',
+    desc: 'Pageviews and unique visitors for every URL, including entry and exit pages, so you see where journeys start and stall.',
   },
   {
     icon: ArrowUpRight,
     title: 'Sources',
-    desc: 'Referrers plus full UTM breakdowns — source, medium, and campaign — to tell you which channels actually convert.',
+    desc: 'Referrers plus full UTM breakdowns (source, medium, and campaign) to tell you which channels actually convert.',
   },
   {
     icon: MapPin,
@@ -225,7 +225,7 @@ const FEATURES: { icon: LucideIcon; title: string; desc: string }[] = [
   {
     icon: Smartphone,
     title: 'Devices',
-    desc: 'Browser, operating system, and screen size — enough to know what to test on, nothing you don’t need.',
+    desc: 'Browser, operating system, and screen size: enough to know what to test on, nothing you don’t need.',
   },
   {
     icon: Target,
@@ -235,7 +235,7 @@ const FEATURES: { icon: LucideIcon; title: string; desc: string }[] = [
 ];
 
 const PRIVACY_POINTS = [
-  'No cookies and nothing stored in the browser — no consent banner required',
+  'No cookies and nothing stored in the browser, so no consent banner is required',
   'Visitors are counted with daily-rotating hashed identifiers, never profiles',
   'IP addresses are used in-memory to resolve geography, then discarded',
   'GDPR, ePrivacy, and PECR compliant by design, not by checkbox',
@@ -339,7 +339,7 @@ function LandingPage(): ReactElement {
             transition={{ duration: 0.55, delay: 0.18, ease: EASE }}
             className="mt-6 max-w-[52ch] text-[16px] leading-relaxed text-[#6E6C7C] sm:text-[17px]"
           >
-            Traks runs entirely in your own Cloudflare account — a cookieless tracker under
+            Traks runs entirely in your own Cloudflare account: a cookieless tracker under
             1&nbsp;KB, a real-time dashboard, and traffic data that never touches anyone
             else&rsquo;s servers.
           </motion.p>
@@ -409,7 +409,7 @@ function LandingPage(): ReactElement {
           <motion.div {...rise(0.1)} className="mt-6 flex items-center gap-3 px-1">
             <Filter className="h-3.5 w-3.5 shrink-0 text-[#B3B1BE]" strokeWidth={1.6} />
             <p className="text-[13px] text-[#8C8A99]">
-              Every row is a filter — click any page, country, or referrer to segment the whole
+              Every row is a filter. Click any page, country, or referrer to segment the whole
               dashboard by it.
             </p>
           </motion.div>
@@ -432,7 +432,7 @@ function LandingPage(): ReactElement {
                 {
                   n: '2',
                   title: 'Watch visitors arrive',
-                  desc: 'Today’s traffic streams in live from an edge Durable Object — no sampling, no processing queue, no "data may take 24 hours".',
+                  desc: 'Today’s traffic streams in live from an edge Durable Object. No sampling, no processing queue, no "data may take 24 hours".',
                 },
                 {
                   n: '3',
@@ -529,7 +529,7 @@ function LandingPage(): ReactElement {
                 Traks isn&rsquo;t a subscription dashboard holding your history hostage. It deploys
                 into your own Cloudflare account, stores events in your own database, and serves the
                 dashboard from your own domain. Cloudflare&rsquo;s $5/mo Workers plan covers
-                millions of events — and if you ever leave, the data is already yours.
+                millions of events, and if you ever leave, the data is already yours.
               </p>
               <div className="mt-6 flex flex-wrap gap-2">
                 {STACK.map(s => (
@@ -544,7 +544,7 @@ function LandingPage(): ReactElement {
               <div className="mt-6 flex items-center gap-2.5">
                 <Globe className="h-3.5 w-3.5 text-[#B3B1BE]" strokeWidth={1.6} />
                 <p className="text-[12.5px] text-[#8C8A99]">
-                  One worker, one database, one cron — nothing else to operate.
+                  One worker, one database, one cron. Nothing else to operate.
                 </p>
               </div>
             </motion.div>
@@ -560,7 +560,7 @@ function LandingPage(): ReactElement {
             </h2>
             <p className="mt-4 max-w-[62ch] text-[13.5px] leading-relaxed text-[#6E6C7C]">
               Traks runs entirely in your Cloudflare account, so the running cost is
-              Cloudflare&rsquo;s usage pricing — paid to them, not to us. Slide to your traffic to
+              Cloudflare&rsquo;s usage pricing, paid to them, not to us. Slide to your traffic to
               see where every cent goes.
             </p>
           </motion.div>
@@ -816,7 +816,7 @@ function CostCalculator(): ReactElement {
       </div>
 
       <p className="mt-6 text-[11.5px] leading-relaxed text-[#B3B1BE]">
-        Cloudflare list prices, verified 7 Aug 2026 — paid to Cloudflare, not to us. Billing for
+        Cloudflare list prices, verified 7 Aug 2026, paid to Cloudflare, not to us. Billing for
         Pipelines, R2 SQL and R2 Data Catalog began 3 Aug 2026, so these are live charges. Assumes
         one request per event, ~800 B through the pipeline, ~250 B stored as Parquet and six months
         of history; Analytics Engine is not yet billed by Cloudflare. Your real bill moves with how

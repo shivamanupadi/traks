@@ -2,7 +2,7 @@ import { useState, type ReactElement } from 'react';
 import { Globe } from 'lucide-react';
 
 /** Normalize to a lowercase ISO alpha-2 code, or null when it isn't a real
- *  country (Cloudflare emits 'XX'/'T1' for unknown/Tor — no flag exists). */
+ *  country (Cloudflare emits 'XX'/'T1' for unknown/Tor - no flag exists). */
 function flagCode(code?: string | null): string | null {
   if (!code || !/^[A-Za-z]{2}$/.test(code) || code.toUpperCase() === 'XX') return null;
   return code.toLowerCase();

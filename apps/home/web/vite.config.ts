@@ -12,7 +12,7 @@ export default defineConfig({
   },
   build: {
     // The product SPA (served by traks-api on this same hostname for /login
-    // and /portal) owns /assets/* — keep the site's hashed assets on a
+    // and /portal) owns /assets/* - keep the site's hashed assets on a
     // distinct path so the zone routes can split them cleanly.
     assetsDir: 'site-assets',
     rollupOptions: {

@@ -34,7 +34,7 @@ export const AUTO_EVENTS = {
 export const PERIODS = ['today', 'yesterday', '7d', '30d', '90d', '6m', '1y', 'all'] as const;
 export type Period = (typeof PERIODS)[number];
 
-// Both envs use `traks.events` — physical isolation is per-bucket (R2_BUCKET_NAME env),
+// Both envs use `traks.events` - physical isolation is per-bucket (R2_BUCKET_NAME env),
 // so the namespace/table pair can match without collision. Keeps naming symmetric.
 export const TABLE_PROD = 'traks.events';
 export const TABLE_DEV = 'traks.events';

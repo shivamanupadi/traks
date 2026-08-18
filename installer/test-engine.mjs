@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Node harness for the deploy engine — runs the SAME TypeScript engine the
+ * Node harness for the deploy engine - runs the SAME TypeScript engine the
  * wizard worker uses (apps/home/api/src/deploy/engine.ts, via Node's native type
  * stripping) against a real Cloudflare account. One engine, no drift.
  *
@@ -193,13 +193,13 @@ const emit = e => {
     const ms = Date.now() - (started.get(e.stepId) ?? Date.now());
     const mark = e.status === 'ok' ? '✓' : e.status === 'retry' ? '↻' : '✗';
     process.stdout.write(
-      `\r  ${mark} ${e.label} (${(ms / 1000).toFixed(1)}s)${e.detail ? ` — ${e.detail}` : ''}\n`
+      `\r  ${mark} ${e.label} (${(ms / 1000).toFixed(1)}s)${e.detail ? ` - ${e.detail}` : ''}\n`
     );
     if (e.status === 'retry') process.stdout.write(`  … ${e.label}`);
   }
 };
 
-console.log(`engine ${command} — instance "${instance}" (account ${ACCOUNT_ID})`);
+console.log(`engine ${command} - instance "${instance}" (account ${ACCOUNT_ID})`);
 if (command === 'provision') {
   const out = await provisionInstance({
     apiToken: apiToken(),

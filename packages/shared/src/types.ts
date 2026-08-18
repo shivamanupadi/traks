@@ -54,7 +54,7 @@ export interface GoalStat {
 }
 
 /**
- * A saved filter set — same camelCase keys the analytics endpoints accept as
+ * A saved filter set - same camelCase keys the analytics endpoints accept as
  * query params (and the dashboard carries in its URL search params).
  */
 export interface SegmentFilters {

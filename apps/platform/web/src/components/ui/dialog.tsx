@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { lockScroll } from '@/lib/scroll-lock';
 
 interface DialogProps {
   open: boolean;
@@ -16,13 +17,12 @@ function Dialog({ open, onOpenChange, children }: DialogProps): React.ReactNode 
     const handleEscape = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') onOpenChange(false);
     };
-    if (open) {
-      document.addEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'hidden';
-    }
+    if (!open) return;
+    document.addEventListener('keydown', handleEscape);
+    const unlock = lockScroll();
     return () => {
       document.removeEventListener('keydown', handleEscape);
-      document.body.style.overflow = '';
+      unlock();
     };
   }, [open, onOpenChange]);
 
@@ -63,7 +63,7 @@ const DialogContent = React.forwardRef<
     exit={{ opacity: 0, scale: 0.96, y: 8 }}
     transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
     className={cn(
-      'relative w-full max-w-lg rounded-[20px] border-none bg-white shadow-float-lg',
+      'relative max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-[20px] border-none bg-white shadow-float-lg',
       className
     )}
     onClick={(e: React.MouseEvent) => e.stopPropagation()}

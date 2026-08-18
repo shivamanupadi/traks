@@ -20,7 +20,7 @@ const queryClient = new QueryClient({
     queries: {
       staleTime: 1000 * 60, // 1 minute
       refetchOnWindowFocus: false,
-      // 401/403/404/409 are decisions, not blips — retrying them just
+      // 401/403/404/409 are decisions, not blips - retrying them just
       // multiplies load (and an expired session already redirects to /login).
       retry: (count, error) => count < 2 && isRetryableError(error),
     },

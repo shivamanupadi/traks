@@ -50,7 +50,7 @@ function SkillPage(): ReactElement {
             <code className="rounded bg-muted px-1.5 py-0.5 text-[12px]">
               .claude/skills/traks/
             </code>{' '}
-            folder and connect the MCP server — your coding agent can then instrument your
+            folder and connect the MCP server. Your coding agent can then instrument your
             site&rsquo;s code and configure goals and funnels here, in one task. Mint the API token
             in{' '}
             <Link

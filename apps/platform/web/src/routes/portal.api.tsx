@@ -14,7 +14,7 @@ function ApiPage(): ReactElement {
       <div className="mb-6">
         <h1 className="text-[26px] font-bold text-[#3D3B4F] tracking-[-0.02em]">API &amp; MCP</h1>
         <p className="mt-1 max-w-[62ch] text-[14px] text-[#9B9590]">
-          Personal API tokens authenticate coding agents and scripts against this instance —
+          Personal API tokens authenticate coding agents and scripts against this instance,
           including the MCP server your agent connects to.
         </p>
       </div>

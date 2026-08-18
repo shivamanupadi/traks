@@ -49,14 +49,14 @@ const PHASE_INDEX: Record<Phase, number> = {
 };
 
 const INTERRUPTED_MSG =
-  'The previous deploy was interrupted before it finished. Everything already created is reused — re-enter your tokens and deploy again to pick up where it left off.';
+  'The previous deploy was interrupted before it finished. Everything already created is reused. Re-enter your tokens and deploy again to pick up where it left off.';
 
 const failedMsg = (detail: string): string =>
-  `The previous deploy failed: ${detail} — fix what it points at, re-enter your tokens, and deploy again; everything already created is reused.`;
+  `The previous deploy failed: ${detail}. Fix what it points at, re-enter your tokens, and deploy again; everything already created is reused.`;
 
 /**
  * Install flow only. A session that already finished (`ready`) belongs to the
- * update flow and is redirected to /update — older instances' dashboards
+ * update flow and is redirected to /update - older instances' dashboards
  * still link their update banner here.
  */
 function DeployWizard(): ReactElement {
@@ -127,7 +127,7 @@ function DeployWizard(): ReactElement {
     }, 3000);
   };
 
-  // Resume a returning ?instance= session — or hand it to the right flow.
+  // Resume a returning ?instance= session - or hand it to the right flow.
   useEffect(() => {
     if (!sessionId || startedRef.current) return;
     startedRef.current = true;
@@ -136,7 +136,7 @@ function DeployWizard(): ReactElement {
       if (!res.ok) return;
       const { data } = (await res.json()) as { data: InstanceRow };
       if (data.status === 'ready') {
-        // A finished session means "manage this instance" — that's /update.
+        // A finished session means "manage this instance" - that's /update.
         void navigate({ to: '/update', search: { instance: sessionId }, replace: true });
         return;
       }
@@ -150,11 +150,11 @@ function DeployWizard(): ReactElement {
         setDomainSub(data.customDomain.subdomain);
       }
       if (data.status === 'deploying' && runIsFresh(data)) {
-        // The run is still going server-side — show it live, no tokens needed.
+        // The run is still going server-side - show it live, no tokens needed.
         setPhase('deploying');
         startPolling();
       } else if (data.status === 'failed' || data.status === 'deploying') {
-        // A failed or abandoned run resumes by re-running (idempotent) —
+        // A failed or abandoned run resumes by re-running (idempotent)  -
         // tokens are never stored, so ask for them again.
         setError(data.error ? failedMsg(data.error) : INTERRUPTED_MSG);
         setPhase('tokens');
@@ -175,7 +175,7 @@ function DeployWizard(): ReactElement {
       setError('');
       setPhase('tokens');
     } catch {
-      setError('Could not reach the server to start — check your connection and try again.');
+      setError('Could not reach the server to start. Check your connection and try again.');
     } finally {
       setBusy(false);
     }
@@ -200,7 +200,7 @@ function DeployWizard(): ReactElement {
       return false;
     } catch {
       setCatalogStatus('bad');
-      setCatalogDetail('Could not reach the server — check your connection and try again.');
+      setCatalogDetail('Could not reach the server. Check your connection and try again.');
       return false;
     }
   };
@@ -253,7 +253,7 @@ function DeployWizard(): ReactElement {
   }, [phase, connect.accountId, sessionId]);
 
   const zoneName = zones.find(z => z.id === zoneId)?.name ?? '';
-  // A selected zone must exist in the loaded list — otherwise the deploy
+  // A selected zone must exist in the loaded list - otherwise the deploy
   // request would carry an empty zoneName and fail server-side validation.
   const zoneKnown = zoneId === '' || zones.some(z => z.id === zoneId);
   // Mirrors the server's schema so a bad name is caught here, not as a 400.
@@ -266,7 +266,7 @@ function DeployWizard(): ReactElement {
   const deploy = async (): Promise<void> => {
     setBusy(true);
     setError('');
-    // Fresh installs always need the storage token — verify before running.
+    // Fresh installs always need the storage token - verify before running.
     const catalogOk = await checkCatalog(connect.accountId);
     if (!catalogOk) {
       setBusy(false);
@@ -294,7 +294,7 @@ function DeployWizard(): ReactElement {
         }),
       });
       if (res.status === 409) {
-        // A run for this instance is already going (e.g. another tab) —
+        // A run for this instance is already going (e.g. another tab)  -
         // watch it instead of erroring out.
         startPolling();
         return;
@@ -361,22 +361,22 @@ function DeployWizard(): ReactElement {
                 ? {
                     icon: KeyRound,
                     title: 'Sign in with Cloudflare',
-                    desc: 'Approve the exact permissions on Cloudflare’s own consent screen — access is temporary and never stored. One storage token is pasted separately; it stays with your instance.',
+                    desc: 'Approve the exact permissions on Cloudflare’s own consent screen. Access is temporary and never stored. One storage token is pasted separately; it stays with your instance.',
                   }
                 : {
                     icon: KeyRound,
-                    title: 'Create two tokens — pre-filled, one click each',
+                    title: 'Create two tokens, pre-filled, one click each',
                     desc: 'Links open the Cloudflare dashboard with the exact permissions already selected. Click Create, copy, paste. We verify both before touching anything.',
                   },
               {
                 icon: Server,
                 title: 'We set Traks up for you',
-                desc: 'Two Workers, a D1 database, KV, R2 with Data Catalog, and an event pipeline — live on your workers.dev URL in about two minutes.',
+                desc: 'Two Workers, a D1 database, KV, R2 with Data Catalog, and an event pipeline, live on your workers.dev URL in about two minutes.',
               },
               {
                 icon: ShieldCheck,
                 title: 'Yours, entirely',
-                desc: 'Everything runs in your account. Your tokens are used for this deploy only — never stored. Cookieless analytics, no consent banners.',
+                desc: 'Everything runs in your account. Your tokens are used for this deploy only, never stored. Cookieless analytics, no consent banners.',
               },
             ].map(item => (
               <div
@@ -418,13 +418,13 @@ function DeployWizard(): ReactElement {
           <p className="mb-5 text-[13px] leading-relaxed text-[#9B99A6]">
             {connect.oauthEnabled ? (
               <>
-                Sign in and approve the exact permissions Traks needs — nothing is stored, and
-                access expires on its own within the hour. One storage token is still pasted
-                manually: it stays with your instance as its data-warehouse credential.
+                Sign in and approve the exact permissions Traks needs. Nothing is stored, and access
+                expires on its own within the hour. One storage token is still pasted manually: it
+                stays with your instance as its data-warehouse credential.
               </>
             ) : (
               <>
-                Each link opens Cloudflare with the permissions pre-selected — click{' '}
+                Each link opens Cloudflare with the permissions pre-selected. Click{' '}
                 <span className="font-medium text-[#6E6C7C]">Continue to summary</span>, then{' '}
                 <span className="font-medium text-[#6E6C7C]">Create Token</span>, and paste it here.
                 Tokens are used for this deploy only and never stored.
@@ -491,7 +491,7 @@ function DeployWizard(): ReactElement {
               }}
               status={catalogStatus}
               statusDetail={catalogDetail}
-              errorHelp="Use the pre-filled storage-token link (scoped to the selected account), click “Create Token”, and paste the token value — not the token ID."
+              errorHelp="Use the pre-filled storage-token link (scoped to the selected account), click “Create Token”, and paste the token value, not the token ID."
             />
           </div>
         </Card>
@@ -560,8 +560,8 @@ function DeployWizard(): ReactElement {
                     <span className="font-mono text-[#6E6C7C]">{instanceName.trim()}-api</span>{' '}
                     (dashboard),{' '}
                     <span className="font-mono text-[#6E6C7C]">{instanceName.trim()}-collect</span>{' '}
-                    (tracker), database, storage. The default is right for a single instance —
-                    change it only to run several (e.g. a staging copy).
+                    (tracker), database, storage. The default is right for a single instance; change
+                    it only to run several (e.g. a staging copy).
                   </>
                 ) : nameOk ? (
                   <>
@@ -573,8 +573,8 @@ function DeployWizard(): ReactElement {
                   </>
                 ) : (
                   <span className="text-[#B3402F]">
-                    3–21 characters, starting with a letter — lowercase letters, digits, and dashes
-                    only.
+                    3 to 21 characters, starting with a letter: lowercase letters, digits, and
+                    dashes only.
                   </span>
                 )}
               </p>
@@ -620,7 +620,7 @@ function DeployWizard(): ReactElement {
                         <span className="font-mono text-[#6E6C7C]">{previewApiHost}</span>, tracker
                         served from{' '}
                         <span className="font-mono text-[#6E6C7C]">{previewCollectHost}</span>. DNS
-                        records and certificates are created automatically — leave the box empty to
+                        records and certificates are created automatically. Leave the box empty to
                         use the domain itself.
                       </>
                     ) : (
@@ -638,7 +638,7 @@ function DeployWizard(): ReactElement {
                     {nameOk ? instanceName.trim() : 'traks'}
                     -api.&lt;your-subdomain&gt;.workers.dev
                   </span>
-                  {zones.length === 0 && ' — add a domain to Cloudflare to use your own.'}
+                  {zones.length === 0 && '. Add a domain to Cloudflare to use your own.'}
                 </p>
               )}
             </div>
@@ -710,16 +710,16 @@ function DeployWizard(): ReactElement {
               <p className="mt-1 text-[12.5px] leading-relaxed text-[#9B99A6]">
                 {connect.cfEmail ? (
                   <>
-                    Open it and pick a password —{' '}
+                    Open it and pick a password.{' '}
                     <span className="font-medium text-[#6E6C7C]">{connect.cfEmail}</span> is already
                     set as the owner, and only that email can claim the instance. Then add your site
                     and paste the tracking snippet it gives you.
                   </>
                 ) : (
                   <>
-                    Open it and create your owner account — the first sign-up claims the instance
-                    and sign-ups close afterwards. Then add your site and paste the tracking snippet
-                    it gives you.
+                    Open it and create your owner account. The first sign-up claims the instance and
+                    sign-ups close afterwards. Then add your site and paste the tracking snippet it
+                    gives you.
                   </>
                 )}
               </p>

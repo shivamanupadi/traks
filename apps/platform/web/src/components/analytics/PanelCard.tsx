@@ -29,7 +29,7 @@ interface PanelCardProps {
   items: PanelItem[] | undefined;
   isLoading: boolean;
   isError?: boolean;
-  /** Refetch handler — renders a retry action on the error state. */
+  /** Refetch handler - renders a retry action on the error state. */
   onRetry?: () => void;
   tabs?: PanelTab[];
   activeTab?: string;

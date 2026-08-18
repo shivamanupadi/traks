@@ -1,4 +1,4 @@
-# traks.dev home worker — deploy-wizard backend ONLY. Physically separate
+# traks.dev home worker - deploy-wizard backend ONLY. Physically separate
 # from the platform api that ships to customer instances: different worker,
 # different D1 (registry only), different secrets. The marketing site +
 # wizard UI is the traks-site static-assets worker; this worker claims the
@@ -24,10 +24,10 @@ bucket_name = "traks-releases"
 
 # Abuse guards for the public, unauthenticated wizard API. Namespaces are
 # per-limiter; both are keyed by client IP.
-#   1002 — token-verification endpoints (accounts/zones/verify-catalog): these
+#   1002 - token-verification endpoints (accounts/zones/verify-catalog): these
 #          relay caller-supplied credentials to Cloudflare, so without a cap
 #          traks.dev would be a free credential-validation oracle.
-#   1003 — session creation (POST /instance), which writes a registry row.
+#   1003 - session creation (POST /instance), which writes a registry row.
 [[unsafe.bindings]]
 name = "VERIFY_LIMIT"
 type = "ratelimit"
@@ -63,10 +63,10 @@ bucket_name = "traks-releases"
 
 # Abuse guards for the public, unauthenticated wizard API. Namespaces are
 # per-limiter; both are keyed by client IP.
-#   1002 — token-verification endpoints (accounts/zones/verify-catalog): these
+#   1002 - token-verification endpoints (accounts/zones/verify-catalog): these
 #          relay caller-supplied credentials to Cloudflare, so without a cap
 #          traks.dev would be a free credential-validation oracle.
-#   1003 — session creation (POST /instance), which writes a registry row.
+#   1003 - session creation (POST /instance), which writes a registry row.
 [[env.production.unsafe.bindings]]
 name = "VERIFY_LIMIT"
 type = "ratelimit"
@@ -97,6 +97,6 @@ zone_name = "traks.dev"
 pattern = "traks.dev/deploy/callback*"
 zone_name = "traks.dev"
 
-# Secrets (Doppler project traks-home, config prd — synced via
+# Secrets (Doppler project traks-home, config prd - synced via
 # `yarn secrets:prod:sync`):
 #   CF_OAUTH_CLIENT_ID, CF_OAUTH_CLIENT_SECRET

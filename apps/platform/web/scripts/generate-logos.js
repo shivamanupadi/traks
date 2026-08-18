@@ -1,9 +1,9 @@
 /**
- * Regenerate every logo/icon asset from the Tunnel mark — the SVGs in public/
+ * Regenerate every logo/icon asset from the Tunnel mark - the SVGs in public/
  * (logo, dark, mono, favicon) plus all raster favicons and the touch icon.
  *
  * The mark: an ink arch with the mint track running through it and out
- * both sides, a tint half-disc glowing inside — events passing through the
+ * both sides, a tint half-disc glowing inside - events passing through the
  * pipeline. Same family language as otterkit (thread mark) and payweave
  * (P mark): 2-3 flat shapes, bold overlap, brand hue + ink + tint.
  *
@@ -26,7 +26,7 @@ const MINT = '#28E99F'; // --primary in src/styles/index.css
 const TINT = '#93F4CF'; // mint lerped 50% to white, payweave-style
 
 // The mark renders inverted (rotated 180°): flat edge up, dome hanging down,
-// track running above — the awning orientation chosen in the tunnel-mark rebrand.
+// track running above - the awning orientation chosen in the tunnel-mark rebrand.
 const FLIP = '<g transform="rotate(180 32 32)">';
 
 /** The Tunnel mark on a 64 grid: ink arch, tint glow, mint track over. */
@@ -52,7 +52,7 @@ const markMono = `
 const svg = body => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">${body}
 </svg>`;
 
-/** Cream rounded tile for raster favicons — legible on any tab color. */
+/** Cream rounded tile for raster favicons - legible on any tab color. */
 const faviconTile = inner =>
   svg(`
   <rect width="64" height="64" rx="13" fill="#FAFAFA"/>
@@ -64,7 +64,7 @@ const touchIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180"
   <g transform="translate(37,37) scale(1.656)">${mark(INK)}</g>
 </svg>`;
 
-/** Theme-aware favicon.svg — ink arch flips with the browser's color scheme. */
+/** Theme-aware favicon.svg - ink arch flips with the browser's color scheme. */
 const faviconSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <style>
     .i { fill: ${INK} }
@@ -73,7 +73,7 @@ const faviconSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
 </svg>`;
 
 /** Family sibling hues, used as accents on marketing images. */
-const DEEP = '#0A7F55'; // mint's chart/text companion — legible on light grounds
+const DEEP = '#0A7F55'; // mint's chart/text companion - legible on light grounds
 const SAGE = '#6B8F71';
 const CORAL = '#E07A5F';
 const INK_2 = '#6B6560';

@@ -1,6 +1,6 @@
 // Copies country flag SVGs (flag-icons, MIT) into public/flags so the
 // dashboard can render <img src="/flags/us.svg">. Only ISO 3166-1 alpha-2
-// codes are copied — Cloudflare geo never emits subdivision codes — which
+// codes are copied - Cloudflare geo never emits subdivision codes - which
 // keeps the shipped asset set (and every wizard deploy) small.
 import { copyFileSync, mkdirSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';

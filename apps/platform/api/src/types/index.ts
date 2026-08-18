@@ -9,7 +9,7 @@ export type Bindings = {
   ENVIRONMENT: string;
   /** Better Auth signing secret (Doppler-managed). */
   BETTER_AUTH_SECRET: string;
-  /** Cloudflare account ID — an identifier, not a credential ([vars]). */
+  /** Cloudflare account ID - an identifier, not a credential ([vars]). */
   R2_ACCOUNT_ID: string;
   R2_SQL_TOKEN: string;
   R2_BUCKET_NAME: string;
@@ -34,7 +34,7 @@ export type Variables = {
   userEmail?: string;
   /** Set when the request authenticated with a personal API token. */
   tokenScope?: 'read' | 'manage';
-  /** The token's workspace binding — site access is constrained to it. */
+  /** The token's workspace binding - site access is constrained to it. */
   tokenWorkspaceId?: string;
   db?: import('drizzle-orm/d1').DrizzleD1Database;
 };

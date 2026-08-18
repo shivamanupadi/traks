@@ -15,7 +15,9 @@ import { Route as DestroyRouteImport } from './routes/destroy'
 import { Route as DeployRouteImport } from './routes/deploy'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as GuidesIndexRouteImport } from './routes/guides.index'
+import { Route as DocsIndexRouteImport } from './routes/docs.index'
 import { Route as GuidesSlugRouteImport } from './routes/guides.$slug'
+import { Route as DocsInstallSlugRouteImport } from './routes/docs.install.$slug'
 
 const UpdateRoute = UpdateRouteImport.update({
   id: '/update',
@@ -47,39 +49,54 @@ const GuidesIndexRoute = GuidesIndexRouteImport.update({
   path: '/guides/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DocsIndexRoute = DocsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => DocsRoute,
+} as any)
 const GuidesSlugRoute = GuidesSlugRouteImport.update({
   id: '/guides/$slug',
   path: '/guides/$slug',
   getParentRoute: () => rootRouteImport,
+} as any)
+const DocsInstallSlugRoute = DocsInstallSlugRouteImport.update({
+  id: '/install/$slug',
+  path: '/install/$slug',
+  getParentRoute: () => DocsRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/deploy': typeof DeployRoute
   '/destroy': typeof DestroyRoute
-  '/docs': typeof DocsRoute
+  '/docs': typeof DocsRouteWithChildren
   '/update': typeof UpdateRoute
   '/guides/$slug': typeof GuidesSlugRoute
+  '/docs/': typeof DocsIndexRoute
   '/guides/': typeof GuidesIndexRoute
+  '/docs/install/$slug': typeof DocsInstallSlugRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/deploy': typeof DeployRoute
   '/destroy': typeof DestroyRoute
-  '/docs': typeof DocsRoute
   '/update': typeof UpdateRoute
   '/guides/$slug': typeof GuidesSlugRoute
+  '/docs': typeof DocsIndexRoute
   '/guides': typeof GuidesIndexRoute
+  '/docs/install/$slug': typeof DocsInstallSlugRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/deploy': typeof DeployRoute
   '/destroy': typeof DestroyRoute
-  '/docs': typeof DocsRoute
+  '/docs': typeof DocsRouteWithChildren
   '/update': typeof UpdateRoute
   '/guides/$slug': typeof GuidesSlugRoute
+  '/docs/': typeof DocsIndexRoute
   '/guides/': typeof GuidesIndexRoute
+  '/docs/install/$slug': typeof DocsInstallSlugRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -90,16 +107,19 @@ export interface FileRouteTypes {
     | '/docs'
     | '/update'
     | '/guides/$slug'
+    | '/docs/'
     | '/guides/'
+    | '/docs/install/$slug'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/deploy'
     | '/destroy'
-    | '/docs'
     | '/update'
     | '/guides/$slug'
+    | '/docs'
     | '/guides'
+    | '/docs/install/$slug'
   id:
     | '__root__'
     | '/'
@@ -108,14 +128,16 @@ export interface FileRouteTypes {
     | '/docs'
     | '/update'
     | '/guides/$slug'
+    | '/docs/'
     | '/guides/'
+    | '/docs/install/$slug'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DeployRoute: typeof DeployRoute
   DestroyRoute: typeof DestroyRoute
-  DocsRoute: typeof DocsRoute
+  DocsRoute: typeof DocsRouteWithChildren
   UpdateRoute: typeof UpdateRoute
   GuidesSlugRoute: typeof GuidesSlugRoute
   GuidesIndexRoute: typeof GuidesIndexRoute
@@ -165,6 +187,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GuidesIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/docs/': {
+      id: '/docs/'
+      path: '/'
+      fullPath: '/docs/'
+      preLoaderRoute: typeof DocsIndexRouteImport
+      parentRoute: typeof DocsRoute
+    }
     '/guides/$slug': {
       id: '/guides/$slug'
       path: '/guides/$slug'
@@ -172,14 +201,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GuidesSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/docs/install/$slug': {
+      id: '/docs/install/$slug'
+      path: '/install/$slug'
+      fullPath: '/docs/install/$slug'
+      preLoaderRoute: typeof DocsInstallSlugRouteImport
+      parentRoute: typeof DocsRoute
+    }
   }
 }
+
+interface DocsRouteChildren {
+  DocsIndexRoute: typeof DocsIndexRoute
+  DocsInstallSlugRoute: typeof DocsInstallSlugRoute
+}
+
+const DocsRouteChildren: DocsRouteChildren = {
+  DocsIndexRoute: DocsIndexRoute,
+  DocsInstallSlugRoute: DocsInstallSlugRoute,
+}
+
+const DocsRouteWithChildren = DocsRoute._addFileChildren(DocsRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DeployRoute: DeployRoute,
   DestroyRoute: DestroyRoute,
-  DocsRoute: DocsRoute,
+  DocsRoute: DocsRouteWithChildren,
   UpdateRoute: UpdateRoute,
   GuidesSlugRoute: GuidesSlugRoute,
   GuidesIndexRoute: GuidesIndexRoute,

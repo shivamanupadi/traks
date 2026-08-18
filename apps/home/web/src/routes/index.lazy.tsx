@@ -391,7 +391,7 @@ function LandingPage(): ReactElement {
               <ArrowRight className="h-4 w-4" />
             </a>
             <a
-              href="/guides"
+              href="/docs#install"
               className="inline-flex h-12 items-center gap-1.5 rounded-full px-4 text-[14px] font-semibold text-[#3D3B4F] underline-offset-4 transition-colors hover:underline"
             >
               Install guides for 11 stacks
@@ -737,12 +737,6 @@ function LandingPage(): ReactElement {
               className="font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-[#8C8A99] transition-colors hover:text-[#3D3B4F]"
             >
               Docs
-            </a>
-            <a
-              href="/guides"
-              className="font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-[#8C8A99] transition-colors hover:text-[#3D3B4F]"
-            >
-              Guides
             </a>
             <MousePointerClick
               className="hidden h-3.5 w-3.5 text-[#D8D7DE] sm:block"

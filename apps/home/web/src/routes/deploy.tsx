@@ -418,9 +418,8 @@ function DeployWizard(): ReactElement {
           <p className="mb-5 text-[13px] leading-relaxed text-[#9B99A6]">
             {connect.oauthEnabled ? (
               <>
-                Sign in and approve the exact permissions Traks needs. Nothing is stored, and access
-                expires on its own within the hour. One storage token is still pasted manually: it
-                stays with your instance as its data-warehouse credential.
+                Sign in to approve the permissions Traks needs; access expires within the hour and
+                nothing is stored. Then paste one storage token, which stays with your instance.
               </>
             ) : (
               <>
@@ -433,7 +432,7 @@ function DeployWizard(): ReactElement {
           </p>
           {error && <ErrorBox>{error}</ErrorBox>}
           <div className="space-y-5">
-            <ConnectSection connect={connect} />
+            <ConnectSection connect={connect} compactToken />
             {connect.existingInstalls.length > 0 && (
               <div className="space-y-3">
                 {connect.existingInstalls.map(inst => (

@@ -216,17 +216,21 @@ function DestroyWizard(): ReactElement {
     >
       {phase === 'connect' && (
         <Card>
-          <h2 className="mb-1 text-[16.5px] font-bold text-[#3D3B4F]">
-            Connect your Cloudflare account
-          </h2>
-          <p className="mb-5 text-[13px] leading-relaxed text-[#9B99A6]">
-            Sign in (or paste your installer token) so we can find the instance to remove. Nothing
-            is stored; access is for this teardown only.
-          </p>
+          {connect.installerStatus !== 'ok' && (
+            <>
+              <h2 className="mb-1 text-[16.5px] font-bold text-[#3D3B4F]">
+                Connect your Cloudflare account
+              </h2>
+              <p className="mb-5 text-[13px] leading-relaxed text-[#9B99A6]">
+                So we can find the instance to remove. Access is for this teardown only; nothing is
+                stored.
+              </p>
+            </>
+          )}
           {error && <ErrorBox>{error}</ErrorBox>}
-          <ConnectSection connect={connect} />
+          <ConnectSection connect={connect} compactToken />
           {connect.installerStatus === 'ok' && (
-            <div className="mt-5 space-y-3">
+            <div className="mt-5">
               {installs.length === 0 ? (
                 <NoteBox>
                   No Traks instance was found in{' '}
@@ -234,31 +238,49 @@ function DestroyWizard(): ReactElement {
                   destroy.
                 </NoteBox>
               ) : (
-                installs.map(inst => (
-                  <div
-                    key={inst.id}
-                    className="flex items-center justify-between gap-3 rounded-2xl border border-[#EEEEF2] bg-[#F6F5F2] p-4"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-[13px] font-semibold text-[#3D3B4F]">
-                        <span className="font-mono">{inst.instanceName}</span>
-                        <span className="font-normal text-[#9B99A6]">
-                          {' '}
-                          in{' '}
-                          {connect.accounts.find(a => a.id === inst.accountId)?.name ?? 'account'}
-                        </span>
-                      </p>
-                      <p className="mt-0.5 truncate text-[12px] text-[#9B99A6]">
-                        {inst.deployedVersion && <>v{inst.deployedVersion} · </>}
-                        {inst.apiUrl?.replace('https://', '')}
-                      </p>
-                    </div>
-                    <DangerButton onClick={() => void pickTarget(inst)} busy={busy}>
-                      <Trash2 className="h-4 w-4" />
-                      Destroy…
-                    </DangerButton>
-                  </div>
-                ))
+                <>
+                  <p className="mb-2 text-[11.5px] font-semibold uppercase tracking-[0.06em] text-[#9B99A6]">
+                    {installs.length === 1 ? 'Your instance' : 'Your instances'}
+                  </p>
+                  <ul className="space-y-2.5">
+                    {installs.map(inst => (
+                      <li
+                        key={inst.id}
+                        className="flex items-center justify-between gap-3 rounded-2xl border border-[#EEEEF2] bg-[#F6F5F2] p-4"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-[13.5px] font-semibold text-[#3D3B4F]">
+                            <span className="font-mono">{inst.instanceName}</span>
+                            {connect.accounts.length > 1 && (
+                              <span className="font-normal text-[#9B99A6]">
+                                {' '}
+                                in{' '}
+                                {connect.accounts.find(a => a.id === inst.accountId)?.name ??
+                                  'account'}
+                              </span>
+                            )}
+                          </p>
+                          <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-[#9B99A6]">
+                            {inst.deployedVersion && (
+                              <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-[#3D3B4F]">
+                                v{inst.deployedVersion}
+                              </span>
+                            )}
+                            {inst.apiUrl && (
+                              <span className="truncate">
+                                {inst.apiUrl.replace('https://', '')}
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                        <DangerButton onClick={() => void pickTarget(inst)} busy={busy}>
+                          <Trash2 className="h-4 w-4" />
+                          Destroy…
+                        </DangerButton>
+                      </li>
+                    ))}
+                  </ul>
+                </>
               )}
             </div>
           )}

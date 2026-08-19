@@ -21,6 +21,13 @@ export type Bindings = {
    *  the instance was deployed with. When present, only this email can claim
    *  the instance (first sign-up), and the claim screen locks the field. */
   OWNER_EMAIL?: string;
+  /** Set by the deploy wizard on user instances (worker secret): one-time code
+   *  that the first sign-up must present to claim the instance. Instance
+   *  hostnames are predictable, so without it anyone who finds an unclaimed
+   *  instance first could make themselves its owner. Rotated by every wizard
+   *  run that finds the instance still unclaimed; shown only on the wizard's
+   *  done card. */
+  CLAIM_TOKEN?: string;
   /** Set by the deploy wizard on user instances: the release version installed
    *  (manifest.version). Drives the dashboard's update-available banner. */
   TRAKS_VERSION?: string;

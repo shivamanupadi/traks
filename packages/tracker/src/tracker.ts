@@ -69,6 +69,13 @@
 
   // Send via fetch keepalive; on failure fall back to sendBeacon (survives
   // rapid navigations where the fetch is rejected before it's queued).
+  // Clamp to the collector's field limits so an overlong value trims rather
+  // than 400s the whole event (long ad-click referrers were dropping the
+  // pageview they came with). Mirrors packages/shared/src/validation.ts.
+  function clip(v: unknown, max: number): string {
+    return (typeof v === 'string' ? v : '').slice(0, max);
+  }
+
   function sendRequest(payload: Record<string, unknown>): void {
     const body = JSON.stringify(payload);
     fetch(endpoint, {
@@ -138,14 +145,14 @@
     sendRequest({
       t: 'pageview',
       s: siteKey,
-      p: currentPath(),
+      p: clip(currentPath(), 2048),
       h: location.hostname,
-      r: document.referrer || '',
+      r: clip(document.referrer, 2048),
       sw: screen.width,
       sid: getSessionId(),
-      us: params.get('utm_source') || '',
-      um: params.get('utm_medium') || '',
-      uc: params.get('utm_campaign') || '',
+      us: clip(params.get('utm_source'), 256),
+      um: clip(params.get('utm_medium'), 256),
+      uc: clip(params.get('utm_campaign'), 256),
     });
   }
 
@@ -155,20 +162,38 @@
   // so early CTA clicks and hydration-effect events are never lost.
   const pending: IArguments[] =
     typeof w.traks === 'function' && Array.isArray(w.traks.q) ? w.traks.q : [];
+  // Never throw into the customer's code: a circular props object or a bad
+  // queued call must not break their click handler or router.
   w.traks = function (name: string, props?: Record<string, unknown>, value?: number): void {
-    sendRequest({
-      t: 'event',
-      s: siteKey,
-      p: currentPath(),
-      h: location.hostname,
-      sid: getSessionId(),
-      en: name,
-      ep: props ? JSON.stringify(props) : '',
-      ev: value || 0,
-    });
+    try {
+      let ep = '';
+      if (props && typeof props === 'object') {
+        ep = JSON.stringify(props);
+        // Over the limit: keep the event, drop the props (a truncated JSON
+        // string would be unusable anyway).
+        if (ep.length > 1024) ep = '';
+      }
+      const ev = Number(value);
+      sendRequest({
+        t: 'event',
+        s: siteKey,
+        p: clip(currentPath(), 2048),
+        h: location.hostname,
+        sid: getSessionId(),
+        en: clip(name, 256),
+        ep: ep,
+        ev: isFinite(ev) && ev > 0 ? Math.min(ev, 1000000) : 0,
+      });
+    } catch {
+      /* swallow - analytics must never surface in the host page */
+    }
   };
   for (let q = 0; q < pending.length; q++) {
-    w.traks.apply(null, pending[q]);
+    try {
+      w.traks.apply(null, pending[q]);
+    } catch {
+      /* a foreign stub queued something odd - skip it */
+    }
   }
 
   // ---- Outbound links + file downloads ----

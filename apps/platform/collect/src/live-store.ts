@@ -385,11 +385,17 @@ export class SiteLiveStore extends DurableObject<unknown> {
     prevFromMs: number,
     curFromMs: number,
     toMs: number,
-    filters?: LiveFilters
+    filters?: LiveFilters,
+    prevToMs?: number
   ): Promise<{ current: LiveTotals; previous: LiveTotals }> {
     const f = SiteLiveStore.filterSql(filters);
+    // Comparison window ends at prevToMs (same clock window one day earlier);
+    // rows in the gap [prevToMs, curFromMs) belong to neither period.
+    const prevTo = prevToMs ?? curFromMs;
+    const gapSql = prevTo < curFromMs ? ' AND (ts < ? OR ts >= ?)' : '';
+    const gapParams = prevTo < curFromMs ? [prevTo, curFromMs] : [];
     return this.memoized(
-      `mainStats:${SiteLiveStore.q(prevFromMs)}:${SiteLiveStore.q(curFromMs)}:${SiteLiveStore.q(toMs)}:${SiteLiveStore.filterKey(filters)}`,
+      `mainStats:${SiteLiveStore.q(prevFromMs)}:${SiteLiveStore.q(prevTo)}:${SiteLiveStore.q(curFromMs)}:${SiteLiveStore.q(toMs)}:${SiteLiveStore.filterKey(filters)}`,
       MEMO_TTL_MS,
       () => {
         const statRows = this.sql
@@ -399,11 +405,12 @@ export class SiteLiveStore extends DurableObject<unknown> {
                     COUNT(DISTINCT visitor_id) AS visitors,
                     COUNT(DISTINCT session_id) AS sessions
              FROM events
-             WHERE event_type = 'pageview' AND ts >= ? AND ts < ?${f.sql}
+             WHERE event_type = 'pageview' AND ts >= ? AND ts < ?${gapSql}${f.sql}
              GROUP BY period`,
             curFromMs,
             prevFromMs,
             toMs,
+            ...gapParams,
             ...f.params
           )
           .toArray();
@@ -415,7 +422,7 @@ export class SiteLiveStore extends DurableObject<unknown> {
             `WITH s AS (
                SELECT session_id, MIN(ts) AS first_hit, COUNT(*) AS hits
                FROM events
-               WHERE event_type = 'pageview' AND session_id != '' AND ts >= ? AND ts < ?${f.sql}
+               WHERE event_type = 'pageview' AND session_id != '' AND ts >= ? AND ts < ?${gapSql}${f.sql}
                GROUP BY session_id
              )
              SELECT CASE WHEN first_hit >= ? THEN 'current' ELSE 'previous' END AS period,
@@ -424,6 +431,7 @@ export class SiteLiveStore extends DurableObject<unknown> {
              GROUP BY period`,
             prevFromMs,
             toMs,
+            ...gapParams,
             ...f.params,
             curFromMs
           )
@@ -435,11 +443,12 @@ export class SiteLiveStore extends DurableObject<unknown> {
             `SELECT CASE WHEN ts >= ? THEN 'current' ELSE 'previous' END AS period,
                     SUM(event_value) AS engaged
              FROM events
-             WHERE event_type = 'engagement' AND ts >= ? AND ts < ?${f.sql}
+             WHERE event_type = 'engagement' AND ts >= ? AND ts < ?${gapSql}${f.sql}
              GROUP BY period`,
             curFromMs,
             prevFromMs,
             toMs,
+            ...gapParams,
             ...f.params
           )
           .toArray();

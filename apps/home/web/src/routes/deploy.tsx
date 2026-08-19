@@ -39,6 +39,15 @@ export const Route = createFileRoute('/deploy')({
 
 type Phase = 'intro' | 'tokens' | 'setup' | 'deploying' | 'failed' | 'done';
 
+/** Dashboard link; carries the one-time claim code (and owner email) while the
+ *  instance is unclaimed so the first sign-up is authorised by this page. */
+function claimUrl(result: { apiUrl: string; claimCode?: string }, email?: string): string {
+  if (!result.claimCode) return result.apiUrl;
+  const q = new URLSearchParams({ claim: result.claimCode });
+  if (email) q.set('email', email);
+  return `${result.apiUrl}/login?${q.toString()}`;
+}
+
 const PHASE_INDEX: Record<Phase, number> = {
   intro: 0,
   tokens: 1,
@@ -79,7 +88,11 @@ function DeployWizard(): ReactElement {
   const [showNameEdit, setShowNameEdit] = useState(false);
 
   const [steps, setSteps] = useState<StepEvent[]>([]);
-  const [result, setResult] = useState<{ apiUrl: string; collectUrl: string } | null>(null);
+  const [result, setResult] = useState<{
+    apiUrl: string;
+    collectUrl: string;
+    claimCode?: string;
+  } | null>(null);
   const startedRef = useRef(false);
   const pollRef = useRef<number | undefined>(undefined);
 
@@ -305,13 +318,17 @@ function DeployWizard(): ReactElement {
       }
       await readSse<
         | ({ type: 'step' } & StepEvent)
-        | { type: 'done'; apiUrl: string; collectUrl: string }
+        | { type: 'done'; apiUrl: string; collectUrl: string; claimCode?: string }
         | { type: 'error'; message: string }
       >(res, payload => {
         if (payload.type === 'step') {
           setSteps(prev => collapse([...prev, payload]));
         } else if (payload.type === 'done') {
-          setResult({ apiUrl: payload.apiUrl, collectUrl: payload.collectUrl });
+          setResult({
+            apiUrl: payload.apiUrl,
+            collectUrl: payload.collectUrl,
+            claimCode: payload.claimCode,
+          });
           setPhase('done');
         } else if (payload.type === 'error') {
           setError(payload.message);
@@ -676,7 +693,7 @@ function DeployWizard(): ReactElement {
         <Card
           footer={
             <a
-              href={result.apiUrl}
+              href={claimUrl(result, connect.cfEmail)}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex h-11 items-center gap-2 rounded-full bg-mint px-6 text-[13.5px] font-bold text-[#123326] transition-all hover:-translate-y-px hover:shadow-[0_8px_24px_rgba(40,233,159,0.35)]"
@@ -693,7 +710,7 @@ function DeployWizard(): ReactElement {
               Everything deployed and verified in your account
             </p>
             <a
-              href={result.apiUrl}
+              href={claimUrl(result, connect.cfEmail)}
               target="_blank"
               rel="noopener noreferrer"
               className="mb-5 inline-flex items-center gap-2 rounded-full border border-[#E5E5EB] bg-white px-5 py-2.5 text-[13.5px] font-semibold text-[#3D3B4F] hover:border-[#cbcad4] transition-colors"
@@ -707,21 +724,38 @@ function DeployWizard(): ReactElement {
                 Claim your instance
               </p>
               <p className="mt-1 text-[12.5px] leading-relaxed text-[#9B99A6]">
-                {connect.cfEmail ? (
+                {result.claimCode ? (
                   <>
-                    Open it and pick a password.{' '}
-                    <span className="font-medium text-[#6E6C7C]">{connect.cfEmail}</span> is already
-                    set as the owner, and only that email can claim the instance. Then add your site
-                    and paste the tracking snippet it gives you.
+                    Open it from this page and pick a password - the link carries a one-time claim
+                    code, so only you can create the owner account.
+                    {connect.cfEmail && (
+                      <>
+                        {' '}
+                        Sign up as{' '}
+                        <span className="font-medium text-[#6E6C7C]">{connect.cfEmail}</span>.
+                      </>
+                    )}{' '}
+                    Lost the link? Run Update here to get a fresh code.
                   </>
                 ) : (
                   <>
-                    Open it and create your owner account. The first sign-up claims the instance and
-                    sign-ups close afterwards. Then add your site and paste the tracking snippet it
-                    gives you.
+                    Open it and create your owner account
+                    {connect.cfEmail && (
+                      <>
+                        {' '}
+                        as <span className="font-medium text-[#6E6C7C]">{connect.cfEmail}</span>
+                      </>
+                    )}
+                    . Sign-ups close afterwards. Then add your site and paste the tracking snippet
+                    it gives you.
                   </>
                 )}
               </p>
+              {result.claimCode && (
+                <p className="mt-2 font-mono text-[12px] text-[#6E6C7C]">
+                  Claim code: <span className="select-all">{result.claimCode}</span>
+                </p>
+              )}
             </div>
           </div>
         </Card>

@@ -560,7 +560,7 @@ const appWithBatch = app
       ? [...new Set(siteIdsParam.split(',').filter(Boolean))].slice(0, MAX_BATCH_SITES)
       : null;
 
-    const conditions = [siteAccessFilter(db, userId)];
+    const conditions = [siteAccessFilter(db, userId, c.get('tokenWorkspaceId'))];
     if (siteIdList && siteIdList.length > 0) {
       conditions.push(inArray(sites.id, siteIdList));
     }
@@ -668,7 +668,7 @@ export async function fetchDashboard(
       const to = ms(range.to);
       const [main, timeseriesRows, pages, referrers, locations, browsers, osList] =
         await Promise.all([
-          live.mainStats(ms(prev.from), from, to),
+          live.mainStats(ms(prev.from), from, to, undefined, ms(prev.to)),
           live.timeseries(from, to),
           live.topList('pathname', from, to, 10),
           live.topList('referrer_hostname', from, to, 10),
@@ -830,7 +830,8 @@ export const analyticsRoute = appWithBatch
           ms(prev.from),
           ms(range.from),
           ms(range.to),
-          filters
+          filters,
+          ms(prev.to)
         );
         return c.json({ data: mainStatsPayload(current, previous) });
       } catch (err) {

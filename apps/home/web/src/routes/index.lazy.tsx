@@ -374,7 +374,7 @@ function LandingPage(): ReactElement {
             transition={{ duration: 0.55, delay: 0.18, ease: EASE }}
             className="mt-6 max-w-[52ch] text-[16px] leading-relaxed text-[#6E6C7C] sm:text-[17px]"
           >
-            Traks runs entirely in your own Cloudflare account: a 1.4&nbsp;KB cookieless tracker, a
+            Traks runs entirely in your own Cloudflare account: a 1.5&nbsp;KB cookieless tracker, a
             real-time dashboard, an MCP server your coding agent can query, and traffic data that
             never touches anyone else&rsquo;s servers.
           </motion.p>
@@ -407,7 +407,7 @@ function LandingPage(): ReactElement {
             className="mt-8"
           >
             <Mono className="text-[#B3B1BE]">
-              No cookies&ensp;·&ensp;No consent banner&ensp;·&ensp;1.4 KB script&ensp;·&ensp;Free
+              No cookies&ensp;·&ensp;No consent banner&ensp;·&ensp;1.5 KB script&ensp;·&ensp;Free
               forever
             </Mono>
           </motion.div>
@@ -469,7 +469,7 @@ function LandingPage(): ReactElement {
                 {
                   n: '1',
                   title: 'Drop in one script tag',
-                  desc: '1.4 KB gzipped, loads deferred, zero impact on Core Web Vitals. Works with SPAs, hash routers, and plain HTML alike, with tailored guides for Next.js, WordPress, Astro, Shopify, and seven more.',
+                  desc: '1.5 KB gzipped, loads deferred, zero impact on Core Web Vitals. Works with SPAs, hash routers, and plain HTML alike, with tailored guides for Next.js, WordPress, Astro, Shopify, and seven more.',
                 },
                 {
                   n: '2',

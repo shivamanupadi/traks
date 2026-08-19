@@ -78,10 +78,11 @@ export interface InstanceRow {
   customDomain?: { zoneId: string; zoneName: string; subdomain: string } | null;
 }
 
-/** A run that hasn't written a step for this long is considered dead. Generous
- *  because the smoke-test step can legitimately go ~5 min between writes while
- *  it waits on DNS + certificates for custom domains. */
-export const RUN_STALE_MS = 7 * 60_000;
+/** A run that hasn't touched its row for this long is considered dead. A live
+ *  run heartbeats updated_at every ~20 s (even while the smoke test waits on
+ *  DNS + certificates), so three quiet minutes means the worker is gone.
+ *  Mirrors RUN_STALE_MS in the API. */
+export const RUN_STALE_MS = 3 * 60_000;
 
 export const runIsFresh = (row: InstanceRow): boolean =>
   Boolean(row.updatedAt) && Date.now() - new Date(row.updatedAt!).getTime() < RUN_STALE_MS;

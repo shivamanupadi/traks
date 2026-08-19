@@ -28,6 +28,18 @@ let claimedCache = false;
 // owner claimed the instance and found none of their sites.
 const STASH_SUFFIX = '@claim-pending.invalid';
 
+/** Constant-time string compare for the claim code (no early-exit on length). */
+function safeEqual(a: string, b: string): boolean {
+  const enc = new TextEncoder();
+  const x = enc.encode(a);
+  const y = enc.encode(b);
+  let diff = x.length ^ y.length;
+  for (let i = 0; i < Math.max(x.length, y.length); i++) {
+    diff |= (x[i] ?? 0) ^ (y[i] ?? 0);
+  }
+  return diff === 0 && x.length > 0;
+}
+
 async function isClaimed(db: DrizzleD1Database): Promise<boolean> {
   if (claimedCache) return true;
   const [row] = await db
@@ -220,7 +232,12 @@ function createAuth(env: Bindings, origin: string) {
     hooks: {
       before: createAuthMiddleware(async ctx => {
         if (ctx.path !== '/sign-up/email') return;
-        const body = ctx.body as { email?: string; password?: string; inviteToken?: string };
+        const body = ctx.body as {
+          email?: string;
+          password?: string;
+          inviteToken?: string;
+          claimToken?: string;
+        };
         const email = body?.email?.toLowerCase();
         // Validate BEFORE any side effect: this hook runs ahead of Better
         // Auth's own body validation, so an obviously-doomed sign-up (short
@@ -243,9 +260,19 @@ function createAuth(env: Bindings, origin: string) {
           }
           return;
         }
-        // First-run claim path. Wizard-deployed instances are pinned to the
-        // Cloudflare account email captured at deploy time - the owner
-        // identity isn't chosen at claim.
+        // First-run claim path. Wizard-deployed instances carry a one-time
+        // claim code (worker secret, shown only on the wizard's done card):
+        // the instance URL is predictable, so possession of the code - not
+        // arrival order - is what makes someone the owner.
+        if (env.CLAIM_TOKEN && !safeEqual(body?.claimToken ?? '', env.CLAIM_TOKEN)) {
+          throw new APIError('FORBIDDEN', {
+            message:
+              'A valid claim code is required. Use the link from the traks.dev deploy page, or run Update there to get a new one.',
+          });
+        }
+        // Wizard-deployed instances are also pinned to the Cloudflare account
+        // email captured at deploy time - the owner identity isn't chosen at
+        // claim.
         if (env.OWNER_EMAIL && email !== env.OWNER_EMAIL.toLowerCase()) {
           throw new APIError('FORBIDDEN', {
             message: 'This instance can only be claimed by the email it was deployed with',

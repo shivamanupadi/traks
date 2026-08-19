@@ -20,6 +20,10 @@ export interface PeriodRange {
   granularity: 'hour' | 'day' | 'week';
   /** Ordered list of bucket keys (YYYY-MM-DD, YYYY-MM-DDTHH, or YYYY-Www) for gap-filling timeseries. */
   buckets: string[];
+  /** IANA zone the boundaries were aligned to; previousRange() shifts in it. */
+  tz: string;
+  /** Calendar-day length of the period (0 for 'all'); previousRange() shifts by this. */
+  days: number;
 }
 
 interface R2SqlResponse {
@@ -176,12 +180,6 @@ function startOfDayInTz(date: Date, tz: string): Date {
   return new Date(utcMidnight.getTime() + (targetMs - renderedMs));
 }
 
-function addUTCDays(d: Date, n: number): Date {
-  const out = new Date(d);
-  out.setUTCDate(out.getUTCDate() + n);
-  return out;
-}
-
 /**
  * Local midnight `n` calendar days from `date` in `tz`.
  *
@@ -244,40 +242,49 @@ export function resolvePeriod(period: Period, now: Date, tz: string): PeriodRang
   let to = now;
   let from: Date;
   let granularity: PeriodRange['granularity'];
+  let days: number;
 
   switch (period) {
     case 'today':
       from = startOfDayInTz(now, tz);
       granularity = 'hour';
+      days = 1;
       break;
     case 'yesterday':
       to = startOfDayInTz(now, tz);
       from = startOfDayNDays(now, tz, -1);
       granularity = 'hour';
+      days = 1;
       break;
     case '7d':
       from = startOfDayNDays(now, tz, -6);
       granularity = 'day';
+      days = 7;
       break;
     case '30d':
       from = startOfDayNDays(now, tz, -29);
       granularity = 'day';
+      days = 30;
       break;
     case '90d':
       from = startOfDayNDays(now, tz, -89);
       granularity = 'day';
+      days = 90;
       break;
     case '6m':
       from = startOfDayNDays(now, tz, -179);
       granularity = 'day';
+      days = 180;
       break;
     case '1y':
       from = startOfDayNDays(now, tz, -364);
       granularity = 'week';
+      days = 365;
       break;
     case 'all':
       from = new Date(ALL_TIME_FLOOR_MS);
       granularity = 'week';
+      days = 0;
       break;
   }
 
@@ -291,25 +298,44 @@ export function resolvePeriod(period: Period, now: Date, tz: string): PeriodRang
     to: to.toISOString(),
     granularity,
     buckets: granularity === 'week' ? [] : generateBuckets(from, bucketsTo, granularity, tz),
+    tz,
+    days,
   };
 }
 
-/** Previous equal-length window immediately before `range`, used for % comparisons. */
+/**
+ * Comparison window for `range`: the same clock window one period earlier.
+ *
+ * Both bounds shift back by the period's calendar-day length in the site's
+ * timezone, so a partial current period is compared against the *same portion*
+ * of the previous one - 'today' at 10:00 compares with yesterday 00:00-10:00,
+ * '7d' with the seven days before it up to the same time of day. (Mirroring
+ * the elapsed span backwards from `from`, as this used to, compared this
+ * morning with yesterday *afternoon* and produced a large spurious % change
+ * every day.)
+ *
+ * The window is therefore NOT contiguous with `range` in general: there is a
+ * gap [prev.to, range.from) that single-scan comparison queries must exclude.
+ */
 export function previousRange(range: PeriodRange): { from: string; to: string } {
-  const curFrom = new Date(range.from).getTime();
-  const curTo = new Date(range.to).getTime();
+  const curFrom = new Date(range.from);
+  const curTo = new Date(range.to);
   // 'all' starts at the epoch floor (2000-01-01), so mirroring its span would
   // scan ~26 further years of partitions that cannot contain data - doubling
   // the cost of the most expensive view to compare against a guaranteed zero.
   // Collapse it to an empty window instead.
-  if (curFrom <= ALL_TIME_FLOOR_MS) {
-    return { from: new Date(curFrom).toISOString(), to: new Date(curFrom).toISOString() };
+  if (curFrom.getTime() <= ALL_TIME_FLOOR_MS || !range.days) {
+    return { from: curFrom.toISOString(), to: curFrom.toISOString() };
   }
-  const span = curTo - curFrom;
-  return {
-    from: new Date(curFrom - span).toISOString(),
-    to: new Date(curFrom).toISOString(),
-  };
+  const tz = range.tz || 'UTC';
+  // `from` is a local midnight: step it back by whole calendar days (DST-safe).
+  const prevFrom = startOfDayNDays(curFrom, tz, -range.days);
+  // `to` is an arbitrary instant (usually now): keep its local time-of-day on
+  // the shifted day so both windows cover the same local hours even when the
+  // period straddles a DST change.
+  const intoDay = curTo.getTime() - startOfDayInTz(curTo, tz).getTime();
+  const prevTo = new Date(startOfDayNDays(curTo, tz, -range.days).getTime() + intoDay);
+  return { from: prevFrom.toISOString(), to: prevTo.toISOString() };
 }
 
 /** Generate the ordered list of bucket keys from `from` (inclusive) to `to` (inclusive). */
@@ -332,12 +358,23 @@ function generateBuckets(
     return Array.from(new Set(keys));
   }
   if (granularity === 'day') {
+    // Step by local calendar days, not +24h: after a DST transition a 24h step
+    // from local midnight lands at 23:00/01:00 local and the rendered keys
+    // drift by a day (today's bucket vanished from the chart for up to 90 days
+    // after each transition, and the DST day appeared twice).
+    const dayKey = (d: Date): string => {
+      const p = partsInTz(d, tz);
+      return `${p.year}-${pad2(p.month)}-${pad2(p.day)}`;
+    };
     let cursor = startOfDayInTz(from, tz);
-    const endDay = startOfDayInTz(to, tz);
-    while (cursor.getTime() <= endDay.getTime()) {
-      const p = partsInTz(cursor, tz);
-      keys.push(`${p.year}-${pad2(p.month)}-${pad2(p.day)}`);
-      cursor = addUTCDays(cursor, 1);
+    const endKey = dayKey(to);
+    // Hard cap well above any period length - guards against a pathological
+    // zone where the stepping never reaches endKey.
+    for (let i = 0; i < 800; i++) {
+      const key = dayKey(cursor);
+      keys.push(key);
+      if (key >= endKey) break;
+      cursor = startOfDayNDays(cursor, tz, 1);
     }
   }
   return keys;
@@ -400,12 +437,28 @@ function whereSiteAndRange(
 }
 
 /**
+ * WHERE fragment covering the current window plus its comparison window in a
+ * single scan: [prev.from, range.to) minus the gap [prev.to, range.from)
+ * between them (see previousRange). Rows are then split with a CASE on
+ * range.from. R2 SQL bills a 10 MB minimum per query, so one scan over both
+ * windows is both faster and cheaper than two.
+ */
+function whereSiteAndComparison(
+  siteKey: string,
+  range: PeriodRange,
+  eventType: string,
+  filters?: LiveFilters
+): string {
+  const prev = previousRange(range);
+  let sql = whereSiteAndRange(siteKey, { from: prev.from, to: range.to }, eventType, filters);
+  if (prev.to !== range.from) {
+    sql += ` AND (ts < TIMESTAMP '${esc(prev.to)}' OR ts >= TIMESTAMP '${esc(range.from)}')`;
+  }
+  return sql;
+}
+
+/**
  * Current + previous period stats in a single scan.
- *
- * previousRange() is contiguous with the current range (prev.to === range.from),
- * so one query over [prev.from, range.to) split with a CASE on the boundary
- * replaces the old two-query pair. R2 SQL bills a 10 MB minimum per query, so
- * fewer round-trips is both faster and cheaper.
  *
  * Rows come back labeled period = 'current' | 'previous'; a window with no
  * events produces no row.
@@ -415,7 +468,6 @@ export function buildStatsWithComparisonQuery(
   range: PeriodRange,
   filters?: LiveFilters
 ) {
-  const prev = previousRange(range);
   const periodExpr = `CASE WHEN ts >= TIMESTAMP '${esc(range.from)}' THEN 'current' ELSE 'previous' END`;
   return (table: string) => `
     SELECT
@@ -424,7 +476,7 @@ export function buildStatsWithComparisonQuery(
       approx_distinct(visitor_id) AS visitors,
       approx_distinct(session_id) AS sessions
     FROM ${table}
-    WHERE ${whereSiteAndRange(siteKey, { from: prev.from, to: range.to }, 'pageview', filters)}
+    WHERE ${whereSiteAndComparison(siteKey, range, 'pageview', filters)}
     GROUP BY ${periodExpr}
   `;
 }
@@ -437,7 +489,6 @@ export function buildStatsWithComparisonQuery(
  * which R2 SQL gained in the 2026 feature waves.
  */
 export function buildSessionStatsQuery(siteKey: string, range: PeriodRange, filters?: LiveFilters) {
-  const prev = previousRange(range);
   const periodExpr = `CASE WHEN first_hit >= TIMESTAMP '${esc(range.from)}' THEN 'current' ELSE 'previous' END`;
   return (table: string) => `
     WITH session_hits AS (
@@ -446,7 +497,7 @@ export function buildSessionStatsQuery(siteKey: string, range: PeriodRange, filt
         MIN(ts) AS first_hit,
         COUNT(*) AS hits
       FROM ${table}
-      WHERE ${whereSiteAndRange(siteKey, { from: prev.from, to: range.to }, 'pageview', filters)}
+      WHERE ${whereSiteAndComparison(siteKey, range, 'pageview', filters)}
         AND session_id != ''
       GROUP BY session_id
     )
@@ -468,14 +519,13 @@ export function buildEngagementStatsQuery(
   range: PeriodRange,
   filters?: LiveFilters
 ) {
-  const prev = previousRange(range);
   const periodExpr = `CASE WHEN ts >= TIMESTAMP '${esc(range.from)}' THEN 'current' ELSE 'previous' END`;
   return (table: string) => `
     SELECT
       ${periodExpr} AS period,
       SUM(event_value) AS engaged
     FROM ${table}
-    WHERE ${whereSiteAndRange(siteKey, { from: prev.from, to: range.to }, 'engagement', filters)}
+    WHERE ${whereSiteAndComparison(siteKey, range, 'engagement', filters)}
     GROUP BY ${periodExpr}
   `;
 }

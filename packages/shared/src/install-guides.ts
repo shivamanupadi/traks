@@ -71,7 +71,7 @@ export const INSTALL_GUIDES: InstallGuide[] = [
     steps: [
       {
         title: 'Add the snippet to your <head>',
-        body: 'Paste the tracker tag into the <head> of every page you want to track. It is under 1KB, deferred, and cookieless.',
+        body: 'Paste the tracker tag into the <head> of every page you want to track. It is 1.5 KB gzipped, deferred, and cookieless.',
         code: {
           lang: 'html',
           filename: 'index.html',

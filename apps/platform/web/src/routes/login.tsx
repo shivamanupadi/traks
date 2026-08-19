@@ -84,8 +84,12 @@ function LoginPage(): ReactElement {
   const { data: session, isPending } = authClient.useSession();
   // null = loading; false = claimed (sign in); true = first run (create owner)
   const [firstRun, setFirstRun] = useState<boolean | null>(null);
-  const [ownerEmail, setOwnerEmail] = useState('');
-  const [email, setEmail] = useState('');
+  // The wizard's done card links here with ?claim=<code>&email=<owner>; the
+  // code is what authorises the first sign-up (instance URLs are guessable).
+  const urlParams = new URLSearchParams(window.location.search);
+  const [claimCode, setClaimCode] = useState(urlParams.get('claim') ?? '');
+  const [needsCode, setNeedsCode] = useState(false);
+  const [email, setEmail] = useState(urlParams.get('email') ?? '');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -98,13 +102,10 @@ function LoginPage(): ReactElement {
 
   useEffect(() => {
     fetch('/api/claim-status')
-      .then(res => res.json() as Promise<{ claimed: boolean; ownerEmail?: string }>)
+      .then(res => res.json() as Promise<{ claimed: boolean; needsCode?: boolean }>)
       .then(data => {
         setFirstRun(!data.claimed);
-        if (!data.claimed && data.ownerEmail) {
-          setOwnerEmail(data.ownerEmail);
-          setEmail(data.ownerEmail);
-        }
+        setNeedsCode(Boolean(data.needsCode));
       })
       .catch(() => setFirstRun(false));
   }, []);
@@ -118,7 +119,9 @@ function LoginPage(): ReactElement {
           email,
           password,
           name: email.split('@')[0],
-        })
+          // Validated by the API's sign-up hook against the CLAIM_TOKEN secret.
+          claimToken: claimCode.trim(),
+        } as Parameters<typeof authClient.signUp.email>[0])
       : await authClient.signIn.email({ email, password });
     setSubmitting(false);
     if (result.error) {
@@ -166,18 +169,35 @@ function LoginPage(): ReactElement {
                       autoComplete="email"
                       value={email}
                       onChange={e => setEmail(e.target.value)}
-                      readOnly={firstRun && ownerEmail !== ''}
-                      className={`h-11 px-4 text-[14px] ${
-                        firstRun && ownerEmail ? 'bg-[#F2F1ED] text-[#6E6C7C]' : ''
-                      }`}
-                      autoFocus={!(firstRun && ownerEmail)}
+                      className="h-11 px-4 text-[14px]"
+                      autoFocus={!email}
                     />
-                    {firstRun && ownerEmail && (
+                    {firstRun && (
                       <p className="mt-1.5 text-[12px] text-[#B3B1BE]">
-                        Your Cloudflare account email, fixed when this instance was deployed.
+                        Deployed with Sign in with Cloudflare? Use that account’s email.
                       </p>
                     )}
                   </div>
+                  {firstRun && needsCode && !urlParams.get('claim') && (
+                    <div>
+                      <label className="mb-1.5 block text-[12.5px] font-semibold text-[#3D3B4F]">
+                        Claim code
+                      </label>
+                      <Input
+                        type="text"
+                        required
+                        autoComplete="off"
+                        spellCheck={false}
+                        value={claimCode}
+                        onChange={e => setClaimCode(e.target.value)}
+                        className="h-11 px-4 font-mono text-[14px]"
+                      />
+                      <p className="mt-1.5 text-[12px] text-[#B3B1BE]">
+                        Shown on the traks.dev deploy page when this instance was created. Lost it?
+                        Run Update there to get a new one.
+                      </p>
+                    </div>
+                  )}
                   <div>
                     <label className="mb-1.5 block text-[12.5px] font-semibold text-[#3D3B4F]">
                       Password
@@ -190,7 +210,7 @@ function LoginPage(): ReactElement {
                       value={password}
                       onChange={e => setPassword(e.target.value)}
                       className="h-11 px-4 text-[14px]"
-                      autoFocus={Boolean(firstRun && ownerEmail)}
+                      autoFocus={Boolean(email)}
                     />
                     {firstRun && (
                       <p className="mt-1.5 text-[12px] text-[#B3B1BE]">At least 8 characters</p>

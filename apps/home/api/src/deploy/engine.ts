@@ -215,9 +215,17 @@ async function ensureD1(ctx: EngineCtx, cf: Cf, d1Name: string): Promise<string>
 
 async function applyMigrations(ctx: EngineCtx, cf: Cf, d1Id: string): Promise<void> {
   await step(ctx, 'db-migrations', 'Apply database migrations', async () => {
+    // Transient D1/API hiccups (429, 5xx) are retried rather than surfaced:
+    // a failed migration mid-run used to wedge the instance permanently.
     const q = (sql: string): Promise<any> =>
       // eslint-disable-line @typescript-eslint/no-explicit-any
-      cf('POST', `/accounts/${ctx.accountId}/d1/database/${d1Id}/query`, { sql });
+      withRetry(
+        ctx,
+        'db-migrations',
+        'Apply database migrations',
+        () => cf('POST', `/accounts/${ctx.accountId}/d1/database/${d1Id}/query`, { sql }),
+        { attempts: 4, delayMs: 5_000 }
+      );
     await q(
       'CREATE TABLE IF NOT EXISTS d1_migrations(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE, applied_at TIMESTAMP NOT NULL DEFAULT current_timestamp);'
     );
@@ -228,11 +236,19 @@ async function applyMigrations(ctx: EngineCtx, cf: Cf, d1Id: string): Promise<vo
     for (const m of ctx.artifacts.migrations) {
       if (applied.has(m.name)) continue;
       const sql = await m.getSql();
-      for (const stmt of sql.split('--> statement-breakpoint')) {
-        const clean = stmt.trim();
-        if (clean) await q(clean);
-      }
-      await q(`INSERT INTO d1_migrations (name) VALUES ('${m.name.replaceAll("'", "''")}');`);
+      // One request per migration: every statement plus the bookkeeping row
+      // go to D1 together, so a failure leaves no half-applied migration that
+      // the next attempt trips over ("table already exists" forever). D1
+      // executes a multi-statement /query as a single batch.
+      const statements = sql
+        .split('--> statement-breakpoint')
+        .map(stmt => stmt.trim())
+        .filter(Boolean)
+        .map(stmt => (stmt.endsWith(';') ? stmt : `${stmt};`));
+      statements.push(
+        `INSERT INTO d1_migrations (name) VALUES ('${m.name.replaceAll("'", "''")}');`
+      );
+      await q(statements.join('\n'));
     }
   });
 }
@@ -533,6 +549,11 @@ async function ensureSecrets(
 export interface ProvisionResult {
   apiUrl: string;
   collectUrl: string;
+  /** One-time code the first sign-up must present. Present only when the
+   *  instance is still unclaimed after this run (fresh install, or an update
+   *  to a never-claimed instance - it is rotated each time). Never persisted
+   *  on traks.dev; it travels to the user's browser once. */
+  claimCode?: string;
 }
 
 export async function provisionInstance(ctx: EngineCtx): Promise<ProvisionResult> {
@@ -659,13 +680,26 @@ export async function provisionInstance(ctx: EngineCtx): Promise<ProvisionResult
     const attempts = ctx.customDomain ? 30 : 9;
     const probe = async (url: string, path: string, expect: string): Promise<void> => {
       for (let i = 0; i < attempts; i++) {
+        let why = '';
         try {
           const res = await fetch(url + path);
           const body = await res.text();
           if (res.ok && body.includes(expect)) return;
-        } catch {
-          /* retry */
+          why = `HTTP ${res.status}`;
+        } catch (err) {
+          why = err instanceof Error ? err.message : 'unreachable';
         }
+        // Surface each wait so the wizard shows progress (and the registry
+        // row stays fresh) instead of minutes of silence.
+        await ctx.emit({
+          stepId: 'smoke',
+          label: 'Verify the deployment',
+          status: 'retry',
+          detail: `Waiting for ${url}${path} (${why}) - attempt ${i + 1}/${attempts}`.slice(
+            0,
+            MAX_DETAIL
+          ),
+        });
         await sleep(10_000);
       }
       throw new Error(`${url}${path} did not become healthy`);
@@ -675,7 +709,33 @@ export async function provisionInstance(ctx: EngineCtx): Promise<ProvisionResult
     await probe(collectUrl, '/t.js', 'traks');
   });
 
-  return { apiUrl, collectUrl };
+  // Instance hostnames are predictable, so an unclaimed instance must not be
+  // claimable by whoever finds it first. While the instance reports itself
+  // unclaimed, mint a fresh claim code as a worker secret and hand it back to
+  // the wizard (done card link). Claimed instances are left alone.
+  let claimCode: string | undefined;
+  await step(ctx, 'claim', 'Secure the first sign-up', async () => {
+    let unclaimed = false;
+    try {
+      const res = await fetch(apiUrl + '/api/claim-status');
+      const data = (await res.json()) as { claimed?: boolean };
+      unclaimed = res.ok && data?.claimed === false;
+    } catch {
+      // Unreachable right after a passing smoke test is unlikely; treat as
+      // claimed rather than fail the deploy - the code can be re-minted by
+      // running Update.
+    }
+    if (!unclaimed) return;
+    const code = ctx.randomHex(12);
+    await cf('PUT', `/accounts/${ctx.accountId}/workers/scripts/${N.apiWorker}/secrets`, {
+      name: 'CLAIM_TOKEN',
+      text: code,
+      type: 'secret_text',
+    });
+    claimCode = code;
+  });
+
+  return { apiUrl, collectUrl, claimCode };
 }
 
 /**

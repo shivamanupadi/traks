@@ -148,11 +148,18 @@ export interface LiveStoreApi {
   /** Wipes all stored data for this site (site deletion). */
   purge(): Promise<void>;
   totals(fromMs: number, toMs: number, filters?: LiveFilters): Promise<LiveCounts>;
+  /**
+   * Current window [curFromMs, toMs) and comparison window
+   * [prevFromMs, prevToMs) in one pass. `prevToMs` defaults to `curFromMs`
+   * (contiguous windows) for older callers; the api passes the same-clock
+   * window one day earlier, which leaves a gap that is excluded.
+   */
   mainStats(
     prevFromMs: number,
     curFromMs: number,
     toMs: number,
-    filters?: LiveFilters
+    filters?: LiveFilters,
+    prevToMs?: number
   ): Promise<{ current: LiveTotals; previous: LiveTotals }>;
   timeseries(fromMs: number, toMs: number, filters?: LiveFilters): Promise<LiveTimeseriesRow[]>;
   topList(

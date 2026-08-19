@@ -149,14 +149,16 @@ function DocsIndex(): ReactElement {
           id="claim"
           n="03"
           title="Claim your instance"
-          lede="A freshly deployed instance has no users. The first sign-up becomes the owner."
+          lede="A freshly deployed instance has no users. The first sign-up becomes the owner - and only the deploy page can authorise it."
         >
           <p>
-            Open the dashboard URL and you land on <strong>Create your owner account</strong>. Pick
-            a password. If you deployed with Sign in with Cloudflare, your Cloudflare email is
-            already set as the owner and only that address can claim the instance. After the first
-            account exists, public sign-ups close: everyone else joins by invitation (see{' '}
-            <A href="#team">Invite your team</A>).
+            Use the <strong>Open your Traks</strong> link on the deploy page: it carries a one-time
+            claim code, so nobody who merely finds your instance URL can take it first. You land on{' '}
+            <strong>Create your owner account</strong>; pick a password (if you deployed with Sign
+            in with Cloudflare, sign up with that Cloudflare email - it is pinned as the owner).
+            After the first account exists, public sign-ups close: everyone else joins by invitation
+            (see <A href="#team">Invite your team</A>). Lost the link before claiming? Run{' '}
+            <A href="/update">Update</A> on the same instance and a fresh code is issued.
           </p>
           <Note>
             Auth is self-hosted inside your api Worker (email + password). There is no Traks
@@ -194,7 +196,7 @@ function DocsIndex(): ReactElement {
           id="install"
           n="05"
           title="Install the tracker"
-          lede="One deferred script tag in the <head> of every page. 1.4 KB gzipped, no cookies, no build step."
+          lede="One deferred script tag in the <head> of every page. 1.5 KB gzipped, no cookies, no build step."
         >
           <Code>{`<script>window.traks=window.traks||function(){(window.traks.q=window.traks.q||[]).push(arguments)}</script>\n<script defer data-site="YOUR_SITE_KEY" src="${EXAMPLE_COLLECT_URL}/t.js"></script>`}</Code>
           <p>

@@ -88,12 +88,14 @@ app.on(['GET', 'POST'], '/api/auth/*', async c => {
   return getAuth(c.env, c.req.url).handler(c.req.raw);
 });
 
-// Login page switch: first-run claim screen vs sign-in screen. On unclaimed
-// wizard-deployed instances the owner email is fixed at deploy time - expose
-// it (pre-claim only) so the claim form can prefill and lock the field.
+// Login page switch: first-run claim screen vs sign-in screen. Deliberately
+// says nothing about WHO may claim: the owner email is enforced server-side
+// only (exposing it here handed an attacker the one fact the claim needed).
+// `needsCode` tells the form to ask for the claim code when the wizard link
+// that carries it was not used.
 app.get('/api/claim-status', async c => {
   const claimed = await claimStatus(c.env);
-  return c.json({ claimed, ownerEmail: !claimed ? c.env.OWNER_EMAIL : undefined });
+  return c.json({ claimed, needsCode: !claimed && Boolean(c.env.CLAIM_TOKEN) });
 });
 
 // Public instance config for the SPA (pre-auth): where the collect worker

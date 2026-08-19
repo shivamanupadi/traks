@@ -185,7 +185,11 @@ cookie via `auth.api.getSession`.
 **First-run claim**: a fresh instance is unclaimed — `/login` shows a
 "create your owner account" screen (driven by `GET /api/claim-status`), and
 the first sign-up claims the instance; sign-ups are rejected server-side after
-that. If a pre-existing `users` row matches the claiming email (e.g. the
+that. Instance hostnames are predictable, so the wizard mints a one-time
+`CLAIM_TOKEN` worker secret (re-minted by any wizard run that finds the
+instance still unclaimed) and links to `/login?claim=<code>`; the sign-up
+hook requires it (plus the `OWNER_EMAIL` pin on OAuth installs). The code is
+never persisted on traks.dev. If a pre-existing `users` row matches the claiming email (e.g. the
 Clerk-era owner row), its sites and API keys are adopted automatically.
 **Recovery** (forgot password, no email sending configured): delete the row
 in `accounts` (+ `sessions`) for the owner and re-claim with the same email —

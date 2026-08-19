@@ -1,26 +1,47 @@
 import { z } from 'zod';
 
+/** Free-text tracker field: overlong values are trimmed, not rejected. */
+const clipped = (max: number) => z.string().transform(s => s.slice(0, max));
+
 /**
  * Tracker event payload. Strict mode rejects unknown keys so a misconfigured
  * tracker surfaces as a 400 rather than silently dropping data.
+ *
+ * Overlong free-text fields are truncated rather than rejected: a 3 KB
+ * ad-click referrer or a chatty props object must not cost the pageview or
+ * event it arrived with (that traffic is exactly what people look for). Size
+ * is still bounded before parse by the collector's body cap. The tracker
+ * clips the same limits client-side; this is the backstop for other clients.
  */
 export const trackingEventSchema = z
   .object({
     t: z.enum(['pageview', 'event', 'engagement']),
     s: z.string().min(1).max(64),
-    p: z.string().max(2048).default('/'),
-    h: z.string().max(256).default(''),
-    r: z.string().max(2048).default(''),
-    sw: z.number().int().min(0).max(10000).default(0),
-    sid: z.string().max(64).default(''),
-    us: z.string().max(256).optional(),
-    um: z.string().max(256).optional(),
-    uc: z.string().max(256).optional(),
-    en: z.string().max(256).optional(),
-    ep: z.string().max(1024).optional(),
+    p: clipped(2048).default('/'),
+    h: clipped(256).default(''),
+    r: clipped(2048).default(''),
+    sw: z.number().int().min(0).max(10000).catch(0),
+    sid: clipped(64).default(''),
+    us: clipped(256).optional(),
+    um: clipped(256).optional(),
+    uc: clipped(256).optional(),
+    en: clipped(256).optional(),
+    // Props JSON over the limit is dropped (''), not truncated - a cut JSON
+    // string is unusable to the props breakdown and goal matching.
+    ep: z
+      .string()
+      .transform(s => (s.length > 1024 ? '' : s))
+      .optional(),
     // Bounded: the site key is public, so an unbounded value would let anyone
     // poison revenue/engagement sums (SUM over 1e308 → Infinity) for a site.
-    ev: z.number().finite().min(0).max(1_000_000).optional(),
+    // Non-numeric / out-of-range values fall back to 0 instead of rejecting.
+    ev: z
+      .preprocess(
+        v => (typeof v === 'string' ? Number(v) : v),
+        z.number().finite().min(0).max(1_000_000)
+      )
+      .catch(0)
+      .optional(),
   })
   .strict();
 

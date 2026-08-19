@@ -71,7 +71,11 @@ function UpdateWizard(): ReactElement {
 
   const [versions, setVersions] = useState<{ current?: string; latest?: string }>({});
   const [steps, setSteps] = useState<StepEvent[]>([]);
-  const [result, setResult] = useState<{ apiUrl: string; collectUrl: string } | null>(null);
+  const [result, setResult] = useState<{
+    apiUrl: string;
+    collectUrl: string;
+    claimCode?: string;
+  } | null>(null);
   const startedRef = useRef(false);
   const pollRef = useRef<number | undefined>(undefined);
 
@@ -263,13 +267,17 @@ function UpdateWizard(): ReactElement {
       }
       await readSse<
         | ({ type: 'step' } & StepEvent)
-        | { type: 'done'; apiUrl: string; collectUrl: string }
+        | { type: 'done'; apiUrl: string; collectUrl: string; claimCode?: string }
         | { type: 'error'; message: string }
       >(res, payload => {
         if (payload.type === 'step') {
           setSteps(prev => collapse([...prev, payload]));
         } else if (payload.type === 'done') {
-          setResult({ apiUrl: payload.apiUrl, collectUrl: payload.collectUrl });
+          setResult({
+            apiUrl: payload.apiUrl,
+            collectUrl: payload.collectUrl,
+            claimCode: payload.claimCode,
+          });
           setVersions(v => ({ ...v, current: v.latest }));
           setPhase('done');
         } else if (payload.type === 'error') {
@@ -523,7 +531,11 @@ function UpdateWizard(): ReactElement {
         <Card
           footer={
             <a
-              href={result.apiUrl}
+              href={
+                result.claimCode
+                  ? `${result.apiUrl}/login?claim=${encodeURIComponent(result.claimCode)}`
+                  : result.apiUrl
+              }
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex h-11 items-center gap-2 rounded-full bg-mint px-6 text-[13.5px] font-bold text-[#123326] transition-all hover:-translate-y-px hover:shadow-[0_8px_24px_rgba(40,233,159,0.35)]"
@@ -541,8 +553,19 @@ function UpdateWizard(): ReactElement {
             <p className="mb-5 mt-1 text-[13px] text-[#9B99A6]">
               Your data and settings are untouched. The new version is live now.
             </p>
+            {result.claimCode && (
+              <p className="mb-5 -mt-3 max-w-[420px] text-[12.5px] leading-relaxed text-[#6E6C7C]">
+                This instance is still unclaimed. A fresh claim code was issued - open it from this
+                page to create the owner account. Claim code:{' '}
+                <span className="select-all font-mono">{result.claimCode}</span>
+              </p>
+            )}
             <a
-              href={result.apiUrl}
+              href={
+                result.claimCode
+                  ? `${result.apiUrl}/login?claim=${encodeURIComponent(result.claimCode)}`
+                  : result.apiUrl
+              }
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 rounded-full border border-[#E5E5EB] bg-white px-5 py-2.5 text-[13.5px] font-semibold text-[#3D3B4F] hover:border-[#cbcad4] transition-colors"

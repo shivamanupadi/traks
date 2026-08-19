@@ -11,7 +11,7 @@ import { Hono, type Context } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, isNull, lt, ne, or } from 'drizzle-orm';
 import { deployInstances } from '../db/schema';
 import {
   provisionInstance,
@@ -28,6 +28,12 @@ import {
   type StepEvent,
 } from './engine';
 import type { Bindings, Variables } from '../types';
+
+/** A live run touches its registry row at least this often (SSE ping + updated_at). */
+const HEARTBEAT_MS = 20_000;
+/** A 'deploying' row quieter than this is dead and may be retaken. Mirrors
+ *  RUN_STALE_MS in the wizard UI. */
+const RUN_STALE_MS = 3 * 60_000;
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -497,15 +503,12 @@ export const deployRoute = app
     const [row] = await db.select().from(deployInstances).where(eq(deployInstances.id, id));
     if (!row) return c.json({ error: 'Not found' }, 404);
     // Reject double-starts, but let a stale 'deploying' row (client vanished
-    // mid-run, worker died) be retaken - provisioning is idempotent. The window
-    // must exceed the longest silent step: the smoke probe can wait ~5 min on
-    // DNS + certificate issuance without emitting anything.
-    const staleMs = 7 * 60_000;
-    if (
-      row.status === 'deploying' &&
-      row.updatedAt &&
-      Date.now() - new Date(row.updatedAt).getTime() < staleMs
-    ) {
+    // mid-run, worker died) be retaken - provisioning is idempotent. A live
+    // run touches the row at least every HEARTBEAT_MS, so anything quieter
+    // than RUN_STALE_MS is dead. (Early read for a fast 409; the authoritative
+    // check is the conditional UPDATE below.)
+    const staleCutoff = new Date(Date.now() - RUN_STALE_MS);
+    if (row.status === 'deploying' && row.updatedAt && row.updatedAt > staleCutoff) {
       return c.json({ error: 'Deploy already running' }, 409);
     }
 
@@ -528,6 +531,25 @@ export const deployRoute = app
         );
       }
     }
+
+    // Take the run atomically: two tabs (or a double-click) racing past the
+    // read above must not both start provisioning the same account.
+    const taken = await db
+      .update(deployInstances)
+      .set({ status: 'deploying', updatedAt: new Date() })
+      .where(
+        and(
+          eq(deployInstances.id, id),
+          or(
+            ne(deployInstances.status, 'deploying'),
+            isNull(deployInstances.updatedAt),
+            lt(deployInstances.updatedAt, staleCutoff)
+          )
+        )
+      )
+      .returning({ id: deployInstances.id });
+    if (taken.length === 0) return c.json({ error: 'Deploy already running' }, 409);
+
     const artifacts = await loadArtifacts(c.env.RELEASES);
 
     const steps: StepEvent[] = [];
@@ -556,6 +578,29 @@ export const deployRoute = app
             .set({ status, accountId, instanceName, steps, updatedAt: new Date(), ...extra })
             .where(eq(deployInstances.id, id));
         };
+
+        // Keep the connection and the registry row visibly alive through the
+        // long quiet stretches (sink creation retries sleep 60 s; the smoke
+        // probe can wait minutes on DNS/certs): an SSE comment defeats idle
+        // proxy timeouts, and touching updated_at keeps the wizard's
+        // stale-run detection (and the retake guard above) honest.
+        // The touch is guarded on status so a tick that lands after the final
+        // ready/failed write can never flip the row back to 'deploying'.
+        const touch = (): Promise<unknown> =>
+          db
+            .update(deployInstances)
+            .set({ updatedAt: new Date() })
+            .where(and(eq(deployInstances.id, id), eq(deployInstances.status, 'deploying')));
+        const heartbeat = setInterval(() => {
+          if (!clientGone) {
+            try {
+              controller.enqueue(encoder.encode(': ping\n\n'));
+            } catch {
+              clientGone = true;
+            }
+          }
+          touch().catch(() => undefined);
+        }, HEARTBEAT_MS);
 
         const run = async (): Promise<void> => {
           await persist('deploying', {
@@ -586,6 +631,9 @@ export const deployRoute = app
                 await persist('deploying').catch(() => undefined);
               },
             });
+            // The claim code is deliberately NOT persisted: it goes to the
+            // user's browser over this stream only. A client that lost the
+            // stream re-mints one by running Update.
             await persist('ready', {
               apiUrl: result.apiUrl,
               collectUrl: result.collectUrl,
@@ -597,6 +645,7 @@ export const deployRoute = app
             await persist('failed', { error: message });
             send({ type: 'error', message });
           } finally {
+            clearInterval(heartbeat);
             try {
               controller.close();
             } catch {
@@ -607,8 +656,11 @@ export const deployRoute = app
         runPromise = run();
       },
     });
-    // Survive client disconnects: a refresh mid-deploy no longer kills the
-    // run - it finishes in the background and the wizard resumes by polling.
+    // Keep the run alive past a client disconnect for as long as the runtime
+    // allows - the row keeps updating and the wizard reattaches by polling.
+    // (A dropped connection can still end the invocation; a retake is then
+    // allowed once the row goes quiet for RUN_STALE_MS, and every step is
+    // idempotent.)
     try {
       c.executionCtx.waitUntil(runPromise);
     } catch {

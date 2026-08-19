@@ -284,8 +284,8 @@ export const api = {
   },
 
   // Personal API tokens (MCP / coding-agent access)
-  async getTokens(): Promise<any> {
-    const res = await client.api.tokens.$get();
+  async getTokens(workspaceId?: string): Promise<any> {
+    const res = await client.api.tokens.$get({ query: workspaceId ? { workspaceId } : {} });
     await assertOk(res);
     return res.json();
   },

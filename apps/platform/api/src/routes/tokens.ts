@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { desc, eq, and } from 'drizzle-orm';
+import { desc, eq, and, or, isNull } from 'drizzle-orm';
 import { validate } from '../lib/validate';
 import { requireAuth } from '../middleware/auth';
 import { apiTokens } from '../db/schema';
@@ -23,9 +23,15 @@ const createTokenSchema = z.object({
 
 export const tokensRoute = app
   // List the caller's tokens - metadata only, never secrets or hashes.
+  // `?workspaceId=` narrows to tokens bound to that workspace (plus any
+  // legacy unscoped ones, which apply everywhere and must stay revocable).
   .get('/', requireAuth, async c => {
     const userId = c.get('userId')!;
     const db = c.get('db')!;
+    const workspaceId = c.req.query('workspaceId');
+    if (workspaceId && !(await getMembership(db, workspaceId, userId))) {
+      return c.json({ error: 'Workspace not found' }, 404);
+    }
     const rows = await db
       .select({
         id: apiTokens.id,
@@ -37,7 +43,14 @@ export const tokensRoute = app
         lastUsedAt: apiTokens.lastUsedAt,
       })
       .from(apiTokens)
-      .where(eq(apiTokens.userId, userId))
+      .where(
+        workspaceId
+          ? and(
+              eq(apiTokens.userId, userId),
+              or(eq(apiTokens.workspaceId, workspaceId), isNull(apiTokens.workspaceId))
+            )
+          : eq(apiTokens.userId, userId)
+      )
       .orderBy(desc(apiTokens.createdAt));
     return c.json({ data: rows });
   })

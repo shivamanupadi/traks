@@ -294,6 +294,12 @@ function EditSiteModal({
       queryClient.invalidateQueries({ queryKey: ['sites'] });
       // Bucket windows depend on the timezone - refetch everything.
       queryClient.invalidateQueries({ queryKey: ['site-analytics', siteId] });
+      // The API refreshes the favicon behind the response; pick it up once
+      // that has had a moment to land so the new icon shows without a reload.
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['site', siteId] });
+        queryClient.invalidateQueries({ queryKey: ['sites'] });
+      }, 2500);
       onOpenChange(false);
     },
     // The API already sends a readable sentence for every failure it knows

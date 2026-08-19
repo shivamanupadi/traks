@@ -230,11 +230,6 @@ export const sitesRoute = app
     const manageSite = await checkManage(db, userId, siteId, 'update', c.get('tokenWorkspaceId'));
     if (!manageSite.ok) return c.json({ error: manageSite.error }, manageSite.status);
 
-    const [before] = await db
-      .select({ domain: sites.domain, favicon: sites.favicon })
-      .from(sites)
-      .where(eq(sites.id, siteId));
-
     try {
       await db
         .update(sites)
@@ -252,11 +247,10 @@ export const sitesRoute = app
       throw err;
     }
 
-    // Refetch on domain change, and also when the row has no favicon yet -
-    // that backfills sites created before favicons existed on any edit.
-    if (before && (before.domain !== body.domain || !before.favicon)) {
-      c.executionCtx.waitUntil(refreshFavicon(db, siteId, body.domain));
-    }
+    // Always refetch on save: the site's icon can change even when its
+    // domain hasn't, and an edit is the one moment the owner expects it to
+    // catch up. Runs behind the response; a failed fetch keeps the old icon.
+    c.executionCtx.waitUntil(refreshFavicon(db, siteId, body.domain));
 
     const [updated] = await db.select().from(sites).where(eq(sites.id, siteId));
 

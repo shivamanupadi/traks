@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactElement, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactElement, type ReactNode } from 'react';
 import { createLazyFileRoute } from '@tanstack/react-router';
 import { EXAMPLE_API_URL, EXAMPLE_COLLECT_URL, useLatestVersion } from '@/lib/config';
 import { motion } from 'framer-motion';
@@ -15,9 +15,11 @@ import {
   Globe,
   MapPin,
   MousePointerClick,
+  Play,
   Smartphone,
   Target,
   Users,
+  X,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -292,10 +294,62 @@ function NavLink({ id, children }: { id: string; children: ReactNode }): ReactEl
   );
 }
 
+function FilmModal({ onClose }: { onClose: () => void }): ReactElement {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose]);
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Traks film"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[#3D3B4F]/80 p-4 backdrop-blur-sm sm:p-8"
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-w-[1100px] overflow-hidden rounded-2xl bg-black shadow-2xl"
+        onClick={e => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="absolute right-3 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-black/50 text-white transition-colors hover:bg-black/70"
+        >
+          <X className="h-4 w-4" />
+        </button>
+        <video
+          src="/traks-film.mp4"
+          poster="/traks-film-poster.jpg"
+          controls
+          autoPlay
+          playsInline
+          className="aspect-video w-full"
+        />
+      </div>
+    </div>
+  );
+}
+
 function LandingPage(): ReactElement {
   const latestVersion = useLatestVersion();
+  const [filmOpen, setFilmOpen] = useState(false);
+  const openFilm = (): void => {
+    setFilmOpen(true);
+    (window as unknown as { traks?: (...a: unknown[]) => void }).traks?.('film_play');
+  };
   return (
     <div className="min-h-screen bg-[#F6F5F2] text-[#3D3B4F]">
+      {filmOpen && <FilmModal onClose={() => setFilmOpen(false)} />}
       {/* dot grid ground */}
       <div
         aria-hidden
@@ -392,12 +446,15 @@ function LandingPage(): ReactElement {
               Deploy to your Cloudflare
               <ArrowRight className="h-4 w-4" />
             </a>
-            <a
-              href="/docs#install"
-              className="inline-flex h-12 items-center gap-1.5 rounded-full px-4 text-[14px] font-semibold text-[#3D3B4F] underline-offset-4 transition-colors hover:underline"
+            <button
+              type="button"
+              onClick={openFilm}
+              className="inline-flex h-12 items-center gap-2 rounded-full border border-[#E6E4DE] bg-white px-6 text-[14px] font-semibold text-[#3D3B4F] transition-all hover:-translate-y-px hover:shadow-md"
             >
-              Install guides for 11 stacks
-            </a>
+              <Play className="h-3.5 w-3.5 fill-current" />
+              Watch the film
+              <span className="font-mono text-[11px] font-medium text-[#9B9590]">1:55</span>
+            </button>
           </motion.div>
 
           <motion.div

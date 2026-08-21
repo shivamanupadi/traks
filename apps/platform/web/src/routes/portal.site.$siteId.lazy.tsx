@@ -51,6 +51,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { TimeseriesChart } from '@/components/analytics/TimeseriesChart';
 import { PanelCard, type PanelItem } from '@/components/analytics/PanelCard';
+import { LiveCard } from '@/components/analytics/LiveCard';
+import { useRealtime } from '@/lib/useRealtime';
 import { CountryFlag, countryName } from '@/components/analytics/CountryFlag';
 import { DimensionIcon } from '@/components/analytics/DimensionIcon';
 import { PlatformSelect } from '@/components/install/PlatformSelect';
@@ -1360,21 +1362,15 @@ function SiteAnalyticsPage(): ReactElement {
     )
   );
 
-  // Live visitor count (last 5 min, straight from the site's DO)
-  const realtimeQ = useQuery({
-    queryKey: ['site-analytics', siteId, 'realtime'],
-    queryFn: async () => {
-      return api.getRealtime(siteId);
-    },
-    refetchInterval: 30_000,
-    staleTime: 15_000,
-  });
+  // Live visitors (last 5 min): pushed from the site's DO over a WebSocket,
+  // polled every 30s while the socket is down.
+  const realtime = useRealtime(siteId);
 
   const site = (siteData as any)?.data;
   // Members are view-only: manage affordances render only once the site has
   // loaded with an owner role (server enforces regardless).
   const canManage = !!site && site.role !== 'member';
-  const currentVisitors: number | null = (realtimeQ.data as any)?.data?.currentVisitors ?? null;
+  const currentVisitors: number | null = realtime.data?.currentVisitors ?? null;
 
   if (siteError || (!siteLoading && !site)) {
     return (
@@ -1564,6 +1560,9 @@ function SiteAnalyticsPage(): ReactElement {
           onMetricChange={setChartMetric}
           period={period}
         />
+
+        {/* Right now: realtime globe + live count */}
+        <LiveCard realtime={realtime} onPageClick={path => setFilter('page', path)} />
 
         {/* Pages + Sources */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

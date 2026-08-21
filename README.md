@@ -45,6 +45,15 @@ COLD PATH: R2 SQL ◄── api Worker (apps/platform/api) ── Better Auth, D
   window (today + the previous-day comparison window in any timezone). An
   hourly alarm prunes old rows. Today/realtime queries run against local
   SQLite: **millisecond latency, zero ingest delay**.
+  It is also the **realtime push** source: the dashboard opens one WebSocket
+  (`/api/analytics/:siteId/stats/realtime/ws`, authenticated by the api worker
+  and proxied to the DO over the same binding; WebSocket Hibernation API) and
+  receives a frame — visitors in the last 5 minutes, their pages, and their
+  city-level coordinates for the globe — whenever a pageview changes the
+  picture (coalesced to one query per 2s) plus a 30s tick while subscribed,
+  so the count decays as visitors leave. Coordinates come from `request.cf`
+  and exist only in this hot window; they are never written to Iceberg. The
+  REST `/stats/realtime` route (and 30s polling) remains the fallback.
 - **Pipeline** — pass-through `INSERT INTO <sink> SELECT * FROM <stream>`.
   The stream schema lives in `scripts/pipeline-schema.json`.
 - **`apps/platform/api`** — dashboard API. Site/user metadata in D1 (drizzle), all

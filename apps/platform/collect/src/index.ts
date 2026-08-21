@@ -226,6 +226,13 @@ function originAllowed(origin: string, domain: string): boolean {
 // must be rejected before it is parsed into the isolate heap.
 const MAX_BODY_BYTES = 8 * 1024;
 
+/** `request.cf.latitude`/`longitude` arrive as strings; null when absent or out of range. */
+function parseCoordinate(value: string | undefined, limit: number): number | null {
+  if (!value) return null;
+  const num = Number(value);
+  return Number.isFinite(num) && Math.abs(num) <= limit ? num : null;
+}
+
 app.post('/api/event', async c => {
   const declared = Number(c.req.header('content-length') ?? '0');
   if (declared > MAX_BODY_BYTES) return c.json({ error: 'payload too large' }, 413);
@@ -276,6 +283,10 @@ app.post('/api/event', async c => {
   const country = cf.country || '';
   const city = cf.city || '';
   const region = cf.region || '';
+  // City-level coordinates for the realtime globe. Hot path only: they go to
+  // the live DO's rolling window, never into the Iceberg record below.
+  const latitude = parseCoordinate(cf.latitude, 90);
+  const longitude = parseCoordinate(cf.longitude, 180);
 
   // Parse referrer
   const { hostname: refHostname, pathname: refPathname } = parseReferrer(event.r);
@@ -368,6 +379,8 @@ app.post('/api/event', async c => {
           eventName: event.en || '',
           eventMeta: eventMeta,
           eventValue: event.ev || 0,
+          latitude,
+          longitude,
         })
         .catch(err => {
           console.error('Live store write failed:', err);

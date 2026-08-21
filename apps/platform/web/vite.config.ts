@@ -28,7 +28,8 @@ export default defineConfig({
     // Auth's trustedOrigins from the request URL, so rewriting Host to :5011
     // makes every browser login fail the origin check with INVALID_ORIGIN.
     proxy: {
-      '/api': { target: 'http://localhost:5011', changeOrigin: false },
+      // ws: the realtime dashboard socket (/api/analytics/:id/stats/realtime/ws).
+      '/api': { target: 'http://localhost:5011', changeOrigin: false, ws: true },
     },
   },
 });

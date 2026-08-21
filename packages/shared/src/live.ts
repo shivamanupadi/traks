@@ -50,6 +50,13 @@ export interface LiveEvent {
   /** Custom-event props JSON (canonical `{"url":"..."}` for auto link events). */
   eventMeta: string;
   eventValue: number;
+  /**
+   * Approximate (city-level) coordinates from Cloudflare's edge geo lookup.
+   * Hot path only: they feed the realtime globe and live in the DO's rolling
+   * window - never written to the Iceberg system of record.
+   */
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 export interface LiveCounts {
@@ -102,11 +109,37 @@ export interface LiveRealtimeRow {
   visitors: number;
 }
 
+/** One point on the realtime globe: visitors currently active near a city. */
+export interface LiveRealtimeLocation {
+  latitude: number;
+  longitude: number;
+  country: string;
+  city: string;
+  visitors: number;
+}
+
 /** Realtime window result: per-page rows plus the TRUE overall distinct
  *  visitor count - summing per-page rows double-counts multi-page visitors. */
 export interface LiveRealtime {
   total: number;
   rows: LiveRealtimeRow[];
+  /** Where the active visitors are (rows without coordinates are omitted). */
+  locations: LiveRealtimeLocation[];
+}
+
+/**
+ * Frame pushed over the realtime WebSocket (the DO's `fetch` handler accepts
+ * `Upgrade: websocket`; the api worker proxies authenticated dashboards to
+ * it). Same shape the REST `/stats/realtime` route returns, so the dashboard
+ * can treat a poll and a push identically.
+ */
+export interface LiveRealtimeFrame {
+  type: 'realtime';
+  /** Epoch ms the frame was computed at. */
+  at: number;
+  currentVisitors: number;
+  topPages: { path: string; visitors: number }[];
+  locations: LiveRealtimeLocation[];
 }
 
 export interface LiveCustomEventRow {
@@ -176,6 +209,7 @@ export interface LiveStoreApi {
     limit: number,
     filters?: LiveFilters
   ): Promise<LiveTopListRow[]>;
+  /** Active visitors in the last 5 minutes: total, top pages, locations. */
   realtime(nowMs: number): Promise<LiveRealtime>;
   /** Conversion counts per goal definition. */
   goalStats(

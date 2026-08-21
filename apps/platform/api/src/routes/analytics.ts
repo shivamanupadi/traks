@@ -15,6 +15,7 @@ import {
   type LiveStoreApi,
   type LiveTotals,
   type LiveFilters,
+  type LiveRealtimeLocation,
 } from '@traks/shared';
 import { requireAuth } from '../middleware/auth';
 import { siteAccessFilter } from '../lib/workspaces';
@@ -1507,6 +1508,7 @@ export const analyticsRoute = appWithBatch
         data: {
           currentVisitors: live.total,
           topPages: live.rows.map(r => ({ path: r.pathname, visitors: r.visitors })),
+          locations: live.locations ?? [],
         },
       });
     } catch (err) {
@@ -1530,8 +1532,36 @@ export const analyticsRoute = appWithBatch
       data: {
         currentVisitors: toNumber(totalOutcome[0]?.visitors),
         topPages: outcome.map(r => ({ path: r.pathname, visitors: toNumber(r.visitors) })),
+        // Coordinates live only in the DO's hot window; the cold path has none.
+        locations: [] as LiveRealtimeLocation[],
       },
     });
+  })
+
+  /**
+   * Realtime over WebSocket: the dashboard subscribes once and the site's
+   * live DO pushes a frame (same shape as /stats/realtime) whenever the
+   * picture changes, plus a 30s tick while subscribed. Session auth only in
+   * practice - browsers cannot attach a bearer header to an upgrade - and
+   * the DO never sees an unauthenticated socket: access is checked here,
+   * then the upgrade is proxied over the cross-script binding.
+   */
+  .get('/:siteId/stats/realtime/ws', requireAuth, async c => {
+    const userId = c.get('userId')!;
+    const siteId = c.req.param('siteId');
+
+    if (c.req.header('upgrade')?.toLowerCase() !== 'websocket') {
+      return c.json({ error: 'Expected a WebSocket upgrade' }, 426);
+    }
+
+    const site = await getSite(c, siteId, userId);
+    if (!site) return c.json({ error: 'Not found' }, 404);
+
+    const ns = c.env.LIVE;
+    const stub = ns.get(ns.idFromName(site.siteId));
+    // Forward the upgrade verbatim (headers carry the handshake) on a clean
+    // internal URL; the DO ignores the path.
+    return stub.fetch(new Request('https://live.traks.internal/realtime', c.req.raw));
   })
 
   .get('/:siteId/stats/events', requireAuth, validate('query', periodQuery), async c => {

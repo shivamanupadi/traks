@@ -1,6 +1,8 @@
 import { DurableObject } from 'cloudflare:workers';
 import type {
   LiveEvent,
+  LiveRealtimeFrame,
+  LiveRealtimeLocation,
   LiveFilters,
   LiveCounts,
   LiveGoalRow,
@@ -29,6 +31,20 @@ import {
 // any timezone; prune with margin.
 const RETENTION_MS = 50 * 60 * 60 * 1000;
 const PRUNE_INTERVAL_MS = 60 * 60 * 1000;
+/** A visitor counts as "online" for this long after their last pageview. */
+const REALTIME_WINDOW_MS = 5 * 60 * 1000;
+/**
+ * While a dashboard holds a realtime WebSocket open, the alarm also ticks at
+ * this cadence so the count decays as visitors leave - a departure produces no
+ * event to push on. The single DO alarm is shared with the hourly prune.
+ */
+const REALTIME_TICK_MS = 30 * 1000;
+/**
+ * Push coalescing: a pageview burst triggers at most one realtime query per
+ * interval (the trailing update is timer-driven), so a busy site with an open
+ * dashboard never turns every ingest into a 5-minute-window scan.
+ */
+const BROADCAST_MIN_INTERVAL_MS = 2 * 1000;
 /**
  * How many events may be recorded before the monthly counters are written to
  * SQLite. Bounds counter drift to this many events in the worst case (object
@@ -95,6 +111,13 @@ export class SiteLiveStore extends DurableObject<unknown> {
   private dirtyMonths = new Set<string>();
   /** Events recorded since the counters were last persisted. */
   private countsSincePersist = 0;
+  /** When the retention prune last ran (0 = unknown, e.g. after eviction -> prune on next alarm). */
+  private lastPruneAt = 0;
+  /** Realtime push state (see scheduleBroadcast). */
+  private lastBroadcastAt = 0;
+  private broadcastTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Body of the last pushed frame (minus its timestamp) - unchanged frames are not resent. */
+  private lastFrameBody = '';
 
   constructor(ctx: DurableObjectState, env: unknown) {
     super(ctx, env);
@@ -120,7 +143,9 @@ export class SiteLiveStore extends DurableObject<unknown> {
         event_value REAL NOT NULL DEFAULT 0,
         event_meta TEXT NOT NULL DEFAULT '',
         region TEXT NOT NULL DEFAULT '',
-        screen_width INTEGER NOT NULL DEFAULT 0
+        screen_width INTEGER NOT NULL DEFAULT 0,
+        lat REAL,
+        lon REAL
       );
       CREATE INDEX IF NOT EXISTS idx_events_ts ON events (ts);
       -- Nearly every dashboard read predicates on
@@ -147,12 +172,17 @@ export class SiteLiveStore extends DurableObject<unknown> {
       ['event_meta', `TEXT NOT NULL DEFAULT ''`],
       ['region', `TEXT NOT NULL DEFAULT ''`],
       ['screen_width', `INTEGER NOT NULL DEFAULT 0`],
+      ['lat', `REAL`],
+      ['lon', `REAL`],
     ];
     for (const [col, ddl] of added) {
       if (!existing.has(col)) {
         this.sql.exec(`ALTER TABLE events ADD COLUMN ${col} ${ddl}`);
       }
     }
+    // Client keepalives are answered by the runtime without waking a
+    // hibernated object, so an idle dashboard costs no DO duration.
+    ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair('ping', 'pong'));
   }
 
   /**
@@ -171,8 +201,8 @@ export class SiteLiveStore extends DurableObject<unknown> {
           ts, hour_key, event_type, pathname, referrer_hostname,
           utm_source, utm_medium, utm_campaign, country, city,
           browser, os, device_type, session_id, visitor_id,
-          event_name, event_value, event_meta, region, screen_width
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          event_name, event_value, event_meta, region, screen_width, lat, lon
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         e.ts,
         e.hourKey,
         e.eventType,
@@ -192,7 +222,9 @@ export class SiteLiveStore extends DurableObject<unknown> {
         e.eventValue,
         e.eventMeta,
         e.region,
-        e.screenWidth
+        e.screenWidth,
+        e.latitude ?? null,
+        e.longitude ?? null
       );
     }
 
@@ -310,6 +342,9 @@ export class SiteLiveStore extends DurableObject<unknown> {
     // Durability over batching: persist on arrival (see the note on FLUSH_MAX).
     this.flushBuffer();
 
+    // Only pageviews move the realtime picture (visitors, pages, locations).
+    if (e.eventType === 'pageview') this.scheduleBroadcast();
+
     // Arm the retention alarm. The flag is only latched AFTER the alarm is
     // actually scheduled - setting it first meant one failed setAlarm() (or an
     // alarm handler that exhausted its retries) permanently disarmed pruning
@@ -335,23 +370,155 @@ export class SiteLiveStore extends DurableObject<unknown> {
     this.countsSincePersist = 0;
     this.memo.clear();
     this.alarmArmed = false;
+    this.lastFrameBody = '';
+    for (const ws of this.ctx.getWebSockets()) {
+      try {
+        ws.close(1001, 'site deleted');
+      } catch {
+        // already closed
+      }
+    }
     await this.ctx.storage.deleteAlarm();
     await this.ctx.storage.deleteAll();
   }
 
+  /**
+   * One alarm, two jobs: the hourly retention prune, and - only while a
+   * dashboard has a realtime socket open - a 30s tick that re-pushes the
+   * realtime frame so the count decays as visitors go quiet. Whichever is due
+   * sooner is scheduled; the prune is skipped on ticks where it isn't due.
+   */
   async alarm(): Promise<void> {
     this.flushBuffer();
-    // Bound counter drift by time as well as by event count: an object that
-    // goes quiet mid-batch still has its counters durable within the hour.
-    this.persistCounts();
-    this.sql.exec('DELETE FROM events WHERE ts < ?', Date.now() - RETENTION_MS);
-    const remaining = n(this.sql.exec('SELECT COUNT(*) AS c FROM events').one().c);
+    const now = Date.now();
+    const hasSockets = this.ctx.getWebSockets().length > 0;
+    const pruneDue = now >= this.lastPruneAt + PRUNE_INTERVAL_MS;
+
+    // Assume data remains unless a prune just proved otherwise: a wrongly
+    // kept alarm costs one no-op wakeup; a wrongly dropped one leaks rows.
+    let remaining = 1;
+    if (pruneDue || !hasSockets) {
+      // Bound counter drift by time as well as by event count: an object that
+      // goes quiet mid-batch still has its counters durable within the hour.
+      this.persistCounts();
+      this.sql.exec('DELETE FROM events WHERE ts < ?', now - RETENTION_MS);
+      remaining = n(this.sql.exec('SELECT COUNT(*) AS c FROM events').one().c);
+      this.lastPruneAt = now;
+    }
+
+    if (hasSockets) this.broadcast(now);
+
     // Keep pruning while data remains; a fresh event re-arms the alarm.
-    if (remaining > 0) {
-      await this.ctx.storage.setAlarm(Date.now() + PRUNE_INTERVAL_MS);
+    const nextPrune = remaining > 0 ? this.lastPruneAt + PRUNE_INTERVAL_MS : null;
+    const nextTick = hasSockets ? now + REALTIME_TICK_MS : null;
+    const next = [nextPrune, nextTick].filter((t): t is number => t !== null);
+    if (next.length > 0) {
+      await this.ctx.storage.setAlarm(Math.min(...next));
+      this.alarmArmed = true;
     } else {
       this.alarmArmed = false;
     }
+  }
+
+  // ---- Realtime push (WebSocket Hibernation API) ----
+
+  /**
+   * `Upgrade: websocket` -> a hibernatable socket that receives realtime
+   * frames. Reached only through the api worker, which authenticates the
+   * dashboard session before proxying the upgrade over the cross-script
+   * binding; the DO itself trusts the caller.
+   */
+  async fetch(request: Request): Promise<Response> {
+    if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket') {
+      return new Response('Expected a WebSocket upgrade', { status: 426 });
+    }
+    const pair = new WebSocketPair();
+    const [client, server] = [pair[0], pair[1]];
+    this.ctx.acceptWebSocket(server);
+
+    // A fresh subscriber gets the current picture immediately, regardless of
+    // the coalescing window.
+    const now = Date.now();
+    this.flushBuffer();
+    server.send(JSON.stringify(this.frame(now)));
+
+    // Make sure the tick is running: pull the alarm forward if the next one
+    // scheduled is the hourly prune.
+    try {
+      const current = await this.ctx.storage.getAlarm();
+      const tickAt = now + REALTIME_TICK_MS;
+      if (current === null || current > tickAt) await this.ctx.storage.setAlarm(tickAt);
+      this.alarmArmed = true;
+    } catch (err) {
+      console.error('[live-store] failed to arm realtime tick:', err);
+    }
+
+    return new Response(null, { status: 101, webSocket: client });
+  }
+
+  async webSocketMessage(): Promise<void> {
+    // Push-only channel; keepalive pings are answered by the auto-response
+    // pair configured in the constructor.
+  }
+
+  async webSocketClose(ws: WebSocket, code: number, reason: string): Promise<void> {
+    try {
+      ws.close(code, reason);
+    } catch {
+      // already closed
+    }
+  }
+
+  async webSocketError(): Promise<void> {
+    // The runtime drops the socket; the next alarm sees it gone.
+  }
+
+  /** Push soon, coalescing bursts to one query per BROADCAST_MIN_INTERVAL_MS. */
+  private scheduleBroadcast(): void {
+    if (this.ctx.getWebSockets().length === 0) return;
+    const now = Date.now();
+    const wait = this.lastBroadcastAt + BROADCAST_MIN_INTERVAL_MS - now;
+    if (wait <= 0) {
+      this.broadcast(now);
+      return;
+    }
+    if (this.broadcastTimer !== null) return;
+    // Best effort: if the object is evicted before the timer fires, the next
+    // pageview or the 30s tick sends the update instead.
+    this.broadcastTimer = setTimeout(() => {
+      this.broadcastTimer = null;
+      this.broadcast(Date.now());
+    }, wait);
+  }
+
+  private broadcast(now: number): void {
+    const sockets = this.ctx.getWebSockets();
+    if (sockets.length === 0) return;
+    this.lastBroadcastAt = now;
+    const frame = this.frame(now);
+    const { at: _at, ...rest } = frame;
+    const body = JSON.stringify(rest);
+    if (body === this.lastFrameBody) return;
+    this.lastFrameBody = body;
+    const payload = JSON.stringify(frame);
+    for (const ws of sockets) {
+      try {
+        ws.send(payload);
+      } catch {
+        // closed between getWebSockets() and send()
+      }
+    }
+  }
+
+  private frame(now: number): LiveRealtimeFrame {
+    const live = this.computeRealtime(now);
+    return {
+      type: 'realtime',
+      at: now,
+      currentVisitors: live.total,
+      topPages: live.rows.map(r => ({ path: r.pathname, visitors: r.visitors })),
+      locations: live.locations,
+    };
   }
 
   async totals(fromMs: number, toMs: number, filters?: LiveFilters): Promise<LiveCounts> {
@@ -597,36 +764,62 @@ export class SiteLiveStore extends DurableObject<unknown> {
   }
 
   async realtime(nowMs: number): Promise<LiveRealtime> {
-    return this.memoized(`realtime:${SiteLiveStore.q(nowMs)}`, MEMO_TTL_REALTIME_MS, () => {
-      const from = nowMs - 5 * 60 * 1000;
-      // Distinct across ALL pages - a visitor on 3 pages is still 1 visitor
-      // (and the per-page top-10 below can't be summed to get this).
-      const total = n(
-        this.sql
-          .exec(
-            `SELECT COUNT(DISTINCT visitor_id) AS c
-             FROM events
-             WHERE event_type = 'pageview' AND ts >= ? AND ts < ?`,
-            from,
-            nowMs
-          )
-          .toArray()[0]?.c
-      );
-      const rows = this.sql
+    return this.memoized(`realtime:${SiteLiveStore.q(nowMs)}`, MEMO_TTL_REALTIME_MS, () =>
+      this.computeRealtime(nowMs)
+    );
+  }
+
+  /** Unmemoized realtime window; callers decide on freshness vs. cost. */
+  private computeRealtime(nowMs: number): LiveRealtime {
+    const from = nowMs - REALTIME_WINDOW_MS;
+    // Distinct across ALL pages - a visitor on 3 pages is still 1 visitor
+    // (and the per-page top-10 below can't be summed to get this).
+    const total = n(
+      this.sql
         .exec(
-          `SELECT pathname, COUNT(DISTINCT visitor_id) AS visitors
+          `SELECT COUNT(DISTINCT visitor_id) AS c
            FROM events
-           WHERE event_type = 'pageview' AND ts >= ? AND ts < ?
-           GROUP BY pathname
-           ORDER BY visitors DESC
-           LIMIT 10`,
+           WHERE event_type = 'pageview' AND ts >= ? AND ts < ?`,
           from,
           nowMs
         )
-        .toArray()
-        .map(r => ({ pathname: String(r.pathname), visitors: n(r.visitors) }));
-      return { total, rows };
-    });
+        .toArray()[0]?.c
+    );
+    const rows = this.sql
+      .exec(
+        `SELECT pathname, COUNT(DISTINCT visitor_id) AS visitors
+         FROM events
+         WHERE event_type = 'pageview' AND ts >= ? AND ts < ?
+         GROUP BY pathname
+         ORDER BY visitors DESC
+         LIMIT 10`,
+        from,
+        nowMs
+      )
+      .toArray()
+      .map(r => ({ pathname: String(r.pathname), visitors: n(r.visitors) }));
+    // Coordinates are city centroids, so grouping on them is grouping by city.
+    const locations: LiveRealtimeLocation[] = this.sql
+      .exec(
+        `SELECT lat, lon, country, city, COUNT(DISTINCT visitor_id) AS visitors
+         FROM events
+         WHERE event_type = 'pageview' AND ts >= ? AND ts < ?
+           AND lat IS NOT NULL AND lon IS NOT NULL
+         GROUP BY lat, lon, country, city
+         ORDER BY visitors DESC
+         LIMIT 100`,
+        from,
+        nowMs
+      )
+      .toArray()
+      .map(r => ({
+        latitude: Number(r.lat),
+        longitude: Number(r.lon),
+        country: String(r.country),
+        city: String(r.city),
+        visitors: n(r.visitors),
+      }));
+    return { total, rows, locations };
   }
 
   async goalStats(

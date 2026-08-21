@@ -1,139 +1,94 @@
-import { useEffect, useRef, type ReactElement } from 'react';
-import type { Globe, Marker } from 'cobe';
+import { useEffect, useMemo, useRef, type PointerEvent, type ReactElement } from 'react';
 import type { LiveRealtimeLocation } from '@traks/shared';
+import { GlobeController, type GlobePoint, type GlobeTheme } from '@/lib/globe';
 
 interface RealtimeGlobeProps {
   locations: LiveRealtimeLocation[];
   className?: string;
 }
 
-// Porcelain palette as 0-1 RGB: land dots in warm gray, markers in mint,
-// the glow fading into the page ground (#F9F8F6).
-const LAND: [number, number, number] = [0.71, 0.7, 0.73];
-const MINT: [number, number, number] = [0.157, 0.914, 0.624];
-const GLOW: [number, number, number] = [0.976, 0.973, 0.965];
-
-const IDLE_ROTATION_PER_FRAME = 0.0025;
-
-/** Marker radius grows with the log of visitors so one city can't swallow the globe. */
-function markerSize(visitors: number): number {
-  return 0.035 + Math.min(Math.log2(visitors + 1) * 0.014, 0.07);
-}
-
-function toMarkers(locations: LiveRealtimeLocation[]): Marker[] {
-  return locations.map(l => ({
-    id: `${l.latitude}:${l.longitude}`,
-    location: [l.latitude, l.longitude],
-    size: markerSize(l.visitors),
-  }));
-}
+/** Porcelain palette in 0-1 RGB: warm-gray land, mint markers, page-ground glow. */
+const THEME: GlobeTheme = {
+  land: [0.71, 0.7, 0.73],
+  marker: [0.157, 0.914, 0.624],
+  glow: [0.976, 0.973, 0.965],
+};
 
 /**
- * Slowly rotating dotted globe (cobe, WebGL) with a mint marker per active
- * city. Drag to spin; auto-rotation pauses while dragging and is disabled
- * under prefers-reduced-motion. cobe is imported lazily so it stays off the
- * dashboard's main chunk.
+ * The realtime globe: one mint marker per city with active visitors, sized
+ * by how many. Idle-spins, turns toward the busiest city when that changes,
+ * and can be dragged (with a little fling). All motion lives in
+ * GlobeController; this component only mounts it and forwards pointer input.
  */
 export function RealtimeGlobe({ locations, className }: RealtimeGlobeProps): ReactElement {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const hostRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const globeRef = useRef<Globe | null>(null);
-  const phiRef = useRef(0.3);
-  const pointerXRef = useRef<number | null>(null);
-  const markersRef = useRef<Marker[]>(toMarkers(locations));
+  const controllerRef = useRef<GlobeController | null>(null);
+
+  const points = useMemo<GlobePoint[]>(
+    () =>
+      locations.map(l => ({
+        latitude: l.latitude,
+        longitude: l.longitude,
+        weight: l.visitors,
+      })),
+    [locations]
+  );
 
   useEffect(() => {
-    markersRef.current = toMarkers(locations);
-    globeRef.current?.update({ markers: markersRef.current });
-  }, [locations]);
-
-  useEffect(() => {
+    const host = hostRef.current;
     const canvas = canvasRef.current;
-    const container = containerRef.current;
-    if (!canvas || !container) return;
-
-    let cancelled = false;
-    let frame = 0;
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-    const size = (): number => Math.max(1, Math.round(container.getBoundingClientRect().width));
-
-    void import('cobe').then(({ default: createGlobe }) => {
-      if (cancelled) return;
-      const px = size();
-      globeRef.current = createGlobe(canvas, {
-        devicePixelRatio: Math.min(window.devicePixelRatio || 1, 2),
-        width: px,
-        height: px,
-        phi: phiRef.current,
-        theta: 0.18,
-        dark: 0,
-        diffuse: 1.1,
-        scale: 1,
-        mapSamples: 14000,
-        mapBrightness: 4.5,
-        mapBaseBrightness: 0,
-        baseColor: LAND,
-        markerColor: MINT,
-        glowColor: GLOW,
-        markerElevation: 0.02,
-        markers: markersRef.current,
-      });
-
-      const render = (): void => {
-        const globe = globeRef.current;
-        if (!globe) return;
-        if (!reduceMotion && pointerXRef.current === null) {
-          phiRef.current += IDLE_ROTATION_PER_FRAME;
-        }
-        globe.update({ phi: phiRef.current });
-        frame = requestAnimationFrame(render);
-      };
-      frame = requestAnimationFrame(render);
-    });
-
-    const observer = new ResizeObserver(() => {
-      const px = size();
-      globeRef.current?.update({ width: px, height: px });
-    });
-    observer.observe(container);
-
+    if (!host || !canvas) return;
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const controller = new GlobeController(canvas, host, THEME, reducedMotion);
+    controllerRef.current = controller;
+    controller.setPoints(points);
+    void controller.start();
     return (): void => {
-      cancelled = true;
-      observer.disconnect();
-      cancelAnimationFrame(frame);
-      globeRef.current?.destroy();
-      globeRef.current = null;
+      controller.dispose();
+      controllerRef.current = null;
     };
+    // Mount once; point updates flow through the effect below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    controllerRef.current?.setPoints(points);
+  }, [points]);
+
+  const lastX = useRef(0);
+  const onPointerDown = (e: PointerEvent<HTMLCanvasElement>): void => {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    lastX.current = e.clientX;
+    controllerRef.current?.grab();
+  };
+  const onPointerMove = (e: PointerEvent<HTMLCanvasElement>): void => {
+    if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
+    controllerRef.current?.drag(e.clientX - lastX.current);
+    lastX.current = e.clientX;
+  };
+  const onPointerEnd = (e: PointerEvent<HTMLCanvasElement>): void => {
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+    controllerRef.current?.release();
+  };
+
+  const label =
+    points.length === 0
+      ? 'Globe: no visitors online'
+      : `Globe: visitors online in ${points.length} ${points.length === 1 ? 'city' : 'cities'}`;
+
   return (
-    <div ref={containerRef} className={className}>
+    <div ref={hostRef} className={className}>
       <canvas
         ref={canvasRef}
-        role="img"
-        aria-label={
-          locations.length === 0
-            ? 'Globe with no active visitors'
-            : `Globe showing ${locations.length} active ${locations.length === 1 ? 'location' : 'locations'}`
-        }
+        aria-label={label}
         className="block h-full w-full cursor-grab touch-none select-none active:cursor-grabbing"
-        onPointerDown={e => {
-          e.currentTarget.setPointerCapture(e.pointerId);
-          pointerXRef.current = e.clientX;
-        }}
-        onPointerMove={e => {
-          if (pointerXRef.current === null) return;
-          phiRef.current += (e.clientX - pointerXRef.current) / 160;
-          pointerXRef.current = e.clientX;
-        }}
-        onPointerUp={e => {
-          e.currentTarget.releasePointerCapture(e.pointerId);
-          pointerXRef.current = null;
-        }}
-        onPointerCancel={() => {
-          pointerXRef.current = null;
-        }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerEnd}
+        onPointerCancel={onPointerEnd}
       />
     </div>
   );

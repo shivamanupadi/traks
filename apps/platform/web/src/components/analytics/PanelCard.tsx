@@ -168,12 +168,12 @@ export function PanelCard({
                 onClick={clickable ? () => onItemClick!(item) : undefined}
                 className={cn(
                   'relative flex h-[30px] w-full items-center justify-between rounded-md px-2.5',
-                  clickable && 'cursor-pointer transition-colors hover:bg-muted'
+                  clickable && 'cursor-pointer transition-colors hover:bg-[#E6E4DE]'
                 )}
                 title={clickable ? `Filter by ${display}` : undefined}
               >
                 <div
-                  className="absolute inset-y-0 left-0 rounded-md bg-[#3D3B4F]/[0.05]"
+                  className="absolute inset-y-0 left-0 rounded-md bg-muted"
                   style={{ width: `${(item.visitors / maxVisitors) * 100}%` }}
                 />
                 <span className="relative z-10 flex min-w-0 items-center gap-2 pr-4">

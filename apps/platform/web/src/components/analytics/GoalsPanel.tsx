@@ -102,7 +102,7 @@ export function GoalsPanel({
               className="relative flex h-[30px] items-center justify-between rounded-md px-2.5"
             >
               <div
-                className="absolute inset-y-0 left-0 rounded-md bg-[#3D3B4F]/[0.05]"
+                className="absolute inset-y-0 left-0 rounded-md bg-muted"
                 style={{ width: `${(goal.uniques / maxUniques) * 100}%` }}
               />
               <span className="relative z-10 flex items-center gap-2 truncate pr-4 text-[13px] text-[#3D3B4F]">

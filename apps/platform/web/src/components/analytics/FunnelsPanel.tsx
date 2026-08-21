@@ -147,7 +147,7 @@ export function FunnelsPanel({
                 className="relative flex h-[34px] items-center justify-between rounded-md px-2.5"
               >
                 <div
-                  className="absolute inset-y-0 left-0 rounded-md bg-[#3D3B4F]/[0.05]"
+                  className="absolute inset-y-0 left-0 rounded-md bg-muted"
                   style={{ width: `${width}%` }}
                 />
                 <span className="relative z-10 flex min-w-0 items-center gap-2.5 pr-4">

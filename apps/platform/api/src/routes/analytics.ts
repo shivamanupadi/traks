@@ -16,6 +16,7 @@ import {
   type LiveTotals,
   type LiveFilters,
   type LiveRealtimeLocation,
+  toLiveFilters,
 } from '@traks/shared';
 import { requireAuth } from '../middleware/auth';
 import { siteAccessFilter } from '../lib/workspaces';
@@ -282,28 +283,11 @@ const filterFields = {
 
 type FilterParams = { [K in keyof typeof filterFields]?: string };
 
-const FILTER_PARAM_TO_DIMENSION: Record<keyof typeof filterFields, keyof LiveFilters> = {
-  page: 'pathname',
-  source: 'referrer_hostname',
-  utmSource: 'utm_source',
-  utmMedium: 'utm_medium',
-  utmCampaign: 'utm_campaign',
-  country: 'country',
-  region: 'region',
-  city: 'city',
-  browser: 'browser',
-  os: 'os',
-  device: 'device_type',
-};
-
 function parseFilters(q: FilterParams): LiveFilters | undefined {
-  const filters: LiveFilters = {};
-  for (const [param, dimension] of Object.entries(FILTER_PARAM_TO_DIMENSION)) {
-    const value = q[param as keyof typeof filterFields];
-    if (value !== undefined && value !== '') filters[dimension] = value;
-  }
-  return Object.keys(filters).length > 0 ? filters : undefined;
+  return toLiveFilters(q);
 }
+
+const filterQuery = z.object({ ...filterFields });
 
 const periodQuery = z.object({
   period: z.enum(PERIODS).default('today'),
@@ -1493,9 +1477,10 @@ export const analyticsRoute = appWithBatch
     });
   })
 
-  .get('/:siteId/stats/realtime', requireAuth, async c => {
+  .get('/:siteId/stats/realtime', requireAuth, validate('query', filterQuery), async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('siteId');
+    const filters = parseFilters(c.req.valid('query'));
 
     const site = await getSite(c, siteId, userId);
     if (!site) return c.json({ error: 'Not found' }, 404);
@@ -1503,12 +1488,14 @@ export const analyticsRoute = appWithBatch
     // Realtime is the DO's home turf: events are queryable the moment they
     // arrive, vs waiting out the Iceberg sink roll on the fallback path.
     try {
-      const live = await liveStore(c, site.siteId).realtime(Date.now());
+      const live = await liveStore(c, site.siteId).realtime(Date.now(), filters);
       return c.json({
         data: {
           currentVisitors: live.total,
           topPages: live.rows.map(r => ({ path: r.pathname, visitors: r.visitors })),
           locations: live.locations ?? [],
+          referrers: live.referrers ?? [],
+          countries: live.countries ?? [],
         },
       });
     } catch (err) {
@@ -1532,8 +1519,11 @@ export const analyticsRoute = appWithBatch
       data: {
         currentVisitors: toNumber(totalOutcome[0]?.visitors),
         topPages: outcome.map(r => ({ path: r.pathname, visitors: toNumber(r.visitors) })),
-        // Coordinates live only in the DO's hot window; the cold path has none.
+        // Coordinates, referrers and countries live only in the DO's hot
+        // window; the cold path (also unfiltered) returns the basics.
         locations: [] as LiveRealtimeLocation[],
+        referrers: [] as { name: string; visitors: number }[],
+        countries: [] as { name: string; visitors: number }[],
       },
     });
   })
@@ -1546,9 +1536,10 @@ export const analyticsRoute = appWithBatch
    * the DO never sees an unauthenticated socket: access is checked here,
    * then the upgrade is proxied over the cross-script binding.
    */
-  .get('/:siteId/stats/realtime/ws', requireAuth, async c => {
+  .get('/:siteId/stats/realtime/ws', requireAuth, validate('query', filterQuery), async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('siteId');
+    const filters = parseFilters(c.req.valid('query'));
 
     if (c.req.header('upgrade')?.toLowerCase() !== 'websocket') {
       return c.json({ error: 'Expected a WebSocket upgrade' }, 426);
@@ -1560,8 +1551,11 @@ export const analyticsRoute = appWithBatch
     const ns = c.env.LIVE;
     const stub = ns.get(ns.idFromName(site.siteId));
     // Forward the upgrade verbatim (headers carry the handshake) on a clean
-    // internal URL; the DO ignores the path.
-    return stub.fetch(new Request('https://live.traks.internal/realtime', c.req.raw));
+    // internal URL carrying the validated initial filters; the dashboard can
+    // change them later with a `filters` command on the socket.
+    const target = new URL('https://live.traks.internal/realtime');
+    if (filters) target.searchParams.set('filters', JSON.stringify(filters));
+    return stub.fetch(new Request(target, c.req.raw));
   })
 
   .get('/:siteId/stats/events', requireAuth, validate('query', periodQuery), async c => {

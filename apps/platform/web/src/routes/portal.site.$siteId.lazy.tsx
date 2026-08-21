@@ -12,8 +12,6 @@ import {
   Check,
   Zap,
   Trash2,
-  X,
-  Filter,
   Bookmark,
   BookmarkPlus,
   Globe,
@@ -51,7 +49,9 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { TimeseriesChart } from '@/components/analytics/TimeseriesChart';
 import { PanelCard, type PanelItem } from '@/components/analytics/PanelCard';
-import { LiveCard } from '@/components/analytics/LiveCard';
+import { LivePill } from '@/components/analytics/LivePill';
+import { LiveModal } from '@/components/analytics/LiveModal';
+import { FilterChips, FILTER_LABELS } from '@/components/analytics/FilterChips';
 import { useRealtime } from '@/lib/useRealtime';
 import { CountryFlag, countryName } from '@/components/analytics/CountryFlag';
 import { DimensionIcon } from '@/components/analytics/DimensionIcon';
@@ -713,68 +713,6 @@ function IconTip({ label, children }: { label: string; children: ReactNode }): R
   );
 }
 
-const FILTER_LABELS: Record<keyof AnalyticsFilters, string> = {
-  page: 'Page',
-  source: 'Source',
-  utmSource: 'UTM Source',
-  utmMedium: 'UTM Medium',
-  utmCampaign: 'UTM Campaign',
-  country: 'Country',
-  region: 'Region',
-  city: 'City',
-  browser: 'Browser',
-  os: 'OS',
-  device: 'Device',
-};
-
-function FilterChips({
-  filters,
-  onRemove,
-  onClear,
-}: {
-  filters: AnalyticsFilters;
-  onRemove: (key: keyof AnalyticsFilters) => void;
-  onClear: () => void;
-}): ReactElement | null {
-  const entries = Object.entries(filters).filter(([, v]) => v) as [
-    keyof AnalyticsFilters,
-    string,
-  ][];
-  if (entries.length === 0) return null;
-
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <Filter className="h-3.5 w-3.5 text-[#9B9590]" strokeWidth={1.7} />
-      {entries.map(([key, value]) => (
-        <span
-          key={key}
-          className="flex items-center gap-1.5 rounded-full bg-muted py-1 pl-3 pr-1.5 text-[12px] text-[#3D3B4F]"
-        >
-          <span className="text-[#9B9590]">{FILTER_LABELS[key]}</span>
-          <span className="max-w-[180px] truncate font-medium">
-            {key === 'country' ? countryName(value) : value}
-          </span>
-          <button
-            onClick={() => onRemove(key)}
-            className="flex h-4.5 w-4.5 items-center justify-center rounded-full hover:bg-[#E6E4DE] transition-colors cursor-pointer"
-            title="Remove filter"
-          >
-            <X className="h-3 w-3 text-[#9B9590]" />
-          </button>
-        </span>
-      ))}
-      {entries.length > 1 && (
-        <button
-          onClick={onClear}
-          className="text-[12px] text-[#9B9590] hover:text-[#3D3B4F] transition-colors cursor-pointer"
-        >
-          Clear all
-        </button>
-      )}
-    </div>
-  );
-}
-
 /**
  * Saved segments: apply a named filter set, save the current one, or delete.
  * Definitions live in D1; applying just rewrites the URL search params.
@@ -984,26 +922,6 @@ function SegmentsMenu({
   );
 }
 
-function LiveStatus({ count }: { count: number | null }): ReactElement | null {
-  if (count === null) return null;
-  if (count === 0) {
-    return (
-      <span className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-[#9B9590]">
-        <span className="inline-flex h-[7px] w-[7px] rounded-full bg-[#B5B0AA]" />0 online now
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-[#3F7A50]">
-      <span className="relative flex h-[7px] w-[7px]">
-        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-mint opacity-60 motion-reduce:animate-none" />
-        <span className="relative inline-flex h-[7px] w-[7px] rounded-full bg-mint" />
-      </span>
-      {count} online now
-    </span>
-  );
-}
-
 function SiteAnalyticsPage(): ReactElement {
   const { siteId } = Route.useParams();
   const search = Route.useSearch();
@@ -1038,6 +956,24 @@ function SiteAnalyticsPage(): ReactElement {
         to: '/portal/site/$siteId',
         params: { siteId },
         search: prev => ({ ...prev, [key]: value }),
+        replace: true,
+      });
+    },
+    [navigate, siteId]
+  );
+
+  // Live view -> dashboard: replace the whole filter set (keys the live view
+  // cleared are cleared here too).
+  const applyLiveFilters = useCallback(
+    (next: AnalyticsFilters) => {
+      const keys = Object.keys(FILTER_LABELS) as (keyof AnalyticsFilters)[];
+      navigate({
+        to: '/portal/site/$siteId',
+        params: { siteId },
+        search: prev => ({
+          ...prev,
+          ...Object.fromEntries(keys.map(k => [k, next[k] || undefined])),
+        }),
         replace: true,
       });
     },
@@ -1365,6 +1301,7 @@ function SiteAnalyticsPage(): ReactElement {
   // Live visitors (last 5 min): pushed from the site's DO over a WebSocket,
   // polled every 30s while the socket is down.
   const realtime = useRealtime(siteId);
+  const [liveOpen, setLiveOpen] = useState(false);
 
   const site = (siteData as any)?.data;
   // Members are view-only: manage affordances render only once the site has
@@ -1486,7 +1423,11 @@ function SiteAnalyticsPage(): ReactElement {
                 {site?.domain && currentVisitors !== null && (
                   <span className="h-[3px] w-[3px] rounded-full bg-[#D8D2CA]" />
                 )}
-                <LiveStatus count={currentVisitors} />
+                <LivePill
+                  count={currentVisitors}
+                  status={realtime.status}
+                  onClick={() => setLiveOpen(true)}
+                />
               </div>
             </div>
           </div>
@@ -1543,6 +1484,15 @@ function SiteAnalyticsPage(): ReactElement {
           </div>
         </div>
 
+        <LiveModal
+          open={liveOpen}
+          onOpenChange={setLiveOpen}
+          siteId={siteId}
+          domain={site?.domain}
+          dashboardFilters={filters}
+          onApply={applyLiveFilters}
+        />
+
         {/* Active filters */}
         {hasFilters && (
           <FilterChips filters={filters} onRemove={removeFilter} onClear={clearFilters} />
@@ -1560,9 +1510,6 @@ function SiteAnalyticsPage(): ReactElement {
           onMetricChange={setChartMetric}
           period={period}
         />
-
-        {/* Right now: realtime globe + live count */}
-        <LiveCard realtime={realtime} onPageClick={path => setFilter('page', path)} />
 
         {/* Pages + Sources */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

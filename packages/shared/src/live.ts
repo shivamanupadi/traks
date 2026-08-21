@@ -27,6 +27,50 @@ export type LiveDimension =
  */
 export type LiveFilters = Partial<Record<LiveDimension, string>>;
 
+/** Dashboard-facing filter parameter names (URL search params / API query). */
+export type FilterParam =
+  | 'page'
+  | 'source'
+  | 'utmSource'
+  | 'utmMedium'
+  | 'utmCampaign'
+  | 'country'
+  | 'region'
+  | 'city'
+  | 'browser'
+  | 'os'
+  | 'device';
+
+/** Filter parameter -> canonical column dimension. */
+export const FILTER_PARAM_TO_DIMENSION: Record<FilterParam, LiveDimension> = {
+  page: 'pathname',
+  source: 'referrer_hostname',
+  utmSource: 'utm_source',
+  utmMedium: 'utm_medium',
+  utmCampaign: 'utm_campaign',
+  country: 'country',
+  region: 'region',
+  city: 'city',
+  browser: 'browser',
+  os: 'os',
+  device: 'device_type',
+};
+
+/** Map dashboard filter params to LiveFilters; undefined when nothing is set. */
+export function toLiveFilters(
+  params: Partial<Record<FilterParam, string | undefined>>
+): LiveFilters | undefined {
+  const filters: LiveFilters = {};
+  for (const [param, dimension] of Object.entries(FILTER_PARAM_TO_DIMENSION) as [
+    FilterParam,
+    LiveDimension,
+  ][]) {
+    const value = params[param];
+    if (value !== undefined && value !== '') filters[dimension] = value;
+  }
+  return Object.keys(filters).length > 0 ? filters : undefined;
+}
+
 /** The subset of the ingest record the hot path needs. */
 export interface LiveEvent {
   ts: number; // epoch ms
@@ -118,6 +162,11 @@ export interface LiveRealtimeLocation {
   visitors: number;
 }
 
+export interface LiveRealtimeNamed {
+  name: string;
+  visitors: number;
+}
+
 /** Realtime window result: per-page rows plus the TRUE overall distinct
  *  visitor count - summing per-page rows double-counts multi-page visitors. */
 export interface LiveRealtime {
@@ -125,22 +174,38 @@ export interface LiveRealtime {
   rows: LiveRealtimeRow[];
   /** Where the active visitors are (rows without coordinates are omitted). */
   locations: LiveRealtimeLocation[];
+  /** External referrer hostnames of the active visitors. */
+  referrers: LiveRealtimeNamed[];
+  /** ISO country codes of the active visitors. */
+  countries: LiveRealtimeNamed[];
 }
 
 /**
  * Frame pushed over the realtime WebSocket (the DO's `fetch` handler accepts
  * `Upgrade: websocket`; the api worker proxies authenticated dashboards to
  * it). Same shape the REST `/stats/realtime` route returns, so the dashboard
- * can treat a poll and a push identically.
+ * can treat a poll and a push identically. `filters` echoes what the frame
+ * was computed with, so a client that just changed filters can drop frames
+ * still in flight for the old set.
  */
 export interface LiveRealtimeFrame {
   type: 'realtime';
   /** Epoch ms the frame was computed at. */
   at: number;
+  filters?: LiveFilters;
   currentVisitors: number;
   topPages: { path: string; visitors: number }[];
   locations: LiveRealtimeLocation[];
+  referrers: LiveRealtimeNamed[];
+  countries: LiveRealtimeNamed[];
 }
+
+/**
+ * What a dashboard may send up the realtime socket. Filters are stored per
+ * socket (as a hibernation attachment) and every later frame for that socket
+ * is computed against them.
+ */
+export type LiveSocketCommand = { type: 'filters'; filters: LiveFilters };
 
 export interface LiveCustomEventRow {
   name: string;
@@ -209,8 +274,8 @@ export interface LiveStoreApi {
     limit: number,
     filters?: LiveFilters
   ): Promise<LiveTopListRow[]>;
-  /** Active visitors in the last 5 minutes: total, top pages, locations. */
-  realtime(nowMs: number): Promise<LiveRealtime>;
+  /** Active visitors in the last 5 minutes: total, pages, locations, referrers, countries. */
+  realtime(nowMs: number, filters?: LiveFilters): Promise<LiveRealtime>;
   /** Conversion counts per goal definition. */
   goalStats(
     fromMs: number,

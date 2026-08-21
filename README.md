@@ -48,12 +48,20 @@ COLD PATH: R2 SQL ◄── api Worker (apps/platform/api) ── Better Auth, D
   It is also the **realtime push** source: the dashboard opens one WebSocket
   (`/api/analytics/:siteId/stats/realtime/ws`, authenticated by the api worker
   and proxied to the DO over the same binding; WebSocket Hibernation API) and
-  receives a frame — visitors in the last 5 minutes, their pages, and their
-  city-level coordinates for the globe — whenever a pageview changes the
+  receives a frame — visitors in the last 5 minutes, their pages, referrers,
+  countries, and city-level coordinates — whenever a pageview changes the
   picture (coalesced to one query per 2s) plus a 30s tick while subscribed,
-  so the count decays as visitors leave. Coordinates come from `request.cf`
-  and exist only in this hot window; they are never written to Iceberg. The
-  REST `/stats/realtime` route (and 30s polling) remains the fallback.
+  so the count decays as visitors leave. A socket may send
+  `{"type":"filters",...}` to scope its frames (stored per socket as a
+  hibernation attachment; one query per distinct filter set per tick, not per
+  viewer). Coordinates come from `request.cf` and exist only in this hot
+  window; they are never written to Iceberg. The REST `/stats/realtime` route
+  (and 30s polling) remains the fallback.
+  The dashboard surfaces this as the header's live pill and the **live view**
+  it opens: a self-hosted dotted world map (`apps/platform/web/src/lib/
+  worldmap-dots.ts`, generated from Natural Earth — no map tiles, so viewing
+  the dashboard never calls a third party) over click-to-filter pages,
+  sources and locations.
 - **Pipeline** — pass-through `INSERT INTO <sink> SELECT * FROM <stream>`.
   The stream schema lives in `scripts/pipeline-schema.json`.
 - **`apps/platform/api`** — dashboard API. Site/user metadata in D1 (drizzle), all

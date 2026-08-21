@@ -523,8 +523,11 @@ export const api = {
     return res.json();
   },
 
-  async getRealtime(siteId: string): Promise<any> {
-    const res = await client.api.analytics[':siteId'].stats.realtime.$get({ param: { siteId } });
+  async getRealtime(siteId: string, filters?: AnalyticsFilters): Promise<any> {
+    const res = await client.api.analytics[':siteId'].stats.realtime.$get({
+      param: { siteId },
+      query: { ...filters },
+    });
     await assertOk(res);
     return res.json();
   },

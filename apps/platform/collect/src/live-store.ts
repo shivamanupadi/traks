@@ -3,6 +3,8 @@ import type {
   LiveEvent,
   LiveRealtimeFrame,
   LiveRealtimeLocation,
+  LiveRealtimeNamed,
+  LiveSocketCommand,
   LiveFilters,
   LiveCounts,
   LiveGoalRow,
@@ -116,8 +118,8 @@ export class SiteLiveStore extends DurableObject<unknown> {
   /** Realtime push state (see scheduleBroadcast). */
   private lastBroadcastAt = 0;
   private broadcastTimer: ReturnType<typeof setTimeout> | null = null;
-  /** Body of the last pushed frame (minus its timestamp) - unchanged frames are not resent. */
-  private lastFrameBody = '';
+  /** Per filter-set body of the last pushed frame (minus timestamp) - unchanged frames are not resent. */
+  private lastFrameBody = new Map<string, string>();
 
   constructor(ctx: DurableObjectState, env: unknown) {
     super(ctx, env);
@@ -370,7 +372,7 @@ export class SiteLiveStore extends DurableObject<unknown> {
     this.countsSincePersist = 0;
     this.memo.clear();
     this.alarmArmed = false;
-    this.lastFrameBody = '';
+    this.lastFrameBody.clear();
     for (const ws of this.ctx.getWebSockets()) {
       try {
         ws.close(1001, 'site deleted');
@@ -436,11 +438,22 @@ export class SiteLiveStore extends DurableObject<unknown> {
     const [client, server] = [pair[0], pair[1]];
     this.ctx.acceptWebSocket(server);
 
+    // Initial filters travel as `?filters=<json>` (the api validates the
+    // dashboard params and maps them to dimensions before proxying).
+    let filters: LiveFilters | undefined;
+    try {
+      const raw = new URL(request.url).searchParams.get('filters');
+      if (raw) filters = SiteLiveStore.sanitizeFilters(JSON.parse(raw));
+    } catch {
+      filters = undefined;
+    }
+    server.serializeAttachment({ filters });
+
     // A fresh subscriber gets the current picture immediately, regardless of
     // the coalescing window.
     const now = Date.now();
     this.flushBuffer();
-    server.send(JSON.stringify(this.frame(now)));
+    server.send(JSON.stringify(this.frame(now, filters)));
 
     // Make sure the tick is running: pull the alarm forward if the next one
     // scheduled is the hourly prune.
@@ -456,9 +469,49 @@ export class SiteLiveStore extends DurableObject<unknown> {
     return new Response(null, { status: 101, webSocket: client });
   }
 
-  async webSocketMessage(): Promise<void> {
-    // Push-only channel; keepalive pings are answered by the auto-response
-    // pair configured in the constructor.
+  /**
+   * The one thing a dashboard may send: a new filter set for its socket.
+   * Stored as the socket's attachment (survives hibernation) and answered
+   * with a fresh frame right away. Keepalive pings never reach here - the
+   * auto-response pair in the constructor handles them.
+   */
+  async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
+    if (typeof message !== 'string' || message.length > 8 * 1024 || message[0] !== '{') return;
+    let command: LiveSocketCommand;
+    try {
+      command = JSON.parse(message) as LiveSocketCommand;
+    } catch {
+      return;
+    }
+    if (command?.type !== 'filters') return;
+    const filters = SiteLiveStore.sanitizeFilters(command.filters);
+    ws.serializeAttachment({ filters });
+    this.flushBuffer();
+    try {
+      ws.send(JSON.stringify(this.frame(Date.now(), filters)));
+    } catch {
+      // closing
+    }
+  }
+
+  /** Only whitelisted dimensions with short string values survive. */
+  private static sanitizeFilters(input: unknown): LiveFilters | undefined {
+    if (!input || typeof input !== 'object') return undefined;
+    const out: LiveFilters = {};
+    for (const [key, value] of Object.entries(input as Record<string, unknown>)) {
+      if (!(key in DIMENSION_COLUMNS) || typeof value !== 'string' || value === '') continue;
+      out[key as LiveDimension] = value.slice(0, 2048);
+    }
+    return Object.keys(out).length > 0 ? out : undefined;
+  }
+
+  private static socketFilters(ws: WebSocket): LiveFilters | undefined {
+    try {
+      const attachment = ws.deserializeAttachment() as { filters?: LiveFilters } | null;
+      return attachment?.filters;
+    } catch {
+      return undefined;
+    }
   }
 
   async webSocketClose(ws: WebSocket, code: number, reason: string): Promise<void> {
@@ -491,33 +544,55 @@ export class SiteLiveStore extends DurableObject<unknown> {
     }, wait);
   }
 
+  /**
+   * One frame per distinct filter set, not per socket: a dashboard with the
+   * unfiltered pill plus a filtered modal costs two queries, ten viewers of
+   * the same site still cost one.
+   */
   private broadcast(now: number): void {
     const sockets = this.ctx.getWebSockets();
     if (sockets.length === 0) return;
     this.lastBroadcastAt = now;
-    const frame = this.frame(now);
-    const { at: _at, ...rest } = frame;
-    const body = JSON.stringify(rest);
-    if (body === this.lastFrameBody) return;
-    this.lastFrameBody = body;
-    const payload = JSON.stringify(frame);
+    this.flushBuffer();
+
+    const groups = new Map<string, { filters?: LiveFilters; sockets: WebSocket[] }>();
     for (const ws of sockets) {
-      try {
-        ws.send(payload);
-      } catch {
-        // closed between getWebSockets() and send()
+      const filters = SiteLiveStore.socketFilters(ws);
+      const key = SiteLiveStore.filterKey(filters);
+      const group = groups.get(key);
+      if (group) group.sockets.push(ws);
+      else groups.set(key, { filters, sockets: [ws] });
+    }
+    if (this.lastFrameBody.size > 50) this.lastFrameBody.clear();
+
+    for (const [key, group] of groups) {
+      const frame = this.frame(now, group.filters);
+      const { at: _at, ...rest } = frame;
+      const body = JSON.stringify(rest);
+      if (body === this.lastFrameBody.get(key)) continue;
+      this.lastFrameBody.set(key, body);
+      const payload = JSON.stringify(frame);
+      for (const ws of group.sockets) {
+        try {
+          ws.send(payload);
+        } catch {
+          // closed between getWebSockets() and send()
+        }
       }
     }
   }
 
-  private frame(now: number): LiveRealtimeFrame {
-    const live = this.computeRealtime(now);
+  private frame(now: number, filters?: LiveFilters): LiveRealtimeFrame {
+    const live = this.computeRealtime(now, filters);
     return {
       type: 'realtime',
       at: now,
+      filters,
       currentVisitors: live.total,
       topPages: live.rows.map(r => ({ path: r.pathname, visitors: r.visitors })),
       locations: live.locations,
+      referrers: live.referrers,
+      countries: live.countries,
     };
   }
 
@@ -763,53 +838,54 @@ export class SiteLiveStore extends DurableObject<unknown> {
     );
   }
 
-  async realtime(nowMs: number): Promise<LiveRealtime> {
-    return this.memoized(`realtime:${SiteLiveStore.q(nowMs)}`, MEMO_TTL_REALTIME_MS, () =>
-      this.computeRealtime(nowMs)
+  async realtime(nowMs: number, filters?: LiveFilters): Promise<LiveRealtime> {
+    return this.memoized(
+      `realtime:${SiteLiveStore.q(nowMs)}:${SiteLiveStore.filterKey(filters)}`,
+      MEMO_TTL_REALTIME_MS,
+      () => this.computeRealtime(nowMs, filters)
     );
   }
 
   /** Unmemoized realtime window; callers decide on freshness vs. cost. */
-  private computeRealtime(nowMs: number): LiveRealtime {
+  private computeRealtime(nowMs: number, filters?: LiveFilters): LiveRealtime {
     const from = nowMs - REALTIME_WINDOW_MS;
+    const f = SiteLiveStore.filterSql(filters);
+    const where = `event_type = 'pageview' AND ts >= ? AND ts < ?${f.sql}`;
+    const params = [from, nowMs, ...f.params];
+    const named = (column: string, extra = ''): LiveRealtimeNamed[] =>
+      this.sql
+        .exec(
+          `SELECT ${column} AS name, COUNT(DISTINCT visitor_id) AS visitors
+           FROM events
+           WHERE ${where}${extra}
+           GROUP BY ${column}
+           ORDER BY visitors DESC
+           LIMIT 10`,
+          ...params
+        )
+        .toArray()
+        .map(r => ({ name: String(r.name), visitors: n(r.visitors) }));
+
     // Distinct across ALL pages - a visitor on 3 pages is still 1 visitor
     // (and the per-page top-10 below can't be summed to get this).
     const total = n(
       this.sql
-        .exec(
-          `SELECT COUNT(DISTINCT visitor_id) AS c
-           FROM events
-           WHERE event_type = 'pageview' AND ts >= ? AND ts < ?`,
-          from,
-          nowMs
-        )
+        .exec(`SELECT COUNT(DISTINCT visitor_id) AS c FROM events WHERE ${where}`, ...params)
         .toArray()[0]?.c
     );
-    const rows = this.sql
-      .exec(
-        `SELECT pathname, COUNT(DISTINCT visitor_id) AS visitors
-         FROM events
-         WHERE event_type = 'pageview' AND ts >= ? AND ts < ?
-         GROUP BY pathname
-         ORDER BY visitors DESC
-         LIMIT 10`,
-        from,
-        nowMs
-      )
-      .toArray()
-      .map(r => ({ pathname: String(r.pathname), visitors: n(r.visitors) }));
+    const rows = named('pathname').map(r => ({ pathname: r.name, visitors: r.visitors }));
+    const referrers = named('referrer_hostname', ` AND referrer_hostname != ''`);
+    const countries = named('country', ` AND country != ''`);
     // Coordinates are city centroids, so grouping on them is grouping by city.
     const locations: LiveRealtimeLocation[] = this.sql
       .exec(
         `SELECT lat, lon, country, city, COUNT(DISTINCT visitor_id) AS visitors
          FROM events
-         WHERE event_type = 'pageview' AND ts >= ? AND ts < ?
-           AND lat IS NOT NULL AND lon IS NOT NULL
+         WHERE ${where} AND lat IS NOT NULL AND lon IS NOT NULL
          GROUP BY lat, lon, country, city
          ORDER BY visitors DESC
          LIMIT 100`,
-        from,
-        nowMs
+        ...params
       )
       .toArray()
       .map(r => ({
@@ -819,7 +895,7 @@ export class SiteLiveStore extends DurableObject<unknown> {
         city: String(r.city),
         visitors: n(r.visitors),
       }));
-    return { total, rows, locations };
+    return { total, rows, locations, referrers, countries };
   }
 
   async goalStats(

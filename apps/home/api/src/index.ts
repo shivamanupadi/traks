@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { drizzle } from 'drizzle-orm/d1';
-import { and, eq, gte, lt, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, lt, sql } from 'drizzle-orm';
 import type { Bindings, Variables } from './types';
 import { deployInstances } from './db/schema';
 import { deployRoute, oauthCallback } from './deploy/routes';
@@ -35,7 +35,8 @@ const routes = app.route('/api/deploy', deployRoute);
  * ADMIN_KEY secret the route is indistinguishable from a 404. Present the key
  * as `Authorization: Bearer <key>` or `?key=<key>` (the latter for a quick
  * browser look; it will appear in your own history/logs, so rotate if shared).
- * No per-instance rows are returned - aggregates only.
+ * Aggregates only by default; `?detail=1` adds the live instances (name, URLs,
+ * version, created) - still no tokens, emails, or step logs.
  */
 app.get('/api/admin/instances', async c => {
   const expected = c.env.ADMIN_KEY;
@@ -73,6 +74,21 @@ app.get('/api/admin/instances', async c => {
     .where(and(eq(deployInstances.status, 'ready'), gte(deployInstances.createdAt, since(30))));
 
   const status = Object.fromEntries(byStatus.map(r => [r.status, Number(r.n)]));
+  const detail = c.req.query('detail') === '1';
+  const instances = detail
+    ? await db
+        .select({
+          instanceName: deployInstances.instanceName,
+          apiUrl: deployInstances.apiUrl,
+          collectUrl: deployInstances.collectUrl,
+          version: deployInstances.deployedVersion,
+          createdAt: deployInstances.createdAt,
+          updatedAt: deployInstances.updatedAt,
+        })
+        .from(deployInstances)
+        .where(eq(deployInstances.status, 'ready'))
+        .orderBy(desc(deployInstances.createdAt))
+    : undefined;
   return c.json({
     generatedAt: new Date(now).toISOString(),
     /** Instances currently deployed and healthy as far as the wizard knows. */
@@ -84,6 +100,7 @@ app.get('/api/admin/instances', async c => {
     newLast30d: Number(recent30?.n ?? 0),
     byStatus: status,
     byVersion: Object.fromEntries(byVersion.map(r => [r.version ?? 'unknown', Number(r.n)])),
+    ...(instances ? { instances } : {}),
   });
 });
 

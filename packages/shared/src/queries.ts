@@ -39,11 +39,52 @@ export class R2SqlError extends Error {
   }
 }
 
-export async function queryR2Sql<T = Record<string, unknown>>(
+export interface R2SqlResult<T> {
+  rows: T[];
+  /** Wall-clock time of the HTTP round trip, ms. */
+  ms: number;
+  /** HTTP status of the R2 SQL response (0 when the fetch itself failed). */
+  status: number;
+}
+
+/**
+ * Partition-pruning predicate switch. Pipelines-created Iceberg tables are
+ * partitioned on the system column `__ingest_ts`; bounding it lets R2 SQL skip
+ * whole manifests instead of only pruning files on `ts` min/max stats. Events
+ * are ingested within seconds of `ts`, so a +/- 1h envelope is safe. If an
+ * instance's table somehow lacks the column (an older/foreign sink), the
+ * executor flips this off for the isolate and the caller retries without it.
+ */
+let ingestPrune = true;
+export function setIngestPrune(on: boolean): void {
+  ingestPrune = on;
+}
+export function isIngestPrune(): boolean {
+  return ingestPrune;
+}
+const INGEST_ENVELOPE_MS = 60 * 60 * 1000;
+function ingestBounds(from: string, to: string): string {
+  if (!ingestPrune) return '';
+  const lo = new Date(new Date(from).getTime() - INGEST_ENVELOPE_MS);
+  const hi = new Date(new Date(to).getTime() + INGEST_ENVELOPE_MS);
+  if (Number.isNaN(lo.getTime()) || Number.isNaN(hi.getTime())) return '';
+  return (
+    ` AND __ingest_ts >= TIMESTAMP '${lo.toISOString()}'` +
+    ` AND __ingest_ts < TIMESTAMP '${hi.toISOString()}'`
+  );
+}
+
+/** True when an R2 SQL error means the table has no `__ingest_ts` column. */
+export function isMissingIngestTs(err: unknown): boolean {
+  return err instanceof R2SqlError && /__ingest_ts/i.test(err.message);
+}
+
+export async function queryR2SqlWithStats<T = Record<string, unknown>>(
   config: QueryConfig,
   buildQuery: (table: string) => string
-): Promise<T[]> {
+): Promise<R2SqlResult<T>> {
   const sql = buildQuery(config.table);
+  const started = Date.now();
   const response = await fetch(
     `https://api.sql.cloudflarestorage.com/api/v1/accounts/${config.accountId}/r2-sql/query/${config.bucketName}`,
     {
@@ -61,7 +102,9 @@ export async function queryR2Sql<T = Record<string, unknown>>(
     // A fresh instance has no Iceberg table until the pipeline sink's first
     // flush creates it (minutes after the first event) - an absent table
     // means "no events yet", not a failure. [40010] = iceberg table not found.
-    if (response.status === 404 && text.includes('40010')) return [];
+    if (response.status === 404 && text.includes('40010')) {
+      return { rows: [], ms: Date.now() - started, status: response.status };
+    }
     throw new R2SqlError(`HTTP ${response.status}: ${text.slice(0, 500)}`);
   }
 
@@ -69,7 +112,18 @@ export async function queryR2Sql<T = Record<string, unknown>>(
   if (body.errors?.length) {
     throw new R2SqlError(body.errors.map(e => e.message).join('; '));
   }
-  return (body.result?.rows ?? []) as T[];
+  return {
+    rows: (body.result?.rows ?? []) as T[],
+    ms: Date.now() - started,
+    status: response.status,
+  };
+}
+
+export async function queryR2Sql<T = Record<string, unknown>>(
+  config: QueryConfig,
+  buildQuery: (table: string) => string
+): Promise<T[]> {
+  return (await queryR2SqlWithStats<T>(config, buildQuery)).rows;
 }
 
 function esc(value: string): string {
@@ -432,6 +486,7 @@ function whereSiteAndRange(
     ` AND event_type = '${esc(eventType)}'` +
     ` AND ts >= TIMESTAMP '${esc(range.from)}'` +
     ` AND ts < TIMESTAMP '${esc(range.to)}'` +
+    ingestBounds(range.from, range.to) +
     filterClause(filters)
   );
 }
@@ -654,7 +709,7 @@ export function buildFunnelQuery(
       FROM ${table}
       WHERE site_id = '${esc(siteKey)}'
         AND ts >= TIMESTAMP '${esc(range.from)}'
-        AND ts < TIMESTAMP '${esc(range.to)}'
+        AND ts < TIMESTAMP '${esc(range.to)}'${ingestBounds(range.from, range.to)}
         AND session_id != ''
         AND (${conds.join(' OR ')})${filterClause(filters)}
       GROUP BY session_id
@@ -682,7 +737,7 @@ export function buildBatchStatsQuery(siteKeys: string[], range: PeriodRange) {
     WHERE site_id IN (${keys})
       AND event_type = 'pageview'
       AND ts >= TIMESTAMP '${esc(range.from)}'
-      AND ts < TIMESTAMP '${esc(range.to)}'
+      AND ts < TIMESTAMP '${esc(range.to)}'${ingestBounds(range.from, range.to)}
     GROUP BY site_id
   `;
 }

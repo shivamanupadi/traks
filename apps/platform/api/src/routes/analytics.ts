@@ -22,7 +22,10 @@ import { requireAuth } from '../middleware/auth';
 import { siteAccessFilter } from '../lib/workspaces';
 import { sites, goals, funnels } from '../db/schema';
 import {
-  queryR2Sql,
+  queryR2SqlWithStats,
+  isMissingIngestTs,
+  setIngestPrune,
+  isIngestPrune,
   buildStatsWithComparisonQuery,
   buildSessionStatsQuery,
   buildBatchStatsQuery,
@@ -173,6 +176,39 @@ const inFlightScans = new Map<string, Promise<unknown[]>>();
  * stale-while-revalidate: freshness is bounded by ttlSeconds, but a viewer
  * never waits for a scan when any usable copy exists.
  */
+/**
+ * One telemetry row per cache decision. `outcome` is colo-hit | kv-hit |
+ * kv-stale (served stale, refreshed behind) | scan (viewer waited) |
+ * scan-bg (background refresh) | error. Doubles: wall ms, rows, SQL bytes,
+ * 1 when the ingest-ts partition predicate was active. Cheap enough to log
+ * hits too - that is what gives the cache-hit ratio.
+ */
+function recordQueryMetric(
+  c: AppContext,
+  outcome: string,
+  ms: number,
+  rows: number,
+  sqlBytes: number
+): void {
+  const kind = (c.req.routePath || c.req.path).replace(/^\/api\/sites\/:[^/]+\/?/, '') || 'root';
+  const period = c.req.query('period') ?? '';
+  const site = c.req.param('siteId') ?? '';
+  try {
+    c.env.METRICS?.writeDataPoint({
+      blobs: [kind, period, outcome, c.env.TRAKS_VERSION ?? ''],
+      doubles: [ms, rows, sqlBytes, isIngestPrune() ? 1 : 0],
+      indexes: [site.slice(0, 96)],
+    });
+  } catch {
+    /* telemetry must never fail a request */
+  }
+  if (outcome === 'scan' || outcome === 'scan-bg' || outcome === 'error') {
+    console.log(
+      `[r2sql] kind=${kind} period=${period} outcome=${outcome} ms=${ms} rows=${rows} prune=${isIngestPrune() ? 1 : 0}`
+    );
+  }
+}
+
 async function cachedR2Sql<T = Record<string, unknown>>(
   c: AppContext,
   ttlSeconds: number,
@@ -186,12 +222,40 @@ async function cachedR2Sql<T = Record<string, unknown>>(
   // import under DOM lib types, where CacheStorage has no `default`.
   const cache = (caches as unknown as { default: Cache }).default;
 
+  /**
+   * Execute with the partition predicate; if this instance's table has no
+   * `__ingest_ts` column the executor reports it, we disable the predicate
+   * for the isolate and rebuild the SQL once without it.
+   */
+  const execute = async (): Promise<{ rows: T[]; ms: number }> => {
+    const started = Date.now();
+    try {
+      return await queryR2SqlWithStats<T>(config, () => sql);
+    } catch (err) {
+      if (isMissingIngestTs(err) && isIngestPrune()) {
+        setIngestPrune(false);
+        console.warn('[r2sql] table has no __ingest_ts column; partition predicate disabled');
+        const retry = await queryR2SqlWithStats<T>(config, buildQuery);
+        return { rows: retry.rows, ms: Date.now() - started };
+      }
+      throw err;
+    }
+  };
+
   /** Run the scan once per key per isolate and populate both caches. */
-  const runScan = (): Promise<T[]> => {
+  const runScan = (background = false): Promise<T[]> => {
     const existing = inFlightScans.get(key);
     if (existing) return existing as Promise<T[]>;
 
-    const p = queryR2Sql<T>(config, () => sql)
+    const p = execute()
+      .then(({ rows, ms }) => {
+        recordQueryMetric(c, background ? 'scan-bg' : 'scan', ms, rows.length, sql.length);
+        return rows;
+      })
+      .catch(err => {
+        recordQueryMetric(c, 'error', 0, 0, sql.length);
+        throw err;
+      })
       .then(rows => {
         const payload: CachedPayload<T> = { rows, fetchedAt: Date.now() };
         const body = JSON.stringify(payload);
@@ -233,7 +297,8 @@ async function cachedR2Sql<T = Record<string, unknown>>(
     // Colo entries expire at the logical TTL, so a hit here is always fresh
     // - except a legacy bare-array entry, which is refreshed in the
     // background rather than blocking this request.
-    if (payload.fetchedAt === 0) c.executionCtx.waitUntil(runScan().then(() => undefined));
+    if (payload.fetchedAt === 0) c.executionCtx.waitUntil(runScan(true).then(() => undefined));
+    recordQueryMetric(c, 'colo-hit', 0, payload.rows.length, sql.length);
     return payload.rows;
   }
 
@@ -254,10 +319,12 @@ async function cachedR2Sql<T = Record<string, unknown>>(
           })
         )
       );
+      recordQueryMetric(c, 'kv-hit', 0, payload.rows.length, sql.length);
       return payload.rows;
     }
     // Stale: hand back the old rows now, refresh behind the response.
-    c.executionCtx.waitUntil(runScan().then(() => undefined));
+    c.executionCtx.waitUntil(runScan(true).then(() => undefined));
+    recordQueryMetric(c, 'kv-stale', 0, payload.rows.length, sql.length);
     return payload.rows;
   }
 

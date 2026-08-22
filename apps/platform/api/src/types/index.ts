@@ -6,6 +6,9 @@ export type Bindings = {
   LIVE: DurableObjectNamespace;
   /** Global (cross-colo) result cache for R2 SQL dashboard queries. */
   R2SQL_CACHE: KVNamespace;
+  /** Query telemetry (R2 SQL wall time, rows, cache outcome); optional so
+   *  instances deployed before the binding existed keep working. */
+  METRICS?: AnalyticsEngineDataset;
   ENVIRONMENT: string;
   /** Better Auth signing secret (Doppler-managed). */
   BETTER_AUTH_SECRET: string;

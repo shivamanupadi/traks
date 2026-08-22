@@ -36,6 +36,11 @@ script_name = "traks-collect-dev"
 binding = "R2SQL_CACHE"
 id = "fc5eb93cfb8f4cb18969af2ccd4f9ea5"
 
+# Query telemetry: one row per R2 SQL cache decision (wall ms, rows, outcome).
+[[analytics_engine_datasets]]
+binding = "METRICS"
+dataset = "traks_api_metrics_dev"
+
 # No cron triggers; explicit empty list so deploys delete any previously
 # registered schedules (omitting [triggers] would leave them in place).
 # Brute-force guard on the auth surface, keyed by client IP. Better Auth's

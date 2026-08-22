@@ -1,5 +1,9 @@
 export {
   queryR2Sql,
+  queryR2SqlWithStats,
+  isMissingIngestTs,
+  setIngestPrune,
+  isIngestPrune,
   R2SqlError,
   resolvePeriod,
   previousRange,

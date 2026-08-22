@@ -79,6 +79,7 @@ export function instanceNames(instance: string) {
     sink: `${us}_events_sink`,
     pipeline: `${us}_events`,
     aeDataset: `${us}_collect_metrics`,
+    apiAeDataset: `${us}_api_metrics`,
   };
 }
 
@@ -633,6 +634,7 @@ export async function provisionInstance(ctx: EngineCtx): Promise<ProvisionResult
       bindings: [
         { type: 'd1', name: 'DB', id: d1Id },
         { type: 'kv_namespace', name: 'R2SQL_CACHE', namespace_id: kvId },
+        { type: 'analytics_engine', name: 'METRICS', dataset: N.apiAeDataset },
         // Brute-force guard on /api/auth/* - Better Auth's own limiter is
         // in-memory, i.e. per-isolate and therefore absent on Workers.
         {

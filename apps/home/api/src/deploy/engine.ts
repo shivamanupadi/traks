@@ -338,16 +338,32 @@ async function ensurePipeline(
   const base = `/accounts/${ctx.accountId}/pipelines/v1`;
 
   const streamId = await step(ctx, 'stream', 'Create event stream', async () => {
-    const list = await cf('GET', `${base}/streams?per_page=100`);
-    const hit = (list ?? []).find((st: { name: string }) => st.name === N.stream);
-    if (hit) return hit.id as string;
-    const created = await cf('POST', `${base}/streams`, {
-      name: N.stream,
-      format: { type: 'json' },
-      schema: { fields: ctx.artifacts.schema.fields },
-      http: { enabled: false, authentication: false, cors: {} },
-    });
-    return created.id as string;
+    try {
+      const list = await cf('GET', `${base}/streams?per_page=100`);
+      const hit = (list ?? []).find((st: { name: string }) => st.name === N.stream);
+      if (hit) return hit.id as string;
+      const created = await cf('POST', `${base}/streams`, {
+        name: N.stream,
+        format: { type: 'json' },
+        schema: { fields: ctx.artifacts.schema.fields },
+        http: { enabled: false, authentication: false, cors: {} },
+      });
+      return created.id as string;
+    } catch (raw) {
+      // First Pipelines call in the run. A 403 here means the credential was
+      // accepted but is not allowed to touch Pipelines on this account: a
+      // pasted token without the Pipelines permission, or Pipelines not yet
+      // enabled for the account. Say so instead of surfacing a bare Forbidden.
+      const err = raw as CfError;
+      if (err.status === 403 || err.codes?.includes(100) || err.codes?.includes(10000)) {
+        throw new Error(
+          'Cloudflare refused access to Pipelines (403). If you pasted an API token, it needs the ' +
+            '"Workers Pipelines: Edit" permission. Otherwise open Workers & Pipelines > Pipelines ' +
+            'in the Cloudflare dashboard once for this account, then retry; the deploy resumes here.'
+        );
+      }
+      throw raw;
+    }
   });
 
   await step(ctx, 'sink', 'Create Iceberg sink', async () => {

@@ -89,6 +89,29 @@ app.get('/api/admin/instances', async c => {
         .where(eq(deployInstances.status, 'ready'))
         .orderBy(desc(deployInstances.createdAt))
     : undefined;
+  const failed = detail
+    ? (
+        await db
+          .select({
+            instanceName: deployInstances.instanceName,
+            error: deployInstances.error,
+            steps: deployInstances.steps,
+            updatedAt: deployInstances.updatedAt,
+          })
+          .from(deployInstances)
+          .where(eq(deployInstances.status, 'failed'))
+          .orderBy(desc(deployInstances.updatedAt))
+      ).map(r => {
+        const fail = (r.steps ?? []).find(s => s.status === 'fail');
+        return {
+          instanceName: r.instanceName,
+          step: fail?.label ?? null,
+          detail: fail?.detail ?? null,
+          error: r.error,
+          updatedAt: r.updatedAt,
+        };
+      })
+    : undefined;
   return c.json({
     generatedAt: new Date(now).toISOString(),
     /** Instances currently deployed and healthy as far as the wizard knows. */
@@ -101,6 +124,7 @@ app.get('/api/admin/instances', async c => {
     byStatus: status,
     byVersion: Object.fromEntries(byVersion.map(r => [r.version ?? 'unknown', Number(r.n)])),
     ...(instances ? { instances } : {}),
+    ...(failed ? { failed } : {}),
   });
 });
 

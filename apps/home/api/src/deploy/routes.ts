@@ -11,7 +11,7 @@ import { Hono, type Context } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
-import { and, eq, inArray, isNull, lt, ne, or } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, isNull, lt, ne, or } from 'drizzle-orm';
 import { deployInstances } from '../db/schema';
 import {
   provisionInstance,
@@ -355,7 +355,16 @@ export const deployRoute = app
           .from(deployInstances)
           .where(
             and(
-              eq(deployInstances.status, 'ready'),
+              // A row whose last run failed but that has shipped before is
+              // still a live instance (Cloudflare keeps the previous worker
+              // when an upload is rejected) - it must stay updatable.
+              or(
+                eq(deployInstances.status, 'ready'),
+                and(
+                  eq(deployInstances.status, 'failed'),
+                  isNotNull(deployInstances.deployedVersion)
+                )
+              ),
               inArray(
                 deployInstances.accountId,
                 accounts.map(a => a.id)
@@ -603,10 +612,10 @@ export const deployRoute = app
         }, HEARTBEAT_MS);
 
         const run = async (): Promise<void> => {
+          // URLs are left in place: on a failed update the previous worker is
+          // still serving them.
           await persist('deploying', {
             error: null,
-            apiUrl: null,
-            collectUrl: null,
             customDomain: customDomain ?? null,
           });
           try {
@@ -642,7 +651,11 @@ export const deployRoute = app
             send({ type: 'done', ...result });
           } catch (err) {
             const message = err instanceof Error ? err.message : 'deploy failed';
-            await persist('failed', { error: message });
+            // A failed UPDATE leaves the previously deployed instance running
+            // (a rejected upload never replaces the live worker), so the row
+            // stays 'ready' with the error recorded; only a first deploy that
+            // never succeeded becomes 'failed'.
+            await persist(row.deployedVersion ? 'ready' : 'failed', { error: message });
             send({ type: 'error', message });
           } finally {
             clearInterval(heartbeat);

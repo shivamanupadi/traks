@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { drizzle } from 'drizzle-orm/d1';
-import { and, desc, eq, gte, lt, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, isNotNull, lt, or, sql } from 'drizzle-orm';
 import type { Bindings, Variables } from './types';
 import { deployInstances } from './db/schema';
 import { deployRoute, oauthCallback } from './deploy/routes';
@@ -38,6 +38,13 @@ const routes = app.route('/api/deploy', deployRoute);
  * Aggregates only by default; `?detail=1` adds the live instances (name, URLs,
  * version, created) - still no tokens, emails, or step logs.
  */
+/** Rows that represent a running instance: ready, or a failed re-run of an
+ *  instance that had shipped before (the previous worker is still live). */
+const liveInstance = or(
+  eq(deployInstances.status, 'ready'),
+  and(eq(deployInstances.status, 'failed'), isNotNull(deployInstances.deployedVersion))
+);
+
 app.get('/api/admin/instances', async c => {
   const expected = c.env.ADMIN_KEY;
   const auth = c.req.header('authorization') ?? '';
@@ -58,20 +65,20 @@ app.get('/api/admin/instances', async c => {
       n: sql<number>`count(distinct ${deployInstances.accountId})`,
     })
     .from(deployInstances)
-    .where(eq(deployInstances.status, 'ready'));
+    .where(liveInstance);
   const byVersion = await db
     .select({ version: deployInstances.deployedVersion, n: sql<number>`count(*)` })
     .from(deployInstances)
-    .where(eq(deployInstances.status, 'ready'))
+    .where(liveInstance)
     .groupBy(deployInstances.deployedVersion);
   const [recent7] = await db
     .select({ n: sql<number>`count(*)` })
     .from(deployInstances)
-    .where(and(eq(deployInstances.status, 'ready'), gte(deployInstances.createdAt, since(7))));
+    .where(and(liveInstance, gte(deployInstances.createdAt, since(7))));
   const [recent30] = await db
     .select({ n: sql<number>`count(*)` })
     .from(deployInstances)
-    .where(and(eq(deployInstances.status, 'ready'), gte(deployInstances.createdAt, since(30))));
+    .where(and(liveInstance, gte(deployInstances.createdAt, since(30))));
 
   const status = Object.fromEntries(byStatus.map(r => [r.status, Number(r.n)]));
   const detail = c.req.query('detail') === '1';
@@ -86,7 +93,7 @@ app.get('/api/admin/instances', async c => {
           updatedAt: deployInstances.updatedAt,
         })
         .from(deployInstances)
-        .where(eq(deployInstances.status, 'ready'))
+        .where(liveInstance)
         .orderBy(desc(deployInstances.createdAt))
     : undefined;
   const failed = detail
@@ -99,7 +106,7 @@ app.get('/api/admin/instances', async c => {
             updatedAt: deployInstances.updatedAt,
           })
           .from(deployInstances)
-          .where(eq(deployInstances.status, 'failed'))
+          .where(or(eq(deployInstances.status, 'failed'), isNotNull(deployInstances.error)))
           .orderBy(desc(deployInstances.updatedAt))
       ).map(r => {
         const fail = (r.steps ?? []).find(s => s.status === 'fail');

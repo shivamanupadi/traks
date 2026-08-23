@@ -20,8 +20,13 @@ import { cacheTtlSeconds } from './cache-ttl';
  */
 
 /** Per-isolate secret: the cron passes it to the internal warm route, so the
- *  route is unreachable from outside (the value never leaves the worker). */
-export const INTERNAL_TOKEN = crypto.randomUUID();
+ *  route is unreachable from outside (the value never leaves the worker).
+ *  Generated lazily - Workers disallow random generation in global scope. */
+let internalToken: string | undefined;
+export function getInternalToken(): string {
+  if (!internalToken) internalToken = crypto.randomUUID();
+  return internalToken;
+}
 export const INTERNAL_HEADER = 'x-traks-internal';
 
 const KV_PREFIX = 'warm:';
@@ -126,7 +131,7 @@ export async function runPrewarm(
         Promise.resolve(
           app.request(
             `/api/analytics/internal/warm/${encodeURIComponent(siteId)}?period=${period}`,
-            { headers: { [INTERNAL_HEADER]: INTERNAL_TOKEN } },
+            { headers: { [INTERNAL_HEADER]: getInternalToken() } },
             env,
             ctx
           )

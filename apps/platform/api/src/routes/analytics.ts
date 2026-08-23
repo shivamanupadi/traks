@@ -20,7 +20,7 @@ import {
 } from '@traks/shared';
 import { requireAuth } from '../middleware/auth';
 import { cacheTtlSeconds } from '../lib/cache-ttl';
-import { noteSiteView, INTERNAL_HEADER, INTERNAL_TOKEN } from '../lib/prewarm';
+import { noteSiteView, INTERNAL_HEADER, getInternalToken } from '../lib/prewarm';
 import { siteAccessFilter } from '../lib/workspaces';
 import { sites, goals, funnels } from '../db/schema';
 import type { BreakdownDim, BreakdownRow } from '../lib/queries';
@@ -921,7 +921,7 @@ export const analyticsRoute = appWithBatch
    * cache entries are fresh; the payload itself is discarded.
    */
   .get('/internal/warm/:siteId', validate('query', periodQuery), async c => {
-    if (c.req.header(INTERNAL_HEADER) !== INTERNAL_TOKEN)
+    if (c.req.header(INTERNAL_HEADER) !== getInternalToken())
       return c.json({ error: 'Not found' }, 404);
     const db = c.get('db')!;
     const [site] = await db

@@ -952,6 +952,147 @@ export function buildDevicesQuery(
   `;
 }
 
+// ============ Combined dashboard breakdowns (one scan) ============
+
+export type BreakdownDim =
+  | 'page'
+  | 'referrer'
+  | 'utm_source'
+  | 'utm_medium'
+  | 'utm_campaign'
+  | 'country'
+  | 'region'
+  | 'city'
+  | 'browser'
+  | 'os'
+  | 'device'
+  | 'screen'
+  | 'ai';
+
+export interface BreakdownRow {
+  dim: BreakdownDim;
+  name: string;
+  /** Country code for region/city rows (and the country itself for country rows). */
+  country: string;
+  pageviews: unknown;
+  visitors: unknown;
+  sessions: unknown;
+}
+
+/**
+ * Every dashboard breakdown panel from ONE scan. The per-panel builders above
+ * each re-read the same rows; GROUPING SETS computes all thirteen groupings
+ * in a single pass over the window, and a window function keeps the top
+ * `limit` of each. Row shapes match the per-panel queries exactly (same
+ * aggregates, same exclusions), so the API can serve either.
+ *
+ * Mechanics: grouping columns are COALESCE'd to '' so a real value is never
+ * NULL - in GROUPING SETS output a NULL grouping column therefore means "not
+ * part of this set", which is how `dim` is recovered. region/city sets also
+ * group by country so the UI can show a flag; the CASE that assigns `dim`
+ * tests region/city before country for that reason.
+ */
+export function buildBreakdownsQuery(
+  siteKey: string,
+  range: PeriodRange,
+  filters?: LiveFilters,
+  limit = 10
+) {
+  const c = (col: string): string => `COALESCE(${col}, '')`;
+  const screen = `CASE WHEN screen_width > 0 THEN ${SCREEN_SIZE_CASE} ELSE '' END`;
+  const ai = `CASE WHEN referrer_hostname IN (${AI_HOSTNAME_IN}) THEN ${aiSourceCaseSql('referrer_hostname')} ELSE '' END`;
+  const exprs: Record<string, string> = {
+    page: c('pathname'),
+    referrer: c('referrer_hostname'),
+    utm_source: c('utm_source'),
+    utm_medium: c('utm_medium'),
+    utm_campaign: c('utm_campaign'),
+    country: c('country'),
+    region: c('region'),
+    city: c('city'),
+    browser: c('browser'),
+    os: c('os'),
+    device: c('device_type'),
+    screen,
+    ai,
+  };
+  const selectCols = Object.entries(exprs)
+    .map(([k, e]) => `${e} AS d_${k}`)
+    .join(',\n        ');
+  const sets = [
+    `(${exprs.page})`,
+    `(${exprs.referrer})`,
+    `(${exprs.utm_source})`,
+    `(${exprs.utm_medium})`,
+    `(${exprs.utm_campaign})`,
+    `(${exprs.country})`,
+    `(${exprs.region}, ${exprs.country})`,
+    `(${exprs.city}, ${exprs.country})`,
+    `(${exprs.browser})`,
+    `(${exprs.os})`,
+    `(${exprs.device})`,
+    `(${screen})`,
+    `(${ai})`,
+  ].join(',\n        ');
+  // Order matters: region/city sets also carry d_country.
+  const dimCase = [
+    'page',
+    'referrer',
+    'utm_source',
+    'utm_medium',
+    'utm_campaign',
+    'region',
+    'city',
+    'country',
+    'browser',
+    'os',
+    'device',
+    'screen',
+    'ai',
+  ]
+    .map(k => `WHEN d_${k} IS NOT NULL THEN '${k}'`)
+    .join(' ');
+  const nameExpr = `COALESCE(d_page, d_referrer, d_utm_source, d_utm_medium, d_utm_campaign, d_region, d_city, d_country, d_browser, d_os, d_device, d_screen, d_ai)`;
+  return (table: string) => `
+    WITH g AS (
+      SELECT
+        ${selectCols},
+        COUNT(*) AS pageviews,
+        approx_distinct(visitor_id) AS visitors,
+        approx_distinct(session_id) AS sessions
+      FROM ${table}
+      WHERE ${whereSiteAndRange(siteKey, range, 'pageview', filters)}
+      GROUP BY GROUPING SETS (
+        ${sets}
+      )
+    ),
+    labeled AS (
+      SELECT
+        CASE ${dimCase} END AS dim,
+        ${nameExpr} AS name,
+        COALESCE(d_country, '') AS country,
+        pageviews,
+        visitors,
+        sessions
+      FROM g
+    ),
+    ranked AS (
+      SELECT
+        dim, name, country, pageviews, visitors, sessions,
+        ROW_NUMBER() OVER (
+          PARTITION BY dim
+          ORDER BY CASE WHEN dim = 'page' THEN CAST(pageviews AS BIGINT) ELSE CAST(visitors AS BIGINT) END DESC, name ASC
+        ) AS rn
+      FROM labeled
+      WHERE dim IS NOT NULL AND (dim = 'page' OR name != '')
+    )
+    SELECT dim, name, country, pageviews, visitors, sessions
+    FROM ranked
+    WHERE rn <= ${Math.max(1, Math.floor(limit))}
+    ORDER BY dim, rn
+  `;
+}
+
 /**
  * Screen-width buckets (Plausible-style breakpoints). The CASE expression is
  * repeated in GROUP BY - R2 SQL supports expression GROUP BY but aliases in

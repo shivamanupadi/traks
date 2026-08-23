@@ -23,8 +23,10 @@ import { cacheTtlSeconds } from '../lib/cache-ttl';
 import { noteSiteView, INTERNAL_HEADER, INTERNAL_TOKEN } from '../lib/prewarm';
 import { siteAccessFilter } from '../lib/workspaces';
 import { sites, goals, funnels } from '../db/schema';
+import type { BreakdownDim, BreakdownRow } from '../lib/queries';
 import {
   queryR2SqlWithStats,
+  buildBreakdownsQuery,
   isMissingIngestTs,
   setIngestPrune,
   isIngestPrune,
@@ -691,6 +693,115 @@ const appWithBatch = app
     return c.json({ data: outcome });
   });
 
+// ============ Combined breakdowns ============
+
+/** Unified shape every breakdown panel is mapped from. */
+interface PanelRow {
+  name: string;
+  country: string;
+  pageviews: number;
+  visitors: number;
+  sessions: number;
+}
+
+/**
+ * Per-isolate switch: the combined GROUPING SETS scan is the default; if R2
+ * SQL rejects it (feature gap, budget gate on a huge site) we fall back to
+ * the per-panel query for the rest of the isolate's life and log once.
+ */
+let combinedBreakdowns = true;
+
+function legacyBreakdown(
+  siteId: string,
+  range: PeriodRange,
+  filters: LiveFilters | undefined,
+  dim: BreakdownDim
+): (table: string) => string {
+  switch (dim) {
+    case 'page':
+      return buildTopPagesQuery(siteId, range, filters);
+    case 'referrer':
+      return buildTopReferrersQuery(siteId, range, filters);
+    case 'utm_source':
+      return buildUtmQuery(siteId, range, 'source', filters);
+    case 'utm_medium':
+      return buildUtmQuery(siteId, range, 'medium', filters);
+    case 'utm_campaign':
+      return buildUtmQuery(siteId, range, 'campaign', filters);
+    case 'country':
+    case 'region':
+    case 'city':
+      return buildLocationsQuery(siteId, range, dim, filters);
+    case 'browser':
+      return buildDevicesQuery(siteId, range, 'browser', filters);
+    case 'os':
+      return buildDevicesQuery(siteId, range, 'os', filters);
+    case 'device':
+      return buildDevicesQuery(siteId, range, 'device', filters);
+    case 'screen':
+      return buildScreenSizesQuery(siteId, range, filters);
+    case 'ai':
+      return buildAiSourcesQuery(siteId, range, filters);
+  }
+}
+
+/** Map a legacy per-panel row (pathname/source/value/name) into PanelRow. */
+function legacyRow(dim: BreakdownDim, r: Record<string, unknown>): PanelRow {
+  const name = String(r.pathname ?? r.source ?? r.value ?? r.name ?? '');
+  return {
+    name,
+    country: dim === 'country' ? name : String(r.country ?? ''),
+    pageviews: toNumber(r.pageviews),
+    visitors: toNumber(r.visitors),
+    sessions: toNumber(r.sessions),
+  };
+}
+
+/**
+ * One breakdown panel. Every panel for the same (site, window, filters) is
+ * served from the single combined scan - byte-identical SQL, so the cache and
+ * in-flight coalescing turn thirteen panel requests into one R2 SQL query.
+ */
+async function cachedBreakdown(
+  c: AppContext,
+  ttl: number,
+  siteId: string,
+  range: PeriodRange,
+  filters: LiveFilters | undefined,
+  dim: BreakdownDim
+): Promise<PanelRow[]> {
+  if (combinedBreakdowns) {
+    try {
+      const rows = await cachedR2Sql<BreakdownRow>(
+        c,
+        ttl,
+        buildBreakdownsQuery(siteId, range, filters)
+      );
+      return rows
+        .filter(r => r.dim === dim)
+        .map(r => ({
+          name: String(r.name ?? ''),
+          country: String(r.country ?? ''),
+          pageviews: toNumber(r.pageviews),
+          visitors: toNumber(r.visitors),
+          sessions: toNumber(r.sessions),
+        }));
+    } catch (err) {
+      if (!(err instanceof R2SqlError)) throw err;
+      combinedBreakdowns = false;
+      console.warn(
+        `[analytics] combined breakdown scan rejected, using per-panel queries: ${err.message.slice(0, 200)}`
+      );
+    }
+  }
+  const rows = await cachedR2Sql<Record<string, unknown>>(
+    c,
+    ttl,
+    legacyBreakdown(siteId, range, filters, dim)
+  );
+  return rows.map(r => legacyRow(dim, r));
+}
+
 /**
  * Full dashboard payload for a site - DO hot path for 'today', cached R2 SQL
  * cold path otherwise. Shared by the authed /stats/all route and the public
@@ -755,31 +866,11 @@ export async function fetchDashboard(
         ttl,
         buildTimeseriesQuery(site.siteId, range)
       ),
-      cachedR2Sql<{ pathname: string; visitors: unknown; pageviews: unknown }>(
-        c,
-        ttl,
-        buildTopPagesQuery(site.siteId, range)
-      ),
-      cachedR2Sql<{ source: string; visitors: unknown }>(
-        c,
-        ttl,
-        buildTopReferrersQuery(site.siteId, range)
-      ),
-      cachedR2Sql<{ name: string; visitors: unknown }>(
-        c,
-        ttl,
-        buildLocationsQuery(site.siteId, range, 'country')
-      ),
-      cachedR2Sql<{ name: string; visitors: unknown }>(
-        c,
-        ttl,
-        buildDevicesQuery(site.siteId, range, 'browser')
-      ),
-      cachedR2Sql<{ name: string; visitors: unknown }>(
-        c,
-        ttl,
-        buildDevicesQuery(site.siteId, range, 'os')
-      ),
+      cachedBreakdown(c, ttl, site.siteId, range, undefined, 'page'),
+      cachedBreakdown(c, ttl, site.siteId, range, undefined, 'referrer'),
+      cachedBreakdown(c, ttl, site.siteId, range, undefined, 'country'),
+      cachedBreakdown(c, ttl, site.siteId, range, undefined, 'browser'),
+      cachedBreakdown(c, ttl, site.siteId, range, undefined, 'os'),
     ])
   );
   if (outcome instanceof Response) return outcome;
@@ -807,25 +898,16 @@ export async function fetchDashboard(
       })),
       range
     ),
-    pages: pagesRows.map(r => ({
-      name: r.pathname,
-      visitors: toNumber(r.visitors),
-      pageviews: toNumber(r.pageviews),
-    })),
-    referrers: referrersRows.map(r => ({
-      name: r.source,
-      visitors: toNumber(r.visitors),
-    })),
+    pages: pagesRows.map(r => ({ name: r.name, visitors: r.visitors, pageviews: r.pageviews })),
+    referrers: referrersRows.map(r => ({ name: r.name, visitors: r.visitors })),
     locations: locationsRows.map(r => ({
       name: r.name,
       code: r.name,
       country: r.name,
-      visitors: toNumber(r.visitors),
+      visitors: r.visitors,
     })),
-    browsers: formatDevices(
-      browsersRows.map(r => ({ name: r.name, visitors: toNumber(r.visitors) }))
-    ),
-    os: formatDevices(osRows.map(r => ({ name: r.name, visitors: toNumber(r.visitors) }))),
+    browsers: formatDevices(browsersRows.map(r => ({ name: r.name, visitors: r.visitors }))),
+    os: formatDevices(osRows.map(r => ({ name: r.name, visitors: r.visitors }))),
   };
 }
 
@@ -1039,19 +1121,15 @@ export const analyticsRoute = appWithBatch
     }
 
     const outcome = await runQueries(c, () =>
-      cachedR2Sql<{ pathname: string; visitors: unknown; pageviews: unknown }>(
-        c,
-        ttl,
-        buildTopPagesQuery(site.siteId, range, filters)
-      )
+      cachedBreakdown(c, ttl, site.siteId, range, filters, 'page')
     );
     if (outcome instanceof Response) return outcome;
 
     return c.json({
       data: outcome.map(r => ({
-        name: r.pathname,
-        visitors: toNumber(r.visitors),
-        pageviews: toNumber(r.pageviews),
+        name: r.name,
+        visitors: r.visitors,
+        pageviews: r.pageviews,
       })),
     });
   })
@@ -1136,16 +1214,12 @@ export const analyticsRoute = appWithBatch
     const ttl = cacheTtlSeconds(period);
 
     const outcome = await runQueries(c, () =>
-      cachedR2Sql<{ source: string; visitors: unknown }>(
-        c,
-        ttl,
-        buildTopReferrersQuery(site.siteId, range, filters)
-      )
+      cachedBreakdown(c, ttl, site.siteId, range, filters, 'referrer')
     );
     if (outcome instanceof Response) return outcome;
 
     return c.json({
-      data: outcome.map(r => ({ name: r.source, visitors: toNumber(r.visitors) })),
+      data: outcome.map(r => ({ name: r.name, visitors: r.visitors })),
     });
   })
 
@@ -1181,16 +1255,12 @@ export const analyticsRoute = appWithBatch
     const ttl = cacheTtlSeconds(period);
 
     const outcome = await runQueries(c, () =>
-      cachedR2Sql<{ name: string; visitors: unknown }>(
-        c,
-        ttl,
-        buildAiSourcesQuery(site.siteId, range, filters)
-      )
+      cachedBreakdown(c, ttl, site.siteId, range, filters, 'ai')
     );
     if (outcome instanceof Response) return outcome;
 
     return c.json({
-      data: outcome.map(r => ({ name: r.name, visitors: toNumber(r.visitors) })),
+      data: outcome.map(r => ({ name: r.name, visitors: r.visitors })),
     });
   })
 
@@ -1228,19 +1298,15 @@ export const analyticsRoute = appWithBatch
     const ttl = cacheTtlSeconds(period);
 
     const outcome = await runQueries(c, () =>
-      cachedR2Sql<{ value: string; visitors: unknown; sessions: unknown }>(
-        c,
-        ttl,
-        buildUtmQuery(site.siteId, range, type, filters)
-      )
+      cachedBreakdown(c, ttl, site.siteId, range, filters, `utm_${type}` as BreakdownDim)
     );
     if (outcome instanceof Response) return outcome;
 
     return c.json({
       data: outcome.map(r => ({
-        name: r.value,
-        visitors: toNumber(r.visitors),
-        sessions: toNumber(r.sessions),
+        name: r.name,
+        visitors: r.visitors,
+        sessions: r.sessions,
       })),
     });
   })
@@ -1282,11 +1348,7 @@ export const analyticsRoute = appWithBatch
     const ttl = cacheTtlSeconds(period);
 
     const outcome = await runQueries(c, () =>
-      cachedR2Sql<{ name: string; country?: string; visitors: unknown }>(
-        c,
-        ttl,
-        buildLocationsQuery(site.siteId, range, type, filters)
-      )
+      cachedBreakdown(c, ttl, site.siteId, range, filters, type)
     );
     if (outcome instanceof Response) return outcome;
 
@@ -1294,8 +1356,8 @@ export const analyticsRoute = appWithBatch
       data: outcome.map(r => ({
         name: r.name,
         code: r.name,
-        country: type === 'country' ? r.name : (r.country ?? ''),
-        visitors: toNumber(r.visitors),
+        country: type === 'country' ? r.name : r.country,
+        visitors: r.visitors,
       })),
     });
   })
@@ -1338,18 +1400,12 @@ export const analyticsRoute = appWithBatch
     const ttl = cacheTtlSeconds(period);
 
     const outcome = await runQueries(c, () =>
-      cachedR2Sql<{ name: string; visitors: unknown }>(
-        c,
-        ttl,
-        type === 'size'
-          ? buildScreenSizesQuery(site.siteId, range, filters)
-          : buildDevicesQuery(site.siteId, range, type, filters)
-      )
+      cachedBreakdown(c, ttl, site.siteId, range, filters, type === 'size' ? 'screen' : type)
     );
     if (outcome instanceof Response) return outcome;
 
     return c.json({
-      data: formatDevices(outcome.map(r => ({ name: r.name, visitors: toNumber(r.visitors) }))),
+      data: formatDevices(outcome.map(r => ({ name: r.name, visitors: r.visitors }))),
     });
   })
 

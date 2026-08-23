@@ -31,5 +31,6 @@ export {
   buildGoalPagePrefixQuery,
   isPagePrefix,
   buildFunnelQuery,
+  buildBreakdownsQuery,
 } from '@traks/shared';
-export type { QueryConfig, PeriodRange } from '@traks/shared';
+export type { QueryConfig, PeriodRange, BreakdownDim, BreakdownRow } from '@traks/shared';

@@ -41,8 +41,8 @@ id = "fc5eb93cfb8f4cb18969af2ccd4f9ea5"
 binding = "METRICS"
 dataset = "traks_api_metrics_dev"
 
-# No cron triggers; explicit empty list so deploys delete any previously
-# registered schedules (omitting [triggers] would leave them in place).
+# Every minute: the pre-warm sweep (src/lib/prewarm.ts) - a no-op unless a
+# cache bucket just rolled for a recently viewed site.
 # Brute-force guard on the auth surface, keyed by client IP. Better Auth's
 # built-in limiter is in-memory - per-isolate on Workers, so effectively no
 # limiter at all. A single-owner instance has one known account, so this is
@@ -54,7 +54,7 @@ namespace_id = "1004"
 simple = { limit = 20, period = 60 }
 
 [triggers]
-crons = []
+crons = ["* * * * *"]
 
 [vars]
 ENVIRONMENT = "development"

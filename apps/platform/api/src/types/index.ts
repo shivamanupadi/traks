@@ -9,6 +9,9 @@ export type Bindings = {
   /** Query telemetry (R2 SQL wall time, rows, cache outcome); optional so
    *  instances deployed before the binding existed keep working. */
   METRICS?: AnalyticsEngineDataset;
+  /** Hours after a dashboard view during which its cache is kept fresh by
+   *  the pre-warm cron (default 2; '0' disables). */
+  PREWARM_HOURS?: string;
   ENVIRONMENT: string;
   /** Better Auth signing secret (Doppler-managed). */
   BETTER_AUTH_SECRET: string;

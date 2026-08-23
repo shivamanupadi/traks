@@ -19,6 +19,8 @@ import {
   toLiveFilters,
 } from '@traks/shared';
 import { requireAuth } from '../middleware/auth';
+import { cacheTtlSeconds } from '../lib/cache-ttl';
+import { noteSiteView, INTERNAL_HEADER, INTERNAL_TOKEN } from '../lib/prewarm';
 import { siteAccessFilter } from '../lib/workspaces';
 import { sites, goals, funnels } from '../db/schema';
 import {
@@ -79,6 +81,7 @@ async function getSite(c: AppContext, siteId: string, userId: string): Promise<S
     .where(and(eq(sites.id, siteId), siteAccessFilter(db, userId, c.get('tokenWorkspaceId'))))
     .limit(1);
 
+  if (result) noteSiteView(c.env, c.executionCtx, result.siteId, c.req.query());
   return result ?? null;
 }
 
@@ -103,21 +106,9 @@ function getQueryConfig(c: AppContext): {
 // bounded by the sink roll interval (>= 60s), so briefly caching results hides
 // no data and turns repeat dashboard loads / polls into cache hits.
 
-/** Result cache TTL per period. Long windows barely change; today tracks ingest. */
 /** How far 'today' funnel windows trail real time, covering the Iceberg
  *  sink's ~60s roll so a window is only queried once fully written. */
 const FUNNEL_SINK_LAG_MS = 90_000;
-
-function cacheTtlSeconds(period: Period): number {
-  switch (period) {
-    case 'today':
-      return 60;
-    case '7d':
-      return 300;
-    default:
-      return 900;
-  }
-}
 
 /**
  * `now` quantized to the period's cache TTL. Query builders embed `now` in the
@@ -841,6 +832,27 @@ export async function fetchDashboard(
 // Chain continues from appWithBatch so the Hono RPC AppType keeps every route.
 export const analyticsRoute = appWithBatch
   // All stats in a single request (used on site analytics page)
+  /**
+   * Pre-warm hook for the cron (see lib/prewarm.ts). Guarded by a per-isolate
+   * random token that only the scheduled handler knows - there is no way to
+   * reach it from outside. Runs the unfiltered dashboard queries so their
+   * cache entries are fresh; the payload itself is discarded.
+   */
+  .get('/internal/warm/:siteId', validate('query', periodQuery), async c => {
+    if (c.req.header(INTERNAL_HEADER) !== INTERNAL_TOKEN)
+      return c.json({ error: 'Not found' }, 404);
+    const db = c.get('db')!;
+    const [site] = await db
+      .select({ siteId: sites.id, timezone: sites.timezone })
+      .from(sites)
+      .where(eq(sites.id, c.req.param('siteId')))
+      .limit(1);
+    if (!site) return c.json({ error: 'Not found' }, 404);
+    const result = await fetchDashboard(c, site, c.req.valid('query').period);
+    if (result instanceof Response) return result;
+    return c.body(null, 204);
+  })
+
   .get('/:siteId/stats/all', requireAuth, validate('query', periodQuery), async c => {
     const userId = c.get('userId')!;
     const siteId = c.req.param('siteId');

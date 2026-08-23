@@ -670,6 +670,12 @@ export async function provisionInstance(ctx: EngineCtx): Promise<ProvisionResult
         },
       },
     });
+
+    // Pre-warm cron (api worker src/lib/prewarm.ts). PUT replaces the full
+    // schedule set, so re-running never duplicates it.
+    await cf('PUT', `/accounts/${ctx.accountId}/workers/scripts/${N.apiWorker}/schedules`, [
+      { cron: '* * * * *' },
+    ]);
   });
 
   await ensureSecrets(ctx, cf, N);

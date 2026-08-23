@@ -14,6 +14,7 @@ import { invitationsRoute } from './routes/invitations';
 import { tokensRoute } from './routes/tokens';
 import { mcpHandler } from './routes/mcp';
 import { requireAuth, sessionOnly } from './middleware/auth';
+import { runPrewarm } from './lib/prewarm';
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -151,4 +152,11 @@ app.onError((err, c) => {
 });
 
 export type AppType = typeof routes;
-export default app;
+
+export default {
+  fetch: app.fetch,
+  /** Every minute: keep recently viewed dashboards fresh (lib/prewarm.ts). */
+  scheduled(_event: ScheduledEvent, env: Bindings, ctx: ExecutionContext): void {
+    ctx.waitUntil(runPrewarm(app, env, ctx));
+  },
+};

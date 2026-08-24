@@ -114,6 +114,7 @@ export const TOC: { id: string; label: string; group: string }[] = [
   { id: 'site', label: 'Add your first site', group: 'Get started' },
   { id: 'install', label: 'Install the tracker', group: 'Get started' },
   { id: 'verify', label: 'Verify it works', group: 'Get started' },
+  { id: 'plausible', label: 'Migrate from Plausible', group: 'Get started' },
   { id: 'events', label: 'Custom events', group: 'Measure' },
   { id: 'goals', label: 'Goals, funnels, and segments', group: 'Measure' },
   { id: 'team', label: 'Invite your team', group: 'Operate' },

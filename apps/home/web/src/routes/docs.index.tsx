@@ -285,8 +285,62 @@ function DocsIndex(): ReactElement {
 
         {/* 07 */}
         <Section
-          id="events"
+          id="plausible"
           n="07"
+          title="Migrate from Plausible"
+          lede="Your collector speaks Plausible's event API. Repoint the payloads and keep everything else."
+        >
+          <p>
+            The collect worker accepts Plausible-compatible payloads on the same{' '}
+            <Inline>/api/event</Inline> path it already serves - both the tracker script&rsquo;s
+            payload and the public Events API shape. Events are matched to your site by the{' '}
+            <Inline>data-domain</Inline> value, so no site key is needed.
+          </p>
+          <Steps
+            items={[
+              {
+                title: 'Add the site in Traks',
+                body: (
+                  <>
+                    Use the exact domain your Plausible snippet declares in{' '}
+                    <Inline>data-domain</Inline> - that is how events find the site.
+                  </>
+                ),
+              },
+              {
+                title: 'Point the events at your collector',
+                body: (
+                  <>
+                    Keep your existing snippet and add a <Inline>data-api</Inline> attribute, or
+                    change the endpoint in a server-side SDK:
+                  </>
+                ),
+              },
+            ]}
+          />
+          <Code>{`<script defer data-domain="yoursite.com"
+  data-api="${EXAMPLE_COLLECT_URL}/api/event"
+  src="https://plausible.io/js/script.js"></script>`}</Code>
+          <p>
+            UTM tags are read from the page URL server-side; custom events, props, and revenue
+            amounts carry over; <Inline>engagement</Inline> beacons feed visit duration. Plausible
+            sessionizes on its servers, so Traks derives session ids from 30-minute windows - visits
+            and bounce rate for Plausible-sourced traffic are close to, not identical to,
+            Plausible&rsquo;s.
+          </p>
+          <Note>
+            The compatibility path is for zero-change migrations and server-side senders. For the
+            full feature set - outbound link and download autotracking, 404 capture, the queued{' '}
+            <Inline>traks()</Inline> API - switch the page to the native snippet from{' '}
+            <A href="#install">Install the tracker</A> when convenient. Historical Plausible data is
+            not imported; your Traks history starts at cutover.
+          </Note>
+        </Section>
+
+        {/* 08 */}
+        <Section
+          id="events"
+          n="08"
           title="Custom events"
           lede="Fire an event anywhere in your code. Calls made before the script loads are queued by the stub."
         >
@@ -306,10 +360,10 @@ function DocsIndex(): ReactElement {
           </ul>
         </Section>
 
-        {/* 08 */}
+        {/* 09 */}
         <Section
           id="goals"
-          n="08"
+          n="09"
           title="Goals, funnels, and segments"
           lede="All three are configured from the site page, no code changes required."
         >
@@ -331,10 +385,10 @@ function DocsIndex(): ReactElement {
           </p>
         </Section>
 
-        {/* 09 */}
+        {/* 10 */}
         <Section
           id="team"
-          n="09"
+          n="10"
           title="Invite your team"
           lede="Workspaces group sites; membership decides who sees what."
         >
@@ -347,10 +401,10 @@ function DocsIndex(): ReactElement {
           </p>
         </Section>
 
-        {/* 10 */}
+        {/* 11 */}
         <Section
           id="agents"
-          n="10"
+          n="11"
           title="Coding agents and the API"
           lede="Every instance ships an MCP server and a REST API behind the same permissions as the dashboard."
         >
@@ -403,10 +457,10 @@ function DocsIndex(): ReactElement {
           </p>
         </Section>
 
-        {/* 11 */}
+        {/* 12 */}
         <Section
           id="update"
-          n="11"
+          n="12"
           title="Updates"
           lede="Instances do not update themselves; you decide when."
         >
@@ -420,10 +474,10 @@ function DocsIndex(): ReactElement {
           </p>
         </Section>
 
-        {/* 12 */}
+        {/* 13 */}
         <Section
           id="destroy"
-          n="12"
+          n="13"
           title="Removing Traks"
           lede="Everything the wizard created, it can remove."
         >
@@ -435,8 +489,8 @@ function DocsIndex(): ReactElement {
           </p>
         </Section>
 
-        {/* 13 */}
-        <Section id="privacy" n="13" title="Privacy">
+        {/* 14 */}
+        <Section id="privacy" n="14" title="Privacy">
           <ul className="list-disc space-y-1.5 pl-5">
             <li>No cookies and no persistent identifiers, so no consent banner is required.</li>
             <li>

@@ -137,7 +137,9 @@ export function GoalFormModal({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['site-goals', siteId] });
-      queryClient.invalidateQueries({ queryKey: ['site-analytics', siteId] });
+      // A goal change only moves the goals panel - refetching every mounted
+      // dashboard panel here re-ran ~11 queries for identical numbers.
+      queryClient.invalidateQueries({ queryKey: ['site-analytics', siteId, 'goals'] });
       onOpenChange(false);
     },
     onError: (err: Error) => setError(err.message),

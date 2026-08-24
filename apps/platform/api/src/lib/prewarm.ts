@@ -32,8 +32,11 @@ export const INTERNAL_HEADER = 'x-traks-internal';
 const KV_PREFIX = 'warm:';
 const DEFAULT_HOURS = 2;
 const ALWAYS: Period[] = ['7d', '30d'];
-/** Periods the DO hot path serves - never worth warming. */
-const HOT: ReadonlySet<string> = new Set(['today', 'yesterday']);
+/** Periods the DO hot path serves - never worth warming. 'yesterday' was
+ *  wrongly in this set: it is served from R2 SQL like any historical period
+ *  (the DO only answers 'today'), so excluding it left it the one cold period
+ *  that was never warmed - every view past a bucket roll paid a live scan. */
+const HOT: ReadonlySet<string> = new Set(['today']);
 const FILTER_KEYS = [
   'page',
   'source',

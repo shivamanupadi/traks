@@ -125,24 +125,41 @@ export function parsePlausible(body: unknown): PlausiblePayload | null {
 /** Plausible sessionizes server-side; approximate with fixed 30-min windows. */
 export const SESSION_WINDOW_MS = 30 * 60 * 1000;
 
+const encoder = new TextEncoder();
+
+// Unlike the daily visitor-hash key, the session key material is CONSTANT
+// ('<secret>|session') - re-importing it per event was pure per-event crypto
+// overhead on the ingest path. One isolate serves one worker secret, so a
+// single cached slot suffices.
+let sessionKeyPromise: Promise<CryptoKey> | null = null;
+
+function getSessionKey(secret: string): Promise<CryptoKey> {
+  if (!sessionKeyPromise) {
+    sessionKeyPromise = crypto.subtle
+      .importKey(
+        'raw',
+        encoder.encode(secret + '|session'),
+        { name: 'HMAC', hash: 'SHA-256' },
+        false,
+        ['sign']
+      )
+      .catch(err => {
+        // Never cache a rejection - a transient failure would poison the slot.
+        sessionKeyPromise = null;
+        throw err;
+      });
+  }
+  return sessionKeyPromise;
+}
+
 export async function deriveSessionId(
   secret: string,
   visitorId: string,
   now: number
 ): Promise<string> {
   const bucket = Math.floor(now / SESSION_WINDOW_MS);
-  const key = await crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(secret + '|session'),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
-  );
-  const sig = await crypto.subtle.sign(
-    'HMAC',
-    key,
-    new TextEncoder().encode(`${visitorId}|${bucket}`)
-  );
+  const key = await getSessionKey(secret);
+  const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(`${visitorId}|${bucket}`));
   return [...new Uint8Array(sig)]
     .slice(0, 12)
     .map(b => b.toString(16).padStart(2, '0'))

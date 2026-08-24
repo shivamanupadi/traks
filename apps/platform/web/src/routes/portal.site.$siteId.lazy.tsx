@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, type ReactElement, type ReactNode } from 'react';
 import { createLazyFileRoute, Link, useNavigate } from '@tanstack/react-router';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -729,6 +729,7 @@ function SegmentsMenu({
   onApply: (filters: SegmentFilters) => void;
 }): ReactElement {
   const queryClient = useQueryClient();
+  const [menuOpen, setMenuOpen] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
   const [name, setName] = useState('');
   const [error, setError] = useState('');
@@ -740,12 +741,15 @@ function SegmentsMenu({
     }
   }, [saveOpen]);
 
+  // Fetched only once the menu opens (same gate as the goals/funnels
+  // drawers) - the list isn't needed to render the closed trigger button.
   const segmentsQ = useQuery({
     queryKey: ['site-segments', siteId],
     queryFn: async () => {
       return api.getSegments(siteId);
     },
     staleTime: 60_000,
+    enabled: menuOpen,
   });
   const segments = ((segmentsQ.data as any)?.data ?? []) as SegmentDef[];
 
@@ -784,7 +788,7 @@ function SegmentsMenu({
 
   return (
     <>
-      <DropdownMenu>
+      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
         <DropdownMenuTrigger asChild>
           <button className={SEG_BTN} title="Segments">
             <Bookmark className="w-[15px] h-[15px]" />
@@ -797,7 +801,10 @@ function SegmentsMenu({
           <DropdownMenuLabel className="px-4 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wider text-[#B5B0AA]">
             Segments
           </DropdownMenuLabel>
-          {segmentsQ.isLoading ? (
+          {/* isPending, not isLoading: the query is disabled until the menu
+              opens, and isLoading is false for that first frame - it would
+              flash the "No saved segments" empty state before the fetch. */}
+          {segmentsQ.isPending ? (
             <p className="px-4 pb-3 pt-1 text-[12.5px] text-[#9B9590]">Loading segments…</p>
           ) : segmentsQ.isError ? (
             <p className="px-4 pb-3 pt-1 text-[12.5px] leading-relaxed text-[#e07a5f]">
@@ -1049,12 +1056,22 @@ function SiteAnalyticsPage(): ReactElement {
   // Lazy-render sentinels for below-fold sections
   const [belowFoldRef, belowFoldVisible] = useLazyVisible();
 
+  // Live visitors (last 5 min): pushed from the site's DO over a WebSocket,
+  // polled every 30s while the socket is down. Declared before handleRefresh,
+  // which needs the connection status.
+  const realtime = useRealtime(siteId);
+
   const handleRefresh = useCallback(async (): Promise<void> => {
     setRefreshing(true);
-    await queryClient.invalidateQueries({ queryKey: ['site-analytics', siteId] });
+    await queryClient.invalidateQueries({
+      queryKey: ['site-analytics', siteId],
+      // While the socket is live the realtime numbers are already pushed;
+      // forcing the REST realtime fetch on top of that was a wasted request.
+      predicate: q => realtime.status !== 'live' || q.queryKey[2] !== 'realtime',
+    });
     await queryClient.invalidateQueries({ queryKey: ['site', siteId] });
     setTimeout(() => setRefreshing(false), 600);
-  }, [queryClient, siteId]);
+  }, [queryClient, siteId, realtime.status]);
 
   const {
     data: siteData,
@@ -1080,11 +1097,19 @@ function SiteAnalyticsPage(): ReactElement {
     enabled: useBootstrap,
     refetchInterval: getRefetchInterval(period),
     staleTime: getStaleTime(period),
+    // Period switches show the previous period's numbers while the new ones
+    // load, instead of dropping the whole dashboard to skeletons.
+    placeholderData: keepPreviousData,
   });
 
   // Seed each panel's cache from the bundle so the panel queries below find
   // fresh data and never hit the network. Panels stay independent components
   // with their own loading states; they just get their data early.
+  //
+  // ORDER MATTERS: this effect must stay declared ABOVE the tile useQuery
+  // calls. Effects run in declaration order, so when the bundle resolves the
+  // seed lands before each tile's observer mounts-and-fetches; declared after
+  // them, every bundled panel would fire a duplicate request on first load.
   const bootstrapData = (bootstrapQ.data as { data?: Record<string, unknown> } | undefined)?.data;
   useEffect(() => {
     // Seed only while the unfiltered bundle answers the current view. When a
@@ -1092,7 +1117,10 @@ function SiteAnalyticsPage(): ReactElement {
     // stale unfiltered bundle is still in cache - seeding then would stamp
     // unfiltered data onto the filtered query keys as fresh, so every panel
     // keeps showing unfiltered numbers until a manual refresh.
-    if (!bootstrapData || hasFilters) return;
+    // Same hazard on a period switch: keepPreviousData keeps the OLD period's
+    // bundle in `data` while the new one loads, so seeding placeholder data
+    // would stamp last period's numbers onto this period's keys as fresh.
+    if (!bootstrapData || hasFilters || bootstrapQ.isPlaceholderData) return;
     const seed = (key: readonly unknown[], value: unknown): void => {
       queryClient.setQueryData(['site-analytics', siteId, ...key, period, filterKey], {
         data: value,
@@ -1105,30 +1133,60 @@ function SiteAnalyticsPage(): ReactElement {
     seed(['locations', 'country'], bootstrapData.locations);
     seed(['devices', 'browser'], bootstrapData.browsers);
     seed(['devices', 'os'], bootstrapData.os);
-  }, [bootstrapData, queryClient, siteId, period, filterKey, hasFilters]);
+  }, [
+    bootstrapData,
+    queryClient,
+    siteId,
+    period,
+    filterKey,
+    hasFilters,
+    bootstrapQ.isPlaceholderData,
+  ]);
 
   // Panels covered by the bundle wait for it rather than racing it; if it
   // fails they fall back to fetching themselves, so a bundle error degrades
-  // to the old behaviour instead of an empty dashboard.
-  const bootstrapSettled = !useBootstrap || bootstrapQ.isSuccess || bootstrapQ.isError;
+  // to the old behaviour instead of an empty dashboard. isPlaceholderData
+  // matters: with keepPreviousData the bundle stays isSuccess while a NEW
+  // period's fetch is in flight, and treating that as settled unlocked the
+  // tiles to fetch in parallel with the bundle on every period switch - the
+  // exact duplicate burst the bundle exists to prevent. While placeholder,
+  // tiles stay gated (their own keepPreviousData keeps old rows on screen)
+  // until the fresh bundle lands and re-seeds them.
+  const bootstrapSettled =
+    !useBootstrap || bootstrapQ.isError || (bootstrapQ.isSuccess && !bootstrapQ.isPlaceholderData);
 
   // Per-tile parallel queries - each tile renders as its own request resolves.
   // Tabbed panels pass `enabled` so only the active tab's query runs (each
   // R2 SQL query is a paid distributed scan; don't fetch hidden tabs).
   // `inBundle` marks the panels /stats/all already answers.
+  //
+  // While the bundle is active and healthy it is the ONLY poller for the
+  // panels it covers: its refetch re-seeds them via setQueryData above, so
+  // giving those tiles their own refetchInterval would double every poll
+  // (on 'today' that was ~11 requests per 15s, seven of them byte-identical
+  // to the bundle). Tiles poll themselves only when the bundle is disabled
+  // (filters active) or erroring.
+  const bundlePolls = useBootstrap && !bootstrapQ.isError;
   const tileOpts = (
     key: readonly unknown[],
     call: () => Promise<unknown>,
     enabled = true,
-    inBundle = false
+    inBundle = false,
+    // Off for tiles whose key embeds an entity id (funnel, event props):
+    // there a key change means "different entity", and holding the previous
+    // one's numbers would show them under the new entity's name.
+    keepPrevious = true
   ): Parameters<typeof useQuery>[0] => ({
     queryKey: ['site-analytics', siteId, ...key, period, filterKey],
     queryFn: async () => {
       return call();
     },
-    refetchInterval: getRefetchInterval(period),
+    refetchInterval: inBundle && bundlePolls ? false : getRefetchInterval(period),
     staleTime: getStaleTime(period),
     enabled: enabled && (!inBundle || bootstrapSettled),
+    // Key changes (period/filter switches) show the previous view's rows
+    // while the new ones load, instead of dropping every panel to skeletons.
+    placeholderData: keepPrevious ? keepPreviousData : undefined,
   });
 
   const mainQ = useQuery(
@@ -1287,20 +1345,21 @@ function SiteAnalyticsPage(): ReactElement {
     tileOpts(
       ['funnel', activeFunnelId],
       () => api.getFunnelStats(siteId, activeFunnelId!, period, filters),
-      belowFoldVisible && activeFunnelId !== null
+      belowFoldVisible && activeFunnelId !== null,
+      false,
+      false
     )
   );
   const eventPropsQ = useQuery(
     tileOpts(
       ['event-props', selectedEvent],
       () => api.getEventProps(siteId, period, selectedEvent!, filters),
-      belowFoldVisible && selectedEvent !== null
+      belowFoldVisible && selectedEvent !== null,
+      false,
+      false
     )
   );
 
-  // Live visitors (last 5 min): pushed from the site's DO over a WebSocket,
-  // polled every 30s while the socket is down.
-  const realtime = useRealtime(siteId);
   const [liveOpen, setLiveOpen] = useState(false);
 
   const site = (siteData as any)?.data;

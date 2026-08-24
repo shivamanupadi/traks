@@ -343,119 +343,144 @@ app.post('/api/event', async c => {
 
   // Geo from Cloudflare request
   const cf = (c.req.raw as unknown as { cf?: Record<string, string | undefined> }).cf || {};
-  const country = cf.country || '';
-  const city = cf.city || '';
-  const region = cf.region || '';
-  // City-level coordinates for the realtime globe. Hot path only: they go to
-  // the live DO's rolling window, never into the Iceberg record below.
-  const latitude = parseCoordinate(cf.latitude, 90);
-  const longitude = parseCoordinate(cf.longitude, 180);
-
-  // Parse referrer
-  const { hostname: refHostname, pathname: refPathname } = parseReferrer(event.r);
-
-  // Parse user agent
-  const { browser, os, deviceType } = parseUA(ua);
-
+  // Arrival time is captured before the response; the deferred work below
+  // must not stamp events with whenever the isolate got around to them.
   const now = new Date();
-  // Bucket keys are computed in the site's timezone so "today" hourly buckets
-  // align with IST (or whatever the site runs on) rather than UTC.
-  const { dateKey, hourKey, weekKey } = computeBucketKeys(now, site.timezone);
 
-  // Visitor ID rotates on the same site-local day boundary as the buckets.
-  const visitorId = await generateVisitorId(c.env.VISITOR_HASH_SECRET, ip, ua, event.s, dateKey);
-
-  // Plausible has no client session id; approximate its server-side
-  // sessionization with a deterministic 30-minute window (lib/plausible.ts).
-  const sessionId =
-    event.sid ||
-    (pl ? await deriveSessionId(c.env.VISITOR_HASH_SECRET, visitorId, now.getTime()) : '');
-
-  // Auto link events (outbound / download): re-serialize props to the exact
-  // canonical form '{"url":"..."}' so link panels can GROUP BY the raw
-  // event_meta string. User-defined custom events pass through untouched.
-  let eventMeta = event.ep || '';
-  if (
-    event.t === 'event' &&
-    (event.en === AUTO_EVENTS.OUTBOUND || event.en === AUTO_EVENTS.DOWNLOAD)
-  ) {
-    let url = '';
-    try {
-      url = String((JSON.parse(eventMeta || '{}') as { url?: unknown }).url || '').slice(0, 500);
-    } catch {
-      // Malformed props - drop the URL, keep the event.
-    }
-    eventMeta = url ? JSON.stringify({ url }) : '';
-  }
-
-  const record = {
-    site_id: site.siteId,
-    ts: now.getTime(),
-    date_key: dateKey,
-    hour_key: hourKey,
-    week_key: weekKey,
-    event_type: event.t,
-    pathname: event.p,
-    hostname: event.h,
-    referrer_hostname: refHostname,
-    referrer_pathname: refPathname,
-    utm_source: event.us || '',
-    utm_medium: event.um || '',
-    utm_campaign: event.uc || '',
-    country,
-    city,
-    region,
-    browser,
-    os,
-    device_type: deviceType,
-    session_id: sessionId,
-    visitor_id: visitorId,
-    event_name: event.en || '',
-    event_meta: eventMeta,
-    event_value: event.ev || 0,
-    screen_width: event.sw || 0,
-  };
-
-  // Dual write: the Pipelines stream feeds the durable Iceberg table (system
-  // of record, historical queries); the site's Durable Object serves "today"
-  // and realtime dashboards instantly. Each leg fails independently.
-  const liveStub = c.env.LIVE.get(c.env.LIVE.idFromName(site.siteId));
+  // Everything past this point - UA/referrer parsing, the visitor-id HMAC,
+  // bucket keys, and the dual write - is invisible to the response (always
+  // `ok` once auth and origin have passed), so it runs behind it. The visitor
+  // pays for validation, the rate-limit check and (only on first contact per
+  // isolate) auth; the ~1ms of per-event parsing/crypto no longer sits on
+  // their page's request. A failure here is logged and counted instead of
+  // becoming a 500 the tracker would ignore anyway.
   c.executionCtx.waitUntil(
-    Promise.all([
-      c.env.EVENTS.send([record]).catch(err => {
-        console.error('Pipeline send failed:', err);
-        countFailure(c.env, 'pipeline_send_failed', event.s);
-      }),
-      liveStub
-        .record({
-          ts: record.ts,
-          hourKey: hourKey,
-          eventType: event.t,
-          pathname: event.p,
-          referrerHostname: refHostname,
-          utmSource: event.us || '',
-          utmMedium: event.um || '',
-          utmCampaign: event.uc || '',
-          country,
-          region,
-          city,
-          browser,
-          os,
-          deviceType,
-          screenWidth: event.sw || 0,
-          sessionId,
-          visitorId: visitorId,
-          eventName: event.en || '',
-          eventMeta: eventMeta,
-          eventValue: event.ev || 0,
-          latitude,
-          longitude,
-        })
-        .catch(err => {
-          console.error('Live store write failed:', err);
-          countFailure(c.env, 'live_write_failed', event.s);
+    (async () => {
+      const country = cf.country || '';
+      const city = cf.city || '';
+      const region = cf.region || '';
+      // City-level coordinates for the realtime globe. Hot path only: they go
+      // to the live DO's rolling window, never into the Iceberg record below.
+      const latitude = parseCoordinate(cf.latitude, 90);
+      const longitude = parseCoordinate(cf.longitude, 180);
+
+      const { hostname: refHostname, pathname: refPathname } = parseReferrer(event.r);
+      const { browser, os, deviceType } = parseUA(ua);
+
+      // Bucket keys are computed in the site's timezone so "today" hourly
+      // buckets align with IST (or whatever the site runs on) rather than UTC.
+      const { dateKey, hourKey, weekKey } = computeBucketKeys(now, site.timezone);
+
+      // Visitor ID rotates on the same site-local day boundary as the buckets.
+      const visitorId = await generateVisitorId(
+        c.env.VISITOR_HASH_SECRET,
+        ip,
+        ua,
+        event.s,
+        dateKey
+      );
+
+      // Plausible has no client session id; approximate its server-side
+      // sessionization with a deterministic 30-minute window (lib/plausible.ts).
+      const sessionId =
+        event.sid ||
+        (pl ? await deriveSessionId(c.env.VISITOR_HASH_SECRET, visitorId, now.getTime()) : '');
+
+      // Auto link events (outbound / download): re-serialize props to the exact
+      // canonical form '{"url":"..."}' so link panels can GROUP BY the raw
+      // event_meta string. User-defined custom events pass through untouched.
+      let eventMeta = event.ep || '';
+      if (
+        event.t === 'event' &&
+        (event.en === AUTO_EVENTS.OUTBOUND || event.en === AUTO_EVENTS.DOWNLOAD)
+      ) {
+        let url = '';
+        try {
+          url = String((JSON.parse(eventMeta || '{}') as { url?: unknown }).url || '').slice(
+            0,
+            500
+          );
+        } catch {
+          // Malformed props - drop the URL, keep the event.
+        }
+        eventMeta = url ? JSON.stringify({ url }) : '';
+      }
+
+      const record = {
+        site_id: site.siteId,
+        ts: now.getTime(),
+        date_key: dateKey,
+        hour_key: hourKey,
+        week_key: weekKey,
+        event_type: event.t,
+        pathname: event.p,
+        hostname: event.h,
+        referrer_hostname: refHostname,
+        referrer_pathname: refPathname,
+        utm_source: event.us || '',
+        utm_medium: event.um || '',
+        utm_campaign: event.uc || '',
+        country,
+        city,
+        region,
+        browser,
+        os,
+        device_type: deviceType,
+        session_id: sessionId,
+        visitor_id: visitorId,
+        event_name: event.en || '',
+        event_meta: eventMeta,
+        event_value: event.ev || 0,
+        screen_width: event.sw || 0,
+      };
+
+      // Dual write: the Pipelines stream feeds the durable Iceberg table
+      // (system of record, historical queries); the site's Durable Object
+      // serves "today" and realtime dashboards instantly. Each leg fails
+      // independently.
+      const liveStub = c.env.LIVE.get(c.env.LIVE.idFromName(site.siteId));
+      await Promise.all([
+        c.env.EVENTS.send([record]).catch(err => {
+          console.error('Pipeline send failed:', err);
+          countFailure(c.env, 'pipeline_send_failed', event.s);
         }),
-    ])
+        liveStub
+          .record({
+            ts: record.ts,
+            hourKey: hourKey,
+            eventType: event.t,
+            pathname: event.p,
+            referrerHostname: refHostname,
+            utmSource: event.us || '',
+            utmMedium: event.um || '',
+            utmCampaign: event.uc || '',
+            country,
+            region,
+            city,
+            browser,
+            os,
+            deviceType,
+            screenWidth: event.sw || 0,
+            sessionId,
+            visitorId: visitorId,
+            eventName: event.en || '',
+            eventMeta: eventMeta,
+            eventValue: event.ev || 0,
+            latitude,
+            longitude,
+          })
+          .catch(err => {
+            console.error('Live store write failed:', err);
+            countFailure(c.env, 'live_write_failed', event.s);
+          }),
+      ]);
+    })().catch(err => {
+      // Parsing/crypto failed before either sink was reached: the event is
+      // dropped. Count it - a spike here means misconfiguration (e.g. an
+      // unset VISITOR_HASH_SECRET), not tracker noise.
+      console.error('Event processing failed:', err);
+      countFailure(c.env, 'ingest_process_failed', event.s);
+    })
   );
 
   // Plausible's tracker treats any 2xx as delivered; mirror its 202.

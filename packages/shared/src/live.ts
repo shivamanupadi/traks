@@ -239,6 +239,23 @@ export interface LiveMetaRow {
   events: number;
 }
 
+/**
+ * Everything the unfiltered today-dashboard needs, in one RPC. The api's
+ * /stats/all hot path previously issued seven parallel RPCs for this - all
+ * resolving to the SAME single-threaded object, so they serialized inside it
+ * while each paid its own cross-script round-trip.
+ */
+export interface LiveDashboard {
+  main: { current: LiveTotals; previous: LiveTotals };
+  timeseries: LiveTimeseriesRow[];
+  pages: LiveTopListRow[];
+  referrers: LiveTopListRow[];
+  /** Country top-list (name = ISO code). */
+  locations: LiveTopListRow[];
+  browsers: LiveTopListRow[];
+  os: LiveTopListRow[];
+}
+
 /** RPC surface of SiteLiveStore. All ranges are [fromMs, toMs) epoch ms. */
 export interface LiveStoreApi {
   /** Stores the event and returns the site's event count for its calendar month (site tz) - used for quota enforcement. */
@@ -259,6 +276,17 @@ export interface LiveStoreApi {
     filters?: LiveFilters,
     prevToMs?: number
   ): Promise<{ current: LiveTotals; previous: LiveTotals }>;
+  /**
+   * The whole unfiltered today-dashboard in one round-trip (see
+   * LiveDashboard). Windows follow mainStats: current [curFromMs, toMs),
+   * comparison [prevFromMs, prevToMs).
+   */
+  dashboard(
+    prevFromMs: number,
+    curFromMs: number,
+    toMs: number,
+    prevToMs: number
+  ): Promise<LiveDashboard>;
   timeseries(fromMs: number, toMs: number, filters?: LiveFilters): Promise<LiveTimeseriesRow[]>;
   topList(
     dimension: LiveDimension,

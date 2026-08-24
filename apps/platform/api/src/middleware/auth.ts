@@ -17,6 +17,13 @@ export async function sessionOnly(
   await next();
 }
 
+// lastUsedAt exists to answer "is this token still used?" - minute precision
+// is plenty. Unthrottled, the touch was a D1 WRITE on every authenticated
+// READ: an MCP session or polling dashboard on a token wrote D1 dozens of
+// times a minute for a column nobody reads that often.
+const LAST_USED_THROTTLE_MS = 60_000;
+const lastUsedTouched = new Map<string, number>();
+
 /**
  * Session auth (dashboard cookie) or a personal API token
  * (`Authorization: Bearer traks_pat_…` - coding agents and the MCP
@@ -43,17 +50,23 @@ export async function requireAuth(
     c.set('userId', token.userId);
     c.set('tokenScope', token.scope);
     c.set('tokenWorkspaceId', token.workspaceId ?? undefined);
-    // Touch lastUsedAt out-of-band; per-request precision isn't needed.
-    try {
-      c.executionCtx.waitUntil(
-        db
-          .update(apiTokens)
-          .set({ lastUsedAt: new Date() })
-          .where(eq(apiTokens.id, token.id))
-          .then(() => undefined)
-      );
-    } catch {
-      /* executionCtx unavailable (tests) */
+    // Touch lastUsedAt out-of-band and at most once a minute per token per
+    // isolate; per-request precision isn't needed.
+    const now = Date.now();
+    if ((lastUsedTouched.get(token.id) ?? 0) <= now - LAST_USED_THROTTLE_MS) {
+      lastUsedTouched.set(token.id, now);
+      if (lastUsedTouched.size > 1000) lastUsedTouched.clear();
+      try {
+        c.executionCtx.waitUntil(
+          db
+            .update(apiTokens)
+            .set({ lastUsedAt: new Date() })
+            .where(eq(apiTokens.id, token.id))
+            .then(() => undefined)
+        );
+      } catch {
+        /* executionCtx unavailable (tests) */
+      }
     }
     await next();
     return;

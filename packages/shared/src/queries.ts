@@ -475,15 +475,17 @@ function filterClause(filters?: LiveFilters): string {
   return sql;
 }
 
+/** `eventType: null` = no type predicate (callers that pin a type per branch,
+ *  e.g. the consolidated special-goals scan mixing event and pageview goals). */
 function whereSiteAndRange(
   siteKey: string,
   range: { from: string; to: string },
-  eventType = 'pageview',
+  eventType: string | null = 'pageview',
   filters?: LiveFilters
 ) {
   return (
     `site_id = '${esc(siteKey)}'` +
-    ` AND event_type = '${esc(eventType)}'` +
+    (eventType === null ? '' : ` AND event_type = '${esc(eventType)}'`) +
     ` AND ts >= TIMESTAMP '${esc(range.from)}'` +
     ` AND ts < TIMESTAMP '${esc(range.to)}'` +
     ingestBounds(range.from, range.to) +
@@ -626,6 +628,49 @@ export function buildGoalEventPropQuery(
     WHERE ${whereSiteAndRange(siteKey, range, 'event', filters)}
       AND event_name = '${esc(target)}'
       AND ${propMatchSql(propKey, propValue)}
+  `;
+}
+
+/** A "special" goal: prop-filtered event goal or '/section/*' page-prefix goal. */
+export interface SpecialGoalDef {
+  type: 'event' | 'page';
+  target: string;
+  propKey?: string | null;
+  propValue?: string | null;
+}
+
+/** The WHERE branch matching one special goal (each pins its own event_type). */
+function specialGoalCond(g: SpecialGoalDef): string {
+  return g.type === 'event'
+    ? `(event_type = 'event' AND event_name = '${esc(g.target)}' AND ${propMatchSql(g.propKey!, g.propValue!)})`
+    : `(event_type = 'pageview' AND ${pathMatchSql('pathname', g.target)})`;
+}
+
+/**
+ * ALL special goals in one scan via conditional aggregation, instead of one
+ * R2 SQL scan per goal (N+1 in goal count, each billed at the 10 MB scan
+ * minimum). Returns a single row with events_<i>/visitors_<i> columns in
+ * input order - the same numbers the per-goal queries produce, since SUM and
+ * approx_distinct both ignore the NULLs the CASE emits for non-matching rows.
+ */
+export function buildSpecialGoalsQuery(
+  siteKey: string,
+  range: PeriodRange,
+  goalDefs: SpecialGoalDef[],
+  filters?: LiveFilters
+) {
+  const conds = goalDefs.map(specialGoalCond);
+  const cols = conds.map(
+    (cond, i) =>
+      `SUM(CASE WHEN ${cond} THEN 1 ELSE 0 END) AS events_${i},
+      approx_distinct(CASE WHEN ${cond} THEN visitor_id END) AS visitors_${i}`
+  );
+  return (table: string) => `
+    SELECT
+      ${cols.join(',\n      ')}
+    FROM ${table}
+    WHERE ${whereSiteAndRange(siteKey, range, null, filters)}
+      AND (${conds.join(' OR ')})
   `;
 }
 

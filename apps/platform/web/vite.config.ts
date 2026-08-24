@@ -10,17 +10,12 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
-  build: {
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom'],
-          recharts: ['recharts'],
-          'framer-motion': ['framer-motion'],
-        },
-      },
-    },
-  },
+  // No manualChunks: the object form pulled React INTO the forced recharts
+  // chunk (the 'vendor' chunk built out to 0 bytes), so the entry statically
+  // imported - and index.html preloaded - 396 KB of charting library on every
+  // page including /login. Rollup's default splitting keeps recharts inside
+  // the lazy dashboard route chunk, which is the only place it's imported.
+  build: {},
   server: {
     port: 5012,
     // Mirror prod topology (traks.dev/api/* -> API worker): same-origin /api.

@@ -68,7 +68,8 @@ export function FunnelsDrawer({
     mutationFn: async (funnelId: string) => api.deleteFunnel(siteId, funnelId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['site-funnels', siteId] });
-      queryClient.invalidateQueries({ queryKey: ['site-analytics', siteId] });
+      // A funnel change only moves the funnel panel - not the whole dashboard.
+      queryClient.invalidateQueries({ queryKey: ['site-analytics', siteId, 'funnel'] });
       setConfirmId(null);
     },
     onError: (err: Error) => setError(err.message),

@@ -52,9 +52,11 @@ import {
   buildGoalPagesQuery,
   buildGoalEventPropQuery,
   buildGoalPagePrefixQuery,
+  buildSpecialGoalsQuery,
   isPagePrefix,
   buildFunnelQuery,
 } from '../lib/queries';
+import type { SpecialGoalDef } from '../lib/queries';
 import type { Bindings, Variables } from '../types';
 
 type Env = { Bindings: Bindings; Variables: Variables };
@@ -705,11 +707,14 @@ interface PanelRow {
 }
 
 /**
- * Per-isolate switch: the combined GROUPING SETS scan is the default; if R2
+ * Per-isolate backoff: the combined GROUPING SETS scan is the default; if R2
  * SQL rejects it (feature gap, budget gate on a huge site) we fall back to
- * the per-panel query for the rest of the isolate's life and log once.
+ * the per-panel queries until the cooldown lapses. A cooldown, not a latch:
+ * one transient error used to degrade the isolate to 13 per-panel scans for
+ * the rest of its life.
  */
-let combinedBreakdowns = true;
+const DEGRADED_RETRY_MS = 10 * 60 * 1000;
+let combinedBreakdownsDisabledUntil = 0;
 
 function legacyBreakdown(
   siteId: string,
@@ -770,7 +775,7 @@ async function cachedBreakdown(
   filters: LiveFilters | undefined,
   dim: BreakdownDim
 ): Promise<PanelRow[]> {
-  if (combinedBreakdowns) {
+  if (Date.now() >= combinedBreakdownsDisabledUntil) {
     try {
       const rows = await cachedR2Sql<BreakdownRow>(
         c,
@@ -788,9 +793,9 @@ async function cachedBreakdown(
         }));
     } catch (err) {
       if (!(err instanceof R2SqlError)) throw err;
-      combinedBreakdowns = false;
+      combinedBreakdownsDisabledUntil = Date.now() + DEGRADED_RETRY_MS;
       console.warn(
-        `[analytics] combined breakdown scan rejected, using per-panel queries: ${err.message.slice(0, 200)}`
+        `[analytics] combined breakdown scan rejected, using per-panel queries for 10 min: ${err.message.slice(0, 200)}`
       );
     }
   }
@@ -803,6 +808,81 @@ async function cachedBreakdown(
 }
 
 /**
+ * Per-isolate backoff, same shape as combinedBreakdowns: the consolidated
+ * special-goals scan is the default; if R2 SQL rejects the conditional
+ * aggregation we fall back to one scan per goal until the cooldown lapses.
+ */
+let specialGoalsDisabledUntil = 0;
+/** Bounds the generated column list; each chunk is still 1 scan for up to
+ *  this many goals, so the old per-goal cost only returns past the bound. */
+const SPECIAL_GOALS_PER_SCAN = 30;
+
+/**
+ * Counts for every special goal (prop-filtered event goals, page-prefix
+ * goals), in input order. One conditional-aggregation scan per chunk of 30
+ * instead of one scan per goal - identical numbers, N times fewer scans.
+ */
+async function cachedSpecialGoals(
+  c: AppContext,
+  ttl: number,
+  siteId: string,
+  range: PeriodRange,
+  filters: LiveFilters | undefined,
+  defs: SpecialGoalDef[]
+): Promise<{ events: number; visitors: number }[]> {
+  if (defs.length === 0) return [];
+  if (Date.now() >= specialGoalsDisabledUntil) {
+    try {
+      const chunks: SpecialGoalDef[][] = [];
+      for (let i = 0; i < defs.length; i += SPECIAL_GOALS_PER_SCAN) {
+        chunks.push(defs.slice(i, i + SPECIAL_GOALS_PER_SCAN));
+      }
+      const rowsPerChunk = await Promise.all(
+        chunks.map(chunk =>
+          cachedR2Sql<Record<string, unknown>>(
+            c,
+            ttl,
+            buildSpecialGoalsQuery(siteId, range, chunk, filters)
+          )
+        )
+      );
+      const out: { events: number; visitors: number }[] = [];
+      rowsPerChunk.forEach((rows, ci) => {
+        const row = rows[0] ?? {};
+        chunks[ci].forEach((_, i) => {
+          out.push({
+            events: toNumber(row[`events_${i}`]),
+            visitors: toNumber(row[`visitors_${i}`]),
+          });
+        });
+      });
+      return out;
+    } catch (err) {
+      if (!(err instanceof R2SqlError)) throw err;
+      specialGoalsDisabledUntil = Date.now() + DEGRADED_RETRY_MS;
+      console.warn(
+        `[analytics] consolidated special-goals scan rejected, using per-goal queries for 10 min: ${err.message.slice(0, 200)}`
+      );
+    }
+  }
+  const perGoal = await Promise.all(
+    defs.map(g =>
+      cachedR2Sql<{ events: unknown; visitors: unknown }>(
+        c,
+        ttl,
+        g.type === 'event'
+          ? buildGoalEventPropQuery(siteId, range, g.target, g.propKey!, g.propValue!, filters)
+          : buildGoalPagePrefixQuery(siteId, range, g.target, filters)
+      )
+    )
+  );
+  return perGoal.map(([row]) => ({
+    events: toNumber(row?.events),
+    visitors: toNumber(row?.visitors),
+  }));
+}
+
+/**
  * Full dashboard payload for a site - DO hot path for 'today', cached R2 SQL
  * cold path otherwise. Shared by the authed /stats/all route and the public
  * share-page route. Returns a Response only on query failure (502).
@@ -812,41 +892,35 @@ export async function fetchDashboard(
   site: SiteRecord,
   period: Period
 ): Promise<Response | Record<string, unknown>> {
-  // Hot path: the whole today-dashboard from the site's live DO.
+  // Hot path: the whole today-dashboard from the site's live DO in a single
+  // RPC. The DO is one single-threaded object per site, so the previous
+  // seven-way Promise.all serialized inside it while paying seven
+  // cross-script round-trips. Version skew is covered by the catch: an api
+  // deployed ahead of a collect worker without dashboard() throws here and
+  // falls through to R2 SQL like any other live-store failure.
   if (period === 'today') {
     try {
       const range = resolvePeriod('today', new Date(), site.timezone);
       const prev = previousRange(range);
       const live = liveStore(c, site.siteId);
-      const from = ms(range.from);
-      const to = ms(range.to);
-      const [main, timeseriesRows, pages, referrers, locations, browsers, osList] =
-        await Promise.all([
-          live.mainStats(ms(prev.from), from, to, undefined, ms(prev.to)),
-          live.timeseries(from, to),
-          live.topList('pathname', from, to, 10),
-          live.topList('referrer_hostname', from, to, 10),
-          live.topList('country', from, to, 10),
-          live.topList('browser', from, to, 10),
-          live.topList('os', from, to, 10),
-        ]);
+      const d = await live.dashboard(ms(prev.from), ms(range.from), ms(range.to), ms(prev.to));
       return {
-        main: mainStatsPayload(main.current, main.previous),
-        timeseries: fillTimeseries(timeseriesRows, range),
-        pages: pages.map(r => ({
+        main: mainStatsPayload(d.main.current, d.main.previous),
+        timeseries: fillTimeseries(d.timeseries, range),
+        pages: d.pages.map(r => ({
           name: r.name,
           visitors: r.visitors,
           pageviews: r.pageviews,
         })),
-        referrers: referrers.map(r => ({ name: r.name, visitors: r.visitors })),
-        locations: locations.map(r => ({
+        referrers: d.referrers.map(r => ({ name: r.name, visitors: r.visitors })),
+        locations: d.locations.map(r => ({
           name: r.name,
           code: r.name,
           country: r.name,
           visitors: r.visitors,
         })),
-        browsers: formatDevices(browsers.map(r => ({ name: r.name, visitors: r.visitors }))),
-        os: formatDevices(osList.map(r => ({ name: r.name, visitors: r.visitors }))),
+        browsers: formatDevices(d.browsers.map(r => ({ name: r.name, visitors: r.visitors }))),
+        os: formatDevices(d.os.map(r => ({ name: r.name, visitors: r.visitors }))),
       };
     } catch (err) {
       logLiveFallback(err);
@@ -1512,23 +1586,20 @@ export const analyticsRoute = appWithBatch
               buildGoalPagesQuery(site.siteId, range, pathnames, filters)
             )
           : Promise.resolve([]),
-        Promise.all(
-          specialGoals.map(g =>
-            cachedR2Sql<{ events: unknown; visitors: unknown }>(
-              c,
-              ttl,
-              g.type === 'event'
-                ? buildGoalEventPropQuery(
-                    site.siteId,
-                    range,
-                    g.target,
-                    g.propKey!,
-                    g.propValue!,
-                    filters
-                  )
-                : buildGoalPagePrefixQuery(site.siteId, range, g.target, filters)
-            )
-          )
+        // All special goals per chunk of 30 in one conditional-aggregation
+        // scan (was one scan PER goal, unbounded by goal count).
+        cachedSpecialGoals(
+          c,
+          ttl,
+          site.siteId,
+          range,
+          filters,
+          specialGoals.map(g => ({
+            type: g.type,
+            target: g.target,
+            propKey: g.propKey,
+            propValue: g.propValue,
+          }))
         ),
       ])
     );
@@ -1546,10 +1617,8 @@ export const analyticsRoute = appWithBatch
       }
     }
     specialGoals.forEach((goal, i) => {
-      const [row] = specialRows[i] ?? [];
-      if (row) {
-        byGoal.set(goal.id, { events: toNumber(row.events), visitors: toNumber(row.visitors) });
-      }
+      const row = specialRows[i];
+      if (row) byGoal.set(goal.id, row);
     });
     return respond(byGoal, totalVisitors);
   })
@@ -1637,19 +1706,26 @@ export const analyticsRoute = appWithBatch
       logLiveFallback(err);
     }
 
-    const outcome = await runQueries(c, () =>
-      cachedR2Sql<{ visitors: unknown; pathname: string }>(
-        c,
-        30,
-        buildRealtimeQuery(site.siteId, queryTime())
-      )
+    // Both scans in parallel - they were awaited back-to-back. TTL matches
+    // the 60s queryTime() quantum: the SQL text (and so the cache key AND the
+    // window it scans) only changes at quantum boundaries, so a shorter TTL
+    // just re-ran the identical scan mid-key for identical rows.
+    const both = await runQueries(c, () =>
+      Promise.all([
+        cachedR2Sql<{ visitors: unknown; pathname: string }>(
+          c,
+          cacheTtlSeconds('today'),
+          buildRealtimeQuery(site.siteId, queryTime())
+        ),
+        cachedR2Sql<{ visitors: unknown }>(
+          c,
+          cacheTtlSeconds('today'),
+          buildRealtimeTotalQuery(site.siteId, queryTime())
+        ),
+      ])
     );
-    if (outcome instanceof Response) return outcome;
-
-    const totalOutcome = await runQueries(c, () =>
-      cachedR2Sql<{ visitors: unknown }>(c, 30, buildRealtimeTotalQuery(site.siteId, queryTime()))
-    );
-    if (totalOutcome instanceof Response) return totalOutcome;
+    if (both instanceof Response) return both;
+    const [outcome, totalOutcome] = both;
     return c.json({
       data: {
         currentVisitors: toNumber(totalOutcome[0]?.visitors),

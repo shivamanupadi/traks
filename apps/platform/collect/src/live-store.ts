@@ -1,5 +1,6 @@
 import { DurableObject } from 'cloudflare:workers';
 import type {
+  LiveDashboard,
   LiveEvent,
   LiveRealtimeFrame,
   LiveRealtimeLocation,
@@ -120,6 +121,11 @@ export class SiteLiveStore extends DurableObject<unknown> {
   private broadcastTimer: ReturnType<typeof setTimeout> | null = null;
   /** Per filter-set body of the last pushed frame (minus timestamp) - unchanged frames are not resent. */
   private lastFrameBody = new Map<string, string>();
+  /** Pageviews recorded since construction - the cheap half of the broadcast dirty check. */
+  private pageviewsRecorded = 0;
+  /** (pageviewsRecorded, window COUNT(*)) as of the last broadcast; -1 = no broadcast yet. */
+  private lastBroadcastPageviews = -1;
+  private lastBroadcastWindowCount = -1;
 
   constructor(ctx: DurableObjectState, env: unknown) {
     super(ctx, env);
@@ -345,7 +351,10 @@ export class SiteLiveStore extends DurableObject<unknown> {
     this.flushBuffer();
 
     // Only pageviews move the realtime picture (visitors, pages, locations).
-    if (e.eventType === 'pageview') this.scheduleBroadcast();
+    if (e.eventType === 'pageview') {
+      this.pageviewsRecorded += 1;
+      this.scheduleBroadcast();
+    }
 
     // Arm the retention alarm. The flag is only latched AFTER the alarm is
     // actually scheduled - setting it first meant one failed setAlarm() (or an
@@ -373,6 +382,8 @@ export class SiteLiveStore extends DurableObject<unknown> {
     this.memo.clear();
     this.alarmArmed = false;
     this.lastFrameBody.clear();
+    this.lastBroadcastPageviews = -1;
+    this.lastBroadcastWindowCount = -1;
     for (const ws of this.ctx.getWebSockets()) {
       try {
         ws.close(1001, 'site deleted');
@@ -404,7 +415,9 @@ export class SiteLiveStore extends DurableObject<unknown> {
       // goes quiet mid-batch still has its counters durable within the hour.
       this.persistCounts();
       this.sql.exec('DELETE FROM events WHERE ts < ?', now - RETENTION_MS);
-      remaining = n(this.sql.exec('SELECT COUNT(*) AS c FROM events').one().c);
+      // Only "any rows left?" matters for re-arming - EXISTS stops at the
+      // first row instead of counting the whole retained table every hour.
+      remaining = n(this.sql.exec('SELECT EXISTS (SELECT 1 FROM events LIMIT 1) AS c').one().c);
       this.lastPruneAt = now;
     }
 
@@ -555,6 +568,29 @@ export class SiteLiveStore extends DurableObject<unknown> {
     this.lastBroadcastAt = now;
     this.flushBuffer();
 
+    // Dirty check before the per-group scans: a frame can only change if a
+    // pageview ENTERED the window (counted at record()) or AGED OUT of it
+    // (visible as a drop in one cheap indexed COUNT over the window). If
+    // neither moved since the last broadcast, the window contents are
+    // byte-identical for every filter group and all their scans can be
+    // skipped - previously the 30s idle tick paid 5 scans per group just to
+    // diff away an unchanged frame afterwards.
+    const windowCount = n(
+      this.sql
+        .exec(
+          `SELECT COUNT(*) AS c FROM events
+           WHERE event_type = 'pageview' AND ts >= ? AND ts < ?`,
+          now - REALTIME_WINDOW_MS,
+          now
+        )
+        .one().c
+    );
+    const unchanged =
+      this.pageviewsRecorded === this.lastBroadcastPageviews &&
+      windowCount === this.lastBroadcastWindowCount;
+    this.lastBroadcastPageviews = this.pageviewsRecorded;
+    this.lastBroadcastWindowCount = windowCount;
+
     const groups = new Map<string, { filters?: LiveFilters; sockets: WebSocket[] }>();
     for (const ws of sockets) {
       const filters = SiteLiveStore.socketFilters(ws);
@@ -566,6 +602,9 @@ export class SiteLiveStore extends DurableObject<unknown> {
     if (this.lastFrameBody.size > 50) this.lastFrameBody.clear();
 
     for (const [key, group] of groups) {
+      // A group that already received a frame for this exact window needs
+      // nothing; only groups never framed (fresh filter set) compute one.
+      if (unchanged && this.lastFrameBody.has(key)) continue;
       const frame = this.frame(now, group.filters);
       const { at: _at, ...rest } = frame;
       const body = JSON.stringify(rest);
@@ -714,6 +753,31 @@ export class SiteLiveStore extends DurableObject<unknown> {
         return { current: build('current'), previous: build('previous') };
       }
     );
+  }
+
+  /**
+   * The whole unfiltered today-dashboard in ONE RPC round-trip. Composes the
+   * existing memoized readers, so the underlying scans and their memo entries
+   * are shared with individual panel calls - same numbers, one cross-script
+   * hop instead of seven serialized ones (this object is single-threaded, so
+   * a Promise.all of seven RPCs from the api queued here anyway).
+   */
+  async dashboard(
+    prevFromMs: number,
+    curFromMs: number,
+    toMs: number,
+    prevToMs: number
+  ): Promise<LiveDashboard> {
+    const [main, timeseries, pages, referrers, locations, browsers, os] = await Promise.all([
+      this.mainStats(prevFromMs, curFromMs, toMs, undefined, prevToMs),
+      this.timeseries(curFromMs, toMs),
+      this.topList('pathname', curFromMs, toMs, 10),
+      this.topList('referrer_hostname', curFromMs, toMs, 10),
+      this.topList('country', curFromMs, toMs, 10),
+      this.topList('browser', curFromMs, toMs, 10),
+      this.topList('os', curFromMs, toMs, 10),
+    ]);
+    return { main, timeseries, pages, referrers, locations, browsers, os };
   }
 
   async timeseries(

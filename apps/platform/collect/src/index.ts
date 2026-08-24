@@ -1,6 +1,13 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { trackingEventSchema, computeBucketKeys, AUTO_EVENTS } from '@traks/shared';
+import {
+  trackingEventSchema,
+  computeBucketKeys,
+  normalizeDomain,
+  AUTO_EVENTS,
+  type ValidatedTrackingEvent,
+} from '@traks/shared';
+import { parsePlausible, deriveSessionId } from './lib/plausible';
 import { isBot } from './lib/bots';
 import { parseUA } from './lib/ua';
 import { parseReferrer } from './lib/referrer';
@@ -204,6 +211,51 @@ async function generateVisitorId(
 }
 
 /**
+ * Plausible-compatible payloads carry a domain, not a site key. Domains are
+ * unique per site (sites_domain_idx), so the domain IS the lookup key. Same
+ * stale-while-refresh caching shape as the site-key path.
+ */
+const domainAuthCache = new Map<string, { auth: SiteAuth; expires: number }>();
+const domainAuthInFlight = new Map<string, Promise<SiteAuth>>();
+
+async function authenticateDomain(db: D1Database, domain: string): Promise<SiteAuth> {
+  const row = await db
+    .prepare(`SELECT timezone AS tz, id AS site_id, domain FROM sites WHERE domain = ? LIMIT 1`)
+    .bind(normalizeDomain(domain))
+    .first<{ tz: string | null; site_id: string; domain: string | null }>();
+  const auth: SiteAuth = row
+    ? {
+        valid: true,
+        timezone: row.tz || 'UTC',
+        siteId: row.site_id,
+        domain: (row.domain || '').toLowerCase(),
+      }
+    : { valid: false, timezone: 'UTC', siteId: '', domain: '' };
+  if (domainAuthCache.size > 10_000) domainAuthCache.clear();
+  domainAuthCache.set(domain, { auth, expires: Date.now() + AUTH_CACHE_TTL_MS });
+  return auth;
+}
+
+async function authenticateDomainCached(
+  db: D1Database,
+  domain: string,
+  background: (p: Promise<unknown>) => void
+): Promise<SiteAuth> {
+  const cached = domainAuthCache.get(domain);
+  if (cached) {
+    if (cached.expires <= Date.now() && !domainAuthInFlight.has(domain)) {
+      background(authenticateDomain(db, domain).catch(() => undefined));
+    }
+    return cached.auth;
+  }
+  const inFlight = domainAuthInFlight.get(domain);
+  if (inFlight) return inFlight;
+  const p = authenticateDomain(db, domain).finally(() => domainAuthInFlight.delete(domain));
+  domainAuthInFlight.set(domain, p);
+  return p;
+}
+
+/**
  * Does a browser Origin belong to the site that owns the key? The site key is
  * public (it sits in the page source), so without this anyone could inject
  * events into someone else's dashboard. Deliberately permissive where it must
@@ -246,10 +298,19 @@ app.post('/api/event', async c => {
   }
   if (!body) return c.json({ error: 'invalid body' }, 400);
 
-  const result = trackingEventSchema.safeParse(body);
-  if (!result.success) return c.json({ error: 'invalid event' }, 400);
-
-  const event = result.data;
+  // Plausible-shaped payloads (script short keys or Events API long keys)
+  // map onto the native event; everything downstream is shared.
+  const pl = parsePlausible(body);
+  let event: ValidatedTrackingEvent;
+  if (pl) {
+    // `s` doubles as rate-limit key and visitor-hash salt; the prefixed
+    // domain is stable and can never collide with a real site key.
+    event = { s: `d:${pl.domain}`, sid: '', ...pl.event };
+  } else {
+    const result = trackingEventSchema.safeParse(body);
+    if (!result.success) return c.json({ error: 'invalid event' }, 400);
+    event = result.data;
+  }
 
   // Bot filter first - cheap regex check avoids a D1 round-trip for crawler traffic.
   // The header is capped first: it feeds 30 bot regexes, the UA parser, and the
@@ -266,7 +327,9 @@ app.post('/api/event', async c => {
   // stale while it refreshes behind the response, so only a key this isolate
   // has never seen puts D1 on the critical path. Placed after the rate limit
   // so unknown keys still cannot amplify into D1.
-  const site = await authenticateSiteCached(c.env.DB, event.s, p => c.executionCtx.waitUntil(p));
+  const site = pl
+    ? await authenticateDomainCached(c.env.DB, pl.domain, p => c.executionCtx.waitUntil(p))
+    : await authenticateSiteCached(c.env.DB, event.s, p => c.executionCtx.waitUntil(p));
   if (!site.valid) {
     return c.json({ error: 'unknown site' }, 403);
   }
@@ -301,6 +364,12 @@ app.post('/api/event', async c => {
 
   // Visitor ID rotates on the same site-local day boundary as the buckets.
   const visitorId = await generateVisitorId(c.env.VISITOR_HASH_SECRET, ip, ua, event.s, dateKey);
+
+  // Plausible has no client session id; approximate its server-side
+  // sessionization with a deterministic 30-minute window (lib/plausible.ts).
+  const sessionId =
+    event.sid ||
+    (pl ? await deriveSessionId(c.env.VISITOR_HASH_SECRET, visitorId, now.getTime()) : '');
 
   // Auto link events (outbound / download): re-serialize props to the exact
   // canonical form '{"url":"..."}' so link panels can GROUP BY the raw
@@ -339,7 +408,7 @@ app.post('/api/event', async c => {
     browser,
     os,
     device_type: deviceType,
-    session_id: event.sid || '',
+    session_id: sessionId,
     visitor_id: visitorId,
     event_name: event.en || '',
     event_meta: eventMeta,
@@ -374,7 +443,7 @@ app.post('/api/event', async c => {
           os,
           deviceType,
           screenWidth: event.sw || 0,
-          sessionId: event.sid || '',
+          sessionId,
           visitorId: visitorId,
           eventName: event.en || '',
           eventMeta: eventMeta,
@@ -389,7 +458,8 @@ app.post('/api/event', async c => {
     ])
   );
 
-  return c.json({ ok: true });
+  // Plausible's tracker treats any 2xx as delivered; mirror its 202.
+  return pl ? c.text('ok', 202) : c.json({ ok: true });
 });
 
 export default app;

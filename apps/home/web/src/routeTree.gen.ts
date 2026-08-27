@@ -13,6 +13,7 @@ import { Route as UpdateRouteImport } from './routes/update'
 import { Route as DocsRouteImport } from './routes/docs'
 import { Route as DestroyRouteImport } from './routes/destroy'
 import { Route as DeployRouteImport } from './routes/deploy'
+import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as GuidesIndexRouteImport } from './routes/guides.index'
 import { Route as DocsIndexRouteImport } from './routes/docs.index'
@@ -37,6 +38,11 @@ const DestroyRoute = DestroyRouteImport.update({
 const DeployRoute = DeployRouteImport.update({
   id: '/deploy',
   path: '/deploy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -67,6 +73,7 @@ const DocsInstallSlugRoute = DocsInstallSlugRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/deploy': typeof DeployRoute
   '/destroy': typeof DestroyRoute
   '/docs': typeof DocsRouteWithChildren
@@ -78,6 +85,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/deploy': typeof DeployRoute
   '/destroy': typeof DestroyRoute
   '/update': typeof UpdateRoute
@@ -89,6 +97,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/deploy': typeof DeployRoute
   '/destroy': typeof DestroyRoute
   '/docs': typeof DocsRouteWithChildren
@@ -102,6 +111,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/admin'
     | '/deploy'
     | '/destroy'
     | '/docs'
@@ -113,6 +123,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/admin'
     | '/deploy'
     | '/destroy'
     | '/update'
@@ -123,6 +134,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/admin'
     | '/deploy'
     | '/destroy'
     | '/docs'
@@ -135,6 +147,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminRoute: typeof AdminRoute
   DeployRoute: typeof DeployRoute
   DestroyRoute: typeof DestroyRoute
   DocsRoute: typeof DocsRouteWithChildren
@@ -171,6 +184,13 @@ declare module '@tanstack/react-router' {
       path: '/deploy'
       fullPath: '/deploy'
       preLoaderRoute: typeof DeployRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -225,6 +245,7 @@ const DocsRouteWithChildren = DocsRoute._addFileChildren(DocsRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminRoute: AdminRoute,
   DeployRoute: DeployRoute,
   DestroyRoute: DestroyRoute,
   DocsRoute: DocsRouteWithChildren,

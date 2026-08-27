@@ -29,6 +29,7 @@ export const EVENT_TYPES = {
 export const AUTO_EVENTS = {
   OUTBOUND: 'Outbound Link: Click',
   DOWNLOAD: 'File Download',
+  WEBMCP: 'WebMCP: Tool Call',
 } as const;
 
 export const PERIODS = ['today', 'yesterday', '7d', '30d', '90d', '6m', '1y', 'all'] as const;

@@ -15,13 +15,16 @@ import type {
   LiveTimeseriesRow,
   LiveTopListRow,
   LiveRealtime,
+  LiveBotRow,
   LiveCustomEventRow,
+  LiveWebmcpMetaRow,
   LiveLinkRow,
   LiveEntryPageRow,
   LiveScreenSizeRow,
   LiveMetaRow,
 } from '@traks/shared';
 import {
+  AUTO_EVENTS,
   SCREEN_SIZE_CASE,
   AI_HOSTNAME_IN,
   aiSourceCaseSql,
@@ -1076,6 +1079,68 @@ export class SiteLiveStore extends DurableObject<unknown> {
           )
           .toArray()
           .map(r => ({ name: String(r.name), count: n(r.count), totalValue: n(r.totalValue) }))
+    );
+  }
+
+  async webmcpMeta(
+    fromMs: number,
+    toMs: number,
+    filters?: LiveFilters
+  ): Promise<LiveWebmcpMetaRow[]> {
+    const f = SiteLiveStore.filterSql(filters);
+    return this.memoized(
+      `webmcpMeta:${SiteLiveStore.q(fromMs)}:${SiteLiveStore.q(toMs)}:${SiteLiveStore.filterKey(filters)}`,
+      MEMO_TTL_MS,
+      () =>
+        this.sql
+          .exec(
+            // Meta is canonicalized at ingest to '{"tool":...,"status":...}',
+            // so grouping the raw string yields one row per tool+status pair.
+            `SELECT event_meta AS meta, COUNT(*) AS calls, SUM(event_value) AS totalMs
+             FROM events
+             WHERE event_type = 'event' AND event_name = ? AND event_meta != ''
+               AND ts >= ? AND ts < ?${f.sql}
+             GROUP BY event_meta
+             ORDER BY calls DESC
+             LIMIT 500`,
+            AUTO_EVENTS.WEBMCP,
+            fromMs,
+            toMs,
+            ...f.params
+          )
+          .toArray()
+          .map(r => ({ meta: String(r.meta), calls: n(r.calls), totalMs: n(r.totalMs) }))
+    );
+  }
+
+  async botStats(
+    fromMs: number,
+    toMs: number,
+    limit: number,
+    filters?: LiveFilters
+  ): Promise<LiveBotRow[]> {
+    const boundedLimit = Math.max(1, Math.min(100, limit));
+    const f = SiteLiveStore.filterSql(filters);
+    return this.memoized(
+      `botStats:${SiteLiveStore.q(fromMs)}:${SiteLiveStore.q(toMs)}:${boundedLimit}:${SiteLiveStore.filterKey(filters)}`,
+      MEMO_TTL_MS,
+      () =>
+        this.sql
+          .exec(
+            // Ingest stores the bot's display name in the browser column.
+            `SELECT browser AS name, COUNT(DISTINCT visitor_id) AS visitors, COUNT(*) AS pageviews
+             FROM events
+             WHERE event_type = 'bot_pageview' AND ts >= ? AND ts < ?${f.sql}
+             GROUP BY browser
+             ORDER BY visitors DESC, pageviews DESC
+             LIMIT ?`,
+            fromMs,
+            toMs,
+            ...f.params,
+            boundedLimit
+          )
+          .toArray()
+          .map(r => ({ name: String(r.name), visitors: n(r.visitors), pageviews: n(r.pageviews) }))
     );
   }
 

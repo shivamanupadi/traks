@@ -541,6 +541,24 @@ export const api = {
     return res.json();
   },
 
+  async getWebmcp(siteId: string, period: Period, filters?: AnalyticsFilters): Promise<any> {
+    const res = await client.api.analytics[':siteId'].stats.webmcp.$get({
+      param: { siteId },
+      query: { period, ...filters },
+    });
+    await assertOk(res);
+    return res.json();
+  },
+
+  async getBots(siteId: string, period: Period, filters?: AnalyticsFilters): Promise<any> {
+    const res = await client.api.analytics[':siteId'].stats.bots.$get({
+      param: { siteId },
+      query: { period, ...filters },
+    });
+    await assertOk(res);
+    return res.json();
+  },
+
   async getEventProps(
     siteId: string,
     period: Period,

@@ -213,6 +213,20 @@ export interface LiveCustomEventRow {
   totalValue: number;
 }
 
+/** WebMCP tool-call group: one canonical '{"tool":...,"status":...}' meta. */
+export interface LiveWebmcpMetaRow {
+  meta: string;
+  calls: number;
+  totalMs: number;
+}
+
+/** Bot breakdown row: one crawler/agent name with its visit volume. */
+export interface LiveBotRow {
+  name: string;
+  visitors: number;
+  pageviews: number;
+}
+
 /** Outbound-link / file-download breakdown row (from auto link events). */
 export interface LiveLinkRow {
   url: string;
@@ -317,6 +331,15 @@ export interface LiveStoreApi {
     limit: number,
     filters?: LiveFilters
   ): Promise<LiveCustomEventRow[]>;
+  /** WebMCP tool calls grouped by canonical meta (tool + status). */
+  webmcpMeta(fromMs: number, toMs: number, filters?: LiveFilters): Promise<LiveWebmcpMetaRow[]>;
+  /** Bot pageviews grouped by bot name (event_type 'bot_pageview' rows). */
+  botStats(
+    fromMs: number,
+    toMs: number,
+    limit: number,
+    filters?: LiveFilters
+  ): Promise<LiveBotRow[]>;
   /** Target-URL breakdown for one auto link event (outbound / download). */
   linkClicks(
     eventName: string,

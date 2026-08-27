@@ -46,7 +46,9 @@ import {
   buildEventMetaQuery,
   buildRealtimeTotalQuery,
   buildRealtimeQuery,
+  buildBotsQuery,
   buildEventsQuery,
+  buildWebmcpQuery,
   buildEngagementStatsQuery,
   buildGoalEventsQuery,
   buildGoalPagesQuery,
@@ -397,6 +399,42 @@ function parseMetaUrl(meta: string): string {
   } catch {
     return meta;
   }
+}
+
+/**
+ * Fold WebMCP tool+status meta groups (canonical '{"tool":...,"status":...}')
+ * into per-tool rows: total calls, error count, average duration in ms.
+ * Shared by the live-DO and R2 SQL paths, which return the same group shape.
+ */
+function foldWebmcpMeta(
+  rows: { meta: string; calls: number; totalMs: number }[]
+): { name: string; calls: number; errors: number; avgMs: number }[] {
+  const byTool = new Map<string, { calls: number; errors: number; totalMs: number }>();
+  for (const row of rows) {
+    let tool = '';
+    let isError = false;
+    try {
+      const props = JSON.parse(row.meta) as { tool?: unknown; status?: unknown };
+      tool = String(props.tool || '');
+      isError = props.status === 'error';
+    } catch {
+      continue;
+    }
+    if (!tool) continue;
+    let cur = byTool.get(tool);
+    if (!cur) byTool.set(tool, (cur = { calls: 0, errors: 0, totalMs: 0 }));
+    cur.calls += row.calls;
+    if (isError) cur.errors += row.calls;
+    cur.totalMs += row.totalMs;
+  }
+  return Array.from(byTool.entries())
+    .map(([name, t]) => ({
+      name,
+      calls: t.calls,
+      errors: t.errors,
+      avgMs: t.calls ? Math.round(t.totalMs / t.calls) : 0,
+    }))
+    .sort((a, b) => b.calls - a.calls);
 }
 
 /**
@@ -1813,6 +1851,101 @@ export const analyticsRoute = appWithBatch
         name: r.name,
         count: toNumber(r.count),
         totalValue: toNumber(r.total_value),
+      })),
+    });
+  })
+
+  .get('/:siteId/stats/webmcp', requireAuth, validate('query', periodQuery), async c => {
+    const userId = c.get('userId')!;
+    const siteId = c.req.param('siteId');
+    const query = c.req.valid('query');
+    const { period } = query;
+    const filters = parseFilters(query);
+
+    const site = await getSite(c, siteId, userId);
+    if (!site) return c.json({ error: 'Not found' }, 404);
+
+    if (period === 'today') {
+      try {
+        const range = resolvePeriod('today', new Date(), site.timezone);
+        const rows = await liveStore(c, site.siteId).webmcpMeta(
+          ms(range.from),
+          ms(range.to),
+          filters
+        );
+        return c.json({ data: foldWebmcpMeta(rows) });
+      } catch (err) {
+        logLiveFallback(err);
+      }
+    }
+
+    const range = resolvePeriod(period, queryTime(period), site.timezone);
+    const ttl = cacheTtlSeconds(period);
+
+    const outcome = await runQueries(c, () =>
+      cachedR2Sql<{ meta: string; calls: unknown; total_ms: unknown }>(
+        c,
+        ttl,
+        buildWebmcpQuery(site.siteId, range, filters)
+      )
+    );
+    if (outcome instanceof Response) return outcome;
+
+    return c.json({
+      data: foldWebmcpMeta(
+        outcome.map(r => ({
+          meta: r.meta,
+          calls: toNumber(r.calls),
+          totalMs: toNumber(r.total_ms),
+        }))
+      ),
+    });
+  })
+
+  .get('/:siteId/stats/bots', requireAuth, validate('query', periodQuery), async c => {
+    const userId = c.get('userId')!;
+    const siteId = c.req.param('siteId');
+    const query = c.req.valid('query');
+    const { period } = query;
+    const filters = parseFilters(query);
+
+    const site = await getSite(c, siteId, userId);
+    if (!site) return c.json({ error: 'Not found' }, 404);
+
+    if (period === 'today') {
+      try {
+        const range = resolvePeriod('today', new Date(), site.timezone);
+        const rows = await liveStore(c, site.siteId).botStats(
+          ms(range.from),
+          ms(range.to),
+          20,
+          filters
+        );
+        return c.json({
+          data: rows.map(r => ({ name: r.name, visitors: r.visitors, pageviews: r.pageviews })),
+        });
+      } catch (err) {
+        logLiveFallback(err);
+      }
+    }
+
+    const range = resolvePeriod(period, queryTime(period), site.timezone);
+    const ttl = cacheTtlSeconds(period);
+
+    const outcome = await runQueries(c, () =>
+      cachedR2Sql<{ name: string; visitors: unknown; pageviews: unknown }>(
+        c,
+        ttl,
+        buildBotsQuery(site.siteId, range, filters)
+      )
+    );
+    if (outcome instanceof Response) return outcome;
+
+    return c.json({
+      data: outcome.map(r => ({
+        name: r.name,
+        visitors: toNumber(r.visitors),
+        pageviews: toNumber(r.pageviews),
       })),
     });
   })

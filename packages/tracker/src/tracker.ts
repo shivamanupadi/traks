@@ -234,6 +234,82 @@
   document.addEventListener('click', handleLinkClick, true);
   document.addEventListener('auxclick', handleLinkClick, true);
 
+  // ---- WebMCP tool calls ----
+  // Pages exposing tools to AI agents through the experimental WebMCP API
+  // (Chrome 146+ early preview) get every agent invocation auto-tracked as a
+  // reserved custom event: registerTool is patched so each tool's execute
+  // callback reports its name, ok/error status, and duration (ev = ms). The
+  // registry lives on document.modelContext; older drafts used
+  // navigator.modelContext, so both are probed. No-ops everywhere else.
+  function reportToolCall(tool: string, status: string, started: number): void {
+    sendRequest({
+      t: 'event',
+      s: siteKey,
+      p: clip(currentPath(), 2048),
+      h: location.hostname,
+      sid: getSessionId(),
+      en: 'WebMCP: Tool Call',
+      ep: JSON.stringify({ tool: tool, status: status }),
+      ev: Math.min(Date.now() - started, 1000000),
+    });
+  }
+
+  function wrapTool(tool: any): void {
+    if (!tool || typeof tool.execute !== 'function') return;
+    const toolName = clip(String(tool.name || ''), 200);
+    const originalExecute = tool.execute;
+    tool.execute = function (this: unknown, ...execArgs: unknown[]) {
+      const started = Date.now();
+      let result;
+      try {
+        result = originalExecute.apply(this, execArgs);
+      } catch (err) {
+        reportToolCall(toolName, 'error', started);
+        throw err;
+      }
+      // Async execute: report when it settles; sync results report now.
+      if (result && typeof result.then === 'function') {
+        result.then(
+          function () {
+            reportToolCall(toolName, 'ok', started);
+          },
+          function () {
+            reportToolCall(toolName, 'error', started);
+          }
+        );
+      } else {
+        reportToolCall(toolName, 'ok', started);
+      }
+      return result;
+    };
+  }
+
+  const modelContext = (document as any).modelContext || (navigator as any).modelContext;
+  if (modelContext && typeof modelContext.registerTool === 'function') {
+    const originalRegisterTool = modelContext.registerTool;
+    modelContext.registerTool = function (tool: any, ...rest: unknown[]) {
+      try {
+        wrapTool(tool);
+      } catch {
+        /* never interfere with the page's tool registration */
+      }
+      return originalRegisterTool.call(this, tool, ...rest);
+    };
+  }
+  if (modelContext && typeof modelContext.provideContext === 'function') {
+    const originalProvideContext = modelContext.provideContext;
+    modelContext.provideContext = function (context: any, ...rest: unknown[]) {
+      try {
+        if (context && Array.isArray(context.tools)) {
+          for (let i = 0; i < context.tools.length; i++) wrapTool(context.tools[i]);
+        }
+      } catch {
+        /* never interfere with the page's tool registration */
+      }
+      return originalProvideContext.call(this, context, ...rest);
+    };
+  }
+
   if (useHash) {
     window.addEventListener('hashchange', function () {
       page(true);

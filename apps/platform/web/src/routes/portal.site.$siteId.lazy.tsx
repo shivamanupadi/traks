@@ -1308,6 +1308,12 @@ function SiteAnalyticsPage(): ReactElement {
   const eventsQ = useQuery(
     tileOpts(['events'], () => api.getEvents(siteId, period, filters), belowFoldVisible)
   );
+  const botsQ = useQuery(
+    tileOpts(['bots'], () => api.getBots(siteId, period, filters), belowFoldVisible)
+  );
+  const webmcpQ = useQuery(
+    tileOpts(['webmcp'], () => api.getWebmcp(siteId, period, filters), belowFoldVisible)
+  );
   const outboundQ = useQuery(
     tileOpts(
       ['links', 'outbound'],
@@ -1760,6 +1766,44 @@ function SiteAnalyticsPage(): ReactElement {
               emptyText={
                 linkTab === 'outbound' ? 'No outbound clicks yet' : 'No file downloads yet'
               }
+            />
+
+            {/* WebMCP tool calls: agent invocations of tools the page exposes
+                via document.modelContext, auto-tracked by the tracker's
+                registerTool wrapper as reserved custom events. Rows that had
+                failures show the error count next to the tool name. */}
+            <PanelCard
+              title="Agent Tools (WebMCP)"
+              labelHeader="Tool"
+              valueHeader="Calls"
+              items={(
+                (webmcpQ.data as any)?.data as
+                  | { name: string; calls: number; errors: number; avgMs: number }[]
+                  | undefined
+              )?.map(t => ({
+                name: t.errors > 0 ? `${t.name} · ${t.errors} failed` : t.name,
+                visitors: t.calls,
+              }))}
+              isLoading={webmcpQ.isLoading}
+              isError={webmcpQ.isError}
+              emptyText="No agent tool calls yet"
+            />
+
+            {/* Bot traffic: counted at ingest under its own event type, so
+                it never touches the human metrics above. Value shown is
+                distinct visitors per bot (crawlers, AI agents, monitors). */}
+            <PanelCard
+              title="Bots"
+              labelHeader="Bot"
+              valueHeader="Visitors"
+              items={(
+                (botsQ.data as any)?.data as
+                  | { name: string; visitors: number; pageviews: number }[]
+                  | undefined
+              )?.map(b => ({ name: b.name, visitors: b.visitors }))}
+              isLoading={botsQ.isLoading}
+              isError={botsQ.isError}
+              emptyText="No bot visits yet"
             />
 
             {/* Funnels */}

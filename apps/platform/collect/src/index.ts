@@ -8,7 +8,7 @@ import {
   type ValidatedTrackingEvent,
 } from '@traks/shared';
 import { parsePlausible, deriveSessionId } from './lib/plausible';
-import { isBot } from './lib/bots';
+import { botName } from './lib/bots';
 import { parseUA } from './lib/ua';
 import { parseReferrer } from './lib/referrer';
 import { TRACKER_SCRIPT } from './lib/tracker-script';
@@ -312,11 +312,20 @@ app.post('/api/event', async c => {
     event = result.data;
   }
 
-  // Bot filter first - cheap regex check avoids a D1 round-trip for crawler traffic.
-  // The header is capped first: it feeds 30 bot regexes, the UA parser, and the
-  // visitor HMAC, so an oversized UA would burn CPU on the cheapest request.
+  // Bot classification first - cheap regex check before any D1 round-trip.
+  // The header is capped first: it feeds the bot regexes, the UA parser, and
+  // the visitor HMAC, so an oversized UA would burn CPU on the cheapest
+  // request. Bot pageviews are stored under event_type 'bot_pageview' (every
+  // human-facing query predicates on event_type, so they never pollute those
+  // metrics); bot engagement and custom events are still dropped - counting a
+  // crawler's "time on page" or letting it fire conversion events would only
+  // corrupt the panels that do look at those types. The one exception is the
+  // reserved WebMCP tool-call event: headless/agentic browsers are exactly
+  // who invokes a page's WebMCP tools, so their calls must be recorded.
   const ua = (c.req.header('user-agent') || '').slice(0, 512);
-  if (isBot(ua)) return c.json({ ok: true });
+  const bot = botName(ua);
+  const isWebmcpCall = event.t === 'event' && event.en === AUTO_EVENTS.WEBMCP;
+  if (bot && event.t !== 'pageview' && !isWebmcpCall) return c.json({ ok: true });
 
   // Burst guard first (per colo, per site key): unknown keys must be cut here
   // too, otherwise a flood of random keys becomes an unmetered D1 amplifier.
@@ -365,7 +374,15 @@ app.post('/api/event', async c => {
       const longitude = parseCoordinate(cf.longitude, 180);
 
       const { hostname: refHostname, pathname: refPathname } = parseReferrer(event.r);
-      const { browser, os, deviceType } = parseUA(ua);
+      // Bot rows carry the bot's display name where a browser name would go -
+      // the UA parser yields junk for crawler strings, and the Bots panel
+      // groups on this column.
+      const parsed = parseUA(ua);
+      const browser = bot ?? parsed.browser;
+      const { os, deviceType } = parsed;
+      // Only pageviews are retyped for bots; a bot's WebMCP tool call stays a
+      // regular 'event' row (its agent name still lands in `browser` above).
+      const eventType = bot && event.t === 'pageview' ? 'bot_pageview' : event.t;
 
       // Bucket keys are computed in the site's timezone so "today" hourly
       // buckets align with IST (or whatever the site runs on) rather than UTC.
@@ -405,6 +422,22 @@ app.post('/api/event', async c => {
         }
         eventMeta = url ? JSON.stringify({ url }) : '';
       }
+      // WebMCP tool calls: same canonicalization, exact form
+      // '{"tool":"...","status":"ok"|"error"}' so panels can GROUP BY the raw
+      // event_meta string and split calls from failures.
+      if (isWebmcpCall) {
+        let tool = '';
+        let status = 'ok';
+        try {
+          const props = JSON.parse(eventMeta || '{}') as { tool?: unknown; status?: unknown };
+          tool = String(props.tool || '').slice(0, 200);
+          if (props.status === 'error') status = 'error';
+        } catch {
+          // Malformed props - keep the event, clear the meta; the WebMCP
+          // panel only aggregates rows that name a tool.
+        }
+        eventMeta = tool ? JSON.stringify({ tool, status }) : '';
+      }
 
       const record = {
         site_id: site.siteId,
@@ -412,7 +445,7 @@ app.post('/api/event', async c => {
         date_key: dateKey,
         hour_key: hourKey,
         week_key: weekKey,
-        event_type: event.t,
+        event_type: eventType,
         pathname: event.p,
         hostname: event.h,
         referrer_hostname: refHostname,
@@ -448,7 +481,7 @@ app.post('/api/event', async c => {
           .record({
             ts: record.ts,
             hourKey: hourKey,
-            eventType: event.t,
+            eventType: eventType,
             pathname: event.p,
             referrerHostname: refHostname,
             utmSource: event.us || '',

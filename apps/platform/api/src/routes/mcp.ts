@@ -266,6 +266,34 @@ const TOOLS: ToolDef[] = [
       path: `/api/analytics/${a.siteId}/stats/events?period=${a.period}`,
     }),
   },
+  {
+    name: 'get_webmcp_stats',
+    description:
+      'WebMCP agent tool-call analytics for the period: each tool the site exposes via document.modelContext, with call count, failures, and average duration in ms. Auto-tracked by the tracker snippet on pages that register WebMCP tools.',
+    inputSchema: {
+      type: 'object',
+      properties: { siteId: str('Site id'), period },
+      required: ['siteId', 'period'],
+    },
+    request: a => ({
+      method: 'GET',
+      path: `/api/analytics/${a.siteId}/stats/webmcp?period=${a.period}`,
+    }),
+  },
+  {
+    name: 'get_bot_stats',
+    description:
+      'Bot traffic in the period: crawlers, AI agents, and monitors by name, with distinct visitors and pageviews. Counted separately from human visitors.',
+    inputSchema: {
+      type: 'object',
+      properties: { siteId: str('Site id'), period },
+      required: ['siteId', 'period'],
+    },
+    request: a => ({
+      method: 'GET',
+      path: `/api/analytics/${a.siteId}/stats/bots?period=${a.period}`,
+    }),
+  },
 ];
 
 const rpcError = (id: unknown, code: number, message: string): object => ({

@@ -1,3 +1,4 @@
+import { AUTO_EVENTS } from './constants';
 import type { Period } from './constants';
 import type { LiveDimension, LiveFilters } from './live';
 import { AI_HOSTNAME_IN, aiSourceCaseSql } from './ai-sources';
@@ -1217,6 +1218,52 @@ export function buildRealtimeQuery(siteKey: string, now: Date) {
     GROUP BY pathname
     ORDER BY visitors DESC
     LIMIT 10
+  `;
+}
+
+/**
+ * WebMCP tool-call groups: one row per canonical '{"tool":...,"status":...}'
+ * meta string (ingest canonicalizes it, like link events) with call count and
+ * summed duration (event_value = ms). The route folds tool+status pairs into
+ * per-tool rows with calls / errors / avg duration.
+ */
+export function buildWebmcpQuery(siteKey: string, range: PeriodRange, filters?: LiveFilters) {
+  return (table: string) => `
+    SELECT
+      event_meta AS meta,
+      COUNT(*) AS calls,
+      SUM(event_value) AS total_ms
+    FROM ${table}
+    WHERE ${whereSiteAndRange(siteKey, range, 'event', filters)}
+      AND event_name = '${esc(AUTO_EVENTS.WEBMCP)}'
+      AND event_meta != ''
+    GROUP BY event_meta
+    ORDER BY calls DESC
+    LIMIT 500
+  `;
+}
+
+/**
+ * Bot visits grouped by bot name. Ingest stores bot pageviews under
+ * event_type 'bot_pageview' with the display name in `browser`, so no other
+ * builder (all predicated on 'pageview'/'event') ever sees these rows.
+ */
+export function buildBotsQuery(
+  siteKey: string,
+  range: PeriodRange,
+  filters?: LiveFilters,
+  limit = 20
+) {
+  return (table: string) => `
+    SELECT
+      browser AS name,
+      approx_distinct(visitor_id) AS visitors,
+      COUNT(*) AS pageviews
+    FROM ${table}
+    WHERE ${whereSiteAndRange(siteKey, range, 'bot_pageview', filters)}
+    GROUP BY browser
+    ORDER BY visitors DESC, pageviews DESC
+    LIMIT ${limit}
   `;
 }
 

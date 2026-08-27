@@ -2,6 +2,7 @@
   "name": "@traks/platform-collect",
   "version": "0.0.1",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "doppler secrets download --no-file --format=env -p traks-collect -c dev > .dev.vars.doppler && touch .dev.vars && wrangler dev --port 5010 --persist-to ../../../.wrangler-state --env-file .dev.vars.doppler --env-file .dev.vars",

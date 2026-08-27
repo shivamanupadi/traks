@@ -2,6 +2,7 @@
   "name": "@traks/tracker",
   "version": "0.0.1",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "build": "node build.js",

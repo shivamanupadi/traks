@@ -259,7 +259,7 @@ const PRIVACY_POINTS = [
   'No cookies and no persistent identifiers, only a session id that dies with the tab, so no consent banner is required',
   'Visitors are counted with daily-rotating hashed identifiers, never profiles',
   'IP addresses are used in-memory to resolve geography, then discarded; referrer query strings are stripped before anything is stored',
-  'Known bots and crawlers are filtered at the edge, and your site key only accepts events from your own domain',
+  'Bots and crawlers never touch your visitor numbers: they are classified at the edge and counted on their own panel, and your site key only accepts events from your own domain',
   'GDPR, ePrivacy, and PECR compliant by design, not by checkbox',
 ];
 
@@ -272,6 +272,8 @@ const MCP_TOOLS = [
   'get_funnel_stats',
   'get_custom_events',
   'get_event_props',
+  'get_webmcp_stats',
+  'get_bot_stats',
   'create_goal',
   'create_funnel',
   'get_tracking_snippet',
@@ -500,6 +502,23 @@ function LandingPage(): ReactElement {
                 <p className="mt-2 text-[13px] leading-relaxed text-[#8C8A99]">{f.desc}</p>
               </motion.div>
             ))}
+            {/* full-width row: the agent-traffic story spans the grid */}
+            <motion.div {...rise(0.45)} className="bg-white p-7 sm:col-span-2 lg:col-span-3">
+              <div className="flex items-center gap-2.5">
+                <Bot className="h-[18px] w-[18px] text-[#8C8A99]" strokeWidth={1.6} />
+                <span className="rounded-full bg-[#E9FBF3] px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-[#1D8A5F]">
+                  New
+                </span>
+              </div>
+              <h3 className="mt-4 text-[15px] font-semibold">Agent &amp; bot analytics</h3>
+              <p className="mt-2 max-w-[92ch] text-[13px] leading-relaxed text-[#8C8A99]">
+                Expose page functions to AI agents with Chrome&rsquo;s WebMCP API and Traks meters
+                every call automatically: which tools agents invoke, how often they fail, and how
+                long they take, the moment your page registers one. Crawlers and headless browsers
+                are counted too, by name (Googlebot, GPTBot, Headless Chrome, and dozens more), on
+                their own panel and never in your visitor numbers.
+              </p>
+            </motion.div>
           </div>
 
           <motion.div {...rise(0.1)} className="mt-6 flex items-center gap-3 px-1">
@@ -623,6 +642,7 @@ function LandingPage(): ReactElement {
                   'Tokens are bound to one workspace and scoped read-only or manage; the secret is shown once and revocable any time',
                   'Every tool call runs through the same permission checks as the dashboard',
                   'A ready-made SKILL.md, pre-filled with your instance URLs, teaches the agent how to instrument a site',
+                  'It works both ways: if your pages expose WebMCP tools to visiting agents, Traks meters every invocation, and get_webmcp_stats reports which tools agents actually use',
                 ].map(p => (
                   <li
                     key={p}

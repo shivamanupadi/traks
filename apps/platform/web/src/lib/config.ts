@@ -22,12 +22,25 @@ interface InstanceConfig {
  * authorizes the update.
  */
 export function updateUrl(config: InstanceConfig | undefined): string {
+  return wizardUrl('update', config, true);
+}
+
+/** traks.dev/destroy, told which instance is asking (no version needed). */
+export function destroyUrl(config: InstanceConfig | undefined): string {
+  return wizardUrl('destroy', config, false);
+}
+
+function wizardUrl(
+  flow: 'update' | 'destroy',
+  config: InstanceConfig | undefined,
+  withVersion: boolean
+): string {
   const params = new URLSearchParams();
   if (typeof window !== 'undefined') params.set('url', window.location.origin);
   if (config?.instanceName) params.set('name', config.instanceName);
-  if (config?.version) params.set('version', config.version);
+  if (withVersion && config?.version) params.set('version', config.version);
   const qs = params.toString();
-  return `https://traks.dev/update${qs ? `?${qs}` : ''}`;
+  return `https://traks.dev/${flow}${qs ? `?${qs}` : ''}`;
 }
 
 export function useInstanceConfig(): InstanceConfig | undefined {

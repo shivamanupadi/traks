@@ -414,7 +414,7 @@ function DocsIndex(): ReactElement {
                 title: 'Mint a token',
                 body: (
                   <>
-                    Open the <strong>API</strong> tab, name the token, and choose a scope:{' '}
+                    Open the <strong>MCP server</strong> tab, name the token, and choose a scope:{' '}
                     <em>read</em> (stats only) or <em>manage</em> (also create and edit goals and
                     funnels). Tokens are bound to the current workspace, shown once, and can be
                     revoked at any time.

@@ -9,9 +9,11 @@ ships separately and is not listed here.
 ### Added
 
 - `/api/health` reports the instance's running `version`, so anything that can reach the dashboard can read it without a Cloudflare token.
+- Destroy this instance from the account menu: a briefing of exactly what gets deleted, then the traks.dev destroy wizard opens with the instance pre-filled.
 
 ### Changed
 
+- The API tab is now "MCP server" at `/portal/mcp`; the old `/portal/api` address redirects.
 - The dashboard's Update link now tells traks.dev which instance is asking (its own address, name, and version) instead of a wizard session id, so the update page shows it immediately and pre-selects it after sign-in. traks.dev keeps no record of instances.
 
 ### Fixed

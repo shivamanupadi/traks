@@ -20,10 +20,18 @@ import {
   type StepEvent,
 } from '../deploy/shared';
 
+/** `url` and `name` are the hint an instance's own Destroy link carries about
+ *  itself: shown before sign-in and used to sort it first after. Display only;
+ *  the teardown is authorized by the Cloudflare token and the typed name. */
+const str = (v: unknown): string | undefined => (typeof v === 'string' && v ? v : undefined);
 export const Route = createFileRoute('/destroy')({
   component: DestroyWizard,
-  validateSearch: (search: Record<string, unknown>): { instance?: string } => ({
-    instance: typeof search.instance === 'string' ? search.instance : undefined,
+  validateSearch: (
+    search: Record<string, unknown>
+  ): { instance?: string; url?: string; name?: string } => ({
+    instance: str(search.instance),
+    url: str(search.url)?.match(/^https:\/\/[a-z0-9.-]+$/i) ? str(search.url) : undefined,
+    name: str(search.name)?.match(/^[a-z][a-z0-9-]{2,20}$/) ? str(search.name) : undefined,
   }),
 });
 
@@ -41,7 +49,7 @@ const PHASE_INDEX: Record<Phase, number> = {
  * an update. Connect → pick the instance → type its name → destroy.
  */
 function DestroyWizard(): ReactElement {
-  const { instance: urlSession } = Route.useSearch();
+  const { instance: urlSession, url: hintUrl, name: hintName } = Route.useSearch();
   const navigate = useNavigate();
   const [sessionId, setSessionId] = useState(urlSession);
   const connect = useConnect('destroy', sessionId);
@@ -78,7 +86,11 @@ function DestroyWizard(): ReactElement {
     void createSession()
       .then(id => {
         setSessionId(id);
-        void navigate({ to: '/destroy', search: { instance: id }, replace: true });
+        void navigate({
+          to: '/destroy',
+          search: { instance: id, url: hintUrl, name: hintName },
+          replace: true,
+        });
       })
       .catch(() =>
         setError('Could not reach the server to start. Check your connection and try again.')
@@ -206,7 +218,11 @@ function DestroyWizard(): ReactElement {
     }
   };
 
-  const installs = connect.existingInstalls;
+  // The instance that sent the user here sorts first once discovered.
+  const installs = [...connect.existingInstalls].sort((a, b) => {
+    if (!hintName) return 0;
+    return (b.instanceName === hintName ? 1 : 0) - (a.instanceName === hintName ? 1 : 0);
+  });
 
   return (
     <WizardShell
@@ -226,6 +242,21 @@ function DestroyWizard(): ReactElement {
                 only and never stored.
               </p>
             </>
+          )}
+          {hintName && connect.installerStatus !== 'ok' && (
+            <div className="mb-5 rounded-2xl border border-[#EEEEF2] bg-[#F6F5F2] px-4 py-3">
+              <p className="text-[11.5px] font-semibold uppercase tracking-[0.06em] text-[#9B99A6]">
+                Removing
+              </p>
+              <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13.5px] font-semibold text-[#3D3B4F]">
+                <span className="font-mono">{hintName}</span>
+                {hintUrl && (
+                  <span className="truncate text-[12px] font-normal text-[#9B99A6]">
+                    {hintUrl.replace('https://', '')}
+                  </span>
+                )}
+              </p>
+            </div>
           )}
           {error && <ErrorBox>{error}</ErrorBox>}
           <ConnectSection connect={connect} compactToken />

@@ -472,7 +472,10 @@ function DeployWizard(): ReactElement {
                       </div>
                       <button
                         onClick={() =>
-                          void navigate({ to: '/update', search: { instance: sessionId } })
+                          void navigate({
+                            to: '/update',
+                            search: { instance: sessionId, name: inst.instanceName ?? undefined },
+                          })
                         }
                         className="shrink-0 rounded-full bg-[#3D3B4F] px-4 py-1.5 text-[12px] font-semibold text-white hover:bg-[#2C2B3B] transition-colors cursor-pointer"
                       >

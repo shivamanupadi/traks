@@ -662,6 +662,7 @@ export async function provisionInstance(ctx: EngineCtx): Promise<ProvisionResult
         { type: 'plain_text', name: 'R2_ACCOUNT_ID', text: ctx.accountId },
         { type: 'plain_text', name: 'COLLECT_URL', text: collectUrl },
         ...(ownerEmail ? [{ type: 'plain_text', name: 'OWNER_EMAIL', text: ownerEmail }] : []),
+        { type: 'plain_text', name: 'TRAKS_INSTANCE', text: ctx.instance },
         ...(ctx.artifacts.version
           ? [{ type: 'plain_text', name: 'TRAKS_VERSION', text: ctx.artifacts.version }]
           : []),

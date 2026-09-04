@@ -13,6 +13,7 @@ import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { and, eq, inArray, isNotNull, isNull, lt, ne, or } from 'drizzle-orm';
 import { deployInstances } from '../db/schema';
+import { discoverInstances } from './discover';
 import {
   provisionInstance,
   canSignR2,
@@ -379,13 +380,44 @@ export const deployRoute = app
           const prev = byInstance.get(key);
           if (!prev || (r.updatedAt ?? 0) > (prev.updatedAt ?? 0)) byInstance.set(key, r);
         }
+        // Live discovery from the account itself is the source of truth; the
+        // registry rows only fill gaps (and catch anything discovery misses)
+        // until the registry is retired.
+        const [discovered, email] = await Promise.all([
+          discoverInstances(token, accounts),
+          userEmail(token),
+        ]);
+        const installs = new Map<
+          string,
+          {
+            id: string;
+            accountId: string | null;
+            instanceName: string | null;
+            apiUrl: string | null;
+            deployedVersion: string | null;
+            customDomain: { zoneId: string; zoneName: string; subdomain: string } | null;
+            reachable?: boolean | null;
+          }
+        >();
+        for (const d of discovered) {
+          const key = `${d.accountId}/${d.instanceName}`;
+          const row = byInstance.get(key);
+          installs.set(key, {
+            id: d.id,
+            accountId: d.accountId,
+            instanceName: d.instanceName,
+            apiUrl: d.apiUrl ?? row?.apiUrl ?? null,
+            deployedVersion: d.deployedVersion ?? row?.deployedVersion ?? null,
+            customDomain: d.customDomain ?? row?.customDomain ?? null,
+            reachable: d.reachable,
+          });
+        }
+        for (const [key, r] of byInstance) {
+          if (!installs.has(key)) installs.set(key, { ...r, reachable: null });
+        }
         // OAuth sign-ins can also tell us who this is - the instance's owner
         // account gets pinned to this email at deploy time.
-        return c.json({
-          data: accounts,
-          email: await userEmail(token),
-          installs: [...byInstance.values()],
-        });
+        return c.json({ data: accounts, email, installs: [...installs.values()] });
       } catch (err) {
         const message = err instanceof Error ? err.message : 'token check failed';
         return c.json({ error: message }, 400);

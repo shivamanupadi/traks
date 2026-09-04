@@ -56,7 +56,8 @@ export interface Account {
   name: string;
 }
 
-/** A ready instance the verified account already runs (from the registry). */
+/** An instance the verified account already runs, discovered live from the
+ *  account (the registry only fills gaps until it is retired). */
 export interface ExistingInstall {
   id: string;
   accountId: string | null;
@@ -64,6 +65,8 @@ export interface ExistingInstall {
   apiUrl: string | null;
   deployedVersion: string | null;
   customDomain: { zoneId: string; zoneName: string; subdomain: string } | null;
+  /** false when the api Worker did not answer its health check; null when not probed. */
+  reachable?: boolean | null;
 }
 
 export interface InstanceRow {

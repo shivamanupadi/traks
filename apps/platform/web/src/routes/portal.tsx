@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { User, ChevronDown, LogOut, ArrowUpCircle, X, Bot, RefreshCw } from 'lucide-react';
 import { authClient } from '@/lib/auth-client';
-import { useInstanceConfig, useLatestVersion } from '@/lib/config';
+import { updateUrl, useInstanceConfig, useLatestVersion } from '@/lib/config';
 import { useWorkspace, WorkspaceProvider } from '@/lib/workspace';
 import { WorkspaceSwitcher } from '@/components/layout/WorkspaceSwitcher';
 import {
@@ -140,10 +140,10 @@ function HeaderTab({
 }
 
 /**
- * "A newer Traks is available" - only on wizard-deployed instances (version +
- * deployInstanceId vars present). Checks traks.dev's public latest-version
- * endpoint (CORS-open) and links back to this instance's wizard session,
- * which re-runs the deploy idempotently. Dismissal is per-version.
+ * "A newer Traks is available" - only on wizard-deployed instances (version
+ * var present). Checks traks.dev's public latest-version endpoint (CORS-open)
+ * and links to traks.dev/update with this instance's own origin, name and
+ * version, so the wizard pre-selects it. Dismissal is per-version.
  */
 function UpdateBanner(): React.ReactNode {
   const config = useInstanceConfig();
@@ -154,7 +154,7 @@ function UpdateBanner(): React.ReactNode {
     if (latest) setDismissed(localStorage.getItem(dismissKey) === '1');
   }, [latest, dismissKey]);
 
-  if (!config?.version || !config.deployInstanceId || !latest) return null;
+  if (!config?.version || !latest) return null;
   if (latest === config.version || dismissed) return null;
 
   return (
@@ -169,7 +169,7 @@ function UpdateBanner(): React.ReactNode {
         </p>
         <div className="flex items-center gap-2">
           <a
-            href={`https://traks.dev/update?instance=${encodeURIComponent(config.deployInstanceId)}`}
+            href={updateUrl(config)}
             target="_blank"
             rel="noopener noreferrer"
             className="rounded-full bg-[#3D3B4F] px-4 py-1.5 text-[12px] font-semibold text-white hover:bg-[#2C2B3B] transition-colors"
@@ -202,10 +202,10 @@ function VersionPill(): React.ReactNode {
   if (!config?.version) return null;
 
   const updateAvailable = Boolean(latest && latest !== config.version);
-  if (updateAvailable && config.deployInstanceId) {
+  if (updateAvailable) {
     return (
       <a
-        href={`https://traks.dev/update?instance=${encodeURIComponent(config.deployInstanceId)}`}
+        href={updateUrl(config)}
         target="_blank"
         rel="noopener noreferrer"
         title={`Traks ${latest} is available (you're running ${config.version})`}
@@ -334,13 +334,14 @@ function UserMenu(): React.ReactNode {
                   </span>
                 )}
               </p>
-              {config.deployInstanceId && (
+              {config.instanceName && (
                 <button
-                  onClick={() => void navigator.clipboard.writeText(config.deployInstanceId!)}
-                  title="Copy instance id"
+                  onClick={() => void navigator.clipboard.writeText(config.instanceName!)}
+                  title="Copy instance name"
                   className="cursor-pointer break-all text-left hover:text-[#3D3B4F] transition-colors"
                 >
-                  instance {config.deployInstanceId} <span className="text-[#B5B0AA]">⧉</span>
+                  instance <span className="font-mono">{config.instanceName}</span>{' '}
+                  <span className="text-[#B5B0AA]">⧉</span>
                 </button>
               )}
             </div>

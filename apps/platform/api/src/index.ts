@@ -26,8 +26,10 @@ app.use('/api/*', async (c, next) => {
 // Health - /api/health is the canonical path (the traks.dev/api/* zone route
 // only forwards /api/*); the root paths remain for direct worker access.
 app.get('/', c => c.json({ name: 'traks-api', status: 'ok' }));
-app.get('/health', c => c.json({ status: 'ok', timestamp: new Date().toISOString() }));
-app.get('/api/health', c => c.json({ status: 'ok', timestamp: new Date().toISOString() }));
+const health = (c: { env: Bindings; json: (o: unknown) => Response }): Response =>
+  c.json({ status: 'ok', timestamp: new Date().toISOString(), version: c.env.TRAKS_VERSION });
+app.get('/health', c => health(c));
+app.get('/api/health', c => health(c));
 
 // Better Auth: sign-up/sign-in/sign-out/session under /api/auth/*
 // Credential attempts are IP-throttled first - reads (session lookups) are
@@ -106,6 +108,12 @@ app.get('/api/config', c =>
   c.json({
     collectUrl: c.env.COLLECT_URL,
     version: c.env.TRAKS_VERSION,
+    // Wizard-deployed instances know their own name: stamped directly on
+    // newer deploys, derived from the bucket name (`<name>-events`) on older
+    // ones. The dashboard's Update link carries it to traks.dev.
+    instanceName:
+      c.env.TRAKS_INSTANCE ??
+      (c.env.R2_BUCKET_NAME?.endsWith('-events') ? c.env.R2_BUCKET_NAME.slice(0, -7) : undefined),
     deployInstanceId: c.env.DEPLOY_INSTANCE_ID,
   })
 );

@@ -23,10 +23,23 @@ import {
 } from '../deploy/shared';
 import { ReleaseNotes, entriesBetween, compareVersions, useChangelog } from '@/changelog/shared';
 
+/**
+ * Search params. `instance` is a wizard session to resume. `url`, `name`
+ * and `version` are the hint an instance's own Update link carries about
+ * itself: shown immediately and used to pre-select the instance after
+ * connecting. Display only - the update is authorized by the Cloudflare
+ * token, which must actually own a Worker of that name.
+ */
+const str = (v: unknown): string | undefined => (typeof v === 'string' && v ? v : undefined);
 export const Route = createFileRoute('/update')({
   component: UpdateWizard,
-  validateSearch: (search: Record<string, unknown>): { instance?: string } => ({
-    instance: typeof search.instance === 'string' ? search.instance : undefined,
+  validateSearch: (
+    search: Record<string, unknown>
+  ): { instance?: string; url?: string; name?: string; version?: string } => ({
+    instance: str(search.instance),
+    url: str(search.url)?.match(/^https:\/\/[a-z0-9.-]+$/i) ? str(search.url) : undefined,
+    name: str(search.name)?.match(/^[a-z][a-z0-9-]{2,20}$/) ? str(search.name) : undefined,
+    version: str(search.version)?.match(/^\d+\.\d+\.\d+$/) ? str(search.version) : undefined,
   }),
 });
 
@@ -50,7 +63,12 @@ const INTERRUPTED_MSG =
  * Its URL is what the dashboards' "new version available" banner links to.
  */
 function UpdateWizard(): ReactElement {
-  const { instance: urlSession } = Route.useSearch();
+  const {
+    instance: urlSession,
+    url: hintUrl,
+    name: hintName,
+    version: hintVersion,
+  } = Route.useSearch();
   const navigate = useNavigate();
   const [sessionId, setSessionId] = useState(urlSession);
   const connect = useConnect('update', sessionId);
@@ -92,13 +110,22 @@ function UpdateWizard(): ReactElement {
     void createSession()
       .then(id => {
         setSessionId(id);
-        void navigate({ to: '/update', search: { instance: id }, replace: true });
+        void navigate({
+          to: '/update',
+          search: { instance: id, url: hintUrl, name: hintName, version: hintVersion },
+          replace: true,
+        });
       })
       .catch(() =>
         setError('Could not reach the server to start. Check your connection and try again.')
       );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
+
+  useEffect(() => {
+    if (hintVersion) setVersions(v => ({ ...v, current: v.current ?? hintVersion }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hintVersion]);
 
   useEffect(() => {
     void fetch('/api/deploy/latest-version')
@@ -339,7 +366,15 @@ function UpdateWizard(): ReactElement {
     }
   };
 
-  const installs = connect.existingInstalls;
+  // The instance that sent the user here sorts first once discovered.
+  const installs = [...connect.existingInstalls].sort((a, b) => {
+    if (!hintName) return 0;
+    return (b.instanceName === hintName ? 1 : 0) - (a.instanceName === hintName ? 1 : 0);
+  });
+  const hintMissing =
+    Boolean(hintName) &&
+    connect.installerStatus === 'ok' &&
+    !installs.some(i => i.instanceName === hintName);
   const latest = versions.latest;
 
   // "What this update brings": every release newer than the oldest connected
@@ -384,7 +419,37 @@ function UpdateWizard(): ReactElement {
             </>
           )}
           {error && <ErrorBox>{error}</ErrorBox>}
+          {hintName && connect.installerStatus !== 'ok' && (
+            <div className="mb-5 rounded-2xl border border-[#EEEEF2] bg-[#F6F5F2] px-4 py-3">
+              <p className="text-[11.5px] font-semibold uppercase tracking-[0.06em] text-[#9B99A6]">
+                Updating
+              </p>
+              <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13.5px] font-semibold text-[#3D3B4F]">
+                <span className="font-mono">{hintName}</span>
+                {hintVersion && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold tabular-nums">
+                    <span className="text-[#9B99A6]">v{hintVersion}</span>
+                    <ArrowRight className="h-3 w-3 text-[#9B99A6]" />v{latest ?? '…'}
+                  </span>
+                )}
+                {hintUrl && (
+                  <span className="truncate text-[12px] font-normal text-[#9B99A6]">
+                    {hintUrl.replace('https://', '')}
+                  </span>
+                )}
+              </p>
+            </div>
+          )}
           <ConnectSection connect={connect} compactToken />
+          {hintMissing && (
+            <div className="mt-4">
+              <NoteBox>
+                No instance named <span className="font-mono">{hintName}</span> was found in the
+                connected {connect.accounts.length === 1 ? 'account' : 'accounts'}. Sign in with the
+                Cloudflare account that runs it.
+              </NoteBox>
+            </div>
+          )}
 
           {connect.installerStatus === 'ok' && (
             <div className="mt-5">
@@ -447,6 +512,14 @@ function UpdateWizard(): ReactElement {
                                 {inst.apiUrl && (
                                   <span className="truncate">
                                     {inst.apiUrl.replace('https://', '')}
+                                  </span>
+                                )}
+                                {inst.reachable === false && (
+                                  <span
+                                    title="The dashboard did not answer its health check; updating still works."
+                                    className="rounded-full bg-[#F7DCD4] px-2 py-0.5 text-[10.5px] font-semibold text-[#8F3B2C]"
+                                  >
+                                    not responding
                                   </span>
                                 )}
                               </p>

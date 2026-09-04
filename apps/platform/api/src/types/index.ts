@@ -37,8 +37,12 @@ export type Bindings = {
   /** Set by the deploy wizard on user instances: the release version installed
    *  (manifest.version). Drives the dashboard's update-available banner. */
   TRAKS_VERSION?: string;
-  /** Set by the deploy wizard on user instances: the wizard session that owns
-   *  this instance, so "Update" links reopen the same session on traks.dev. */
+  /** Set by the deploy wizard on user instances: the instance name (the
+   *  `<name>` in `<name>-api`). Absent on instances deployed before it was
+   *  stamped; derived from R2_BUCKET_NAME then. */
+  TRAKS_INSTANCE?: string;
+  /** Set by older wizard deploys: the wizard session that created the
+   *  instance. No longer used for anything; kept so old bindings type-check. */
   DEPLOY_INSTANCE_ID?: string;
 };
 

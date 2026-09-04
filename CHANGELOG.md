@@ -6,6 +6,14 @@ ships separately and is not listed here.
 
 ## Unreleased
 
+### Added
+
+- `/api/health` reports the instance's running `version`, so anything that can reach the dashboard can read it without a Cloudflare token.
+
+### Changed
+
+- The dashboard's Update link now tells traks.dev which instance is asking (its own address, name, and version) instead of a wizard session id, so the update page shows it immediately and pre-selects it after sign-in. traks.dev keeps no record of instances.
+
 ### Fixed
 
 - Historical queries retry once when R2 SQL reports a transient edge connection failure (error 80001) instead of failing the dashboard panel.

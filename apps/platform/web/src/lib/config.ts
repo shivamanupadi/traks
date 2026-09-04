@@ -10,8 +10,24 @@ interface InstanceConfig {
   collectUrl: string;
   /** Release version stamped by the deploy wizard; absent on dev/hosted. */
   version?: string;
-  /** Wizard session that owns this instance, for update links; absent on dev/hosted. */
-  deployInstanceId?: string;
+  /** Instance name (`<name>` in `<name>-api`); absent on dev/hosted. */
+  instanceName?: string;
+}
+
+/**
+ * Where "Update" sends the owner: traks.dev/update, told which instance is
+ * asking (its own origin, name, and version) so the wizard can show it
+ * immediately and pre-select it after the Cloudflare sign-in. Nothing is
+ * remembered by traks.dev; the token the owner signs in with is what
+ * authorizes the update.
+ */
+export function updateUrl(config: InstanceConfig | undefined): string {
+  const params = new URLSearchParams();
+  if (typeof window !== 'undefined') params.set('url', window.location.origin);
+  if (config?.instanceName) params.set('name', config.instanceName);
+  if (config?.version) params.set('version', config.version);
+  const qs = params.toString();
+  return `https://traks.dev/update${qs ? `?${qs}` : ''}`;
 }
 
 export function useInstanceConfig(): InstanceConfig | undefined {
@@ -41,13 +57,13 @@ export function useCollectUrl(): string | undefined {
 
 /**
  * Latest published release, from traks.dev's public CORS-open endpoint.
- * Only queried on wizard-deployed instances (version + deployInstanceId set).
+ * Only queried on wizard-deployed instances (version set).
  */
 export function useLatestVersion(): string | undefined {
   const config = useInstanceConfig();
   const { data } = useQuery({
     queryKey: ['latest-version'],
-    enabled: Boolean(config?.version && config?.deployInstanceId),
+    enabled: Boolean(config?.version),
     queryFn: async (): Promise<string | undefined> => {
       const res = await fetch('https://traks.dev/api/deploy/latest-version');
       if (!res.ok) throw new Error(`latest-version fetch failed: ${res.status}`);

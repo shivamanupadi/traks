@@ -275,6 +275,19 @@ yarn build        # build all workspaces
 yarn check:ci     # everything CI runs: format, lint, build, db, tracker
 ```
 
+**Local secrets.** The platform `dev` scripts try to pull secrets from the
+maintainers' Doppler projects and fall back to the git-ignored `.dev.vars` file
+in each Worker directory when Doppler is not installed. To run without Doppler,
+create these files:
+
+- `apps/platform/collect/.dev.vars`: `VISITOR_HASH_SECRET` (any long random string)
+- `apps/platform/api/.dev.vars`: `BETTER_AUTH_SECRET` (any long random string) and
+  `R2_SQL_TOKEN` (an R2 SQL Read token for the warehouse bucket named in
+  `wrangler.toml`; only needed for historical periods, "today" works without it)
+
+The release scripts under `installer/` are maintainer tooling and expect
+`CLOUDFLARE_ACCOUNT_ID` plus a release-bucket token in the environment or Doppler.
+
 ## Contributing
 
 Issues and pull requests are welcome. Before opening a PR, please run

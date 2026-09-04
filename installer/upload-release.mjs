@@ -28,7 +28,23 @@ import { parse as parseChangelog, readChangelog } from './changelog.mjs';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = path.join(ROOT, 'installer/dist');
 const BUCKET = 'traks-releases';
-const ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID ?? '4cf68c768770ccda55d287d6ecbdeb4f';
+// Maintainer's account, never a hardcoded default: env first, then the
+// traks-home Doppler project (same place the release token lives).
+function resolveAccountId() {
+  if (process.env.CLOUDFLARE_ACCOUNT_ID) return process.env.CLOUDFLARE_ACCOUNT_ID;
+  try {
+    return execSync('doppler secrets get CLOUDFLARE_ACCOUNT_ID --plain -p traks-home -c prd', {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch {
+    console.error(
+      'CLOUDFLARE_ACCOUNT_ID required - export it or add it to the traks-home Doppler project (prd)'
+    );
+    process.exit(1);
+  }
+}
+const ACCOUNT_ID = resolveAccountId();
 // blake3-wasm ships inside wrangler (resolved via the api workspace) - the
 // same implementation wrangler uses for asset hashes, which must match.
 const apiRequire = createRequire(path.join(ROOT, 'apps/platform/api/package.json'));

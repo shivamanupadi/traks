@@ -16,3 +16,7 @@ wrangler.selfhost.toml
 installer/dist
 .wrangler-state/
 apps/platform/web/public/flags/
+
+# IDE and router temp files
+.idea/
+.tanstack/

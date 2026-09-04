@@ -5,7 +5,7 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "dev": "doppler secrets download --no-file --format=env -p traks-collect -c dev > .dev.vars.doppler && touch .dev.vars && wrangler dev --port 5010 --persist-to ../../../.wrangler-state --env-file .dev.vars.doppler --env-file .dev.vars",
+    "dev": "(doppler secrets download --no-file --format=env -p traks-collect -c dev > .dev.vars.doppler 2>/dev/null || echo '# doppler unavailable: put secrets in .dev.vars' > .dev.vars.doppler) && touch .dev.vars && wrangler dev --port 5010 --persist-to ../../../.wrangler-state --env-file .dev.vars.doppler --env-file .dev.vars",
     "build": "tsc --noEmit",
     "type-check": "tsc --noEmit",
     "lint": "eslint src --ext .ts --fix",

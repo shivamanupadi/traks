@@ -13,6 +13,7 @@
  */
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { randomBytes, createHash, createHmac } from 'node:crypto';
+import { execSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
@@ -25,7 +26,23 @@ const apiRequire = createRequire(path.join(ROOT, 'apps/home/api/package.json'));
 const require = createRequire(apiRequire.resolve('wrangler/package.json'));
 const blake3 = require('blake3-wasm');
 
-const ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID ?? '4cf68c768770ccda55d287d6ecbdeb4f';
+// Maintainer's account, never a hardcoded default: env first, then the
+// traks-home Doppler project (same place the release token lives).
+function resolveAccountId() {
+  if (process.env.CLOUDFLARE_ACCOUNT_ID) return process.env.CLOUDFLARE_ACCOUNT_ID;
+  try {
+    return execSync('doppler secrets get CLOUDFLARE_ACCOUNT_ID --plain -p traks-home -c prd', {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch {
+    console.error(
+      'CLOUDFLARE_ACCOUNT_ID required - export it or add it to the traks-home Doppler project (prd)'
+    );
+    process.exit(1);
+  }
+}
+const ACCOUNT_ID = resolveAccountId();
 const command = process.argv[2] ?? 'provision';
 const instance = process.argv[3] ?? 'traks-web1';
 

@@ -14,21 +14,21 @@
  * Release notes: CHANGELOG.md must have bullets under "## Unreleased" or the
  * release refuses to run. They are promoted to the new version heading, shipped
  * to R2 as changelog.json by upload-release, and committed with the version.
- * GITHUB_RELEASE=1 additionally creates a GitHub Release from the same notes
- * (best-effort; a failure there never blocks the release).
+ * A GitHub Release is created from the same notes (best-effort; a failure
+ * there never blocks the release). GITHUB_RELEASE=0 skips it.
  *
  * The version commit + tag happen only after a successful upload.
  */
-import { readFileSync, writeFileSync, writeSync, closeSync, openSync, unlinkSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   bulletCount,
+  createGithubRelease,
   parse as parseChangelog,
   promoteUnreleased,
   readChangelog,
-  renderSection,
   writeChangelog,
 } from './changelog.mjs';
 
@@ -113,21 +113,11 @@ const tagged = spawnSync('git', ['rev-parse', `v${version}`], { cwd: ROOT, stdio
 if (tagged.status !== 0) {
   run('git', ['tag', `v${version}`]);
 }
-// Optional mirror of the notes to GitHub Releases. Off until open-source is
-// announced; failures only warn because the release is already published.
-if (process.env.GITHUB_RELEASE === '1') {
+// Mirror the notes to GitHub Releases. Off only on request; failures only
+// warn because the release is already published to R2 by now.
+if (process.env.GITHUB_RELEASE !== '0') {
   const entry = parseChangelog(readChangelog()).entries.find(e => e.version === version);
-  const notesPath = path.join(ROOT, 'installer/dist/.release-notes.md');
-  const fd = openSync(notesPath, 'w');
-  writeSync(fd, renderSection(entry));
-  closeSync(fd);
-  const gh = spawnSync(
-    'gh',
-    ['release', 'create', `v${version}`, '--title', `v${version}`, '--notes-file', notesPath],
-    { cwd: ROOT, stdio: 'inherit' }
-  );
-  unlinkSync(notesPath);
-  if (gh.status !== 0) console.warn(`! GitHub release for v${version} failed - create it by hand`);
+  if (entry) createGithubRelease(entry, { latest: true });
 }
 
 console.log(`\n✓ Traks ${version} released (tagged v${version})`);

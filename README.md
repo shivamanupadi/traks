@@ -11,6 +11,11 @@ services in the data path, and no personal data stored.
 ![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)
 ![Built on Cloudflare](https://img.shields.io/badge/built%20on-Cloudflare-orange)
 
+Open source under the MIT license. Free to run, forever: the only cost is your
+own Cloudflare usage, which stays inside the free allowances for most sites.
+Install it at [traks.dev](https://traks.dev); read the release notes at
+[traks.dev/changelog](https://traks.dev/changelog).
+
 ## Highlights
 
 - **Privacy-first** — no cookies, no fingerprinting persistence. Visitors are
@@ -119,37 +124,56 @@ scripts/           data-platform provisioning, seeding, tracker inlining
 
 Monorepo managed with Yarn workspaces + Turborepo. Requires Node ≥ 20.
 
-## Getting started (self-hosting)
+## Getting started
 
-### 1. Provision the Cloudflare data platform (per environment)
+### Use Traks
+
+You do not need this repository to run Traks. Open
+[traks.dev/deploy](https://traks.dev/deploy), sign in with Cloudflare, and the
+wizard provisions everything into your own account in about two minutes:
+both Workers, D1, KV, the R2 bucket with Data Catalog, the Pipelines stream
+and Iceberg sink. Updates and removal are one click each at
+[traks.dev/update](https://traks.dev/update) and
+[traks.dev/destroy](https://traks.dev/destroy). traks.dev keeps no record of
+your instance; every visit rediscovers it from your account.
+
+### Develop Traks
+
+The rest of this section is for working on the platform itself.
+
+Secrets come from Doppler and nowhere else (see [Development](#development)).
+The maintainers' projects are `traks-api`, `traks-collect`, and `traks-home`;
+to run the platform locally you need Doppler projects of your own with those
+names and the keys listed below.
+
+**1. Provision a dev data platform** (once per Cloudflare account; reads
+`CATALOG_TOKEN` from Doppler `traks-home/prd`):
 
 ```sh
-CATALOG_TOKEN=<r2-admin-token> ./scripts/setup-data-platform.sh dev
-CATALOG_TOKEN=<r2-admin-token> ./scripts/setup-data-platform.sh prod
+./scripts/setup-data-platform.sh dev
 ```
 
 This creates the R2 bucket, enables the Data Catalog with automatic compaction
 (128 MB) and snapshot expiration (30 days / keep 5), then creates the stream,
-Iceberg sink (60s roll interval for ~1-minute dashboard freshness), and
+Iceberg sink (60 s roll interval for ~1-minute dashboard freshness), and
 pipeline. Paste the printed stream ID into
 `apps/platform/collect/wrangler.toml`.
 
-### 2. D1 + Workers
+**2. Migrate D1 and start the dev servers:**
 
 ```sh
 yarn install
-yarn workspace @traks/platform-api db:migrate:dev   # or db:migrate:prod
-yarn dev                                            # collect :5010, api :5011, web :5012
+yarn workspace @traks/platform-api db:migrate:dev
+yarn dev                                            # collect :5010, api :5011, web :5012, home :5013/:5014
 ```
 
-Secrets are managed with Doppler (see the comments in each `wrangler.toml`):
+| Doppler project (dev config) | Keys                                                              |
+| ---------------------------- | ----------------------------------------------------------------- |
+| `traks-api`                  | `BETTER_AUTH_SECRET`, `R2_SQL_TOKEN` (Workers R2 SQL Read on the warehouse bucket) |
+| `traks-collect`              | `VISITOR_HASH_SECRET`                                             |
+| `traks-home`                 | none required                                                     |
 
-| Worker    | Secrets                                                                                                                |
-| --------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `api`     | `R2_SQL_TOKEN` (Workers R2 SQL Read + R2 Data Catalog Write + R2 Storage Write), `R2_ACCOUNT_ID`, `BETTER_AUTH_SECRET` |
-| `collect` | `VISITOR_HASH_SECRET`                                                                                                  |
-
-### 3. Seed test data
+**3. Seed test data:**
 
 ```sh
 node scripts/seed-events.mjs <SITE_KEY> 500
@@ -281,8 +305,9 @@ your own with the same names and keys: `VISITOR_HASH_SECRET` for collect,
 
 ## Contributing
 
-Issues and pull requests are welcome. Before opening a PR, please run
-`yarn check:ci` and keep changes focused.
+Issues and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md)
+for the setup, the checks to run, and how release notes work. Security issues
+go through [SECURITY.md](SECURITY.md), not the public tracker.
 
 ## License
 

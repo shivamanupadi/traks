@@ -8,6 +8,7 @@
  *
  *   node installer/changelog.mjs --check   # validate and summarize
  *   node installer/changelog.mjs notes     # draft bullets from commits since the last tag
+ *   node installer/changelog.mjs releases  # create missing GitHub Releases for tagged versions
  *
  * File shape:
  *   ## Unreleased
@@ -18,8 +19,9 @@
  * Only platform (installable) changes belong here. traks.dev-only work never
  * reaches an instance, so it gets no entry.
  */
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, writeSync, closeSync, openSync, unlinkSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -152,12 +154,63 @@ function draftNotes() {
   console.log(bullets.join('\n') || '- (no commits)');
 }
 
+/**
+ * Create a GitHub Release for one version from its changelog entry. Best
+ * effort: returns false (and prints why) instead of throwing, because a
+ * release is already published to R2 by the time this runs.
+ */
+export function createGithubRelease(entry, { latest }) {
+  const tag = `v${entry.version}`;
+  const notesPath = path.join(os.tmpdir(), `traks-release-notes-${entry.version}.md`);
+  const fd = openSync(notesPath, 'w');
+  writeSync(fd, renderSection(entry));
+  closeSync(fd);
+  const args = ['release', 'create', tag, '--title', tag, '--notes-file', notesPath];
+  if (!latest) args.push('--latest=false');
+  const res = spawnSync('gh', args, { cwd: ROOT, encoding: 'utf8' });
+  unlinkSync(notesPath);
+  if (res.status !== 0) {
+    console.warn(`! GitHub release ${tag} failed: ${(res.stderr || res.stdout).trim()}`);
+    return false;
+  }
+  return true;
+}
+
+/** Backfill: a release for every changelog version that has a tag but no release yet. */
+function backfillReleases() {
+  const { entries } = parse(readChangelog());
+  let created = 0;
+  entries.forEach((entry, i) => {
+    const tag = `v${entry.version}`;
+    const tagged = spawnSync('git', ['rev-parse', '-q', '--verify', `refs/tags/${tag}`], {
+      cwd: ROOT,
+      stdio: 'ignore',
+    });
+    if (tagged.status !== 0) {
+      console.log(`- ${tag}: no tag, skipped`);
+      return;
+    }
+    const exists = spawnSync('gh', ['release', 'view', tag], { cwd: ROOT, stdio: 'ignore' });
+    if (exists.status === 0) {
+      console.log(`- ${tag}: release exists`);
+      return;
+    }
+    if (createGithubRelease(entry, { latest: i === 0 })) {
+      created++;
+      console.log(`✓ ${tag}: created${i === 0 ? ' (latest)' : ''}`);
+    }
+  });
+  console.log(`${created} release(s) created`);
+}
+
 const invokedDirectly =
   process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (invokedDirectly) {
   const mode = process.argv[2] ?? '--check';
   if (mode === 'notes') {
     draftNotes();
+  } else if (mode === 'releases') {
+    backfillReleases();
   } else {
     const { unreleased, entries } = parse(readChangelog());
     console.log(

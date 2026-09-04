@@ -86,7 +86,10 @@ COLD PATH: R2 SQL ◄── api Worker (apps/platform/api) ── Better Auth, D
 - **`apps/platform/web`** — the dashboard UI, including the live view with a
   self-hosted dotted world map generated from Natural Earth data.
 - **`apps/home`** — the traks.dev site: landing page, docs, and the install
-  wizard / control plane.
+  wizard. The wizard backend has no database and keeps no record of anyone's
+  instance: instances are discovered live from the user's own Cloudflare
+  account on each sign-in, and a run's progress lives in a Durable Object
+  that wipes itself after a day.
 - **`packages/tracker`** — the `t.js` tracking snippet.
 - **`packages/shared`** — event schema (zod), timezone-aware period math, and
   all R2 SQL query builders.

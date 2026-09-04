@@ -3,17 +3,18 @@
  * Cloudflare account using tokens they supply per request; tokens are never
  * stored, logged, or echoed). Powers the traks.dev/deploy wizard.
  *
- * State model mirrors the Cloudflare OS hosted deploy: a registry row per
- * wizard session (?instance=<id> in the URL), holding only non-sensitive
- * resume state - status, chosen names, step log, final URLs.
+ * State model: no database. A wizard session (?instance=<id> in the URL) is a
+ * Durable Object that holds only non-sensitive resume state - status, the
+ * names it was bound to, the step log, final URLs - and wipes itself a day
+ * after its first write. Instances are discovered live from the user's own
+ * Cloudflare account (see discover.ts), never remembered.
  */
 import { Hono, type Context } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
-import { and, eq, inArray, isNotNull, isNull, lt, ne, or } from 'drizzle-orm';
-import { deployInstances } from '../db/schema';
 import { discoverInstances } from './discover';
+import type { SessionState } from './session';
 import {
   provisionInstance,
   canSignR2,
@@ -30,13 +31,23 @@ import {
 } from './engine';
 import type { Bindings, Variables } from '../types';
 
-/** A live run touches its registry row at least this often (SSE ping + updated_at). */
+/** A live run touches its session at least this often (SSE ping + updatedAt). */
 const HEARTBEAT_MS = 20_000;
-/** A 'deploying' row quieter than this is dead and may be retaken. Mirrors
+/** A 'deploying' session quieter than this is dead and may be retaken. Mirrors
  *  RUN_STALE_MS in the wizard UI. */
 const RUN_STALE_MS = 3 * 60_000;
+const SESSION_ID = /^[a-zA-Z0-9-]{8,64}$/;
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
+
+type Ctx = Context<{ Bindings: Bindings; Variables: Variables }>;
+
+/** The session object for a wizard visit (progress replay). */
+const sessionOf = (c: Ctx, id: string) =>
+  c.env.SESSIONS.get(c.env.SESSIONS.idFromName(`session:${id}`));
+/** The run lock for one instance: two tabs cannot provision it at once. */
+const lockOf = (c: Ctx, accountId: string, instanceName: string) =>
+  c.env.SESSIONS.get(c.env.SESSIONS.idFromName(`lock:${accountId}/${instanceName}`));
 
 /* ── "Sign in with Cloudflare" (self-managed OAuth client) ─────────────────
  * Endpoints from https://dash.cloudflare.com/.well-known/openid-configuration.
@@ -197,16 +208,16 @@ async function loadArtifacts(releases: R2Bucket): Promise<DeployArtifacts> {
 }
 
 /**
- * Authorize a provision/destroy call against a registry row.
+ * Authorize a provision/destroy call against a session.
  *
- * Instance ids are not secrets (a deployed instance can surface its own id),
- * so possession of an id must never be sufficient. Two checks:
+ * Session ids are not secrets, so possession of one must never be
+ * sufficient. Two checks:
  *  1. the supplied token really can act on the claimed account, and
- *  2. a row already bound to an account/instance can only be driven by that
- *     same pair - otherwise anyone could repoint or retire someone else's row.
+ *  2. a session already bound to an account/instance can only be driven by
+ *     that same pair - otherwise anyone could repoint someone else's session.
  */
-async function authorizeRow(
-  row: { accountId: string | null; instanceName: string | null; status: string },
+async function authorizeSession(
+  session: Pick<SessionState, 'accountId' | 'instanceName'> | null,
   apiToken: string,
   accountId: string,
   instanceName: string
@@ -220,10 +231,10 @@ async function authorizeRow(
   if (!accounts.some(a => a.id === accountId)) {
     return 'This token cannot act on the selected Cloudflare account';
   }
-  if (row.accountId && row.accountId !== accountId) {
+  if (session?.accountId && session.accountId !== accountId) {
     return 'This deploy session belongs to a different Cloudflare account';
   }
-  if (row.instanceName && row.instanceName !== instanceName) {
+  if (session?.instanceName && session.instanceName !== instanceName) {
     return 'This deploy session belongs to a different instance';
   }
   return null;
@@ -248,7 +259,7 @@ export const deployRoute = app
   .get('/oauth/start', async c => {
     if (!c.env.CF_OAUTH_CLIENT_ID) return c.json({ error: 'OAuth not configured' }, 404);
     const instanceId = c.req.query('instance');
-    if (!instanceId || !/^[a-zA-Z0-9-]{8,64}$/.test(instanceId)) {
+    if (!instanceId || !SESSION_ID.test(instanceId)) {
       return c.json({ error: 'instance required' }, 400);
     }
     // Which wizard page started this sign-in - the callback returns there.
@@ -277,44 +288,37 @@ export const deployRoute = app
     return c.redirect(auth.toString());
   })
 
-  // Create a wizard session.
+  // Create a wizard session: just an id. Its Durable Object is created on
+  // first write (a run), so an abandoned visit leaves nothing behind at all.
   .post('/instance', async c => {
     const capped = await limited(c, c.env.SESSION_LIMIT);
     if (capped) return capped;
-    const db = c.get('db')!;
-    const [row] = await db.insert(deployInstances).values({}).returning();
-    return c.json({ data: { id: row.id, status: row.status } });
+    return c.json({ data: { id: crypto.randomUUID(), status: 'new' } });
   })
 
-  // Resume state for a returning ?instance= visitor.
   // Resume state for a returning ?instance= visitor. Deliberately projected:
   // the account id is never echoed, and step details (raw upstream error text)
-  // are truncated, since an instance id is not a secret.
+  // are truncated, since a session id is not a secret. An id with no state
+  // (never ran, or wiped) is simply a fresh session.
   .get('/instance/:id', async c => {
-    const db = c.get('db')!;
-    const [row] = await db
-      .select({
-        status: deployInstances.status,
-        instanceName: deployInstances.instanceName,
-        apiUrl: deployInstances.apiUrl,
-        collectUrl: deployInstances.collectUrl,
-        deployedVersion: deployInstances.deployedVersion,
-        customDomain: deployInstances.customDomain,
-        steps: deployInstances.steps,
-        error: deployInstances.error,
-        updatedAt: deployInstances.updatedAt,
-      })
-      .from(deployInstances)
-      .where(eq(deployInstances.id, c.req.param('id')));
-    if (!row) return c.json({ error: 'Not found' }, 404);
+    const id = c.req.param('id');
+    if (!SESSION_ID.test(id)) return c.json({ error: 'Not found' }, 404);
+    const state = await sessionOf(c, id).get();
+    if (!state) return c.json({ data: { status: 'new' } });
     return c.json({
       data: {
-        ...row,
-        error: row.error ? row.error.slice(0, 300) : row.error,
-        steps: (row.steps ?? []).map(st => ({
+        status: state.status,
+        instanceName: state.instanceName,
+        apiUrl: state.apiUrl,
+        collectUrl: state.collectUrl,
+        deployedVersion: state.deployedVersion,
+        customDomain: state.customDomain,
+        error: state.error ? state.error.slice(0, 300) : state.error,
+        steps: (state.steps ?? []).map(st => ({
           ...st,
           detail: st.detail ? st.detail.slice(0, 300) : st.detail,
         })),
+        updatedAt: new Date(state.updatedAt).toISOString(),
       },
     });
   })
@@ -327,97 +331,23 @@ export const deployRoute = app
     async c => {
       const capped = await limited(c, c.env.VERIFY_LIMIT);
       if (capped) return capped;
-      const db = c.get('db')!;
-      const [session] = await db
-        .select({ id: deployInstances.id })
-        .from(deployInstances)
-        .where(eq(deployInstances.id, c.req.param('id')));
-      if (!session) return c.json({ error: 'Not found' }, 404);
       try {
         const token = c.req.valid('json').apiToken;
         const accounts = await listAccounts(token);
         if (accounts.length === 0) {
           return c.json({ error: 'This token cannot access any Cloudflare account' }, 400);
         }
-        // Existing installs in these accounts (proving account access via the
-        // token is the authorization) - lets the wizard steer returning users
-        // into the update path instead of an accidental second instance.
-        const db = c.get('db')!;
-        const rows = await db
-          .select({
-            id: deployInstances.id,
-            accountId: deployInstances.accountId,
-            instanceName: deployInstances.instanceName,
-            apiUrl: deployInstances.apiUrl,
-            deployedVersion: deployInstances.deployedVersion,
-            customDomain: deployInstances.customDomain,
-            updatedAt: deployInstances.updatedAt,
-          })
-          .from(deployInstances)
-          .where(
-            and(
-              // A row whose last run failed but that has shipped before is
-              // still a live instance (Cloudflare keeps the previous worker
-              // when an upload is rejected) - it must stay updatable.
-              or(
-                eq(deployInstances.status, 'ready'),
-                and(
-                  eq(deployInstances.status, 'failed'),
-                  isNotNull(deployInstances.deployedVersion)
-                )
-              ),
-              inArray(
-                deployInstances.accountId,
-                accounts.map(a => a.id)
-              )
-            )
-          );
-        // One entry per account+instance, newest session wins (updates create
-        // a fresh session row for the same instance).
-        const byInstance = new Map<string, (typeof rows)[number]>();
-        for (const r of rows) {
-          const key = `${r.accountId}/${r.instanceName}`;
-          const prev = byInstance.get(key);
-          if (!prev || (r.updatedAt ?? 0) > (prev.updatedAt ?? 0)) byInstance.set(key, r);
-        }
-        // Live discovery from the account itself is the source of truth; the
-        // registry rows only fill gaps (and catch anything discovery misses)
-        // until the registry is retired.
-        const [discovered, email] = await Promise.all([
+        // Existing installs, discovered live from the accounts themselves
+        // (proving account access via the token is the authorization) - lets
+        // the wizard steer returning users into the update path instead of an
+        // accidental second instance. OAuth sign-ins can also tell us who this
+        // is - the instance's owner account gets pinned to this email at
+        // deploy time.
+        const [installs, email] = await Promise.all([
           discoverInstances(token, accounts),
           userEmail(token),
         ]);
-        const installs = new Map<
-          string,
-          {
-            id: string;
-            accountId: string | null;
-            instanceName: string | null;
-            apiUrl: string | null;
-            deployedVersion: string | null;
-            customDomain: { zoneId: string; zoneName: string; subdomain: string } | null;
-            reachable?: boolean | null;
-          }
-        >();
-        for (const d of discovered) {
-          const key = `${d.accountId}/${d.instanceName}`;
-          const row = byInstance.get(key);
-          installs.set(key, {
-            id: d.id,
-            accountId: d.accountId,
-            instanceName: d.instanceName,
-            apiUrl: d.apiUrl ?? row?.apiUrl ?? null,
-            deployedVersion: d.deployedVersion ?? row?.deployedVersion ?? null,
-            customDomain: d.customDomain ?? row?.customDomain ?? null,
-            reachable: d.reachable,
-          });
-        }
-        for (const [key, r] of byInstance) {
-          if (!installs.has(key)) installs.set(key, { ...r, reachable: null });
-        }
-        // OAuth sign-ins can also tell us who this is - the instance's owner
-        // account gets pinned to this email at deploy time.
-        return c.json({ data: accounts, email, installs: [...installs.values()] });
+        return c.json({ data: accounts, email, installs });
       } catch (err) {
         const message = err instanceof Error ? err.message : 'token check failed';
         return c.json({ error: message }, 400);
@@ -436,12 +366,6 @@ export const deployRoute = app
     async c => {
       const capped = await limited(c, c.env.VERIFY_LIMIT);
       if (capped) return capped;
-      const db = c.get('db')!;
-      const [session] = await db
-        .select({ id: deployInstances.id })
-        .from(deployInstances)
-        .where(eq(deployInstances.id, c.req.param('id')));
-      if (!session) return c.json({ error: 'Not found' }, 404);
       const { apiToken, accountId } = c.req.valid('json');
       try {
         return c.json({ data: await listZones(apiToken, accountId) });
@@ -484,12 +408,6 @@ export const deployRoute = app
     async c => {
       const capped = await limited(c, c.env.VERIFY_LIMIT);
       if (capped) return capped;
-      const db = c.get('db')!;
-      const [session] = await db
-        .select({ id: deployInstances.id })
-        .from(deployInstances)
-        .where(eq(deployInstances.id, c.req.param('id')));
-      if (!session) return c.json({ error: 'Not found' }, 404);
       const { catalogToken, accountId } = c.req.valid('json');
       const result = await verifyCatalogToken(accountId, catalogToken);
       return c.json({ data: result }, result.ok ? 200 : 400);
@@ -521,12 +439,15 @@ export const deployRoute = app
     async c => {
       const capped = await limited(c, c.env.VERIFY_LIMIT);
       if (capped) return capped;
-      const db = c.get('db')!;
       const id = c.req.param('id');
-      const [row] = await db.select().from(deployInstances).where(eq(deployInstances.id, id));
-      if (!row) return c.json({ error: 'Not found' }, 404);
+      if (!SESSION_ID.test(id)) return c.json({ error: 'Not found' }, 404);
       const { apiToken, accountId, instanceName, intent } = c.req.valid('json');
-      const denied = await authorizeRow(row, apiToken, accountId, instanceName);
+      const denied = await authorizeSession(
+        await sessionOf(c, id).get(),
+        apiToken,
+        accountId,
+        instanceName
+      );
       if (denied) return c.json({ error: denied }, 403);
 
       if (intent === 'destroy') {
@@ -550,24 +471,22 @@ export const deployRoute = app
   // Run the deploy, streaming step events as SSE. Idempotent - a retry after
   // a failure resumes from existing resources.
   .post('/instance/:id/provision', zValidator('json', startSchema), async c => {
-    const db = c.get('db')!;
     const id = c.req.param('id');
-    const [row] = await db.select().from(deployInstances).where(eq(deployInstances.id, id));
-    if (!row) return c.json({ error: 'Not found' }, 404);
-    // Reject double-starts, but let a stale 'deploying' row (client vanished
-    // mid-run, worker died) be retaken - provisioning is idempotent. A live
-    // run touches the row at least every HEARTBEAT_MS, so anything quieter
-    // than RUN_STALE_MS is dead. (Early read for a fast 409; the authoritative
-    // check is the conditional UPDATE below.)
-    const staleCutoff = new Date(Date.now() - RUN_STALE_MS);
-    if (row.status === 'deploying' && row.updatedAt && row.updatedAt > staleCutoff) {
+    if (!SESSION_ID.test(id)) return c.json({ error: 'Not found' }, 404);
+    const session = sessionOf(c, id);
+    const state = await session.get();
+    // Reject double-starts on this session, but let a stale 'deploying'
+    // session (client vanished mid-run, worker died) be retaken -
+    // provisioning is idempotent. A live run touches its session at least
+    // every HEARTBEAT_MS, so anything quieter than RUN_STALE_MS is dead.
+    if (state?.status === 'deploying' && Date.now() - state.updatedAt < RUN_STALE_MS) {
       return c.json({ error: 'Deploy already running' }, 409);
     }
 
     const { apiToken, catalogToken, accountId, instanceName, customDomain } = c.req.valid('json');
-    // Credentials are checked before any artifact read or registry write, so a
-    // junk-token request costs one upstream call instead of R2 + D1 + a run.
-    const denied = await authorizeRow(row, apiToken, accountId, instanceName);
+    // Credentials are checked before any artifact read or state write, so a
+    // junk-token request costs one upstream call instead of R2 + a run.
+    const denied = await authorizeSession(state, apiToken, accountId, instanceName);
     if (denied) return c.json({ error: denied }, 403);
 
     // Without a token, confirm the run genuinely does not need one. First
@@ -585,22 +504,13 @@ export const deployRoute = app
     }
 
     // Take the run atomically: two tabs (or a double-click) racing past the
-    // read above must not both start provisioning the same account.
-    const taken = await db
-      .update(deployInstances)
-      .set({ status: 'deploying', updatedAt: new Date() })
-      .where(
-        and(
-          eq(deployInstances.id, id),
-          or(
-            ne(deployInstances.status, 'deploying'),
-            isNull(deployInstances.updatedAt),
-            lt(deployInstances.updatedAt, staleCutoff)
-          )
-        )
-      )
-      .returning({ id: deployInstances.id });
-    if (taken.length === 0) return c.json({ error: 'Deploy already running' }, 409);
+    // read above must not both start provisioning the same instance. The
+    // lock is a Durable Object keyed by account + instance, so the check is
+    // strongly consistent across sessions.
+    const lock = lockOf(c, accountId, instanceName);
+    if (!(await lock.acquire(id, RUN_STALE_MS))) {
+      return c.json({ error: 'Deploy already running' }, 409);
+    }
 
     const artifacts = await loadArtifacts(c.env.RELEASES);
 
@@ -623,26 +533,19 @@ export const deployRoute = app
 
         const persist = async (
           status: 'deploying' | 'ready' | 'failed',
-          extra: Partial<typeof deployInstances.$inferInsert> = {}
+          extra: Partial<SessionState> = {}
         ): Promise<void> => {
-          await db
-            .update(deployInstances)
-            .set({ status, accountId, instanceName, steps, updatedAt: new Date(), ...extra })
-            .where(eq(deployInstances.id, id));
+          await session.update({ status, accountId, instanceName, steps, ...extra });
         };
 
-        // Keep the connection and the registry row visibly alive through the
-        // long quiet stretches (sink creation retries sleep 60 s; the smoke
-        // probe can wait minutes on DNS/certs): an SSE comment defeats idle
-        // proxy timeouts, and touching updated_at keeps the wizard's
-        // stale-run detection (and the retake guard above) honest.
-        // The touch is guarded on status so a tick that lands after the final
-        // ready/failed write can never flip the row back to 'deploying'.
-        const touch = (): Promise<unknown> =>
-          db
-            .update(deployInstances)
-            .set({ updatedAt: new Date() })
-            .where(and(eq(deployInstances.id, id), eq(deployInstances.status, 'deploying')));
+        // Keep the connection and the session visibly alive through the long
+        // quiet stretches (sink creation retries sleep 60 s; the smoke probe
+        // can wait minutes on DNS/certs): an SSE comment defeats idle proxy
+        // timeouts, and touching updatedAt keeps the wizard's stale-run
+        // detection (and the lock's retake guard) honest. touch() only acts
+        // while the state is 'deploying', so a late tick can never flip a
+        // finished session back.
+        const touch = (): Promise<unknown> => Promise.all([session.touch(), lock.touch()]);
         const heartbeat = setInterval(() => {
           if (!clientGone) {
             try {
@@ -655,12 +558,7 @@ export const deployRoute = app
         }, HEARTBEAT_MS);
 
         const run = async (): Promise<void> => {
-          // URLs are left in place: on a failed update the previous worker is
-          // still serving them.
-          await persist('deploying', {
-            error: null,
-            customDomain: customDomain ?? null,
-          });
+          await persist('deploying', { error: null, customDomain: customDomain ?? null });
           try {
             const result = await provisionInstance({
               apiToken,
@@ -671,7 +569,6 @@ export const deployRoute = app
               catalogToken: catalogToken ?? '',
               artifacts,
               customDomain: customDomain && resolveCustomDomain(customDomain),
-              deploySessionId: id,
               randomHex: n =>
                 [...crypto.getRandomValues(new Uint8Array(n))]
                   .map(b => b.toString(16).padStart(2, '0'))
@@ -689,16 +586,18 @@ export const deployRoute = app
             await persist('ready', {
               apiUrl: result.apiUrl,
               collectUrl: result.collectUrl,
-              deployedVersion: artifacts.version ?? null,
+              deployedVersion: artifacts.version,
             });
+            await lock.release(id, 'ready');
             send({ type: 'done', ...result });
           } catch (err) {
             const message = err instanceof Error ? err.message : 'deploy failed';
-            // A failed UPDATE leaves the previously deployed instance running
-            // (a rejected upload never replaces the live worker), so the row
-            // stays 'ready' with the error recorded; only a first deploy that
-            // never succeeded becomes 'failed'.
-            await persist(row.deployedVersion ? 'ready' : 'failed', { error: message });
+            // A failed UPDATE leaves the previously deployed worker running (a
+            // rejected upload never replaces the live one); the session just
+            // records the failure. What exists is rediscovered on the next
+            // connect, so this status hides nothing.
+            await persist('failed', { error: message });
+            await lock.release(id, 'failed').catch(() => undefined);
             send({ type: 'error', message });
           } finally {
             clearInterval(heartbeat);
@@ -713,10 +612,10 @@ export const deployRoute = app
       },
     });
     // Keep the run alive past a client disconnect for as long as the runtime
-    // allows - the row keeps updating and the wizard reattaches by polling.
-    // (A dropped connection can still end the invocation; a retake is then
-    // allowed once the row goes quiet for RUN_STALE_MS, and every step is
-    // idempotent.)
+    // allows - the session keeps updating and the wizard reattaches by
+    // polling. (A dropped connection can still end the invocation; a retake
+    // is then allowed once the session goes quiet for RUN_STALE_MS, and every
+    // step is idempotent.)
     try {
       c.executionCtx.waitUntil(runPromise);
     } catch {
@@ -751,16 +650,26 @@ export const deployRoute = app
       })
     ),
     async c => {
-      const db = c.get('db')!;
       const id = c.req.param('id');
-      const [row] = await db.select().from(deployInstances).where(eq(deployInstances.id, id));
-      if (!row) return c.json({ error: 'Not found' }, 404);
+      if (!SESSION_ID.test(id)) return c.json({ error: 'Not found' }, 404);
+      const session = sessionOf(c, id);
       const { apiToken, catalogToken, accountId, instanceName, confirmName } = c.req.valid('json');
       if (confirmName !== instanceName) {
         return c.json({ error: 'Confirmation does not match the instance name' }, 400);
       }
-      const denied = await authorizeRow(row, apiToken, accountId, instanceName);
+      const denied = await authorizeSession(await session.get(), apiToken, accountId, instanceName);
       if (denied) return c.json({ error: denied }, 403);
+      const lock = lockOf(c, accountId, instanceName);
+      if (!(await lock.acquire(id, RUN_STALE_MS))) {
+        return c.json({ error: 'A run is already in progress for this instance' }, 409);
+      }
+      await session.update({
+        status: 'deploying',
+        accountId,
+        instanceName,
+        steps: [],
+        error: null,
+      });
 
       const steps: StepEvent[] = [];
       const encoder = new TextEncoder();
@@ -789,28 +698,13 @@ export const deployRoute = app
                 emit: async e => {
                   steps.push(e);
                   send({ type: 'step', ...e });
-                  await db
-                    .update(deployInstances)
-                    .set({ steps, updatedAt: new Date() })
-                    .where(eq(deployInstances.id, id))
-                    .catch(() => undefined);
+                  await Promise.all([session.update({ steps }), lock.touch()]).catch(
+                    () => undefined
+                  );
                 },
               });
-              // Retire every session that points at this instance so the
-              // wizard stops offering it as an existing install.
-              await db
-                .update(deployInstances)
-                .set({ status: 'destroyed', updatedAt: new Date() })
-                .where(
-                  and(
-                    eq(deployInstances.accountId, accountId),
-                    eq(deployInstances.instanceName, instanceName)
-                  )
-                );
-              await db
-                .update(deployInstances)
-                .set({ status: 'destroyed', steps, error: null, updatedAt: new Date() })
-                .where(eq(deployInstances.id, id));
+              await session.update({ status: 'destroyed', steps, error: null });
+              await lock.release(id, 'destroyed');
               // Say plainly when the data bucket outlived the teardown  -
               // it keeps costing R2 storage until someone removes it.
               send({
@@ -820,11 +714,10 @@ export const deployRoute = app
               });
             } catch (err) {
               const message = err instanceof Error ? err.message : 'destroy failed';
-              await db
-                .update(deployInstances)
-                .set({ error: message, steps, updatedAt: new Date() })
-                .where(eq(deployInstances.id, id))
+              await session
+                .update({ status: 'failed', error: message, steps })
                 .catch(() => undefined);
+              await lock.release(id, 'failed').catch(() => undefined);
               send({ type: 'error', message });
             } finally {
               try {

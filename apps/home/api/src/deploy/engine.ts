@@ -55,9 +55,6 @@ export interface EngineCtx {
   artifacts: DeployArtifacts;
   /** Deploy onto one of the account's own domains instead of workers.dev. */
   customDomain?: CustomDomain;
-  /** Wizard session id - stamped on the instance so it can link back to
-   *  traks.dev/deploy?instance=<id> for updates. */
-  deploySessionId?: string;
   randomHex: (bytes: number) => string;
   emit: (e: StepEvent) => void | Promise<void>;
 }
@@ -665,9 +662,6 @@ export async function provisionInstance(ctx: EngineCtx): Promise<ProvisionResult
         { type: 'plain_text', name: 'TRAKS_INSTANCE', text: ctx.instance },
         ...(ctx.artifacts.version
           ? [{ type: 'plain_text', name: 'TRAKS_VERSION', text: ctx.artifacts.version }]
-          : []),
-        ...(ctx.deploySessionId
-          ? [{ type: 'plain_text', name: 'DEPLOY_INSTANCE_ID', text: ctx.deploySessionId }]
           : []),
       ],
       assets: {

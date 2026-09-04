@@ -507,8 +507,9 @@ function DocsIndex(): ReactElement {
             </li>
             <li>Known bots and crawlers are filtered at the edge.</li>
             <li>
-              All data lives in your Cloudflare account. traks.dev only knows that an instance
-              exists and which version it runs, so it can offer updates.
+              All data lives in your Cloudflare account. traks.dev keeps no record of your instance:
+              the deploy, update, and destroy wizards find it live in your account each time you
+              sign in, and the only thing they hold is the progress of a run, wiped within a day.
             </li>
           </ul>
         </Section>

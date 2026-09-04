@@ -1,33 +1,41 @@
 # traks.dev home worker - deploy-wizard backend ONLY. Physically separate
 # from the platform api that ships to customer instances: different worker,
-# different D1 (registry only), different secrets. The marketing site +
-# wizard UI is the traks-site static-assets worker; this worker claims the
-# dynamic paths on traks.dev via zone routes (which beat custom domains).
+# different secrets, and no database of its own. The marketing site + wizard
+# UI is the traks-site static-assets worker; this worker claims the dynamic
+# paths on traks.dev via zone routes (which beat custom domains).
 name = "traks-home-api-dev"
 main = "src/index.ts"
 compatibility_date = "2026-06-01"
 compatibility_flags = ["nodejs_compat"]
 
-# --- Dev (default: wrangler dev --remote, port 5014) ---
+# The only state: one Durable Object per wizard session (progress replay) and
+# per instance (run lock), each wiping itself 24 hours after its first write.
+# Nothing about anyone's instance is kept beyond that.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["DeploySession"]
 
-[[d1_databases]]
-binding = "DB"
-database_name = "traks-home-db-dev"
-database_id = "884e81ce-ad87-41b5-b6fa-74dff8bc6115"
-migrations_dir = "src/db/migrations"
+# --- Dev (wrangler dev, port 5014): Durable Objects run locally (remote dev
+# does not support them); the releases bucket is the real one so the wizard
+# and changelog pages see published releases. ---
+
+[[durable_objects.bindings]]
+name = "SESSIONS"
+class_name = "DeploySession"
 
 # Release artifacts consumed by the /deploy web installer (shared with prod:
 # releases are immutable, hash-addressed uploads).
 [[r2_buckets]]
 binding = "RELEASES"
 bucket_name = "traks-releases"
+remote = true
 
 # Abuse guards for the public, unauthenticated wizard API. Namespaces are
 # per-limiter; both are keyed by client IP.
 #   1002 - token-verification endpoints (accounts/zones/verify-catalog): these
 #          relay caller-supplied credentials to Cloudflare, so without a cap
 #          traks.dev would be a free credential-validation oracle.
-#   1003 - session creation (POST /instance), which writes a registry row.
+#   1003 - session creation (POST /instance).
 [[unsafe.bindings]]
 name = "VERIFY_LIMIT"
 type = "ratelimit"
@@ -40,9 +48,6 @@ type = "ratelimit"
 namespace_id = "1003"
 simple = { limit = 10, period = 60 }
 
-[triggers]
-crons = ["17 3 * * *"]
-
 [vars]
 ENVIRONMENT = "development"
 
@@ -51,11 +56,9 @@ ENVIRONMENT = "development"
 [env.production]
 name = "traks-home-api"
 
-[[env.production.d1_databases]]
-binding = "DB"
-database_name = "traks-home-db"
-database_id = "6dcb69eb-8854-4d4c-a95a-9a2bfc36225e"
-migrations_dir = "src/db/migrations"
+[[env.production.durable_objects.bindings]]
+name = "SESSIONS"
+class_name = "DeploySession"
 
 [[env.production.r2_buckets]]
 binding = "RELEASES"
@@ -66,7 +69,7 @@ bucket_name = "traks-releases"
 #   1002 - token-verification endpoints (accounts/zones/verify-catalog): these
 #          relay caller-supplied credentials to Cloudflare, so without a cap
 #          traks.dev would be a free credential-validation oracle.
-#   1003 - session creation (POST /instance), which writes a registry row.
+#   1003 - session creation (POST /instance).
 [[env.production.unsafe.bindings]]
 name = "VERIFY_LIMIT"
 type = "ratelimit"
@@ -78,10 +81,6 @@ name = "SESSION_LIMIT"
 type = "ratelimit"
 namespace_id = "1003"
 simple = { limit = 10, period = 60 }
-
-# Nightly sweep of abandoned ('new') wizard sessions.
-[env.production.triggers]
-crons = ["17 3 * * *"]
 
 [env.production.vars]
 ENVIRONMENT = "production"

@@ -27,47 +27,13 @@ const CARD = 'rounded-[20px] bg-white shadow-float';
 type SectionId = 'workspace' | 'timezone' | 'danger';
 
 /**
- * Settings for the CURRENT workspace (header switcher): a sticky side nav and
- * one card of sections - label column left, controls right. Other workspaces
- * are managed by switching to them.
+ * Settings for the CURRENT workspace (header switcher): one card of sections,
+ * label column left, controls right. Three sections need no side navigation.
+ * Other workspaces are managed by switching to them.
  */
 function SettingsPage(): ReactElement {
   const { current, workspaces } = useWorkspace();
   const isOwner = current?.role === 'owner';
-  const [active, setActive] = useState<SectionId>('workspace');
-
-  const sections: { id: SectionId; label: string }[] = [
-    { id: 'workspace', label: 'Workspace' },
-    ...(isOwner ? [{ id: 'timezone' as const, label: 'Reporting timezone' }] : []),
-    { id: 'danger', label: 'Danger zone' },
-  ];
-
-  // Scroll-spy: the nav follows whichever section is nearest the top.
-  useEffect(() => {
-    const els = sections
-      .map(s => document.getElementById(`settings-${s.id}`))
-      .filter((el): el is HTMLElement => Boolean(el));
-    if (els.length === 0) return;
-    const obs = new IntersectionObserver(
-      entries => {
-        const visible = entries
-          .filter(e => e.isIntersecting)
-          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
-        if (visible[0]) setActive(visible[0].target.id.replace('settings-', '') as SectionId);
-      },
-      { rootMargin: '-80px 0px -60% 0px', threshold: 0 }
-    );
-    els.forEach(el => obs.observe(el));
-    return () => obs.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOwner, current?.id]);
-
-  const jump = (id: SectionId): void => {
-    setActive(id);
-    document
-      .getElementById(`settings-${id}`)
-      ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
 
   return (
     <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
@@ -79,29 +45,10 @@ function SettingsPage(): ReactElement {
       </div>
 
       {current && (
-        <div className="grid grid-cols-1 items-start gap-7 lg:grid-cols-[200px_minmax(0,1fr)]">
-          <nav className="flex gap-1 overflow-x-auto lg:sticky lg:top-20 lg:flex-col">
-            {sections.map(s => (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => jump(s.id)}
-                className={`shrink-0 rounded-[10px] px-3 py-2 text-left text-[13.5px] transition-colors cursor-pointer ${
-                  active === s.id
-                    ? 'bg-white font-semibold text-[#3D3B4F] shadow-[inset_0_0_0_1px_#E6E4DE]'
-                    : 'text-[#6F6D7A] hover:bg-[#F2F2F0] hover:text-[#3D3B4F]'
-                }`}
-              >
-                {s.label}
-              </button>
-            ))}
-          </nav>
-
-          <div className={`${CARD} px-6 sm:px-7`}>
-            <WorkspaceSection />
-            {isOwner && <TimezoneSection />}
-            <DangerSection isLastWorkspace={workspaces.length <= 1} />
-          </div>
+        <div className={`${CARD} px-6 sm:px-7`}>
+          <WorkspaceSection />
+          {isOwner && <TimezoneSection />}
+          <DangerSection isLastWorkspace={workspaces.length <= 1} />
         </div>
       )}
     </main>

@@ -6,6 +6,12 @@ ships separately and is not listed here.
 
 ## Unreleased
 
+### Changed
+
+- Settings is a single card again: the side navigation was removed, since three sections never needed one.
+- The account menu is reordered (MCP server & tokens, Check for updates, Destroy this instance, Sign out) and no longer repeats the version and instance name that the header pill already shows.
+- The destroy briefing is shorter and easier to scan: what gets removed as a short list, the events-bucket caveat as a callout, and a "Continue on traks.dev" button that makes clear nothing is deleted until the wizard confirms.
+
 ## 0.1.39 - 2026-09-04
 
 ### Added

@@ -11,6 +11,7 @@ import {
   RefreshCw,
   Trash2,
   AlertTriangle,
+  ExternalLink,
 } from 'lucide-react';
 import { authClient } from '@/lib/auth-client';
 import { destroyUrl, updateUrl, useInstanceConfig, useLatestVersion } from '@/lib/config';
@@ -250,7 +251,6 @@ function VersionPill(): React.ReactNode {
 function UserMenu(): React.ReactNode {
   const { data: session } = authClient.useSession();
   const config = useInstanceConfig();
-  const latest = useLatestVersion();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [checking, setChecking] = useState(false);
@@ -315,6 +315,7 @@ function UserMenu(): React.ReactNode {
 
           <DropdownMenuSeparator />
 
+          {/* Everyday actions first, then instance-level ones, sign-out last. */}
           <DropdownMenuItem
             onClick={() => void navigate({ to: '/portal/mcp' })}
             className="flex items-center gap-3 px-4 py-2.5 cursor-pointer"
@@ -323,21 +324,11 @@ function UserMenu(): React.ReactNode {
             MCP server &amp; tokens
           </DropdownMenuItem>
 
-          <DropdownMenuSeparator />
-
-          <DropdownMenuItem
-            onClick={() => void signOut()}
-            className="flex items-center gap-3 px-4 py-2.5 text-[#e5484d] focus:text-[#e5484d] focus:bg-red-50 cursor-pointer"
-          >
-            <LogOut className="w-4 h-4" />
-            Sign out
-          </DropdownMenuItem>
-
           {config?.version && (
             <>
-              <DropdownMenuSeparator />
               {/* Plain button, not a menu item: keeps the menu open so the
-                result ("Up to date" / "vX available") is actually seen. */}
+                result ("Up to date" / "vX available") is actually seen. The
+                running version itself lives in the header pill. */}
               <button
                 onClick={e => {
                   e.stopPropagation();
@@ -349,27 +340,9 @@ function UserMenu(): React.ReactNode {
                 <RefreshCw className={`w-4 h-4 text-[#9B9590] ${checking ? 'animate-spin' : ''}`} />
                 {checkNote ?? 'Check for updates'}
               </button>
-              <div className="px-4 pb-2.5 pt-1.5 font-mono text-[10.5px] leading-relaxed text-[#9B9590]">
-                <p>
-                  Traks v{config.version}
-                  {latest && (
-                    <span className="text-[#B5B0AA]">
-                      {latest === config.version ? ' · up to date' : ` · v${latest} available`}
-                    </span>
-                  )}
-                </p>
-                {config.instanceName && (
-                  <button
-                    onClick={() => void navigator.clipboard.writeText(config.instanceName!)}
-                    title="Copy instance name"
-                    className="cursor-pointer break-all text-left hover:text-[#3D3B4F] transition-colors"
-                  >
-                    instance <span className="font-mono">{config.instanceName}</span>{' '}
-                    <span className="text-[#B5B0AA]">⧉</span>
-                  </button>
-                )}
-              </div>
+
               <DropdownMenuSeparator />
+
               <DropdownMenuItem
                 onClick={() => setDestroyOpen(true)}
                 className="flex items-center gap-3 px-4 py-2.5 text-[#9B9590] focus:text-[#e5484d] focus:bg-red-50 cursor-pointer"
@@ -379,6 +352,16 @@ function UserMenu(): React.ReactNode {
               </DropdownMenuItem>
             </>
           )}
+
+          <DropdownMenuSeparator />
+
+          <DropdownMenuItem
+            onClick={() => void signOut()}
+            className="flex items-center gap-3 px-4 py-2.5 text-[#e5484d] focus:text-[#e5484d] focus:bg-red-50 cursor-pointer"
+          >
+            <LogOut className="w-4 h-4" />
+            Sign out
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </>
@@ -400,58 +383,73 @@ function DestroyDialog({
 }): React.ReactNode {
   const config = useInstanceConfig();
   const name = config?.instanceName;
-  const items = [
-    'Both Workers, the database, the cache, the event pipeline, and the analytics catalog are deleted from your Cloudflare account.',
-    'Every site, goal, funnel, segment, team member, and all history in this instance is gone. There is no undo.',
-    'The events bucket is emptied and removed only if you provide a storage token in the wizard; without it, the bucket and your raw history stay in your account (and keep costing R2 storage).',
-    'Nothing is deleted until you type the instance name in the wizard and confirm there.',
+  const removed: { label: string; detail: string }[] = [
+    { label: 'Both Workers', detail: 'collect and dashboard' },
+    { label: 'Database and cache', detail: 'D1 and KV' },
+    { label: 'Event pipeline', detail: 'stream, sink and catalog' },
+    { label: 'Everything in the dashboard', detail: 'sites, goals, funnels, members, history' },
   ];
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent onClose={() => onOpenChange(false)} className="max-w-md">
         <DialogHeader>
-          <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-[#F7DCD4]">
-            <AlertTriangle className="h-5 w-5 text-[#8F3B2C]" strokeWidth={1.7} />
+          <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-[#e07a5f]/10">
+            <AlertTriangle className="h-5 w-5 text-[#e07a5f]" strokeWidth={1.7} />
           </div>
-          <DialogTitle>Destroy this Traks instance?</DialogTitle>
-          <DialogDescription>
+          <DialogTitle>
             {name ? (
               <>
-                This removes <span className="font-mono font-semibold text-[#3D3B4F]">{name}</span>{' '}
-                from your Cloudflare account. Here is exactly what happens.
+                Destroy <span className="font-mono">{name}</span>?
               </>
             ) : (
-              'This removes the instance from your Cloudflare account. Here is exactly what happens.'
+              'Destroy this instance?'
             )}
+          </DialogTitle>
+          <DialogDescription>
+            Everything Traks created in your Cloudflare account is removed. There is no undo.
           </DialogDescription>
         </DialogHeader>
-        <DialogBody>
-          <ul className="space-y-2.5 text-[13px] leading-relaxed text-[#5C5A6B]">
-            {items.map(text => (
-              <li key={text} className="flex gap-2.5">
-                <span aria-hidden className="mt-[9px] h-1 w-1 shrink-0 rounded-full bg-[#B5B0AA]" />
-                <span>{text}</span>
-              </li>
-            ))}
-          </ul>
+        <DialogBody className="flex flex-col gap-3">
+          <div className="rounded-[14px] bg-[#F2F1ED] px-4 py-3">
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9B9590]">
+              Removed from your account
+            </p>
+            <ul className="flex flex-col gap-1.5">
+              {removed.map(item => (
+                <li key={item.label} className="flex items-baseline gap-2.5 text-[13px]">
+                  <span aria-hidden className="h-1 w-1 shrink-0 rounded-full bg-[#B5B0AA]" />
+                  <span className="font-medium text-[#3D3B4F]">{item.label}</span>
+                  <span className="text-[#9B9590]">{item.detail}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="rounded-[14px] bg-[#FBEDE8] px-4 py-3 text-[12.5px] leading-relaxed text-[#8A3A27]">
+            The raw events bucket is emptied only if you give the wizard a storage token. Without
+            one it stays in your account and keeps costing R2 storage.
+          </div>
+          <p className="text-[12px] leading-relaxed text-[#9B9590]">
+            Nothing is deleted yet. The wizard on traks.dev asks you to type the instance name
+            before it removes anything.
+          </p>
         </DialogBody>
-        <DialogFooter className="border-t border-[#e6e5ea]/50 mx-6 px-0 pb-5 pt-4">
+        <DialogFooter className="mx-6 border-t border-[#e6e5ea]/50 px-0 pb-5 pt-4">
           <Button
             variant="ghost"
             onClick={() => onOpenChange(false)}
-            className="rounded-xl text-[13px]"
+            className="text-[13px] cursor-pointer"
           >
-            Keep it
+            Cancel
           </Button>
           <Button
             onClick={() => {
               window.open(destroyUrl(config), '_blank', 'noopener,noreferrer');
               onOpenChange(false);
             }}
-            className="rounded-xl bg-[#8F3B2C] text-[13px] text-white hover:bg-[#7A3225]"
+            className="bg-coral hover:bg-[#d06a4f] text-white shadow-none text-[13px] px-5 cursor-pointer"
           >
-            <Trash2 className="mr-1.5 h-4 w-4" />
-            Open the destroy wizard
+            Continue on traks.dev
+            <ExternalLink className="h-3.5 w-3.5" />
           </Button>
         </DialogFooter>
       </DialogContent>

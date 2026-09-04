@@ -128,7 +128,7 @@ function UpdateWizard(): ReactElement {
   }, [hintVersion]);
 
   useEffect(() => {
-    void fetch('/api/deploy/latest-version')
+    void fetch(`/api/deploy/latest-version?bust=${Date.now()}`)
       .then(r => (r.ok ? (r.json() as Promise<{ data: { version?: string } }>) : Promise.reject(r)))
       .then(({ data }) => setVersions(v => ({ ...v, latest: data.version })))
       .catch(() => undefined);

@@ -18,11 +18,13 @@ const SECTION_ORDER: { key: keyof ReleaseEntry['sections']; label: string; tone:
   { key: 'fixed', label: 'Fixed', tone: 'bg-[#EDEAF7] text-[#4F4A78]' },
 ];
 
-/** Fetches the published changelog once; `null` while loading, `[]` when none is published. */
+/** Fetches the published changelog once; `null` while loading, `[]` when none is published.
+ *  Cache-busted: the endpoint is edge-cached for five minutes, and a release
+ *  page that lags a release by five minutes reads as broken. */
 export function useChangelog(): ReleaseEntry[] | null {
   const [entries, setEntries] = useState<ReleaseEntry[] | null>(null);
   useEffect(() => {
-    void fetch('/api/deploy/changelog')
+    void fetch(`/api/deploy/changelog?bust=${Date.now()}`)
       .then(r => (r.ok ? (r.json() as Promise<{ data: ReleaseEntry[] }>) : { data: [] }))
       .then(({ data }) => setEntries(Array.isArray(data) ? data : []))
       .catch(() => setEntries([]));

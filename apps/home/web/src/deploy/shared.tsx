@@ -150,6 +150,16 @@ export function WizardShell({
           WebkitMaskImage: 'linear-gradient(to bottom, black 0%, transparent 65%)',
         }}
       />
+      {/* Way out: every wizard page is reached from the landing page (or an
+          instance's update banner), and the logo alone did not read as a
+          link. Flat control per the design rules: hairline on hover, no shadow. */}
+      <a
+        href="/"
+        className="fixed left-4 top-4 z-20 inline-flex h-9 items-center gap-1.5 rounded-full border border-transparent px-3 text-[12.5px] font-semibold text-[#6E6C7C] transition-colors hover:border-[#E6E4DE] hover:bg-[#F2F1ED] hover:text-[#3D3B4F] sm:left-6 sm:top-6"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        traks.dev
+      </a>
       <div className="relative">
         <div className="mb-7 flex flex-col items-center">
           <a

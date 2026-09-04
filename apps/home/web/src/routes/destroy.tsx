@@ -222,8 +222,8 @@ function DestroyWizard(): ReactElement {
                 Connect your Cloudflare account
               </h2>
               <p className="mb-5 text-[13px] leading-relaxed text-[#9B99A6]">
-                So we can find the instance to remove. Access is for this teardown only; nothing is
-                stored.
+                So we can find the instance to remove. The access token is used for this teardown
+                only and never stored.
               </p>
             </>
           )}

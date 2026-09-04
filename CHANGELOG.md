@@ -6,6 +6,8 @@ ships separately and is not listed here.
 
 ## Unreleased
 
+## 0.1.40 - 2026-09-04
+
 ### Changed
 
 - Settings is a single card again: the side navigation was removed, since three sections never needed one.

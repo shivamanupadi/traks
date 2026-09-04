@@ -399,6 +399,13 @@ async function ensurePipeline(
           namespace: 'traks',
           table_name: 'events',
           token: ctx.catalogToken,
+          // 60s is the documented floor for catalog sinks (faster rolls fight
+          // compaction); the API default is 300s. Bounds how stale the cold
+          // path is once "today" ages out of the live DO. Sinks are immutable
+          // and cannot be recreated against an existing table, so instances
+          // provisioned before this landed keep 300s until Cloudflare allows
+          // either.
+          rolling_policy: { interval_seconds: 60, file_size_bytes: 100 * 1024 * 1024 },
         },
       });
     await withRetry(

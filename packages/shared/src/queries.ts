@@ -29,14 +29,24 @@ export interface PeriodRange {
 
 interface R2SqlResponse {
   result?: { rows?: Record<string, unknown>[] };
-  errors?: { message: string }[];
+  errors?: { code?: number; message: string }[];
   success?: boolean;
 }
 
+/**
+ * R2 SQL error 80001 is "edge service connection failure" and the docs say to
+ * retry it. It is transient plumbing, not a query problem, and surfacing it
+ * turns one dropped connection into a 502 on a dashboard panel.
+ */
+const R2SQL_TRANSIENT_CODE = 80001;
+
 export class R2SqlError extends Error {
-  constructor(message: string) {
+  /** True for errors the R2 SQL docs mark as retryable (edge connection failures). */
+  readonly transient: boolean;
+  constructor(message: string, transient = false) {
     super(message);
     this.name = 'R2SqlError';
+    this.transient = transient;
   }
 }
 
@@ -86,6 +96,19 @@ export async function queryR2SqlWithStats<T = Record<string, unknown>>(
 ): Promise<R2SqlResult<T>> {
   const sql = buildQuery(config.table);
   const started = Date.now();
+  try {
+    return await runR2Sql<T>(config, sql, started);
+  } catch (err) {
+    if (err instanceof R2SqlError && err.transient) return runR2Sql<T>(config, sql, started);
+    throw err;
+  }
+}
+
+async function runR2Sql<T>(
+  config: QueryConfig,
+  sql: string,
+  started: number
+): Promise<R2SqlResult<T>> {
   const response = await fetch(
     `https://api.sql.cloudflarestorage.com/api/v1/accounts/${config.accountId}/r2-sql/query/${config.bucketName}`,
     {
@@ -106,12 +129,18 @@ export async function queryR2SqlWithStats<T = Record<string, unknown>>(
     if (response.status === 404 && text.includes('40010')) {
       return { rows: [], ms: Date.now() - started, status: response.status };
     }
-    throw new R2SqlError(`HTTP ${response.status}: ${text.slice(0, 500)}`);
+    throw new R2SqlError(
+      `HTTP ${response.status}: ${text.slice(0, 500)}`,
+      text.includes(String(R2SQL_TRANSIENT_CODE))
+    );
   }
 
   const body = (await response.json()) as R2SqlResponse;
   if (body.errors?.length) {
-    throw new R2SqlError(body.errors.map(e => e.message).join('; '));
+    throw new R2SqlError(
+      body.errors.map(e => e.message).join('; '),
+      body.errors.some(e => e.code === R2SQL_TRANSIENT_CODE)
+    );
   }
   return {
     rows: (body.result?.rows ?? []) as T[],

@@ -190,9 +190,9 @@ site ownership is re-adopted by email.
 ## What it costs to run
 
 Everything runs inside a Cloudflare Workers Paid plan. Billing for Pipelines,
-R2 Data Catalog, and R2 SQL is not yet enabled (Cloudflare promises ≥30 days
-notice), so today the real bill is essentially the $5/mo Workers Paid base.
-With published rates (May 2026) applied:
+R2 Data Catalog, and R2 SQL has been live since 3 Aug 2026; each has a monthly
+free allowance that most sites never exhaust, so the bill for a small install
+is essentially the $5/mo Workers Paid base. With published rates applied:
 
 | Scale | Traffic | Estimated monthly cost |
 |---|---|---|
@@ -226,10 +226,17 @@ at the edge for 5–15 minutes, and egress is always $0.
 ## Cloudflare data platform status
 
 R2 Data Catalog, R2 SQL, and Pipelines are still **open beta** (as of
-mid-2026) but production-trending: pricing is published (billing off until
-≥30 days notice), the catalog has a dedicated dashboard, GraphQL metrics, and
+Sep 2026) but production-trending: pricing is published and billing has been
+on since Aug 2026, the catalog has a dedicated dashboard, GraphQL metrics, and
 Terraform support, and R2 SQL supports JOINs, CTEs, CASE, window functions,
-set operations, and ~200 functions.
+set operations, exact `COUNT(DISTINCT)`, and ~200 functions.
+
+Known platform gaps this codebase works around: catalog sinks have no
+user-defined partition spec and cannot be modified or re-attached to an
+existing table (so a sink's roll interval is fixed for the table's lifetime),
+stream schemas are immutable, R2 SQL has no timezone conversion and no
+metrics dataset for bytes scanned, and every R2 SQL query bills a 10 MB
+minimum.
 
 Platform features this codebase relies on:
 

@@ -4,15 +4,19 @@
  * Written by the collect Worker via the Pipelines binding.
  * Queried by the api Worker via R2 SQL.
  *
- * NOT partitioned: the Pipelines R2 Data Catalog sink exposes no partition
- * spec (checked Aug 2026), so R2 SQL prunes only on Parquet row-group min/max
- * statistics. Because rows land in arrival order that prunes `ts` well, which
- * is why every query builder filters on the time range first; `site_id` prunes
- * weakly, though each instance's bucket only ever holds its own sites. Revisit
- * if Cloudflare ships partitioned sinks.
+ * Partitioning: the Pipelines R2 Data Catalog sink exposes no user-defined
+ * partition spec (checked Sep 2026; `--partitioning` is r2-sink only). Tables
+ * are partitioned only on the system column `__ingest_ts`, which queries.ts
+ * bounds so R2 SQL can skip whole manifests; beyond that it prunes on Parquet
+ * row-group min/max statistics. Rows land in arrival order so `ts` prunes
+ * well, which is why every query builder filters on the time range first;
+ * `site_id` prunes weakly, though each instance's bucket only ever holds its
+ * own sites. Revisit if Cloudflare ships partition specs for catalog sinks.
  *
- * date_key and hour_key are computed at ingest time to avoid relying on date
- * functions in R2 SQL (which only guarantees EXTRACT).
+ * date_key, hour_key and week_key are computed at ingest in the site's IANA
+ * timezone. R2 SQL has date_trunc/date_part now, but no timezone conversion
+ * (to_local_time only strips the zone), so site-local bucketing still has to
+ * happen before the row is written.
  */
 
 export const EVENT_TYPES = {

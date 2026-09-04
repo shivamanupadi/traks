@@ -383,6 +383,12 @@ function LandingPage(): ReactElement {
               >
                 Docs
               </a>
+              <a
+                href="/changelog"
+                className="rounded-md px-3 py-2 font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-[#6E6C7C] transition-colors hover:text-[#3D3B4F]"
+              >
+                Changelog
+              </a>
             </div>
             <a
               href="/deploy"
@@ -817,9 +823,13 @@ function LandingPage(): ReactElement {
             <img src="/logo.svg" alt="Traks" className="h-5 w-5" />
             <span className="text-[13px] font-semibold">Traks</span>
             {latestVersion && (
-              <span className="ml-1 rounded-full bg-[#F2F1ED] px-2 py-0.5 font-mono text-[10.5px] font-medium text-[#8C8A99]">
+              <a
+                href="/changelog"
+                title="Release notes"
+                className="ml-1 rounded-full bg-[#F2F1ED] px-2 py-0.5 font-mono text-[10.5px] font-medium text-[#8C8A99] transition-colors hover:bg-[#E6E4DE] hover:text-[#3D3B4F]"
+              >
                 v{latestVersion}
-              </span>
+              </a>
             )}
           </div>
           <div className="flex items-center gap-6">
@@ -828,6 +838,12 @@ function LandingPage(): ReactElement {
               className="font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-[#8C8A99] transition-colors hover:text-[#3D3B4F]"
             >
               Docs
+            </a>
+            <a
+              href="/changelog"
+              className="font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-[#8C8A99] transition-colors hover:text-[#3D3B4F]"
+            >
+              Changelog
             </a>
             <MousePointerClick
               className="hidden h-3.5 w-3.5 text-[#D8D7DE] sm:block"

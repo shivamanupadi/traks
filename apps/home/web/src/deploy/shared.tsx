@@ -126,11 +126,14 @@ export async function createSession(): Promise<string> {
 export function WizardShell({
   title,
   subtitle,
+  link,
   progress,
   children,
 }: {
   title: string;
   subtitle: string;
+  /** Optional quiet link under the subtitle (e.g. release notes). */
+  link?: { href: string; label: string };
   progress: { current: number; total: number };
   children: ReactNode;
 }): ReactElement {
@@ -158,6 +161,14 @@ export function WizardShell({
           </a>
           <h1 className="mt-3 text-[26px] font-bold tracking-[-0.02em] text-[#3D3B4F]">{title}</h1>
           <p className="mt-1 text-[13.5px] text-[#9B99A6]">{subtitle}</p>
+          {link && (
+            <a
+              href={link.href}
+              className="mt-2 font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-[#8C8A99] underline-offset-4 transition-colors hover:text-[#3D3B4F] hover:underline"
+            >
+              {link.label}
+            </a>
+          )}
         </div>
         <div className="mb-8 flex items-center justify-center gap-2">
           {Array.from({ length: progress.total }, (_, i) => (

@@ -347,6 +347,7 @@ function DeployWizard(): ReactElement {
     <WizardShell
       title="Deploy Traks"
       subtitle="Your own analytics instance, in your Cloudflare account"
+      link={{ href: '/changelog', label: 'Release notes' }}
       progress={{ current: PHASE_INDEX[phase], total: 4 }}
     >
       {phase === 'intro' && (

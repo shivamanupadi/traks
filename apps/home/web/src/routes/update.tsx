@@ -367,6 +367,7 @@ function UpdateWizard(): ReactElement {
           ? `Latest release v${latest}. Your data and settings stay.`
           : 'Data and settings stay'
       }
+      link={{ href: '/changelog', label: latest ? `What's new in v${latest}` : 'Release notes' }}
       progress={{ current: PHASE_INDEX[phase], total: 3 }}
     >
       {phase === 'connect' && (

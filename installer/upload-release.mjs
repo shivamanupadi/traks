@@ -7,6 +7,7 @@
  *
  * Layout in the bucket (single "current" channel for now):
  *   current/manifest.json      { version, assets: [{path,hash,size,contentType}], migrations: [names] }
+ *   current/changelog.json     [{ version, date, sections: {added,changed,fixed,breaking} }] newest first
  *   current/api-worker.js
  *   current/collect-worker.js
  *   current/pipeline-schema.json
@@ -22,6 +23,7 @@ import { createHash, createHmac } from 'node:crypto';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parse as parseChangelog, readChangelog } from './changelog.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = path.join(ROOT, 'installer/dist');
@@ -205,6 +207,19 @@ uploads.push(
     'application/json'
   )
 );
+// Release notes for traks.dev/update and /changelog. Parsed here so a
+// malformed CHANGELOG.md fails the upload rather than the reader.
+const changelog = parseChangelog(readChangelog()).entries;
+if (changelog[0]?.version !== version) {
+  console.error(
+    `✗ CHANGELOG.md newest entry is ${changelog[0]?.version ?? 'missing'}, expected ${version} - ` +
+      'run via yarn traks:release, which promotes the Unreleased section'
+  );
+  process.exit(1);
+}
+uploads.push(
+  putObject('current/changelog.json', Buffer.from(JSON.stringify(changelog)), 'application/json')
+);
 
 await Promise.all(uploads);
 await putObject(
@@ -215,5 +230,5 @@ await putObject(
   'application/json'
 );
 console.log(
-  `✓ ${assets.length} assets, ${migrations.length} migrations, 2 workers, schema, manifest`
+  `✓ ${assets.length} assets, ${migrations.length} migrations, 2 workers, schema, changelog, manifest`
 );

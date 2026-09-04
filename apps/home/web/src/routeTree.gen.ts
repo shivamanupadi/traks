@@ -13,6 +13,7 @@ import { Route as UpdateRouteImport } from './routes/update'
 import { Route as DocsRouteImport } from './routes/docs'
 import { Route as DestroyRouteImport } from './routes/destroy'
 import { Route as DeployRouteImport } from './routes/deploy'
+import { Route as ChangelogRouteImport } from './routes/changelog'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as GuidesIndexRouteImport } from './routes/guides.index'
@@ -38,6 +39,11 @@ const DestroyRoute = DestroyRouteImport.update({
 const DeployRoute = DeployRouteImport.update({
   id: '/deploy',
   path: '/deploy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChangelogRoute = ChangelogRouteImport.update({
+  id: '/changelog',
+  path: '/changelog',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminRoute = AdminRouteImport.update({
@@ -74,6 +80,7 @@ const DocsInstallSlugRoute = DocsInstallSlugRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/changelog': typeof ChangelogRoute
   '/deploy': typeof DeployRoute
   '/destroy': typeof DestroyRoute
   '/docs': typeof DocsRouteWithChildren
@@ -86,6 +93,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/changelog': typeof ChangelogRoute
   '/deploy': typeof DeployRoute
   '/destroy': typeof DestroyRoute
   '/update': typeof UpdateRoute
@@ -98,6 +106,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/changelog': typeof ChangelogRoute
   '/deploy': typeof DeployRoute
   '/destroy': typeof DestroyRoute
   '/docs': typeof DocsRouteWithChildren
@@ -112,6 +121,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/admin'
+    | '/changelog'
     | '/deploy'
     | '/destroy'
     | '/docs'
@@ -124,6 +134,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/admin'
+    | '/changelog'
     | '/deploy'
     | '/destroy'
     | '/update'
@@ -135,6 +146,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/admin'
+    | '/changelog'
     | '/deploy'
     | '/destroy'
     | '/docs'
@@ -148,6 +160,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
+  ChangelogRoute: typeof ChangelogRoute
   DeployRoute: typeof DeployRoute
   DestroyRoute: typeof DestroyRoute
   DocsRoute: typeof DocsRouteWithChildren
@@ -184,6 +197,13 @@ declare module '@tanstack/react-router' {
       path: '/deploy'
       fullPath: '/deploy'
       preLoaderRoute: typeof DeployRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/changelog': {
+      id: '/changelog'
+      path: '/changelog'
+      fullPath: '/changelog'
+      preLoaderRoute: typeof ChangelogRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin': {
@@ -246,6 +266,7 @@ const DocsRouteWithChildren = DocsRoute._addFileChildren(DocsRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
+  ChangelogRoute: ChangelogRoute,
   DeployRoute: DeployRoute,
   DestroyRoute: DestroyRoute,
   DocsRoute: DocsRouteWithChildren,

@@ -431,6 +431,17 @@ export const deployRoute = app
     return c.json({ data: { version: manifest.version, uploadedAt: manifest.uploadedAt } });
   })
 
+  // Release notes for every published version, newest first. Written by
+  // installer/upload-release.mjs from CHANGELOG.md; read by /update and
+  // /changelog on traks.dev and, cross-origin, by instance dashboards.
+  .get('/changelog', async c => {
+    const obj = await c.env.RELEASES.get('current/changelog.json');
+    if (!obj) return c.json({ error: 'No changelog published' }, 404);
+    c.header('Access-Control-Allow-Origin', '*');
+    c.header('Cache-Control', 'public, max-age=300');
+    return c.json({ data: await obj.json() });
+  })
+
   // Verify the catalog token against the chosen account.
   .post(
     '/instance/:id/verify-catalog',

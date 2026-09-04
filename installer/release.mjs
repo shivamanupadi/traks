@@ -11,12 +11,26 @@
  * already ahead (failed prior attempt, manual bump) is used as-is - so
  * re-running after a failed upload never double-bumps.
  *
+ * Release notes: CHANGELOG.md must have bullets under "## Unreleased" or the
+ * release refuses to run. They are promoted to the new version heading, shipped
+ * to R2 as changelog.json by upload-release, and committed with the version.
+ * GITHUB_RELEASE=1 additionally creates a GitHub Release from the same notes
+ * (best-effort; a failure there never blocks the release).
+ *
  * The version commit + tag happen only after a successful upload.
  */
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, writeSync, closeSync, openSync, unlinkSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  bulletCount,
+  parse as parseChangelog,
+  promoteUnreleased,
+  readChangelog,
+  renderSection,
+  writeChangelog,
+} from './changelog.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PKG = path.join(ROOT, 'package.json');
@@ -62,11 +76,35 @@ if (liveVersion === pkg.version) {
   );
 }
 
+// Release notes gate: promote Unreleased before the upload reads the file.
+// Re-runs after a failed upload find the section already promoted.
+{
+  const md = readChangelog();
+  const { unreleased, entries } = parseChangelog(md);
+  const already = entries.some(e => e.version === version);
+  if (!already && bulletCount(unreleased) === 0) {
+    console.error(
+      `✗ CHANGELOG.md has no bullets under "## Unreleased". Write the notes for ${version} first ` +
+        '(yarn traks:notes drafts them from commits since the last tag).'
+    );
+    process.exit(1);
+  }
+  if (!already) {
+    const today = new Date().toISOString().slice(0, 10);
+    writeChangelog(promoteUnreleased(md, version, today));
+    console.log(
+      `changelog: Unreleased → ${version} (${today}), ${bulletCount(unreleased)} bullet(s)`
+    );
+  } else {
+    console.log(`changelog: ${version} already promoted - keeping`);
+  }
+}
+
 run('node', ['installer/build-release.mjs']);
 run('node', ['installer/upload-release.mjs']);
 
 // Record the release in git only once it's actually published.
-run('git', ['add', 'package.json']);
+run('git', ['add', 'package.json', 'CHANGELOG.md']);
 const staged = spawnSync('git', ['diff', '--cached', '--quiet'], { cwd: ROOT });
 if (staged.status !== 0) {
   run('git', ['commit', '-m', `Release v${version}`]);
@@ -75,4 +113,21 @@ const tagged = spawnSync('git', ['rev-parse', `v${version}`], { cwd: ROOT, stdio
 if (tagged.status !== 0) {
   run('git', ['tag', `v${version}`]);
 }
+// Optional mirror of the notes to GitHub Releases. Off until open-source is
+// announced; failures only warn because the release is already published.
+if (process.env.GITHUB_RELEASE === '1') {
+  const entry = parseChangelog(readChangelog()).entries.find(e => e.version === version);
+  const notesPath = path.join(ROOT, 'installer/dist/.release-notes.md');
+  const fd = openSync(notesPath, 'w');
+  writeSync(fd, renderSection(entry));
+  closeSync(fd);
+  const gh = spawnSync(
+    'gh',
+    ['release', 'create', `v${version}`, '--title', `v${version}`, '--notes-file', notesPath],
+    { cwd: ROOT, stdio: 'inherit' }
+  );
+  unlinkSync(notesPath);
+  if (gh.status !== 0) console.warn(`! GitHub release for v${version} failed - create it by hand`);
+}
+
 console.log(`\n✓ Traks ${version} released (tagged v${version})`);

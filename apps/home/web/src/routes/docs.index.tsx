@@ -472,6 +472,10 @@ function DocsIndex(): ReactElement {
             Cloudflare account, pick the instance, click <strong>Update</strong>. Both Workers,
             migrations, and the dashboard ship together; your data and settings are untouched.
           </p>
+          <p>
+            The update page lists what each pending release changes, and the full history of every
+            platform release is at <A href="/changelog">traks.dev/changelog</A>.
+          </p>
         </Section>
 
         {/* 13 */}

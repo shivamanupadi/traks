@@ -21,6 +21,7 @@ import {
   type InstanceRow,
   type StepEvent,
 } from '../deploy/shared';
+import { ReleaseNotes, entriesBetween, compareVersions, useChangelog } from '@/changelog/shared';
 
 export const Route = createFileRoute('/update')({
   component: UpdateWizard,
@@ -70,6 +71,7 @@ function UpdateWizard(): ReactElement {
   const [catalogDetail, setCatalogDetail] = useState<string | undefined>();
 
   const [versions, setVersions] = useState<{ current?: string; latest?: string }>({});
+  const changelog = useChangelog();
   const [steps, setSteps] = useState<StepEvent[]>([]);
   const [result, setResult] = useState<{
     apiUrl: string;
@@ -339,6 +341,21 @@ function UpdateWizard(): ReactElement {
 
   const installs = connect.existingInstalls;
   const latest = versions.latest;
+
+  // "What this update brings": every release newer than the oldest connected
+  // instance, up to the latest. Before connecting (or when no version is
+  // known) only the latest release is shown; older ones stay collapsed.
+  const oldestInstalled = installs
+    .map(i => i.deployedVersion)
+    .filter((v): v is string => Boolean(v))
+    .sort(compareVersions)[0];
+  const notesFrom = oldestInstalled ?? versions.current;
+  const pending = changelog
+    ? notesFrom
+      ? entriesBetween(changelog, notesFrom, latest)
+      : changelog.slice(0, 1)
+    : [];
+  const olderNotes = changelog ? changelog.filter(e => !pending.includes(e)) : [];
   const accountName = (id: string | null | undefined): string =>
     connect.accounts.find(a => a.id === id)?.name ?? 'your account';
 
@@ -360,7 +377,8 @@ function UpdateWizard(): ReactElement {
                 Connect your Cloudflare account
               </h2>
               <p className="mb-5 text-[13px] leading-relaxed text-[#9B99A6]">
-                So we can find your instance. Access is for this update only; nothing is stored.
+                So we can find your instance. The access token is used for this update only and
+                never stored.
               </p>
             </>
           )}
@@ -484,6 +502,51 @@ function UpdateWizard(): ReactElement {
                   </p>
                 </>
               )}
+            </div>
+          )}
+
+          {changelog && changelog.length > 0 && (
+            <div className="mt-6 border-t border-[#EEEEF2] pt-5">
+              <p className="mb-3 text-[11.5px] font-semibold uppercase tracking-[0.06em] text-[#9B99A6]">
+                {pending.length > 1
+                  ? `What this update brings (${pending.length} releases)`
+                  : notesFrom && pending.length === 1
+                    ? 'What this update brings'
+                    : 'Latest release'}
+              </p>
+              {pending.length === 0 ? (
+                <p className="text-[12.5px] text-[#9B99A6]">
+                  You are on the latest release. Nothing new to install.
+                </p>
+              ) : (
+                <div className="space-y-5">
+                  {pending.map(entry => (
+                    <ReleaseNotes key={entry.version} entry={entry} />
+                  ))}
+                </div>
+              )}
+              {olderNotes.length > 0 && (
+                <details className="group mt-4">
+                  <summary className="cursor-pointer list-none text-[12.5px] font-semibold text-[#3D3B4F] underline-offset-2 hover:underline">
+                    Earlier releases ({olderNotes.length})
+                  </summary>
+                  <div className="mt-4 space-y-5 border-l-2 border-[#EEEEF2] pl-4">
+                    {olderNotes.map(entry => (
+                      <ReleaseNotes key={entry.version} entry={entry} />
+                    ))}
+                  </div>
+                </details>
+              )}
+              <p className="mt-4 text-[12px] text-[#9B99A6]">
+                Full history at{' '}
+                <a
+                  href="/changelog"
+                  className="font-semibold text-[#3D3B4F] underline-offset-2 hover:underline"
+                >
+                  traks.dev/changelog
+                </a>
+                .
+              </p>
             </div>
           )}
         </Card>

@@ -11,7 +11,7 @@
  * for are ever read.
  *
  * Endpoint shapes were mined from wrangler's source and proven end-to-end
- * against real accounts (installer/test-engine.mjs is the local harness).
+ * against real accounts; the traks.dev wizard is the test path for changes.
  */
 
 const API = 'https://api.cloudflare.com/client/v4';

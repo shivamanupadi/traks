@@ -41,7 +41,7 @@ function SitesPage(): ReactElement {
 
   const isLoading = sitesLoading || workspaceLoading || !workspace;
   const isWorkspaceOwner = workspace?.role === 'owner';
-  const allSites = (sitesData as any)?.data || [];
+  const allSites = useMemo(() => (sitesData as any)?.data || [], [sitesData]);
 
   // Client-side search: case-insensitive match on name or domain
   const filteredSites = useMemo(() => {

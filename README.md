@@ -141,10 +141,10 @@ yarn dev                                            # collect :5010, api :5011, 
 
 Secrets are managed with Doppler (see the comments in each `wrangler.toml`):
 
-| Worker | Secrets |
-|---|---|
-| `api` | `R2_SQL_TOKEN` (Workers R2 SQL Read + R2 Data Catalog Write + R2 Storage Write), `R2_ACCOUNT_ID`, `BETTER_AUTH_SECRET` |
-| `collect` | `VISITOR_HASH_SECRET` |
+| Worker    | Secrets                                                                                                                |
+| --------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `api`     | `R2_SQL_TOKEN` (Workers R2 SQL Read + R2 Data Catalog Write + R2 Storage Write), `R2_ACCOUNT_ID`, `BETTER_AUTH_SECRET` |
+| `collect` | `VISITOR_HASH_SECRET`                                                                                                  |
 
 ### 3. Seed test data
 
@@ -194,11 +194,11 @@ R2 Data Catalog, and R2 SQL has been live since 3 Aug 2026; each has a monthly
 free allowance that most sites never exhaust, so the bill for a small install
 is essentially the $5/mo Workers Paid base. With published rates applied:
 
-| Scale | Traffic | Estimated monthly cost |
-|---|---|---|
+| Scale        | Traffic                   | Estimated monthly cost    |
+| ------------ | ------------------------- | ------------------------- |
 | Side project | 100k pageviews, 2–3 sites | **≈ $5** (base plan only) |
-| Startup | 5M pageviews, 10 sites | **≈ $7–8** |
-| Scale | 50M pageviews, 100 sites | **≈ $75–85** |
+| Startup      | 5M pageviews, 10 sites    | **≈ $7–8**                |
+| Scale        | 50M pageviews, 100 sites  | **≈ $75–85**              |
 
 The hot/cold split is what keeps costs flat: the always-open "today" dashboard
 is served by Durable Objects for ~free, historical queries are minimized to
@@ -208,18 +208,18 @@ at the edge for 5–15 minutes, and egress is always $0.
 <details>
 <summary>Full rate table</summary>
 
-| Component | Rate | Monthly free allowance (paid plan) |
-|---|---|---|
-| Workers Paid base | $5/mo | 10M requests, 30M CPU-ms incl. |
-| Workers requests over included | $0.30/M | — |
-| Durable Objects requests | $0.15/M | 1M |
-| DO duration | $12.50/M GB-s | 400k GB-s |
-| DO SQLite writes / reads / storage | $1.00/M rows / $0.001/M rows / $0.20/GB-mo | 50M / 25B rows / 5GB |
-| Pipelines: ingest → transform → delivery | free → $0.04/GB → $0.06/GB (Parquet) | 50GB per dimension |
-| R2 storage | $0.015/GB-mo | 10GB |
-| R2 Data Catalog operations | $9.00/M | 1M |
-| Catalog compaction | $0.005/GB + $2.00/M objects | 10GB + 1M objects |
-| R2 SQL | $2.50/TB scanned (10MB min/query) | 10GB scanned |
+| Component                                | Rate                                       | Monthly free allowance (paid plan) |
+| ---------------------------------------- | ------------------------------------------ | ---------------------------------- |
+| Workers Paid base                        | $5/mo                                      | 10M requests, 30M CPU-ms incl.     |
+| Workers requests over included           | $0.30/M                                    | —                                  |
+| Durable Objects requests                 | $0.15/M                                    | 1M                                 |
+| DO duration                              | $12.50/M GB-s                              | 400k GB-s                          |
+| DO SQLite writes / reads / storage       | $1.00/M rows / $0.001/M rows / $0.20/GB-mo | 50M / 25B rows / 5GB               |
+| Pipelines: ingest → transform → delivery | free → $0.04/GB → $0.06/GB (Parquet)       | 50GB per dimension                 |
+| R2 storage                               | $0.015/GB-mo                               | 10GB                               |
+| R2 Data Catalog operations               | $9.00/M                                    | 1M                                 |
+| Catalog compaction                       | $0.005/GB + $2.00/M objects                | 10GB + 1M objects                  |
+| R2 SQL                                   | $2.50/TB scanned (10MB min/query)          | 10GB scanned                       |
 
 </details>
 
@@ -240,30 +240,22 @@ minimum.
 
 Platform features this codebase relies on:
 
-| Feature | Since | Where used |
-|---|---|---|
-| Streams/sinks/pipelines split, exactly-once Iceberg delivery | Sep 2025 | ingest path |
-| `stream` key in `[[pipelines]]` Workers binding | Jun 2026 | `apps/platform/collect/wrangler.toml` |
-| Automatic compaction (64–512 MB target) | Sep 2025 | `scripts/setup-data-platform.sh` |
-| Snapshot expiration incl. data-file cleanup | Dec 2025 / Apr 2026 | `scripts/setup-data-platform.sh` |
-| R2 SQL aggregations + `approx_distinct` | Dec 2025 | all stat queries |
-| R2 SQL CASE + expression GROUP BY | Mar 2026 | single-scan period comparison |
-| R2 SQL CTEs + subqueries | Mar–May 2026 | bounce-rate session rollup |
+| Feature                                                      | Since               | Where used                            |
+| ------------------------------------------------------------ | ------------------- | ------------------------------------- |
+| Streams/sinks/pipelines split, exactly-once Iceberg delivery | Sep 2025            | ingest path                           |
+| `stream` key in `[[pipelines]]` Workers binding              | Jun 2026            | `apps/platform/collect/wrangler.toml` |
+| Automatic compaction (64–512 MB target)                      | Sep 2025            | `scripts/setup-data-platform.sh`      |
+| Snapshot expiration incl. data-file cleanup                  | Dec 2025 / Apr 2026 | `scripts/setup-data-platform.sh`      |
+| R2 SQL aggregations + `approx_distinct`                      | Dec 2025            | all stat queries                      |
+| R2 SQL CASE + expression GROUP BY                            | Mar 2026            | single-scan period comparison         |
+| R2 SQL CTEs + subqueries                                     | Mar–May 2026        | bounce-rate session rollup            |
 
-## Hosted plans (SaaS layer)
+## Abuse guards
 
-The codebase also includes an optional multi-tenant SaaS layer:
-
-- **Plans** (`packages/shared/src/plans.ts`): Free ($0: 10k events/mo,
-  1 site) · Pro ($19: 1M, 10 sites) · Business ($99: 10M, 50 sites), enforced
-  at ingest (monthly quota via the DO usage counter) and at site creation.
-- **Billing**: Dodo Payments (merchant of record), gated behind the
-  `BILLING_ENABLED` var — when off, checkout/portal return 503 and paid plans
-  show as "Coming soon".
-- **Abuse guards**: plan-aware per-site-key burst limits counted per colo,
-  plus isolate-cached key auth in collect (no per-event D1 reads).
-- **Public dashboards**: per-site opt-in; `/share/<siteId>` serves the live
-  dashboard through `/api/public`.
+Ingest is protected without any per-event database reads: the collect Worker
+applies per-site-key burst limits counted per colo, caches site-key auth per
+isolate, and accepts events only from the site's registered domain, its
+subdomains, and localhost.
 
 ## Development
 

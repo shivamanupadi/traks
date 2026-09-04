@@ -68,4 +68,4 @@ for (const f of readdirSync(path.join(ROOT, 'apps/platform/api/src/db/migrations
 }
 
 console.log('\n✓ Release built at installer/dist - upload with:');
-console.log('  CATALOG_TOKEN=<token> node installer/upload-release.mjs');
+console.log('  node installer/upload-release.mjs   (credentials from Doppler traks-home/prd)');

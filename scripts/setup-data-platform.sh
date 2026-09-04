@@ -6,10 +6,11 @@
 #   Pipelines stream -> pass-through pipeline -> Iceberg sink (traks.events)
 #
 # Usage:
-#   CATALOG_TOKEN=<token> ./scripts/setup-data-platform.sh dev
-#   CATALOG_TOKEN=<token> ./scripts/setup-data-platform.sh prod
+#   ./scripts/setup-data-platform.sh dev
+#   ./scripts/setup-data-platform.sh prod
 #
-# CATALOG_TOKEN needs "Workers R2 Data Catalog Write" + "Workers R2 Storage
+# CATALOG_TOKEN is read from Doppler (traks-home/prd), never from the
+# environment. It needs "Workers R2 Data Catalog Write" + "Workers R2 Storage
 # Write" permission groups (dashboard shortcut: R2 "Admin Read & Write" account
 # token). It is stored by Cloudflare as the service credential that compaction,
 # snapshot-expiration, and the Iceberg sink use.
@@ -25,10 +26,11 @@ set -euo pipefail
 
 ENV="${1:-}"
 if [[ "$ENV" != "dev" && "$ENV" != "prod" ]]; then
-  echo "Usage: CATALOG_TOKEN=<token> $0 <dev|prod>" >&2
+  echo "Usage: $0 <dev|prod>" >&2
   exit 1
 fi
-: "${CATALOG_TOKEN:?Set CATALOG_TOKEN (see header comment for required scopes)}"
+CATALOG_TOKEN="$(doppler secrets get CATALOG_TOKEN --plain -p traks-home -c prd)"
+: "${CATALOG_TOKEN:?CATALOG_TOKEN not readable from Doppler traks-home/prd}"
 
 if [[ "$ENV" == "prod" ]]; then
   BUCKET="traks-events"

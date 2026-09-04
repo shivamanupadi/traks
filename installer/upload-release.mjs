@@ -3,7 +3,7 @@
  * Upload the built package artifacts to the traks-releases R2 bucket, which
  * the traks.dev/deploy wizard worker reads when provisioning user instances.
  *
- *   CATALOG_TOKEN=<r2-token> node installer/upload-release.mjs
+ *   node installer/upload-release.mjs   (credentials: Doppler traks-home/prd)
  *
  * Layout in the bucket (single "current" channel for now):
  *   current/manifest.json      { version, assets: [{path,hash,size,contentType}], migrations: [names] }
@@ -28,45 +28,30 @@ import { parse as parseChangelog, readChangelog } from './changelog.mjs';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = path.join(ROOT, 'installer/dist');
 const BUCKET = 'traks-releases';
-// Maintainer's account, never a hardcoded default: env first, then the
-// traks-home Doppler project (same place the release token lives).
-function resolveAccountId() {
-  if (process.env.CLOUDFLARE_ACCOUNT_ID) return process.env.CLOUDFLARE_ACCOUNT_ID;
+// Every credential comes from the traks-home Doppler project (prd). No env
+// vars, no local files: one place to rotate, one place to audit.
+function fromDoppler(name) {
   try {
-    return execSync('doppler secrets get CLOUDFLARE_ACCOUNT_ID --plain -p traks-home -c prd', {
+    return execSync(`doppler secrets get ${name} --plain -p traks-home -c prd`, {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'ignore'],
     }).trim();
   } catch {
     console.error(
-      'CLOUDFLARE_ACCOUNT_ID required - export it or add it to the traks-home Doppler project (prd)'
+      `${name}: not readable from Doppler (traks-home/prd) - run "doppler login" first`
     );
     process.exit(1);
   }
 }
-const ACCOUNT_ID = resolveAccountId();
+const ACCOUNT_ID = fromDoppler('CLOUDFLARE_ACCOUNT_ID');
 // blake3-wasm ships inside wrangler (resolved via the api workspace) - the
 // same implementation wrangler uses for asset hashes, which must match.
 const apiRequire = createRequire(path.join(ROOT, 'apps/platform/api/package.json'));
 const require = createRequire(apiRequire.resolve('wrangler/package.json'));
 const blake3 = require('blake3-wasm');
 
-// Release-upload credential: env override, else the traks-home Doppler project.
-let token = process.env.CATALOG_TOKEN;
-if (!token) {
-  try {
-    token = execSync('doppler secrets get CATALOG_TOKEN --plain -p traks-home -c prd', {
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-    }).trim();
-  } catch {
-    /* doppler unavailable - fall through to the error below */
-  }
-}
-if (!token) {
-  console.error('CATALOG_TOKEN required (R2 storage write) - set it or log in to Doppler');
-  process.exit(1);
-}
+// Release-upload credential (R2 storage write).
+const token = fromDoppler('CATALOG_TOKEN');
 
 // Version guard: an upload under an unchanged version is invisible to
 // deployed instances (the update banner compares manifest.version).

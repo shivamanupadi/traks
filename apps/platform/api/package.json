@@ -7,7 +7,7 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "scripts": {
-    "dev": "(doppler secrets download --no-file --format=env -p traks-api -c dev > .dev.vars.doppler 2>/dev/null || echo '# doppler unavailable: put secrets in .dev.vars' > .dev.vars.doppler) && touch .dev.vars && wrangler dev --port 5011 --persist-to ../../../.wrangler-state --env-file .dev.vars.doppler --env-file .dev.vars",
+    "dev": "doppler secrets download --no-file --format=env -p traks-api -c dev > .dev.vars.doppler && wrangler dev --port 5011 --persist-to ../../../.wrangler-state --env-file .dev.vars.doppler",
     "build": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:check": "drizzle-kit generate --name drift_check 2>&1 | tee /dev/stderr | grep -q 'No schema changes' || (git checkout -- src/db/migrations/ >/dev/null 2>&1; git clean -fd src/db/migrations/ >/dev/null 2>&1; echo '\\n\u2717 Schema drift: schema.ts has uncommitted changes. Run: yarn db:generate --name <descriptive_name>' && exit 1)",

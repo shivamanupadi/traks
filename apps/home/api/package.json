@@ -7,11 +7,11 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "scripts": {
-    "dev": "wrangler dev --remote --port 5014",
+    "dev": "doppler secrets download --no-file --format=env -p traks-home -c dev > .dev.vars.doppler && wrangler dev --remote --port 5014 --env-file .dev.vars.doppler",
     "build": "tsc --noEmit",
     "deploy:dev": "wrangler deploy",
     "worker:prod:deploy": "wrangler deploy --env production",
-    "secrets:prod:sync": "doppler secrets --json -p traks-home -c prd | jq -c 'with_entries(select(.key | test(\"^DOPPLER_\") | not) | .value = .value.computed)' | wrangler secret bulk --env production",
+    "secrets:prod:sync": "doppler secrets --json -p traks-home -c prd | jq -c 'with_entries(select(.key | test(\"^(DOPPLER_|CLOUDFLARE_)\") | not) | .value = .value.computed)' | wrangler secret bulk --env production",
     "release:prod": "yarn db:migrate:prod && yarn secrets:prod:sync && yarn worker:prod:deploy",
     "db:generate": "drizzle-kit generate",
     "db:check": "drizzle-kit generate --name drift_check 2>&1 | tee /dev/stderr | grep -q 'No schema changes' || (git checkout -- src/db/migrations/ >/dev/null 2>&1; git clean -fd src/db/migrations/ >/dev/null 2>&1; echo '\\n\u2717 Schema drift: schema.ts has uncommitted changes. Run: yarn db:generate --name <descriptive_name>' && exit 1)",
@@ -20,7 +20,7 @@
     "type-check": "tsc --noEmit",
     "lint": "eslint src --ext .ts --fix",
     "format": "prettier --write src",
-    "clean": "rimraf .turbo .wrangler"
+    "clean": "rimraf .turbo .wrangler .dev.vars.doppler"
   },
   "dependencies": {
     "@hono/zod-validator": "^0.4.2",

@@ -4,18 +4,18 @@
  * wizard worker uses (apps/home/api/src/deploy/engine.ts, via Node's native type
  * stripping) against a real Cloudflare account. One engine, no drift.
  *
- *   CATALOG_TOKEN=<r2-token> node installer/test-engine.mjs provision <instance>
- *   CATALOG_TOKEN=<r2-token> node installer/test-engine.mjs destroy <instance>
+ *   node installer/test-engine.mjs provision <instance>
+ *   node installer/test-engine.mjs destroy <instance>
  *
- * Optional custom-domain provision: CD_ZONE_ID, CD_ZONE_NAME, CD_SUB env vars.
- * Auth: CLOUDFLARE_API_TOKEN or the local wrangler OAuth session.
+ * Optional custom-domain provision: CD_ZONE_ID, CD_ZONE_NAME, CD_SUB env vars
+ * (not secrets). Credentials come only from Doppler traks-home/prd:
+ * CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN (installer-scoped), CATALOG_TOKEN.
  * Artifacts come from the built release (yarn traks:build first).
  */
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { randomBytes, createHash, createHmac } from 'node:crypto';
 import { execSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { provisionInstance, destroyInstance } from '../apps/home/api/src/deploy/engine.ts';
@@ -26,35 +26,27 @@ const apiRequire = createRequire(path.join(ROOT, 'apps/home/api/package.json'));
 const require = createRequire(apiRequire.resolve('wrangler/package.json'));
 const blake3 = require('blake3-wasm');
 
-// Maintainer's account, never a hardcoded default: env first, then the
-// traks-home Doppler project (same place the release token lives).
-function resolveAccountId() {
-  if (process.env.CLOUDFLARE_ACCOUNT_ID) return process.env.CLOUDFLARE_ACCOUNT_ID;
+// Every credential comes from the traks-home Doppler project (prd). No env
+// vars, no local files, no wrangler OAuth session.
+function fromDoppler(name) {
   try {
-    return execSync('doppler secrets get CLOUDFLARE_ACCOUNT_ID --plain -p traks-home -c prd', {
+    return execSync(`doppler secrets get ${name} --plain -p traks-home -c prd`, {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'ignore'],
     }).trim();
   } catch {
     console.error(
-      'CLOUDFLARE_ACCOUNT_ID required - export it or add it to the traks-home Doppler project (prd)'
+      `${name}: not readable from Doppler (traks-home/prd) - add it or run "doppler login"`
     );
     process.exit(1);
   }
 }
-const ACCOUNT_ID = resolveAccountId();
+const ACCOUNT_ID = fromDoppler('CLOUDFLARE_ACCOUNT_ID');
 const command = process.argv[2] ?? 'provision';
 const instance = process.argv[3] ?? 'traks-web1';
 
 function apiToken() {
-  if (process.env.CLOUDFLARE_API_TOKEN) return process.env.CLOUDFLARE_API_TOKEN;
-  const configPath =
-    process.platform === 'darwin'
-      ? path.join(os.homedir(), 'Library/Preferences/.wrangler/config/default.toml')
-      : path.join(os.homedir(), '.config/.wrangler/config/default.toml');
-  const m = readFileSync(configPath, 'utf8').match(/oauth_token\s*=\s*"([^"]+)"/);
-  if (!m) throw new Error('no CLOUDFLARE_API_TOKEN and no wrangler OAuth session');
-  return m[1];
+  return fromDoppler('CLOUDFLARE_API_TOKEN');
 }
 
 const MIME = {
@@ -182,11 +174,7 @@ async function makeEmptyBucket(catalogToken) {
   };
 }
 
-const catalogToken = process.env.CATALOG_TOKEN ?? '';
-if (!catalogToken) {
-  console.error('CATALOG_TOKEN required');
-  process.exit(1);
-}
+const catalogToken = fromDoppler('CATALOG_TOKEN');
 
 const customDomain =
   process.env.CD_ZONE_ID && process.env.CD_ZONE_NAME

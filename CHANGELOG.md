@@ -6,6 +6,8 @@ ships separately and is not listed here.
 
 ## Unreleased
 
+## 0.1.39 - 2026-09-04
+
 ### Added
 
 - `/api/health` reports the instance's running `version`, so anything that can reach the dashboard can read it without a Cloudflare token.

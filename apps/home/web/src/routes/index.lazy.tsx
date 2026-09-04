@@ -772,8 +772,8 @@ function LandingPage(): ReactElement {
             </h2>
             <p className="mt-4 max-w-[62ch] text-[13.5px] leading-relaxed text-[#6E6C7C]">
               Traks runs entirely in your Cloudflare account, so the running cost is
-              Cloudflare&rsquo;s usage pricing, paid to them, not to us. Slide to your traffic to
-              see where every cent goes.
+              Cloudflare&rsquo;s usage pricing, paid to them, not to us. Slide to your traffic (a
+              pageview is about two events) to see where every cent goes.
             </p>
           </motion.div>
           <motion.div {...rise(0.08)} className="mt-10">
@@ -861,7 +861,7 @@ function LandingPage(): ReactElement {
 
 /* ── cost calculator ─────────────────────────────────────────── */
 
-const COST_STEPS = [10e3, 25e3, 50e3, 100e3, 250e3, 500e3, 1e6, 2e6, 5e6, 10e6, 15e6, 20e6, 25e6];
+const COST_STEPS = [10e3, 25e3, 50e3, 100e3, 250e3, 500e3, 1e6, 2e6, 5e6, 10e6, 20e6, 50e6, 100e6];
 
 const fmtEvents = (n: number): string => (n >= 1e6 ? `${n / 1e6}M` : `${n / 1e3}k`);
 
@@ -870,18 +870,19 @@ const gb = (bytes: number): number => bytes / 1024 ** 3;
 const over = (used: number, included: number): number => Math.max(0, used - included);
 
 /**
- * Row writes billed per event by the live-stats Durable Object. Cloudflare
- * bills every index update as its own row write, and counts deletes as
- * writes too:
- *   1 events row + 2 index entries        = 3 on insert
- *   the same 3 again when the 50-hour     = 3 on prune
- *   retention window deletes the row
- * The monthly usage counter used to add a 7th here; it is now persisted once
- * per 50 events (see COUNTER_PERSIST_EVERY in the collect worker), which
- * rounds to nothing per event. This is the single largest line item at scale,
- * so it is modelled explicitly rather than folded into the request charge.
+ * Row writes billed per event by the live-stats Durable Object. Measured on
+ * 4 Sep 2026 with `cursor.rowsWritten` (the number Cloudflare bills on, per
+ * the SQLite storage docs) against the exact SiteLiveStore schema:
+ *   INSERT: 1 events row + 2 index entries = 3
+ *   DELETE (50-hour prune): 1 per row      = 1
+ * The monthly usage counter is persisted once per 50 events (see
+ * COUNTER_PERSIST_EVERY in the collect worker) and rounds to nothing. This is
+ * the single largest line item at scale, so it is modelled explicitly rather
+ * than folded into the request charge.
  */
-const DO_ROWS_PER_EVENT = 6;
+const DO_ROWS_PER_EVENT = 4;
+/** CPU per ingest event (HMAC, UA parse, bucket keys) - a pessimistic 2 ms. */
+const CPU_MS_PER_EVENT = 2;
 
 interface CostLine {
   label: string;
@@ -890,23 +891,32 @@ interface CostLine {
 }
 
 /**
- * Cloudflare list prices, verified 7 Aug 2026 against developers.cloudflare.com
+ * Cloudflare list prices, verified 4 Sep 2026 against developers.cloudflare.com
  * (Workers, Durable Objects, R2, Pipelines and R2 SQL pricing pages). Billing
  * for Pipelines, R2 SQL and R2 Data Catalog was switched on 3 Aug 2026, so
  * these are live charges, not beta freebies.
  *
  * Volume assumptions, deliberately on the pessimistic side: one ingest request
- * per event, ~5% more requests for dashboard use, ~800 B per raw event through
- * the pipeline sink, ~250 B per event once written as compacted Parquet, and
- * six months of accumulated history in R2.
+ * per event plus ~15% more Worker requests for tracker-script fetches and
+ * dashboard use, ~800 B per raw event through the pipeline (a full record
+ * measures ~580 B of JSON), ~250 B per event once written as compacted
+ * Parquet, and six months of accumulated history in R2. Pipelines bills the
+ * pass-through `INSERT ... SELECT *` as a SQL transform as well as the sink
+ * delivery, both on uncompressed bytes, so both lines are modelled.
  */
 function traksCost(events: number): { total: number; lines: CostLine[] } {
+  const rawGb = gb(events * 800);
   const lines: CostLine[] = [
     { label: 'Workers Paid plan', detail: 'flat monthly minimum', amount: 5 },
     {
       label: 'Worker requests',
       detail: '10M/mo included, then $0.30/M',
-      amount: (over(events * 1.05, 10e6) / 1e6) * 0.3,
+      amount: (over(events * 1.15, 10e6) / 1e6) * 0.3,
+    },
+    {
+      label: 'Worker CPU time',
+      detail: `~${CPU_MS_PER_EVENT} ms/event · 30M ms/mo included, then $0.02/M`,
+      amount: (over(events * CPU_MS_PER_EVENT, 30e6) / 1e6) * 0.02,
     },
     {
       label: 'Durable Object requests',
@@ -915,13 +925,18 @@ function traksCost(events: number): { total: number; lines: CostLine[] } {
     },
     {
       label: 'Durable Object row writes',
-      detail: `~${DO_ROWS_PER_EVENT}/event · 50M/mo included, then $1.00/M`,
+      detail: `${DO_ROWS_PER_EVENT}/event (measured) · 50M/mo included, then $1.00/M`,
       amount: (over(events * DO_ROWS_PER_EVENT, 50e6) / 1e6) * 1.0,
+    },
+    {
+      label: 'Pipelines transform',
+      detail: '50 GB/mo included, then $0.04/GB',
+      amount: over(rawGb, 50) * 0.04,
     },
     {
       label: 'Pipelines sink',
       detail: '50 GB/mo included, then $0.06/GB',
-      amount: over(gb(events * 800), 50) * 0.06,
+      amount: over(rawGb, 50) * 0.06,
     },
     {
       label: 'R2 storage',
@@ -1038,12 +1053,13 @@ function CostCalculator(): ReactElement {
       </div>
 
       <p className="mt-6 text-[11.5px] leading-relaxed text-[#B3B1BE]">
-        Cloudflare list prices, verified 7 Aug 2026, paid to Cloudflare, not to us. Billing for
-        Pipelines, R2 SQL and R2 Data Catalog began 3 Aug 2026, so these are live charges. Assumes
-        one request per event, ~800 B through the pipeline, ~250 B stored as Parquet and six months
-        of history; Analytics Engine is not yet billed by Cloudflare. Your real bill moves with how
-        often dashboards are opened and how much history you keep. Traks itself is free: there is
-        nothing to pay us, ever.
+        Cloudflare list prices, verified 4 Sep 2026, paid to Cloudflare, not to us. Billing for
+        Pipelines, R2 SQL and R2 Data Catalog began 3 Aug 2026, so these are live charges. A
+        pageview is about two events (the pageview plus its engagement event). Assumes one request
+        per event, ~800 B through the pipeline, ~250 B stored as Parquet, six months of history, and
+        the 4 Durable Object row writes per event we measured on the real schema. Your real bill
+        moves with how often dashboards are opened and how much history you keep. Traks itself is
+        free: there is nothing to pay us, ever.
       </p>
     </div>
   );

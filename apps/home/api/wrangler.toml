@@ -36,15 +36,13 @@ remote = true
 #          relay caller-supplied credentials to Cloudflare, so without a cap
 #          traks.dev would be a free credential-validation oracle.
 #   1003 - session creation (POST /instance).
-[[unsafe.bindings]]
+[[ratelimits]]
 name = "VERIFY_LIMIT"
-type = "ratelimit"
 namespace_id = "1002"
 simple = { limit = 30, period = 60 }
 
-[[unsafe.bindings]]
+[[ratelimits]]
 name = "SESSION_LIMIT"
-type = "ratelimit"
 namespace_id = "1003"
 simple = { limit = 10, period = 60 }
 
@@ -70,15 +68,13 @@ bucket_name = "traks-releases"
 #          relay caller-supplied credentials to Cloudflare, so without a cap
 #          traks.dev would be a free credential-validation oracle.
 #   1003 - session creation (POST /instance).
-[[env.production.unsafe.bindings]]
+[[env.production.ratelimits]]
 name = "VERIFY_LIMIT"
-type = "ratelimit"
 namespace_id = "1002"
 simple = { limit = 30, period = 60 }
 
-[[env.production.unsafe.bindings]]
+[[env.production.ratelimits]]
 name = "SESSION_LIMIT"
-type = "ratelimit"
 namespace_id = "1003"
 simple = { limit = 10, period = 60 }
 

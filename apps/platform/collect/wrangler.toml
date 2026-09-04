@@ -13,9 +13,8 @@ migrations_dir = "../api/src/db/migrations"
 
 # Per-site-key flood guard (counted per colo). Pure abuse backstop - 
 # there are no product quotas. 100/s per colo per site key.
-[[unsafe.bindings]]
+[[ratelimits]]
 name = "RATE_LIMIT"
-type = "ratelimit"
 namespace_id = "1001"
 simple = { limit = 6000, period = 60 }
 

@@ -165,13 +165,20 @@ function asPayload<T>(parsed: unknown): CachedPayload<T> {
 const inFlightScans = new Map<string, Promise<unknown[]>>();
 
 /**
- * queryR2Sql behind three cache layers: the per-colo Workers Cache API
- * (fastest, free), a KV namespace (global - a scan any colo already paid for
- * is reused worldwide), and an isolate-local in-flight map that stops
- * concurrent duplicates. KV reads/writes are wrapped so a KV outage degrades
- * to per-colo behavior instead of failing the request. Results are served
- * stale-while-revalidate: freshness is bounded by ttlSeconds, but a viewer
- * never waits for a scan when any usable copy exists.
+ * queryR2Sql behind three cache layers: the per-colo Workers Cache API, a KV
+ * namespace (global - a scan any colo already paid for is reused worldwide),
+ * and an isolate-local in-flight map that stops concurrent duplicates. KV
+ * reads/writes are wrapped so a KV outage degrades to per-colo behavior
+ * instead of failing the request. Results are served stale-while-revalidate:
+ * freshness is bounded by ttlSeconds, but a viewer never waits for a scan
+ * when any usable copy exists.
+ *
+ * The Cache API layer only functions when the worker is served from a custom
+ * domain; Cloudflare documents `cache.put`/`cache.match` as functional on
+ * custom domains and they are a no-op on workers.dev. Wizard installs default
+ * to workers.dev, so for most instances every lookup falls through to KV and
+ * the `colo-hit` outcome never appears in METRICS. The layer is kept because
+ * it is free where it works and costs one miss where it does not.
  */
 /**
  * One telemetry row per cache decision. `outcome` is colo-hit | kv-hit |

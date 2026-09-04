@@ -26,8 +26,9 @@ Install it at [traks.dev](https://traks.dev); read the release notes at
   WebSocket pushes live visitors, pages, referrers, and city-level map dots to
   the dashboard as they happen.
 - **Cheap at any scale** — history lives in Apache Iceberg on R2 and is queried
-  with R2 SQL, edge-cached, and scan-minimized. A side project runs for ~$5/mo;
-  50M pageviews/mo lands around $75–85/mo (see [cost model](#what-it-costs-to-run)).
+  with R2 SQL, edge-cached, and scan-minimized. A side project runs for ~$5/mo,
+  5M pageviews/mo for ~$7, and past that about $4.60 per additional million
+  events (see [cost model](#what-it-costs-to-run)).
 - **Fully self-contained** — auth is [Better Auth](https://better-auth.com)
   on D1 (no auth SaaS), the world map is self-hosted (no tile servers), and the
   dashboard never calls a third party.
@@ -167,11 +168,11 @@ yarn workspace @traks/platform-api db:migrate:dev
 yarn dev                                            # collect :5010, api :5011, web :5012, home :5013/:5014
 ```
 
-| Doppler project (dev config) | Keys                                                              |
-| ---------------------------- | ----------------------------------------------------------------- |
+| Doppler project (dev config) | Keys                                                                               |
+| ---------------------------- | ---------------------------------------------------------------------------------- |
 | `traks-api`                  | `BETTER_AUTH_SECRET`, `R2_SQL_TOKEN` (Workers R2 SQL Read on the warehouse bucket) |
-| `traks-collect`              | `VISITOR_HASH_SECRET`                                             |
-| `traks-home`                 | none required                                                     |
+| `traks-collect`              | `VISITOR_HASH_SECRET`                                                              |
+| `traks-home`                 | none required                                                                      |
 
 **3. Seed test data:**
 
@@ -219,34 +220,47 @@ site ownership is re-adopted by email.
 Everything runs inside a Cloudflare Workers Paid plan. Billing for Pipelines,
 R2 Data Catalog, and R2 SQL has been live since 3 Aug 2026; each has a monthly
 free allowance that most sites never exhaust, so the bill for a small install
-is essentially the $5/mo Workers Paid base. With published rates applied:
+is essentially the $5/mo Workers Paid base. Cloudflare bills per **event**, and
+a pageview produces about two (the pageview plus its engagement event), so the
+tiers below are stated in both. Rates verified 4 Sep 2026; the same model
+drives the calculator on [traks.dev](https://traks.dev#cost).
 
-| Scale        | Traffic                   | Estimated monthly cost    |
-| ------------ | ------------------------- | ------------------------- |
-| Side project | 100k pageviews, 2–3 sites | **≈ $5** (base plan only) |
-| Startup      | 5M pageviews, 10 sites    | **≈ $7–8**                |
-| Scale        | 50M pageviews, 100 sites  | **≈ $75–85**              |
+| Scale        | Traffic                      | Estimated monthly cost    |
+| ------------ | ---------------------------- | ------------------------- |
+| Side project | 100k pageviews (200k events) | **≈ $5** (base plan only) |
+| Startup      | 5M pageviews (10M events)    | **≈ $7**                  |
+| Growth       | 10M pageviews (20M events)   | **≈ $42**                 |
+| Scale        | 50M pageviews (100M events)  | **≈ $410**                |
 
-The hot/cold split is what keeps costs flat: the always-open "today" dashboard
-is served by Durable Objects for ~free, historical queries are minimized to
-single scans (CASE split for current + previous period comparisons) and cached
-at the edge for 5–15 minutes, and egress is always $0.
+Above roughly 6M pageviews the bill is dominated by one line: the hot-path
+Durable Object writes every event to SQLite, and Cloudflare bills 4 row writes
+per event over its lifetime (1 row + 2 index entries on insert, 1 on prune;
+measured with `cursor.rowsWritten`, the figure Cloudflare bills on). That is
+$4.00 of the ≈ $4.60 each additional million events costs; Worker requests,
+DO requests, Pipelines and R2 together are the remaining cents. For
+comparison, hosted analytics vendors publish $16–34 per million pageviews at
+their top tiers.
+
+The hot/cold split is what keeps everything else flat: the always-open "today"
+dashboard is served by Durable Objects for ~free, historical queries are
+minimized to single scans (CASE split for current + previous period
+comparisons) and cached for 5–15 minutes, and egress is always $0.
 
 <details>
 <summary>Full rate table</summary>
 
-| Component                                | Rate                                       | Monthly free allowance (paid plan) |
-| ---------------------------------------- | ------------------------------------------ | ---------------------------------- |
-| Workers Paid base                        | $5/mo                                      | 10M requests, 30M CPU-ms incl.     |
-| Workers requests over included           | $0.30/M                                    | —                                  |
-| Durable Objects requests                 | $0.15/M                                    | 1M                                 |
-| DO duration                              | $12.50/M GB-s                              | 400k GB-s                          |
-| DO SQLite writes / reads / storage       | $1.00/M rows / $0.001/M rows / $0.20/GB-mo | 50M / 25B rows / 5GB               |
-| Pipelines: ingest → transform → delivery | free → $0.04/GB → $0.06/GB (Parquet)       | 50GB per dimension                 |
-| R2 storage                               | $0.015/GB-mo                               | 10GB                               |
-| R2 Data Catalog operations               | $9.00/M                                    | 1M                                 |
-| Catalog compaction                       | $0.005/GB + $2.00/M objects                | 10GB + 1M objects                  |
-| R2 SQL                                   | $2.50/TB scanned (10MB min/query)          | 10GB scanned                       |
+| Component                                | Rate                                                                                                                 | Monthly free allowance (paid plan) |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| Workers Paid base                        | $5/mo                                                                                                                | 10M requests, 30M CPU-ms incl.     |
+| Workers requests / CPU over included     | $0.30/M requests / $0.02/M CPU-ms                                                                                    | —                                  |
+| Durable Objects requests                 | $0.15/M                                                                                                              | 1M                                 |
+| DO duration                              | $12.50/M GB-s (idle objects are not billed)                                                                          | 400k GB-s                          |
+| DO SQLite writes / reads / storage       | $1.00/M rows / $0.001/M rows / $0.20/GB-mo                                                                           | 50M / 25B rows / 5GB               |
+| Pipelines: ingest → transform → delivery | free → $0.04/GB → $0.06/GB (Parquet), uncompressed bytes; the pass-through `INSERT … SELECT *` counts as a transform | 50GB per dimension                 |
+| R2 storage                               | $0.015/GB-mo                                                                                                         | 10GB                               |
+| R2 Data Catalog operations               | $9.00/M                                                                                                              | 1M                                 |
+| Catalog compaction                       | $0.005/GB + $2.00/M objects                                                                                          | 10GB + 1M objects                  |
+| R2 SQL                                   | $2.50/TB scanned (10MB min/query)                                                                                    | 10GB scanned                       |
 
 </details>
 
@@ -264,6 +278,25 @@ existing table (so a sink's roll interval is fixed for the table's lifetime),
 stream schemas are immutable, R2 SQL has no timezone conversion and no
 metrics dataset for bytes scanned, and every R2 SQL query bills a 10 MB
 minimum.
+
+Known limits of this design, from Cloudflare's published numbers:
+
+- **One Durable Object per site is the per-site ceiling.** Cloudflare rates a
+  single object at roughly 200–500 requests/s for operations that write
+  storage, and a pageview costs about two DO requests, so one site sustaining
+  150–250 pageviews/s (a front-page spike, or roughly 10M+ pageviews/month
+  with peaks) saturates its object. The failure is graceful: the write is
+  counted in the `live_write_failed` metric and the dashboard falls back to
+  R2 SQL, but "today" undercounts until traffic drops. Sharding a site across
+  several objects (keyed by site plus shard, fan-in on read) is the planned
+  path if a real site gets there.
+- **Pipelines beta limits per account:** 20 streams, 20 sinks, 20 pipelines,
+  and 5 MB/s ingest per stream (about 6k events/s at Traks' record size).
+  Each instance uses one of each.
+- **The Workers Cache API is only functional on custom domains.** Wizard
+  installs default to workers.dev, where the per-colo cache layer is a no-op
+  and the KV result cache does all the work. Instances on a custom domain get
+  both layers.
 
 Platform features this codebase relies on:
 

@@ -31,7 +31,8 @@ script_name = "traks-collect-dev"
 
 # Global (cross-colo) result cache for R2 SQL dashboard queries. Layered
 # behind the per-colo Cache API: a scan any colo already paid for is reused
-# worldwide for the TTL.
+# worldwide for the TTL. On workers.dev installs (the wizard default) the
+# Cache API is a no-op, so this KV namespace is the only result cache.
 [[kv_namespaces]]
 binding = "R2SQL_CACHE"
 id = "fc5eb93cfb8f4cb18969af2ccd4f9ea5"
@@ -47,9 +48,8 @@ dataset = "traks_api_metrics_dev"
 # built-in limiter is in-memory - per-isolate on Workers, so effectively no
 # limiter at all. A single-owner instance has one known account, so this is
 # the only thing standing between it and offline-speed guessing.
-[[unsafe.bindings]]
+[[ratelimits]]
 name = "AUTH_LIMIT"
-type = "ratelimit"
 namespace_id = "1004"
 simple = { limit = 20, period = 60 }
 

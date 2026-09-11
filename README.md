@@ -20,7 +20,9 @@ Install it at [traks.dev](https://traks.dev); read the release notes at
 
 - **Privacy-first** — no cookies, no fingerprinting persistence. Visitors are
   counted with a Plausible-style daily-rotating hash
-  (`HMAC(secret + date, ip + ua + siteKey)`); raw IP addresses are never stored.
+  (`HMAC(secret + date, ip + ua + siteKey)`). Regular analytics never store a
+  raw IP. Optional **Security mode** (workspace owners only) can keep IP +
+  city/ISP geo in a separate table for 90 days, with an access audit.
 - **Realtime by default** — a hot/cold split serves "today" and live views from
   per-site SQLite Durable Objects in milliseconds, with zero ingest delay. A
   WebSocket pushes live visitors, pages, referrers, and city-level map dots to
@@ -35,6 +37,30 @@ Install it at [traks.dev](https://traks.dev); read the release notes at
 - **Agent-ready** — analytics are exposed to AI agents via MCP/WebMCP tools,
   with bot and agent traffic classified and reported alongside human traffic.
 - **Tiny tracker** — a single `t.js` script tag, served inline from the edge.
+  Landing-page UTM tags persist for the rest of the visit. Optional
+  `traks.conversion()` records a goal event; URL goals (for example
+  `/thank-you`) need no extra code.
+
+## Reports
+
+On top of pages, sources, locations, devices, goals, and funnels, the
+dashboard also includes:
+
+- **Attribution** — sessions and conversion rate by UTM source, medium, or
+  campaign, with a first-touch / last-touch toggle.
+- **Path analysis** — for a selected page, where people went next (or came
+  from).
+- **Retention** — classic weekly cohort triangle (stable visitor hash in the
+  live store; counting starts after this code is deployed).
+- **Crawlers & AI traffic** — search crawlers, AI crawlers (GPTBot, ClaudeBot,
+  Google-Extended, and others), AI referrals, and other bots, labelled instead
+  of only filtered out.
+- **Saved segments** — named filter sets reused across reports.
+- **Security mode** — optional raw IP log, isolated from the main analytics
+  views.
+
+These additions are additive: existing `POST /api/event` fields, Iceberg
+columns, and current API routes stay as they are.
 
 ## Architecture
 

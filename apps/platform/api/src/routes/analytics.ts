@@ -17,6 +17,7 @@ import {
   type LiveFilters,
   type LiveRealtimeLocation,
   toLiveFilters,
+  botCategory,
 } from '@traks/shared';
 import { requireAuth } from '../middleware/auth';
 import { cacheTtlSeconds, freshTtlSeconds } from '../lib/cache-ttl';
@@ -57,6 +58,8 @@ import {
   buildSpecialGoalsQuery,
   isPagePrefix,
   buildFunnelQuery,
+  buildAttributionQuery,
+  buildPathNeighborsQuery,
 } from '../lib/queries';
 import type { SpecialGoalDef } from '../lib/queries';
 import type { Bindings, Variables } from '../types';
@@ -396,6 +399,18 @@ const pagesQuery = z.object({
 const linksQuery = z.object({
   period: z.enum(PERIODS).default('today'),
   type: z.enum(['outbound', 'download']).default('outbound'),
+  ...filterFields,
+});
+const attributionQuery = z.object({
+  period: z.enum(PERIODS).default('today'),
+  touch: z.enum(['first', 'last']).default('first'),
+  type: z.enum(['source', 'medium', 'campaign']).default('source'),
+  ...filterFields,
+});
+const pathsQuery = z.object({
+  period: z.enum(PERIODS).default('today'),
+  kind: z.enum(['next', 'prev']).default('next'),
+  pathname: z.string().min(1).max(2048),
   ...filterFields,
 });
 
@@ -1998,4 +2013,213 @@ export const analyticsRoute = appWithBatch
     return c.json({
       data: aggregateMetaProps(outcome.map(r => ({ meta: r.meta, events: toNumber(r.events) }))),
     });
+  })
+
+  .get('/:siteId/stats/attribution', requireAuth, validate('query', attributionQuery), async c => {
+    const userId = c.get('userId')!;
+    const siteId = c.req.param('siteId');
+    const query = c.req.valid('query');
+    const { period, touch, type } = query;
+    const filters = parseFilters(query);
+    const dim =
+      type === 'medium' ? 'utm_medium' : type === 'campaign' ? 'utm_campaign' : 'utm_source';
+
+    const site = await getSite(c, siteId, userId);
+    if (!site) return c.json({ error: 'Not found' }, 404);
+
+    const db = c.get('db')!;
+    const siteGoals = await db.select().from(goals).where(eq(goals.siteId, siteId));
+    const goalTargets = siteGoals.map(g => ({
+      id: g.id,
+      type: g.type,
+      target: g.target,
+      propKey: g.propKey,
+      propValue: g.propValue,
+    }));
+
+    if (period === 'today') {
+      try {
+        const range = resolvePeriod('today', new Date(), site.timezone);
+        const rows = await liveStore(c, site.siteId).attribution(
+          ms(range.from),
+          ms(range.to),
+          touch,
+          dim,
+          goalTargets,
+          filters
+        );
+        return c.json({
+          data: rows.map(r => ({
+            name: r.name,
+            sessions: r.sessions,
+            conversions: r.conversions,
+            conversionRate:
+              r.sessions > 0 ? Math.round((r.conversions / r.sessions) * 1000) / 10 : 0,
+          })),
+        });
+      } catch (err) {
+        logLiveFallback(err);
+      }
+    }
+
+    const range = resolvePeriod(period, queryTime(period), site.timezone);
+    const ttl = freshTtlSeconds(period, range);
+    const outcome = await runQueries(c, () =>
+      cachedR2Sql<{ name: string; sessions: unknown; conversions: unknown }>(
+        c,
+        ttl,
+        buildAttributionQuery(site.siteId, range, touch, dim, goalTargets, filters)
+      )
+    );
+    if (outcome instanceof Response) return outcome;
+    return c.json({
+      data: outcome.map(r => {
+        const sessions = toNumber(r.sessions);
+        const conversions = toNumber(r.conversions);
+        return {
+          name: r.name,
+          sessions,
+          conversions,
+          conversionRate: sessions > 0 ? Math.round((conversions / sessions) * 1000) / 10 : 0,
+        };
+      }),
+    });
+  })
+
+  .get('/:siteId/stats/paths', requireAuth, validate('query', pathsQuery), async c => {
+    const userId = c.get('userId')!;
+    const siteId = c.req.param('siteId');
+    const query = c.req.valid('query');
+    const { period, kind, pathname } = query;
+    const filters = parseFilters(query);
+
+    const site = await getSite(c, siteId, userId);
+    if (!site) return c.json({ error: 'Not found' }, 404);
+
+    if (period === 'today') {
+      try {
+        const range = resolvePeriod('today', new Date(), site.timezone);
+        const rows = await liveStore(c, site.siteId).pathNeighbors(
+          kind,
+          pathname,
+          ms(range.from),
+          ms(range.to),
+          20,
+          filters
+        );
+        return c.json({ data: rows });
+      } catch (err) {
+        logLiveFallback(err);
+      }
+    }
+
+    const range = resolvePeriod(period, queryTime(period), site.timezone);
+    const ttl = freshTtlSeconds(period, range);
+    const outcome = await runQueries(c, () =>
+      cachedR2Sql<{ name: string; sessions: unknown }>(
+        c,
+        ttl,
+        buildPathNeighborsQuery(site.siteId, range, kind, pathname, filters)
+      )
+    );
+    if (outcome instanceof Response) return outcome;
+    return c.json({
+      data: outcome.map(r => ({ name: r.name, sessions: toNumber(r.sessions) })),
+    });
+  })
+
+  .get('/:siteId/stats/retention', requireAuth, validate('query', periodQuery), async c => {
+    const userId = c.get('userId')!;
+    const siteId = c.req.param('siteId');
+    const site = await getSite(c, siteId, userId);
+    if (!site) return c.json({ error: 'Not found' }, 404);
+
+    try {
+      const rows = await liveStore(c, site.siteId).retention();
+      return c.json({
+        data: rows,
+        note: 'Retention uses a stable visitor hash stored only in the live store. It starts counting after this release is deployed.',
+      });
+    } catch (err) {
+      logLiveFallback(err);
+      return c.json({ data: [], note: 'Retention is unavailable for this period.' });
+    }
+  })
+
+  .get('/:siteId/stats/crawlers', requireAuth, validate('query', periodQuery), async c => {
+    const userId = c.get('userId')!;
+    const siteId = c.req.param('siteId');
+    const query = c.req.valid('query');
+    const { period } = query;
+    const filters = parseFilters(query);
+
+    const site = await getSite(c, siteId, userId);
+    if (!site) return c.json({ error: 'Not found' }, 404);
+
+    const fold = (
+      bots: { name: string; visitors: number; pageviews: number }[],
+      ai: { name: string; visitors: number; pageviews?: number }[]
+    ) => {
+      const rows = [
+        ...bots.map(b => ({
+          name: b.name,
+          category: botCategory(b.name),
+          visitors: b.visitors,
+          pageviews: b.pageviews,
+        })),
+        ...ai.map(a => ({
+          name: a.name,
+          category: 'ai_referral' as const,
+          visitors: a.visitors,
+          pageviews: a.pageviews ?? a.visitors,
+        })),
+      ];
+      rows.sort((a, b) => b.visitors - a.visitors);
+      return rows;
+    };
+
+    if (period === 'today') {
+      try {
+        const range = resolvePeriod('today', new Date(), site.timezone);
+        const live = liveStore(c, site.siteId);
+        const [bots, ai] = await Promise.all([
+          live.botStats(ms(range.from), ms(range.to), 50, filters),
+          live.aiSources(ms(range.from), ms(range.to), 20, filters),
+        ]);
+        return c.json({ data: fold(bots, ai) });
+      } catch (err) {
+        logLiveFallback(err);
+      }
+    }
+
+    const range = resolvePeriod(period, queryTime(period), site.timezone);
+    const ttl = freshTtlSeconds(period, range);
+    const outcome = await runQueries(c, async () => {
+      const [bots, ai] = await Promise.all([
+        cachedR2Sql<{ name: string; visitors: unknown; pageviews: unknown }>(
+          c,
+          ttl,
+          buildBotsQuery(site.siteId, range, filters, 50)
+        ),
+        cachedR2Sql<{ name: string; visitors: unknown; pageviews?: unknown }>(
+          c,
+          ttl,
+          buildAiSourcesQuery(site.siteId, range, filters)
+        ),
+      ]);
+      return fold(
+        bots.map(r => ({
+          name: r.name,
+          visitors: toNumber(r.visitors),
+          pageviews: toNumber(r.pageviews),
+        })),
+        ai.map(r => ({
+          name: r.name,
+          visitors: toNumber(r.visitors),
+          pageviews: toNumber(r.pageviews),
+        }))
+      );
+    });
+    if (outcome instanceof Response) return outcome;
+    return c.json({ data: outcome });
   });

@@ -31,6 +31,34 @@
   // fall back to an in-memory id. Losing session continuity is acceptable;
   // losing every event from that visitor is not.
   let memorySession = '';
+  const UTM_KEY = '_pb_u';
+  let memoryUtm = { us: '', um: '', uc: '' };
+
+  function persistUtm(fromUrl?: { us: string; um: string; uc: string }): {
+    us: string;
+    um: string;
+    uc: string;
+  } {
+    let stored = memoryUtm;
+    try {
+      const raw = sessionStorage.getItem(UTM_KEY);
+      if (raw) stored = JSON.parse(raw) as { us: string; um: string; uc: string };
+    } catch {
+      stored = memoryUtm;
+    }
+    const incoming = fromUrl && (fromUrl.us || fromUrl.um || fromUrl.uc) ? fromUrl : null;
+    const next = incoming || stored;
+    memoryUtm = next;
+    if (next.us || next.um || next.uc) {
+      try {
+        sessionStorage.setItem(UTM_KEY, JSON.stringify(next));
+      } catch {
+        /* sessionStorage blocked — memoryUtm still holds the values */
+      }
+    }
+    return next;
+  }
+
   function newSessionId(): string {
     return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
   }
@@ -77,6 +105,10 @@
   }
 
   function sendRequest(payload: Record<string, unknown>): void {
+    const utm = persistUtm();
+    if (!payload.us && utm.us) payload.us = utm.us;
+    if (!payload.um && utm.um) payload.um = utm.um;
+    if (!payload.uc && utm.uc) payload.uc = utm.uc;
     const body = JSON.stringify(payload);
     fetch(endpoint, {
       method: 'POST',
@@ -141,6 +173,12 @@
     engagedStart = Date.now();
 
     const params = new URLSearchParams(location.search);
+    const fromUrl = {
+      us: clip(params.get('utm_source'), 256),
+      um: clip(params.get('utm_medium'), 256),
+      uc: clip(params.get('utm_campaign'), 256),
+    };
+    const utm = persistUtm(fromUrl);
 
     sendRequest({
       t: 'pageview',
@@ -150,9 +188,9 @@
       r: clip(document.referrer, 2048),
       sw: screen.width,
       sid: getSessionId(),
-      us: clip(params.get('utm_source'), 256),
-      um: clip(params.get('utm_medium'), 256),
-      uc: clip(params.get('utm_campaign'), 256),
+      us: utm.us,
+      um: utm.um,
+      uc: utm.uc,
     });
   }
 
@@ -187,6 +225,9 @@
     } catch {
       /* swallow - analytics must never surface in the host page */
     }
+  };
+  w.traks.conversion = function (name: string, props?: Record<string, unknown>): void {
+    w.traks(name, props);
   };
   for (let q = 0; q < pending.length; q++) {
     try {

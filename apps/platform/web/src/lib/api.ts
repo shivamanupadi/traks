@@ -572,4 +572,73 @@ export const api = {
     await assertOk(res);
     return res.json();
   },
+
+  async getAttribution(
+    siteId: string,
+    period: Period,
+    touch: 'first' | 'last',
+    type: 'source' | 'medium' | 'campaign',
+    filters?: AnalyticsFilters
+  ): Promise<any> {
+    const res = await client.api.analytics[':siteId'].stats.attribution.$get({
+      param: { siteId },
+      query: { period, touch, type, ...filters },
+    });
+    await assertOk(res);
+    return res.json();
+  },
+
+  async getPaths(
+    siteId: string,
+    period: Period,
+    kind: 'next' | 'prev',
+    page: string,
+    filters?: AnalyticsFilters
+  ): Promise<any> {
+    const res = await client.api.analytics[':siteId'].stats.paths.$get({
+      param: { siteId },
+      query: { period, kind, pathname: page, ...filters },
+    });
+    await assertOk(res);
+    return res.json();
+  },
+
+  async getRetention(siteId: string, period: Period, filters?: AnalyticsFilters): Promise<any> {
+    const res = await client.api.analytics[':siteId'].stats.retention.$get({
+      param: { siteId },
+      query: { period, ...filters },
+    });
+    await assertOk(res);
+    return res.json();
+  },
+
+  async getCrawlers(siteId: string, period: Period, filters?: AnalyticsFilters): Promise<any> {
+    const res = await client.api.analytics[':siteId'].stats.crawlers.$get({
+      param: { siteId },
+      query: { period, ...filters },
+    });
+    await assertOk(res);
+    return res.json();
+  },
+
+  async getSecurity(siteId: string): Promise<any> {
+    const res = await client.api.security[':siteId'].$get({ param: { siteId } });
+    await assertOk(res);
+    return res.json();
+  },
+
+  async setSecurity(siteId: string, enabled: boolean): Promise<any> {
+    const res = await client.api.security[':siteId'].$put({
+      param: { siteId },
+      json: { enabled },
+    });
+    await assertOk(res);
+    return res.json();
+  },
+
+  async getSecurityLogs(siteId: string): Promise<any> {
+    const res = await client.api.security[':siteId'].logs.$get({ param: { siteId } });
+    await assertOk(res);
+    return res.json();
+  },
 };

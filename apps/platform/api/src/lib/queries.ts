@@ -35,6 +35,8 @@ export {
   isPagePrefix,
   buildFunnelQuery,
   buildBreakdownsQuery,
+  buildAttributionQuery,
+  buildPathNeighborsQuery,
 } from '@traks/shared';
 export type {
   QueryConfig,

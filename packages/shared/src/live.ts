@@ -94,6 +94,13 @@ export interface LiveEvent {
   /** Custom-event props JSON (canonical `{"url":"..."}` for auto link events). */
   eventMeta: string;
   eventValue: number;
+  /** Site-local ISO week key (YYYY-Www). Used only for cohort rows, not Iceberg. */
+  weekKey?: string;
+  /**
+   * Stable (non-daily) visitor hash for retention. Never written to the
+   * events table or Iceberg — only the live DO's cohort_visits table.
+   */
+  cohortVisitorId?: string;
   /**
    * Approximate (city-level) coordinates from Cloudflare's edge geo lookup.
    * Hot path only: they feed the realtime globe and live in the DO's rolling
@@ -366,4 +373,24 @@ export interface LiveStoreApi {
     limit: number,
     filters?: LiveFilters
   ): Promise<LiveMetaRow[]>;
+  /** First/last-touch UTM grouped with converting-session counts for the given goals. */
+  attribution(
+    fromMs: number,
+    toMs: number,
+    touch: 'first' | 'last',
+    dim: 'utm_source' | 'utm_medium' | 'utm_campaign',
+    goals: LiveGoalTarget[],
+    filters?: LiveFilters
+  ): Promise<{ name: string; sessions: number; conversions: number }[]>;
+  /** Next or previous pageviews from a selected pathname. */
+  pathNeighbors(
+    kind: 'next' | 'prev',
+    pathname: string,
+    fromMs: number,
+    toMs: number,
+    limit: number,
+    filters?: LiveFilters
+  ): Promise<{ name: string; sessions: number }[]>;
+  /** Weekly retention triangle from the unpruned cohort_visits table. */
+  retention(): Promise<{ cohort: string; week: string; visitors: number }[]>;
 }

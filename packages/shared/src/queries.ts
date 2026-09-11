@@ -1315,3 +1315,104 @@ export function buildEventsQuery(
     LIMIT ${limit}
   `;
 }
+
+function goalMatchSql(goals: { type: 'event' | 'page'; target: string; propKey?: string | null; propValue?: string | null }[]): string {
+  if (goals.length === 0) return '0';
+  return goals
+    .map(g => {
+      if (g.type === 'page') {
+        return `(event_type = 'pageview' AND ${pathMatchSql('pathname', g.target)})`;
+      }
+      const prop = g.propKey && g.propValue ? ` AND ${propMatchSql(g.propKey, g.propValue)}` : '';
+      return `(event_type = 'event' AND event_name = '${esc(g.target)}'${prop})`;
+    })
+    .join(' OR ');
+}
+
+/**
+ * Session-level UTM attribution (first-touch = landing pageview; last-touch =
+ * last pageview in the session that still carried a UTM tag). Conversions are
+ * sessions that also matched any of the supplied goals.
+ */
+export function buildAttributionQuery(
+  siteKey: string,
+  range: PeriodRange,
+  touch: 'first' | 'last',
+  dim: 'utm_source' | 'utm_medium' | 'utm_campaign',
+  goals: { type: 'event' | 'page'; target: string; propKey?: string | null; propValue?: string | null }[],
+  filters?: LiveFilters,
+  limit = 25
+) {
+  const conv = goalMatchSql(goals);
+  const order =
+    touch === 'first'
+      ? 'ts ASC'
+      : `CASE WHEN utm_source = '' AND utm_medium = '' AND utm_campaign = '' THEN 1 ELSE 0 END, ts DESC`;
+  return (table: string) => `
+    WITH ranked AS (
+      SELECT
+        session_id,
+        ${dim} AS name,
+        ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY ${order}) AS rn
+      FROM ${table}
+      WHERE ${whereSiteAndRange(siteKey, range, 'pageview', filters)}
+        AND session_id != ''
+    ),
+    touch AS (
+      SELECT session_id, name FROM ranked WHERE rn = 1 AND name != ''
+    ),
+    converted AS (
+      SELECT DISTINCT session_id
+      FROM ${table}
+      WHERE site_id = '${esc(siteKey)}'
+        AND ts >= TIMESTAMP '${esc(range.from)}'
+        AND ts < TIMESTAMP '${esc(range.to)}'${ingestBounds(range.from, range.to)}
+        AND session_id != ''
+        AND (${conv})
+    )
+    SELECT
+      t.name AS name,
+      COUNT(*) AS sessions,
+      SUM(CASE WHEN c.session_id IS NOT NULL THEN 1 ELSE 0 END) AS conversions
+    FROM touch t
+    LEFT JOIN converted c ON c.session_id = t.session_id
+    GROUP BY t.name
+    ORDER BY sessions DESC
+    LIMIT ${limit}
+  `;
+}
+
+/** Where people go next (or came from) after viewing `pathname`. */
+export function buildPathNeighborsQuery(
+  siteKey: string,
+  range: PeriodRange,
+  kind: 'next' | 'prev',
+  pathname: string,
+  filters?: LiveFilters,
+  limit = 20
+) {
+  const neighbor = kind === 'next' ? 'next_path' : 'prev_path';
+  return (table: string) => `
+    WITH ordered AS (
+      SELECT
+        session_id,
+        pathname,
+        LAG(pathname) OVER (PARTITION BY session_id ORDER BY ts) AS prev_path,
+        LEAD(pathname) OVER (PARTITION BY session_id ORDER BY ts) AS next_path
+      FROM ${table}
+      WHERE ${whereSiteAndRange(siteKey, range, 'pageview', filters)}
+        AND session_id != ''
+    )
+    SELECT
+      ${neighbor} AS name,
+      COUNT(*) AS sessions
+    FROM ordered
+    WHERE pathname = '${esc(pathname)}'
+      AND ${neighbor} IS NOT NULL
+      AND ${neighbor} != ''
+    GROUP BY ${neighbor}
+    ORDER BY sessions DESC
+    LIMIT ${limit}
+  `;
+}
+

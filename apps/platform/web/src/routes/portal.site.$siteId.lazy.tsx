@@ -62,6 +62,12 @@ import { GoalsDrawer } from '@/components/analytics/GoalsDrawer';
 import { FunnelFormModal } from '@/components/analytics/FunnelFormModal';
 import { FunnelsDrawer } from '@/components/analytics/FunnelsDrawer';
 import { FunnelsPanel } from '@/components/analytics/FunnelsPanel';
+import {
+  AttributionPanel,
+  PathPanel,
+  RetentionPanel,
+  CrawlersPanel,
+} from '@/components/analytics/InsightsExtras';
 import { PeriodPicker } from '@/components/layout/PeriodPicker';
 import { api, type AnalyticsFilters } from '@/lib/api';
 import { FieldError } from '@/components/ui/field-error';
@@ -309,6 +315,25 @@ function EditSiteModal({
     onError: (err: Error) => setError(err.message),
   });
 
+  const securityQ = useQuery({
+    queryKey: ['site-security', siteId],
+    queryFn: () => api.getSecurity(siteId),
+    enabled: open,
+    retry: false,
+  });
+  const securityLogsQ = useQuery({
+    queryKey: ['site-security-logs', siteId],
+    queryFn: () => api.getSecurityLogs(siteId),
+    enabled: open && !!(securityQ.data as any)?.data?.enabled,
+    retry: false,
+  });
+  const setSecurity = useMutation({
+    mutationFn: (enabled: boolean) => api.setSecurity(siteId, enabled),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['site-security', siteId] });
+    },
+  });
+
   const nameError = requiredTextError(name, 100, 'Site name');
   const domainErr = domainInputError(domain);
   const canSave = !nameError && !domainErr;
@@ -388,6 +413,36 @@ function EditSiteModal({
                 Dashboard days and hours are bucketed in this timezone.
               </p>
             </div>
+            {securityQ.isSuccess && (
+              <div>
+                <label className="mb-2 block text-[13px] font-medium text-[#3D3B4F]">
+                  Security mode
+                </label>
+                <p className="mb-2 text-[12px] text-[#9B9590]">
+                  Store raw visitor IPs with city/ISP-level geo for 90 days. Isolated from analytics
+                  reports. Every view is audited. Owners only.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setSecurity.mutate(!(securityQ.data as any)?.data?.enabled)}
+                  className="rounded-full bg-muted px-3.5 py-1.5 text-[12px] font-semibold text-foreground"
+                >
+                  {(securityQ.data as any)?.data?.enabled ? 'Disable IP logs' : 'Enable IP logs'}
+                </button>
+                {!!(securityLogsQ.data as any)?.data?.length && (
+                  <ul className="mt-3 max-h-40 overflow-auto text-[12px] text-[#6E6C7C]">
+                    {((securityLogsQ.data as any).data as { ip: string; city: string; ts: number }[])
+                      .slice(0, 20)
+                      .map(row => (
+                        <li key={row.ip + row.ts}>
+                          {row.ip} · {row.city || 'unknown city'} ·{' '}
+                          {new Date(row.ts).toISOString().slice(0, 16)}
+                        </li>
+                      ))}
+                  </ul>
+                )}
+              </div>
+            )}
             {error && <p className="text-[13px] text-[#e07a5f]">{error}</p>}
           </div>
         </DialogBody>
@@ -1333,9 +1388,6 @@ function SiteAnalyticsPage(): ReactElement {
   const eventsQ = useQuery(
     tileOpts(['events'], () => api.getEvents(siteId, period, filters), belowFoldVisible)
   );
-  const botsQ = useQuery(
-    tileOpts(['bots'], () => api.getBots(siteId, period, filters), belowFoldVisible)
-  );
   const webmcpQ = useQuery(
     tileOpts(['webmcp'], () => api.getWebmcp(siteId, period, filters), belowFoldVisible)
   );
@@ -1476,6 +1528,10 @@ function SiteAnalyticsPage(): ReactElement {
   const events = (eventsQ.data as any)?.data as
     | { name: string; count: number; totalValue: number }[]
     | undefined;
+  const defaultPath =
+    ((topPagesQ.data as any)?.data as { name: string }[] | undefined)?.[0]?.name ||
+    filters.page ||
+    '';
 
   return (
     <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
@@ -1750,6 +1806,14 @@ function SiteAnalyticsPage(): ReactElement {
                 onAdd={canManage ? () => setGoalForm({ goal: null }) : undefined}
                 onManage={canManage ? () => setGoalsOpen(true) : undefined}
               />
+              <AttributionPanel siteId={siteId} period={period} filters={filters} />
+              <PathPanel
+                siteId={siteId}
+                period={period}
+                filters={filters}
+                defaultPage={defaultPath}
+              />
+              <RetentionPanel siteId={siteId} />
               {selectedEvent === null ? (
                 <PanelCard
                   title="Custom Events"
@@ -1825,19 +1889,7 @@ function SiteAnalyticsPage(): ReactElement {
               {/* Bot traffic: counted at ingest under its own event type, so
                 it never touches the human metrics above. Value shown is
                 distinct visitors per bot (crawlers, AI agents, monitors). */}
-              <PanelCard
-                title="Bots"
-                labelHeader="Bot"
-                valueHeader="Visitors"
-                items={(
-                  (botsQ.data as any)?.data as
-                    | { name: string; visitors: number; pageviews: number }[]
-                    | undefined
-                )?.map(b => ({ name: b.name, visitors: b.visitors }))}
-                isLoading={botsQ.isLoading}
-                isError={botsQ.isError}
-                emptyText="No bot visits yet"
-              />
+              <CrawlersPanel siteId={siteId} period={period} filters={filters} />
 
               {/* Funnels */}
               <FunnelsPanel

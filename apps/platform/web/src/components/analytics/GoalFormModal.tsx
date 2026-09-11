@@ -265,12 +265,13 @@ export function GoalFormModal({
                     <p className="mt-1.5 text-[11px] text-[#B5B0AA]">
                       Send it with{' '}
                       <code className="rounded bg-muted px-1 py-0.5 text-[#6E6C7C]">
-                        traks(&apos;{target.trim() || 'signup'}&apos;
+                        traks.conversion(&apos;{target.trim() || 'contact_form_submitted'}&apos;
                         {propKey.trim() && propValue.trim()
                           ? `, { ${propKey.trim()}: '${propValue.trim()}' }`
                           : ''}
                         )
                       </code>
+                      {' '}or the existing <code className="rounded bg-muted px-1 py-0.5">traks()</code> call.
                     </p>
                   )}
                 </div>

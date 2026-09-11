@@ -170,6 +170,11 @@ export class SiteLiveStore extends DurableObject<unknown> {
         month TEXT PRIMARY KEY,
         events INTEGER NOT NULL DEFAULT 0
       );
+      CREATE TABLE IF NOT EXISTS cohort_visits (
+        visitor_hash TEXT NOT NULL,
+        week_key TEXT NOT NULL,
+        PRIMARY KEY (visitor_hash, week_key)
+      );
     `);
     // Migrations for DO instances created before these columns existed:
     // CREATE TABLE IF NOT EXISTS leaves their old schema untouched.
@@ -242,6 +247,15 @@ export class SiteLiveStore extends DurableObject<unknown> {
     for (const e of events) this.dirtyMonths.add(e.hourKey.slice(0, 7));
     this.countsSincePersist += events.length;
     if (this.countsSincePersist >= COUNTER_PERSIST_EVERY) this.persistCounts();
+
+    for (const e of events) {
+      if (e.eventType !== 'pageview' || !e.cohortVisitorId || !e.weekKey) continue;
+      this.sql.exec(
+        `INSERT OR IGNORE INTO cohort_visits (visitor_hash, week_key) VALUES (?, ?)`,
+        e.cohortVisitorId,
+        e.weekKey
+      );
+    }
   }
 
   /**
@@ -1281,6 +1295,160 @@ export class SiteLiveStore extends DurableObject<unknown> {
           )
           .toArray()
           .map(r => ({ name: String(r.name), visitors: n(r.visitors), sessions: n(r.sessions) }))
+    );
+  }
+
+  private static goalOrSql(goals: LiveGoalTarget[]): { sql: string; params: (string | number)[] } {
+    if (goals.length === 0) return { sql: '0', params: [] };
+    const parts: string[] = [];
+    const params: (string | number)[] = [];
+    for (const g of goals.slice(0, 50)) {
+      if (g.type === 'page') {
+        if (isPagePrefix(g.target)) {
+          const prefix = g.target.slice(0, -2);
+          parts.push(`(event_type = 'pageview' AND (pathname = ? OR pathname LIKE ? ESCAPE '\\'))`);
+          params.push(prefix, `${escapeLike(prefix)}/%`);
+        } else {
+          parts.push(`(event_type = 'pageview' AND pathname = ?)`);
+          params.push(g.target);
+        }
+      } else if (g.propKey && g.propValue) {
+        const patterns = propLikePatterns(g.propKey, g.propValue);
+        parts.push(
+          `(event_type = 'event' AND event_name = ? AND (${patterns.map(() => `event_meta LIKE ? ESCAPE '\\'`).join(' OR ')}))`
+        );
+        params.push(g.target, ...patterns);
+      } else {
+        parts.push(`(event_type = 'event' AND event_name = ?)`);
+        params.push(g.target);
+      }
+    }
+    return { sql: parts.join(' OR '), params };
+  }
+
+  async attribution(
+    fromMs: number,
+    toMs: number,
+    touch: 'first' | 'last',
+    dim: LiveDimension,
+    goals: LiveGoalTarget[],
+    filters?: LiveFilters
+  ): Promise<{ name: string; sessions: number; conversions: number }[]> {
+    const col = DIMENSION_COLUMNS[dim];
+    if (col !== 'utm_source' && col !== 'utm_medium' && col !== 'utm_campaign') return [];
+    const f = SiteLiveStore.filterSql(filters);
+    const g = SiteLiveStore.goalOrSql(goals);
+    const order =
+      touch === 'first'
+        ? 'ts ASC'
+        : `CASE WHEN utm_source = '' AND utm_medium = '' AND utm_campaign = '' THEN 1 ELSE 0 END, ts DESC`;
+    const defKey = goals
+      .map(x => `${x.id}:${x.type}:${x.target}:${x.propKey ?? ''}:${x.propValue ?? ''}`)
+      .join('|');
+    return this.memoized(
+      `attr:${touch}:${col}:${SiteLiveStore.q(fromMs)}:${SiteLiveStore.q(toMs)}:${defKey}:${SiteLiveStore.filterKey(filters)}`,
+      MEMO_TTL_MS,
+      () =>
+        this.sql
+          .exec(
+            `WITH ranked AS (
+               SELECT session_id, ${col} AS name,
+                      ROW_NUMBER() OVER (PARTITION BY session_id ORDER BY ${order}) AS rn
+               FROM events
+               WHERE event_type = 'pageview' AND ts >= ? AND ts < ? AND session_id != ''${f.sql}
+             ),
+             touch AS (
+               SELECT session_id, name FROM ranked WHERE rn = 1 AND name != ''
+             ),
+             converted AS (
+               SELECT DISTINCT session_id FROM events
+               WHERE ts >= ? AND ts < ? AND session_id != '' AND (${g.sql})
+             )
+             SELECT t.name AS name, COUNT(*) AS sessions,
+                    SUM(CASE WHEN c.session_id IS NOT NULL THEN 1 ELSE 0 END) AS conversions
+             FROM touch t
+             LEFT JOIN converted c ON c.session_id = t.session_id
+             GROUP BY t.name
+             ORDER BY sessions DESC
+             LIMIT 25`,
+            fromMs,
+            toMs,
+            ...f.params,
+            fromMs,
+            toMs,
+            ...g.params
+          )
+          .toArray()
+          .map(r => ({
+            name: String(r.name),
+            sessions: n(r.sessions),
+            conversions: n(r.conversions),
+          }))
+    );
+  }
+
+  async pathNeighbors(
+    kind: 'next' | 'prev',
+    pathname: string,
+    fromMs: number,
+    toMs: number,
+    limit: number,
+    filters?: LiveFilters
+  ): Promise<{ name: string; sessions: number }[]> {
+    const boundedLimit = Math.max(1, Math.min(50, limit));
+    const f = SiteLiveStore.filterSql(filters);
+    const neighbor = kind === 'next' ? 'next_path' : 'prev_path';
+    return this.memoized(
+      `path:${kind}:${SiteLiveStore.esc(pathname)}:${SiteLiveStore.q(fromMs)}:${SiteLiveStore.q(toMs)}:${boundedLimit}:${SiteLiveStore.filterKey(filters)}`,
+      MEMO_TTL_MS,
+      () =>
+        this.sql
+          .exec(
+            `WITH ordered AS (
+               SELECT session_id, pathname,
+                      LAG(pathname) OVER (PARTITION BY session_id ORDER BY ts) AS prev_path,
+                      LEAD(pathname) OVER (PARTITION BY session_id ORDER BY ts) AS next_path
+               FROM events
+               WHERE event_type = 'pageview' AND ts >= ? AND ts < ? AND session_id != ''${f.sql}
+             )
+             SELECT ${neighbor} AS name, COUNT(*) AS sessions
+             FROM ordered
+             WHERE pathname = ? AND ${neighbor} IS NOT NULL AND ${neighbor} != ''
+             GROUP BY ${neighbor}
+             ORDER BY sessions DESC
+             LIMIT ?`,
+            fromMs,
+            toMs,
+            ...f.params,
+            pathname,
+            boundedLimit
+          )
+          .toArray()
+          .map(r => ({ name: String(r.name), sessions: n(r.sessions) }))
+    );
+  }
+
+  async retention(): Promise<{ cohort: string; week: string; visitors: number }[]> {
+    return this.memoized('retention', MEMO_TTL_MS, () =>
+      this.sql
+        .exec(
+          `WITH first AS (
+             SELECT visitor_hash, MIN(week_key) AS cohort
+             FROM cohort_visits
+             GROUP BY visitor_hash
+           )
+           SELECT f.cohort AS cohort, c.week_key AS week, COUNT(*) AS visitors
+           FROM first f
+           JOIN cohort_visits c ON c.visitor_hash = f.visitor_hash
+           GROUP BY f.cohort, c.week_key
+           ORDER BY f.cohort, c.week_key`
+        )
+        .toArray()
+        .map(r => ({
+          cohort: String(r.cohort),
+          week: String(r.week),
+          visitors: n(r.visitors),
+        }))
     );
   }
 }

@@ -175,7 +175,7 @@ async function getDailyCryptoKey(secret: string, date: string): Promise<CryptoKe
   );
   // Yesterday/today/tomorrow across all served timezones is a tiny set; clear
   // wholesale rather than tracking an LRU.
-  if (cryptoKeys.size > 8) cryptoKeys.clear();
+  if (cryptoKeys.size > 16) cryptoKeys.clear();
   cryptoKeys.set(date, key);
   return key;
 }
@@ -208,6 +208,16 @@ async function generateVisitorId(
   // Convert first 8 bytes to hex string (64-bit hash - plenty for distinct counting)
   const hex = Array.from(hashArray.slice(0, 8), b => b.toString(16).padStart(2, '0')).join('');
   return hex;
+}
+
+/** Cross-day hash for retention only — never stored on Iceberg event rows. */
+async function generateStableVisitorId(
+  secret: string,
+  ip: string,
+  userAgent: string,
+  siteKey: string
+): Promise<string> {
+  return generateVisitorId(secret, ip, userAgent, siteKey, 'lifetime');
 }
 
 /**
@@ -396,6 +406,10 @@ app.post('/api/event', async c => {
         event.s,
         dateKey
       );
+      const cohortVisitorId =
+        eventType === 'pageview' && !bot
+          ? await generateStableVisitorId(c.env.VISITOR_HASH_SECRET, ip, ua, event.s)
+          : '';
 
       // Plausible has no client session id; approximate its server-side
       // sessionization with a deterministic 30-minute window (lib/plausible.ts).
@@ -499,6 +513,8 @@ app.post('/api/event', async c => {
             eventName: event.en || '',
             eventMeta: eventMeta,
             eventValue: event.ev || 0,
+            weekKey,
+            cohortVisitorId,
             latitude,
             longitude,
           })
@@ -507,6 +523,14 @@ app.post('/api/event', async c => {
             countFailure(c.env, 'live_write_failed', event.s);
           }),
       ]);
+      await logSecurityIp(c.env, site.siteId, {
+        ip,
+        sessionId,
+        country,
+        city,
+        isp: typeof cf.asOrganization === 'string' ? cf.asOrganization : '',
+        ts: now.getTime(),
+      }).catch(err => console.error('Security IP log failed:', err));
     })().catch(err => {
       // Parsing/crypto failed before either sink was reached: the event is
       // dropped. Count it - a spike here means misconfiguration (e.g. an
@@ -519,5 +543,50 @@ app.post('/api/event', async c => {
   // Plausible's tracker treats any 2xx as delivered; mirror its 202.
   return pl ? c.text('ok', 202) : c.json({ ok: true });
 });
+
+const SECURITY_TTL_MS = 90 * 24 * 60 * 60 * 1000;
+const securityEnabledCache = new Map<string, { on: boolean; expires: number }>();
+
+async function securityModeOn(db: D1Database, siteId: string): Promise<boolean> {
+  const hit = securityEnabledCache.get(siteId);
+  if (hit && hit.expires > Date.now()) return hit.on;
+  try {
+    const row = await db
+      .prepare(`SELECT enabled FROM security_site_settings WHERE site_id = ? LIMIT 1`)
+      .bind(siteId)
+      .first<{ enabled: number }>();
+    const on = Number(row?.enabled) === 1;
+    if (securityEnabledCache.size > 10_000) securityEnabledCache.clear();
+    securityEnabledCache.set(siteId, { on, expires: Date.now() + 60_000 });
+    return on;
+  } catch {
+    return false;
+  }
+}
+
+async function logSecurityIp(
+  env: Bindings,
+  siteId: string,
+  row: { ip: string; sessionId: string; country: string; city: string; isp: string; ts: number }
+): Promise<void> {
+  if (!(await securityModeOn(env.DB, siteId))) return;
+  const id = crypto.randomUUID();
+  await env.DB.prepare(
+    `INSERT INTO security_ip_logs (id, site_id, session_id, ip_raw, country, city, isp, ts, expires_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  )
+    .bind(
+      id,
+      siteId,
+      row.sessionId,
+      row.ip.slice(0, 64),
+      row.country.slice(0, 8),
+      row.city.slice(0, 128),
+      row.isp.slice(0, 256),
+      row.ts,
+      row.ts + SECURITY_TTL_MS
+    )
+    .run();
+}
 
 export default app;

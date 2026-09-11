@@ -16,11 +16,39 @@ own Cloudflare usage, which stays inside the free allowances for most sites.
 Install it at [traks.dev](https://traks.dev); read the release notes at
 [traks.dev/changelog](https://traks.dev/changelog).
 
+## What shipped (this fork)
+
+Additive work on top of upstream Traks. Existing tracker payloads, Iceberg
+columns, and current API routes are unchanged.
+
+1. **UTM attribution** — Landing `utm_source` / `utm_medium` / `utm_campaign`
+   persist for the rest of the visit (not only the first pageview). Dashboard:
+   Attribution report with first-touch / last-touch and conversion rate.
+2. **Conversions** — Optional `traks.conversion('contact_form_submitted')`.
+   Existing `traks()` still works. No-code URL goals such as `/thank-you`
+   already existed.
+3. **Funnels** — Already in upstream; left as-is.
+4. **Path analysis** — For a selected page, next page and previous page.
+5. **Retention** — Weekly cohort triangle. Uses a stable hash in the live
+   store (daily `visitor_id` cannot retain across weeks). Counting starts
+   after this code is deployed.
+6. **Crawlers & AI traffic** — Labels search crawlers, AI crawlers (GPTBot,
+   ClaudeBot, Google-Extended, and others), AI referrals, and other bots.
+7. **Security mode** — Optional, owner-gated raw IP + city/ISP geo, 90-day
+   expiry, access audit. Isolated from regular analytics.
+8. **Saved segments** — Already in upstream; filter sets still apply across
+   the new reports.
+
+Not in Iceberg: `utm_term` and `utm_content` (that would need new event
+columns).
+
 ## Highlights
 
 - **Privacy-first** — no cookies, no fingerprinting persistence. Visitors are
   counted with a Plausible-style daily-rotating hash
-  (`HMAC(secret + date, ip + ua + siteKey)`); raw IP addresses are never stored.
+  (`HMAC(secret + date, ip + ua + siteKey)`). Regular analytics never store a
+  raw IP. Optional **Security mode** (workspace owners only) can keep IP +
+  city/ISP geo in a separate table for 90 days, with an access audit.
 - **Realtime by default** — a hot/cold split serves "today" and live views from
   per-site SQLite Durable Objects in milliseconds, with zero ingest delay. A
   WebSocket pushes live visitors, pages, referrers, and city-level map dots to
@@ -35,6 +63,9 @@ Install it at [traks.dev](https://traks.dev); read the release notes at
 - **Agent-ready** — analytics are exposed to AI agents via MCP/WebMCP tools,
   with bot and agent traffic classified and reported alongside human traffic.
 - **Tiny tracker** — a single `t.js` script tag, served inline from the edge.
+  Landing-page UTM tags persist for the rest of the visit. Optional
+  `traks.conversion()` records a goal event; URL goals (for example
+  `/thank-you`) need no extra code.
 
 ## Architecture
 

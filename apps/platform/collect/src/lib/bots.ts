@@ -15,6 +15,8 @@ const NAMED_BOTS: [RegExp, string][] = [
   [/applebot/i, 'Applebot'],
   // AI crawlers and assistant fetchers. All would match the generic /bot/i
   // fallback; named entries give them stable display names in the panel.
+  [/google-extended/i, 'Google-Extended'],
+  [/google-cloudvertexbot/i, 'Google-CloudVertexBot'],
   [/gptbot/i, 'GPTBot'],
   [/oai-searchbot/i, 'OAI-SearchBot'],
   [/chatgpt-user/i, 'ChatGPT-User'],

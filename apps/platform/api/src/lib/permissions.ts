@@ -10,6 +10,7 @@ import { defaultStatements, ownerAc, memberAc } from 'better-auth/plugins/organi
  *
  *   site:   create/update/delete plus `configure` (goals, segments, funnels)
  *   roster: who may see the workspace member list
+ *   security: raw IP / location logs (Security mode)
  *
  * Adding a role (e.g. `admin`) or granting members a permission is an edit
  * HERE, not a hunt through route handlers.
@@ -18,6 +19,7 @@ const statement = {
   ...defaultStatements,
   site: ['create', 'update', 'delete', 'configure'],
   roster: ['read'],
+  security: ['read'],
 } as const;
 
 export const ac = createAccessControl(statement);
@@ -26,6 +28,7 @@ const owner = ac.newRole({
   ...ownerAc.statements,
   site: ['create', 'update', 'delete', 'configure'],
   roster: ['read'],
+  security: ['read'],
 });
 
 /** Members are view-only: dashboards and stats, no mutations, no roster.
@@ -37,6 +40,7 @@ const member = ac.newRole({
   ac: [],
   site: [],
   roster: [],
+  security: [],
 });
 
 export const workspaceRoles = { owner, member };

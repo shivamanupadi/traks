@@ -344,10 +344,16 @@ function DocsIndex(): ReactElement {
           title="Custom events"
           lede="Fire an event anywhere in your code. Calls made before the script loads are queued by the stub."
         >
-          <Code>{`window.traks(name, props?, value?)\n\ntraks('signup', { plan: 'pro' });\ntraks('purchase', { sku: 'T100' }, 49.99);`}</Code>
+          <Code>{`window.traks(name, props?, value?)\nwindow.traks.conversion(name, props?)\n\ntraks('signup', { plan: 'pro' });\ntraks.conversion('contact_form_submitted');\ntraks('purchase', { sku: 'T100' }, 49.99);`}</Code>
           <ul className="list-disc space-y-1.5 pl-5">
             <li>
-              <Inline>name</Inline>: a short snake_case verb phrase.
+              <Inline>traks.conversion</Inline>: optional alias for a goal event such as{' '}
+              <Inline>contact_form_submitted</Inline>. Same payload as <Inline>traks()</Inline>.
+              Page goals still work with no code, for example a path of <Inline>/thank-you</Inline>.
+            </li>
+            <li>
+              UTM tags on the landing URL are stored for the rest of the session and attached to
+              later pageviews and events automatically.
             </li>
             <li>
               <Inline>props</Inline>: a flat object of scalar values. Props are what goals and

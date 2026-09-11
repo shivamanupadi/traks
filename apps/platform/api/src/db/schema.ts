@@ -287,3 +287,51 @@ export const funnels = sqliteTable(
   },
   table => [index('funnels_site_id_idx').on(table.siteId)]
 );
+
+// ============ Security mode (isolated IP logs; not joined into analytics) ============
+export const securitySiteSettings = sqliteTable('security_site_settings', {
+  siteId: text('site_id')
+    .primaryKey()
+    .references(() => sites.id, { onDelete: 'cascade' }),
+  enabled: integer('enabled', { mode: 'boolean' }).default(false).notNull(),
+  retentionDays: integer('retention_days').default(90).notNull(),
+});
+
+export const securityIpLogs = sqliteTable(
+  'security_ip_logs',
+  {
+    id: text('id').primaryKey(),
+    siteId: text('site_id')
+      .notNull()
+      .references(() => sites.id, { onDelete: 'cascade' }),
+    sessionId: text('session_id').notNull().default(''),
+    ipRaw: text('ip_raw').notNull(),
+    country: text('country').notNull().default(''),
+    city: text('city').notNull().default(''),
+    isp: text('isp').notNull().default(''),
+    ts: integer('ts').notNull(),
+    expiresAt: integer('expires_at').notNull(),
+  },
+  table => [
+    index('security_ip_logs_site_ts_idx').on(table.siteId, table.ts),
+    index('security_ip_logs_expires_idx').on(table.expiresAt),
+  ]
+);
+
+export const securityAccessAudit = sqliteTable(
+  'security_access_audit',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => createId()),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id),
+    siteId: text('site_id')
+      .notNull()
+      .references(() => sites.id, { onDelete: 'cascade' }),
+    action: text('action').notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+  },
+  table => [index('security_access_audit_site_idx').on(table.siteId)]
+);

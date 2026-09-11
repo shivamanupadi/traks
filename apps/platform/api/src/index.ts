@@ -12,6 +12,7 @@ import { meRoute } from './routes/me';
 import { workspacesRoute } from './routes/workspaces';
 import { invitationsRoute } from './routes/invitations';
 import { tokensRoute } from './routes/tokens';
+import { securityRoute, purgeExpiredSecurityLogs } from './routes/security';
 import { mcpHandler } from './routes/mcp';
 import { requireAuth, sessionOnly } from './middleware/auth';
 import { runPrewarm } from './lib/prewarm';
@@ -133,6 +134,7 @@ const routes = app
   .route('/api/invitations', invitationsRoute)
   .route('/api/sites', sitesRoute)
   .route('/api/analytics', analyticsRoute)
+  .route('/api/security', securityRoute)
   .route('/api/tokens', tokensRoute);
 
 // MCP endpoint (Streamable HTTP, stateless): registered after the routes it
@@ -165,6 +167,13 @@ export default {
   fetch: app.fetch,
   /** Every minute: keep recently viewed dashboards fresh (lib/prewarm.ts). */
   scheduled(_event: ScheduledEvent, env: Bindings, ctx: ExecutionContext): void {
-    ctx.waitUntil(runPrewarm(app, env, ctx));
+    ctx.waitUntil(
+      Promise.all([
+        runPrewarm(app, env, ctx),
+        purgeExpiredSecurityLogs(env.DB).catch(err =>
+          console.error('[security] purge failed:', err)
+        ),
+      ])
+    );
   },
 };

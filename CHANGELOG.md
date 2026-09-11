@@ -6,6 +6,13 @@ ships separately and is not listed here.
 
 ## Unreleased
 
+### Added
+
+- UTM tags persist for the visit (not just the landing pageview) and power a first/last-touch Attribution report with conversion rates.
+- `traks.conversion()` as an optional tracker method for contact-form and other goals; URL goals such as `/thank-you` still need no code.
+- Path analysis (next/previous page), weekly retention cohorts, and a Crawlers & AI traffic view that labels search bots, AI crawlers, and AI referrals.
+- Security mode: optional, owner-gated raw IP logs with city/ISP geo, 90-day expiry, and an access audit. Isolated from regular analytics.
+
 ## 0.1.41 - 2026-09-10
 
 ### Added

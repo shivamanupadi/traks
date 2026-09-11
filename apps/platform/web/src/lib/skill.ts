@@ -46,8 +46,10 @@ of every page:
 
 \`\`\`js
 window.traks(name, props?, value?)
+window.traks.conversion(name, props?)
 // examples
 traks('signup', { plan: 'pro' });
+traks.conversion('contact_form_submitted');
 traks('purchase', { sku: 'T100' }, 49.99);
 traks('console_click', { location: 'pricing' });
 \`\`\`

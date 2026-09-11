@@ -16,6 +16,32 @@ own Cloudflare usage, which stays inside the free allowances for most sites.
 Install it at [traks.dev](https://traks.dev); read the release notes at
 [traks.dev/changelog](https://traks.dev/changelog).
 
+## What shipped (this fork)
+
+Additive work on top of upstream Traks. Existing tracker payloads, Iceberg
+columns, and current API routes are unchanged.
+
+1. **UTM attribution** — Landing `utm_source` / `utm_medium` / `utm_campaign`
+   persist for the rest of the visit (not only the first pageview). Dashboard:
+   Attribution report with first-touch / last-touch and conversion rate.
+2. **Conversions** — Optional `traks.conversion('contact_form_submitted')`.
+   Existing `traks()` still works. No-code URL goals such as `/thank-you`
+   already existed.
+3. **Funnels** — Already in upstream; left as-is.
+4. **Path analysis** — For a selected page, next page and previous page.
+5. **Retention** — Weekly cohort triangle. Uses a stable hash in the live
+   store (daily `visitor_id` cannot retain across weeks). Counting starts
+   after this code is deployed.
+6. **Crawlers & AI traffic** — Labels search crawlers, AI crawlers (GPTBot,
+   ClaudeBot, Google-Extended, and others), AI referrals, and other bots.
+7. **Security mode** — Optional, owner-gated raw IP + city/ISP geo, 90-day
+   expiry, access audit. Isolated from regular analytics.
+8. **Saved segments** — Already in upstream; filter sets still apply across
+   the new reports.
+
+Not in Iceberg: `utm_term` and `utm_content` (that would need new event
+columns).
+
 ## Highlights
 
 - **Privacy-first** — no cookies, no fingerprinting persistence. Visitors are
@@ -40,27 +66,6 @@ Install it at [traks.dev](https://traks.dev); read the release notes at
   Landing-page UTM tags persist for the rest of the visit. Optional
   `traks.conversion()` records a goal event; URL goals (for example
   `/thank-you`) need no extra code.
-
-## Reports
-
-On top of pages, sources, locations, devices, goals, and funnels, the
-dashboard also includes:
-
-- **Attribution** — sessions and conversion rate by UTM source, medium, or
-  campaign, with a first-touch / last-touch toggle.
-- **Path analysis** — for a selected page, where people went next (or came
-  from).
-- **Retention** — classic weekly cohort triangle (stable visitor hash in the
-  live store; counting starts after this code is deployed).
-- **Crawlers & AI traffic** — search crawlers, AI crawlers (GPTBot, ClaudeBot,
-  Google-Extended, and others), AI referrals, and other bots, labelled instead
-  of only filtered out.
-- **Saved segments** — named filter sets reused across reports.
-- **Security mode** — optional raw IP log, isolated from the main analytics
-  views.
-
-These additions are additive: existing `POST /api/event` fields, Iceberg
-columns, and current API routes stay as they are.
 
 ## Architecture
 

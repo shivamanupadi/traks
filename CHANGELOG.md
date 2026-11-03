@@ -6,6 +6,12 @@ ships separately and is not listed here.
 
 ## Unreleased
 
+## 0.1.47 - 2026-11-03
+
+### Fixed
+
+- The events bucket no longer grows by gigabytes. Every minute the analytics table wrote a new copy of its metadata file and never removed the old ones, so the bucket filled with copies of a file only the newest of which is used, along with growing storage and operation counts. The instance now tells the table to keep only its last 10 metadata files and, once a day, removes the old copies already in the bucket. Your analytics data is not touched. Buckets that already grew shrink back within a day of updating. Snapshot history is now kept for 2 days instead of 30, applied the next time you run Update from traks.dev.
+
 ## 0.1.46 - 2026-10-28
 
 ### Changed

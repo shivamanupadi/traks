@@ -288,12 +288,39 @@ async function ensureBucketAndCatalog(ctx: EngineCtx, cf: Cf, bucket: string): P
       { token: ctx.catalogToken },
       { tolerate: [10001, 10021, 40010, 7000, 7003] }
     ).catch(() => undefined);
-    await cf('POST', `/accounts/${ctx.accountId}/r2-catalog/${bucket}/maintenance-configs`, {
-      compaction: { state: 'enabled', targetSizeMb: 128 },
-    }).catch(() => undefined);
-    await cf('POST', `/accounts/${ctx.accountId}/r2-catalog/${bucket}/maintenance-configs`, {
-      snapshot_expiration: { state: 'enabled', max_snapshot_age: '30d', min_snapshots_to_keep: 5 },
-    }).catch(() => undefined);
+    // Runs on every install AND update, so existing instances pick up changes
+    // here. Snapshots are kept 2 days: Traks never time-travels, and every
+    // retained snapshot is listed in each new metadata.json and pins the
+    // small pre-compaction files. (Superseded metadata.json copies are pruned
+    // by the instance itself - api worker lib/table-maintenance.ts.)
+    // A failure must not sink the deploy, but it must not be silent either:
+    // without maintenance the bucket grows without bound.
+    const maintenance = async (body: unknown, what: string): Promise<void> => {
+      try {
+        await cf(
+          'POST',
+          `/accounts/${ctx.accountId}/r2-catalog/${bucket}/maintenance-configs`,
+          body
+        );
+      } catch (err) {
+        await ctx.emit({
+          stepId: 'catalog',
+          label: 'Enable R2 Data Catalog',
+          status: 'retry',
+          detail: `Could not enable ${what}: ${err instanceof Error ? err.message : err}`.slice(
+            0,
+            MAX_DETAIL
+          ),
+        });
+      }
+    };
+    await maintenance({ compaction: { state: 'enabled', target_size_mb: 128 } }, 'compaction');
+    await maintenance(
+      {
+        snapshot_expiration: { state: 'enabled', max_snapshot_age: '2d', min_snapshots_to_keep: 5 },
+      },
+      'snapshot expiration'
+    );
   });
 }
 

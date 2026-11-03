@@ -58,9 +58,9 @@ $WRANGLER r2 bucket catalog compaction enable "$BUCKET" \
   --target-size 128 \
   --token "$CATALOG_TOKEN"
 
-echo "==> [4/6] Enable snapshot expiration (30 days, keep >= 5; also reclaims unreferenced data files)"
+echo "==> [4/6] Enable snapshot expiration (2 days, keep >= 5; also reclaims unreferenced data files)"
 $WRANGLER r2 bucket catalog snapshot-expiration enable "$BUCKET" \
-  --older-than-days 30 \
+  --older-than-days 2 \
   --retain-last 5 \
   --token "$CATALOG_TOKEN"
 

@@ -16,6 +16,8 @@ import { mcpHandler } from './routes/mcp';
 import { publicAnalyticsGate, publicRoute } from './routes/public';
 import { requireAuth, sessionOnly } from './middleware/auth';
 import { runPrewarm } from './lib/prewarm';
+import { runTableMaintenance } from './lib/table-maintenance';
+import { TABLE_DEV, TABLE_PROD } from '@traks/shared';
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -172,8 +174,12 @@ export type AppType = typeof routes;
 
 export default {
   fetch: app.fetch,
-  /** Every minute: keep recently viewed dashboards fresh (lib/prewarm.ts). */
+  /** Every minute: keep recently viewed dashboards fresh (lib/prewarm.ts);
+   *  once a day: Iceberg metadata hygiene (lib/table-maintenance.ts). */
   scheduled(_event: ScheduledEvent, env: Bindings, ctx: ExecutionContext): void {
     ctx.waitUntil(runPrewarm(app, env, ctx));
+    ctx.waitUntil(
+      runTableMaintenance(env, env.ENVIRONMENT === 'production' ? TABLE_PROD : TABLE_DEV)
+    );
   },
 };

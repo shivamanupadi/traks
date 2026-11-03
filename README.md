@@ -155,10 +155,12 @@ names and the keys listed below.
 ```
 
 This creates the R2 bucket, enables the Data Catalog with automatic compaction
-(128 MB) and snapshot expiration (30 days / keep 5), then creates the stream,
+(128 MB) and snapshot expiration (2 days / keep 5), then creates the stream,
 Iceberg sink (60 s roll interval for ~1-minute dashboard freshness), and
 pipeline. Paste the printed stream ID into
-`apps/platform/collect/wrangler.toml`.
+`apps/platform/collect/wrangler.toml`. Superseded Iceberg `metadata.json`
+files are not covered by Cloudflare's maintenance; the api worker's cron
+handles them once a day (`apps/platform/api/src/lib/table-maintenance.ts`).
 
 **2. Migrate D1 and start the dev servers:**
 

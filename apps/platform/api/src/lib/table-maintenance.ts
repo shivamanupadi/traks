@@ -1,7 +1,7 @@
 import type { Bindings } from '../types';
 
 /**
- * Iceberg metadata hygiene for the events table.
+ * Iceberg table hygiene for the events table.
  *
  * Every Pipelines commit (one per sink roll, i.e. up to once a minute) and
  * every compaction writes a complete new `*.metadata.json`. Iceberg keeps the
@@ -11,6 +11,8 @@ import type { Bindings } from '../types';
  * the bucket; the events themselves were ~100 MB).
  *
  * Once a day this:
+ *  0. makes sure catalog compaction, snapshot expiration and their stored
+ *     credential are in place (see ensureCatalogMaintenance);
  *  1. sets `write.metadata.delete-after-commit.enabled` +
  *     `write.metadata.previous-versions-max` on the table, so every later
  *     commit (the Pipelines writer honours them - verified) deletes the
@@ -24,7 +26,8 @@ import type { Bindings } from '../types';
  * without being asked for a token again.
  */
 
-const KV_DONE = 'maint:metadata:v1';
+/** Bumped when the job gains a step, so updated instances run it at once. */
+const KV_DONE = 'maint:v2';
 /** S3 continuation token when a backlog spans several runs. */
 const KV_CURSOR = 'maint:metadata:cursor';
 const DONE_TTL = 24 * 60 * 60;
@@ -60,13 +63,86 @@ export async function runTableMaintenance(env: Bindings, table: string): Promise
   }
 }
 
+interface MaintenanceConfigs {
+  result?: {
+    maintenance_config?: {
+      compaction?: { state?: string };
+      snapshot_expiration?: { state?: string };
+    };
+    credential_status?: string;
+  };
+}
+
+/**
+ * Catalog-side maintenance: compaction (merges the per-minute files AND the
+ * per-commit manifests - without it a table passes R2 SQL's 5000-manifest
+ * scan limit within days and 7D/30D stop loading), snapshot expiration, and
+ * the stored credential both of them run with. The wizard sets these, but
+ * older wizards swallowed failures, so the instance re-checks and repairs.
+ * Settings that are already enabled are left as the owner configured them.
+ */
+async function ensureCatalogMaintenance(
+  account: string,
+  bucket: string,
+  token: string
+): Promise<string[]> {
+  const url = `https://api.cloudflare.com/client/v4/accounts/${account}/r2-catalog/${encodeURIComponent(bucket)}`;
+  const call = async <T>(method: string, path: string, body?: unknown): Promise<T> => {
+    const res = await fetch(url + path, {
+      method,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        ...(body ? { 'Content-Type': 'application/json' } : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`r2-catalog ${method} ${path} ${res.status}: ${text.slice(0, 200)}`);
+    }
+    return (await res.json()) as T;
+  };
+  const { result } = await call<MaintenanceConfigs>('GET', '/maintenance-configs');
+  const cfg = result?.maintenance_config ?? {};
+  const fixed: string[] = [];
+  if (result?.credential_status !== 'present') {
+    await call('POST', '/credential', { token });
+    fixed.push('credential');
+  }
+  if (cfg.compaction?.state !== 'enabled') {
+    await call('POST', '/maintenance-configs', {
+      compaction: { state: 'enabled', target_size_mb: 128 },
+    });
+    fixed.push('compaction');
+  }
+  if (cfg.snapshot_expiration?.state !== 'enabled') {
+    await call('POST', '/maintenance-configs', {
+      snapshot_expiration: { state: 'enabled', max_snapshot_age: '2d', min_snapshots_to_keep: 5 },
+    });
+    fixed.push('snapshot_expiration');
+  }
+  return fixed;
+}
+
 async function maintain(
   env: Bindings,
   table: string
-): Promise<{ propsSet: boolean; deleted: number; complete: boolean }> {
+): Promise<{
+  catalogFixed: string[] | string;
+  propsSet: boolean;
+  deleted: number;
+  complete: boolean;
+}> {
   const account = env.R2_ACCOUNT_ID;
   const bucket = env.R2_BUCKET_NAME;
   const token = env.R2_SQL_TOKEN;
+
+  // 0. Catalog maintenance. Its own failure (e.g. a hand-made token without
+  // catalog edit) is reported, not fatal: metadata pruning still runs.
+  const catalogFixed = await ensureCatalogMaintenance(account, bucket, token).catch(
+    (err: unknown) => `failed: ${err instanceof Error ? err.message : String(err)}`
+  );
+
   const [namespace, name] = table.split('.');
   const catalog = new Catalog(account, bucket, token);
   const tablePath = await catalog.tablePath(namespace, name);
@@ -107,7 +183,7 @@ async function maintain(
 
   if (next) await env.R2SQL_CACHE.put(KV_CURSOR, next, { expirationTtl: DONE_TTL });
   else await env.R2SQL_CACHE.delete(KV_CURSOR);
-  return { propsSet: missing.length > 0, deleted: victims.length, complete: !next };
+  return { catalogFixed, propsSet: missing.length > 0, deleted: victims.length, complete: !next };
 }
 
 /* ── Iceberg REST catalog ─────────────────────────────────────── */

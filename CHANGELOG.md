@@ -6,6 +6,12 @@ ships separately and is not listed here.
 
 ## Unreleased
 
+## 0.1.48 - 2026-11-04
+
+### Fixed
+
+- 7-day and 30-day stats could stop loading after a few days, with the error "scan limit exceeded … Iceberg manifests". This happened when compaction on the analytics table was never switched on, or its stored credential was missing. Older install wizards ignored that failure without saying so. Once a day the instance now checks that compaction, snapshot cleanup and their credential are in place, and repairs any that are missing. Settings that are already on are left as they are.
+
 ## 0.1.47 - 2026-11-03
 
 ### Fixed

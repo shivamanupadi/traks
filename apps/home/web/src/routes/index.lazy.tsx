@@ -3,6 +3,7 @@ import { EVENTS, track } from '@/lib/track';
 import { createLazyFileRoute } from '@tanstack/react-router';
 import { EXAMPLE_API_URL, EXAMPLE_COLLECT_URL, GITHUB_URL, useLatestVersion } from '@/lib/config';
 import { ContactModal } from '@/contact/ContactModal';
+import { MoreApps } from '@/papermint/MoreApps';
 import { motion } from 'framer-motion';
 import {
   ArrowRight,
@@ -403,6 +404,8 @@ function LandingPage(): ReactElement {
           WebkitMaskImage: 'linear-gradient(to bottom, black 0%, transparent 55%)',
         }}
       />
+
+      <MoreApps />
 
       {/* header */}
       <header className="sticky top-0 z-30 border-b border-[#E6E4DE]/70 bg-[#F6F5F2]/90 backdrop-blur">

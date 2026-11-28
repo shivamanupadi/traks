@@ -45,9 +45,9 @@ function Switch({
       onClick={() => onChange(!checked)}
       className={cn(
         'relative inline-flex h-[22px] w-[38px] shrink-0 items-center rounded-full transition-colors cursor-pointer',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3D3B4F]/30',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/30',
         'disabled:cursor-default disabled:opacity-50',
-        checked ? 'bg-[#28E99F]' : 'bg-[#E6E4DE]'
+        checked ? 'bg-[#28E99F]' : 'bg-border'
       )}
     >
       <span
@@ -72,8 +72,8 @@ function SectionRow({
   return (
     <div className="flex items-center justify-between gap-4 py-2.5">
       <div className="min-w-0">
-        <p className="text-[13px] font-semibold text-[#3D3B4F]">{title}</p>
-        <p className="text-[12px] text-[#9B9590]">{detail}</p>
+        <p className="text-[13px] font-semibold text-foreground">{title}</p>
+        <p className="text-[12px] text-subtle">{detail}</p>
       </div>
       {control}
     </div>
@@ -149,7 +149,7 @@ export function ShareDialog({
           <div
             className={cn(
               'mb-3 flex h-10 w-10 items-center justify-center rounded-xl',
-              sharing.public ? 'bg-[#28E99F]/20 text-[#3D3B4F]' : 'bg-[#F2F1ED] text-[#6E6C7C]'
+              sharing.public ? 'bg-[#28E99F]/20 text-foreground' : 'bg-muted text-muted-foreground'
             )}
           >
             {sharing.public ? (
@@ -166,10 +166,10 @@ export function ShareDialog({
         </DialogHeader>
 
         <DialogBody className="flex flex-col gap-4">
-          <div className="flex items-center justify-between gap-4 rounded-[14px] bg-[#F2F1ED] px-4 py-3">
+          <div className="flex items-center justify-between gap-4 rounded-[14px] bg-muted px-4 py-3">
             <div className="min-w-0">
-              <p className="text-[13.5px] font-semibold text-[#3D3B4F]">Public dashboard</p>
-              <p className="text-[12px] text-[#9B9590]">
+              <p className="text-[13.5px] font-semibold text-foreground">Public dashboard</p>
+              <p className="text-[12px] text-subtle">
                 {sharing.public
                   ? 'On - anyone with the link can view it.'
                   : 'Off - only your workspace can view it.'}
@@ -186,13 +186,13 @@ export function ShareDialog({
             <div className="flex items-center gap-2">
               <code
                 id="share-url"
-                className="min-w-0 flex-1 select-all truncate rounded-[12px] border border-[#E6E4DE] px-3.5 py-2.5 font-mono text-[12px] text-[#3D3B4F]"
+                className="min-w-0 flex-1 select-all truncate rounded-[12px] border border-border px-3.5 py-2.5 font-mono text-[12px] text-foreground"
               >
                 {shareUrl}
               </code>
               <button
                 onClick={copy}
-                className="flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-[#E6E4DE] px-3 text-[12px] font-semibold text-[#3D3B4F] hover:bg-[#F2F1ED] transition-colors cursor-pointer"
+                className="flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-border px-3 text-[12px] font-semibold text-foreground hover:bg-muted transition-colors cursor-pointer"
               >
                 {copied ? (
                   <Check className="h-3.5 w-3.5 text-[#1FC285]" />
@@ -206,7 +206,7 @@ export function ShareDialog({
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Open the public dashboard"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#E6E4DE] text-[#6E6C7C] hover:bg-[#F2F1ED] hover:text-[#3D3B4F] transition-colors"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
               >
                 <ExternalLink className="h-3.5 w-3.5" />
               </a>
@@ -214,15 +214,15 @@ export function ShareDialog({
           )}
 
           <div>
-            <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9B9590]">
+            <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-subtle">
               What it shows
             </p>
-            <div className="divide-y divide-[#F2F1ED]">
+            <div className="divide-y divide-muted">
               <SectionRow
                 title="Traffic"
                 detail="Visitors, pages, sources, locations and devices"
                 control={
-                  <span className="shrink-0 text-[12px] font-medium text-[#9B9590]">Always</span>
+                  <span className="shrink-0 text-[12px] font-medium text-subtle">Always</span>
                 }
               />
               <SectionRow
@@ -259,7 +259,7 @@ export function ShareDialog({
                 }
               />
             </div>
-            <p className="mt-2 text-[11.5px] leading-relaxed text-[#B5B0AA]">
+            <p className="mt-2 text-[11.5px] leading-relaxed text-faint">
               Links, bots, agent tools and the live view always stay private.
             </p>
           </div>
@@ -271,7 +271,7 @@ export function ShareDialog({
           )}
         </DialogBody>
 
-        <DialogFooter className="mx-6 border-t border-[#e6e5ea]/50 px-0 pb-5 pt-4">
+        <DialogFooter className="mx-6 border-t border-border/50 px-0 pb-5 pt-4">
           <Button onClick={() => onOpenChange(false)} className="px-5 text-[13px] shadow-none">
             Done
           </Button>

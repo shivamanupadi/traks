@@ -95,30 +95,30 @@ function LiveModalBody({
             <span
               className={cn(
                 'relative inline-flex h-[8px] w-[8px] rounded-full',
-                live ? 'bg-mint' : 'bg-[#B5B0AA]'
+                live ? 'bg-mint' : 'bg-faint'
               )}
             />
           </span>
-          <h2 className="text-[15px] font-bold tracking-[-0.01em] text-[#3D3B4F]">Live</h2>
+          <h2 className="text-[15px] font-bold tracking-[-0.01em] text-foreground">Live</h2>
           {domain && (
-            <span className="truncate text-[12.5px] text-[#9B9590] max-sm:hidden">{domain}</span>
+            <span className="truncate text-[12.5px] text-subtle max-sm:hidden">{domain}</span>
           )}
-          <span className="h-4 w-px bg-[#E6E4DE]" />
+          <span className="h-4 w-px bg-border" />
           {count === null ? (
             <span className="h-5 w-10 animate-pulse rounded bg-muted" />
           ) : (
-            <span className="text-[18px] font-bold leading-none tracking-[-0.02em] tabular-nums text-[#3D3B4F]">
+            <span className="text-[18px] font-bold leading-none tracking-[-0.02em] tabular-nums text-foreground">
               {formatNumber(count)}
             </span>
           )}
-          <span className="whitespace-nowrap text-[12.5px] text-[#9B9590]">
+          <span className="whitespace-nowrap text-[12.5px] text-subtle">
             online now<span className="max-sm:hidden"> · last 5 min</span>
           </span>
         </div>
         <span
           className={cn(
-            'inline-flex shrink-0 items-center rounded-full border border-[#E6E4DE] px-2.5 py-1 text-[11px] font-semibold',
-            live ? 'text-[#3F7A50]' : 'text-[#9B9590]'
+            'inline-flex shrink-0 items-center rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold',
+            live ? 'text-[#3F7A50]' : 'text-subtle'
           )}
           title={live ? 'Updates are pushed as they happen' : 'Refreshing every 30 seconds'}
         >
@@ -137,7 +137,7 @@ function LiveModalBody({
             alwaysShowClear
           />
         ) : (
-          <span className="text-[12.5px] text-[#B5B0AA]">
+          <span className="text-[12.5px] text-faint">
             Click a page, source or place to filter the live view
           </span>
         )}
@@ -151,8 +151,8 @@ function LiveModalBody({
           className={cn(
             'ml-auto inline-flex h-8 items-center gap-1.5 rounded-full px-3.5 text-[12.5px] font-semibold transition-colors',
             hasFilters
-              ? 'bg-[#3D3B4F] text-white hover:bg-[#2C2B3B]'
-              : 'cursor-default border border-[#E6E4DE] text-[#B5B0AA]'
+              ? 'bg-btn text-white hover:bg-btn-hover'
+              : 'cursor-default border border-border text-faint'
           )}
         >
           Apply to dashboard

@@ -23,18 +23,18 @@ export const Route = createFileRoute('/portal/settings')({
   component: SettingsPage,
 });
 
-const CARD = 'rounded-[20px] bg-white p-5 shadow-float sm:p-6';
+const CARD = 'rounded-[20px] bg-card p-5 shadow-float sm:p-6';
 
 /** Section icon tiles: brand ink + mint for settings, coral for delete / leave. */
 const TONE = {
   // Brand: the logo's ink on a light wash of its mint.
-  brand: 'bg-[#28E99F]/20 text-[#3D3B4F]',
-  coral: 'bg-[#fbe9e3] text-[#c9694f]',
+  brand: 'bg-[#28E99F]/20 text-foreground',
+  coral: 'bg-coral-soft text-coral-deep',
 } as const;
 
 /** Ink primary that reads as "nothing to do" when disabled, not faded mint. */
 const PRIMARY =
-  'shrink-0 bg-[#3D3B4F] px-5 text-[13px] font-semibold text-white shadow-none hover:bg-[#2C2B3B] disabled:bg-[#F2F1ED] disabled:text-[#B5B0AA] disabled:opacity-100';
+  'shrink-0 bg-btn px-5 text-[13px] font-semibold text-white shadow-none hover:bg-btn-hover disabled:bg-muted disabled:text-faint disabled:opacity-100';
 
 interface SiteRow {
   id: string;
@@ -104,8 +104,8 @@ function SectionCard({
             {icon}
           </span>
           <div className="min-w-0">
-            <h2 className="text-[14.5px] font-semibold text-[#3D3B4F]">{title}</h2>
-            <p className="mt-0.5 text-[12.5px] leading-relaxed text-[#9B9590]">{sub}</p>
+            <h2 className="text-[14.5px] font-semibold text-foreground">{title}</h2>
+            <p className="mt-0.5 text-[12.5px] leading-relaxed text-subtle">{sub}</p>
           </div>
         </div>
         {aside}
@@ -130,33 +130,33 @@ function PageHeader(): ReactElement {
 
   return (
     <div className="mb-6">
-      <h1 className="text-[26px] font-bold text-[#3D3B4F] tracking-[-0.02em]">Settings</h1>
+      <h1 className="text-[26px] font-bold text-foreground tracking-[-0.02em]">Settings</h1>
       {current ? (
         <>
-          <p className="mt-1 text-[14px] text-[#9B9590]">
-            For the <span className="font-semibold text-[#3D3B4F]">{current.name}</span> workspace
+          <p className="mt-1 text-[14px] text-subtle">
+            For the <span className="font-semibold text-foreground">{current.name}</span> workspace
             {' · '}
             {current.siteCount} {current.siteCount === 1 ? 'site' : 'sites'}
             {memberCount !== undefined &&
               ` · ${memberCount} ${memberCount === 1 ? 'member' : 'members'}`}
           </p>
           {/* Said in words, not just a pill: what the role lets you do here. */}
-          <p className="mt-2 text-[13.5px] text-[#6E6C7C]">
+          <p className="mt-2 text-[13.5px] text-muted-foreground">
             {current.role === 'owner' ? (
               <>
-                You are an <span className="font-semibold text-[#3D3B4F]">owner</span> of this
+                You are an <span className="font-semibold text-foreground">owner</span> of this
                 workspace, so you can rename it, set its timezone and delete it.
               </>
             ) : (
               <>
-                You are a <span className="font-semibold text-[#3D3B4F]">member</span> of this
+                You are a <span className="font-semibold text-foreground">member</span> of this
                 workspace. You can view its dashboards; only an owner can change these settings.
               </>
             )}
           </p>
         </>
       ) : (
-        <p className="mt-1 text-[14px] text-[#9B9590]">Workspace preferences.</p>
+        <p className="mt-1 text-[14px] text-subtle">Workspace preferences.</p>
       )}
     </div>
   );
@@ -240,7 +240,7 @@ function WorkspaceSection(): ReactElement | null {
               type="button"
               variant="ghost"
               onClick={() => setName(current.name)}
-              className="text-[13px] text-[#6E6C7C]"
+              className="text-[13px] text-muted-foreground"
             >
               Cancel
             </Button>
@@ -335,10 +335,10 @@ function TimezoneSection({
   if (!current) return null;
 
   const clockChip = clock && (
-    <div className="flex items-center gap-2 rounded-full bg-[#F2F1ED] px-3 py-1.5">
-      <Clock className="h-3.5 w-3.5 text-[#9B9590]" />
-      <span className="text-[13px] font-semibold tabular-nums text-[#3D3B4F]">{clock.time}</span>
-      <span className="text-[11.5px] text-[#9B9590]">{clock.day}</span>
+    <div className="flex items-center gap-2 rounded-full bg-muted px-3 py-1.5">
+      <Clock className="h-3.5 w-3.5 text-subtle" />
+      <span className="text-[13px] font-semibold tabular-nums text-foreground">{clock.time}</span>
+      <span className="text-[11.5px] text-subtle">{clock.day}</span>
     </div>
   );
 
@@ -350,15 +350,15 @@ function TimezoneSection({
         return (
           <li
             key={s.id}
-            className="flex min-w-0 items-center justify-between gap-3 rounded-[10px] bg-[#F9F8F6] px-3 py-2"
+            className="flex min-w-0 items-center justify-between gap-3 rounded-[10px] bg-background px-3 py-2"
           >
             <span className="flex min-w-0 items-center gap-2">
-              <SiteFavicon favicon={s.favicon} size={16} fallbackClassName="text-[#9B9590]" />
-              <span className="truncate text-[12.5px] text-[#3D3B4F]">{s.domain || s.name}</span>
+              <SiteFavicon favicon={s.favicon} size={16} fallbackClassName="text-subtle" />
+              <span className="truncate text-[12.5px] text-foreground">{s.domain || s.name}</span>
             </span>
             <span
               title={zone}
-              className={`min-w-0 truncate text-[12px] ${willChange ? 'font-medium text-[#c9694f]' : 'text-[#9B9590]'}`}
+              className={`min-w-0 truncate text-[12px] ${willChange ? 'font-medium text-coral-deep' : 'text-subtle'}`}
             >
               {zone}
               {willChange && ' · will change'}
@@ -420,11 +420,11 @@ function TimezoneSection({
         </Button>
       </div>
       {sitesLoaded && sites.length === 0 && (
-        <p className="text-[12px] text-[#9B9590]">Add a site first - the zone applies per site.</p>
+        <p className="text-[12px] text-subtle">Add a site first - the zone applies per site.</p>
       )}
       {siteList}
       {uniformZone === null && sites.length > 0 && (
-        <p className="text-[12px] text-[#c9694f]">
+        <p className="text-[12px] text-coral-deep">
           Your sites use different timezones ({distinctZones.join(', ')}). Applying puts them all on
           one.
         </p>
@@ -434,7 +434,7 @@ function TimezoneSection({
           {applyError}. Nothing was changed. Check your connection and try again.
         </p>
       )}
-      <p className="max-w-[520px] text-[11.5px] leading-relaxed text-[#9B9590]">
+      <p className="max-w-[520px] text-[11.5px] leading-relaxed text-subtle">
         Takes effect on new data within a minute. Already-collected events keep their original
         bucketing, so past days may look shifted until new data accumulates.
       </p>
@@ -518,7 +518,7 @@ function DangerSection({ isLastWorkspace }: { isLastWorkspace: boolean }): React
               size="sm"
               onClick={() => setConfirmOpen(true)}
               disabled={remove.isPending}
-              className="shrink-0 text-[12px] text-[#e07a5f] shadow-[inset_0_0_0_1px_#f1c9bd] hover:text-[#c9694f] hover:shadow-[inset_0_0_0_1px_#e8a996]"
+              className="shrink-0 text-[12px] text-[#e07a5f] shadow-[inset_0_0_0_1px_#f1c9bd] hover:text-coral-deep hover:shadow-[inset_0_0_0_1px_#e8a996]"
             >
               <Trash2 className="h-3.5 w-3.5" />
               Delete workspace
@@ -529,7 +529,7 @@ function DangerSection({ isLastWorkspace }: { isLastWorkspace: boolean }): React
               size="sm"
               onClick={() => setLeaveOpen(true)}
               disabled={leave.isPending}
-              className="shrink-0 text-[12px] text-[#e07a5f] shadow-[inset_0_0_0_1px_#f1c9bd] hover:text-[#c9694f] hover:shadow-[inset_0_0_0_1px_#e8a996]"
+              className="shrink-0 text-[12px] text-[#e07a5f] shadow-[inset_0_0_0_1px_#f1c9bd] hover:text-coral-deep hover:shadow-[inset_0_0_0_1px_#e8a996]"
             >
               <LogOut className="h-3.5 w-3.5" />
               Leave workspace
@@ -553,7 +553,7 @@ function DangerSection({ isLastWorkspace }: { isLastWorkspace: boolean }): React
                 : 'You immediately lose access to its sites and dashboards. Your other workspaces are unaffected, and you can only return if an owner invites you again.'}
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="mx-6 border-t border-[#e6e5ea]/50 px-0 pb-5 pt-4">
+          <DialogFooter className="mx-6 border-t border-border/50 px-0 pb-5 pt-4">
             <Button
               variant="ghost"
               onClick={() => setLeaveOpen(false)}
@@ -592,7 +592,7 @@ function DangerSection({ isLastWorkspace }: { isLastWorkspace: boolean }): React
                   : 'Its members lose access and any pending invites stop working. The workspace is empty, so no sites or analytics data are affected.'}
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="mx-6 border-t border-[#e6e5ea]/50 px-0 pb-5 pt-4">
+          <DialogFooter className="mx-6 border-t border-border/50 px-0 pb-5 pt-4">
             {deleteBlocked ? (
               <Button onClick={() => setConfirmOpen(false)} className="text-[13px] px-5">
                 Got it

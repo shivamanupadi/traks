@@ -47,10 +47,10 @@ export function DimensionIcon({
   const key = name.toLowerCase();
   if (kind === 'device' || kind === 'size') {
     const Icon = DEVICE_ICONS[key] ?? Monitor;
-    return <Icon className="h-3.5 w-3.5 text-[#6E6C7C]" strokeWidth={1.7} />;
+    return <Icon className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.7} />;
   }
   const file = (kind === 'browser' ? BROWSER_ICONS : OS_ICONS)[key];
-  if (!file) return <Globe className="h-3.5 w-3.5 text-[#B5B0AA]" strokeWidth={1.7} />;
+  if (!file) return <Globe className="h-3.5 w-3.5 text-faint" strokeWidth={1.7} />;
   return (
     <img
       src={`/icons/${file}`}

@@ -25,8 +25,8 @@ export function LivePill({ count, status, onClick }: LivePillProps): ReactElemen
       title="Open live view"
       className={cn(
         'group -my-1 inline-flex h-[26px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-transparent py-0 pl-2 pr-1.5 text-[12.5px] font-semibold transition-colors',
-        'hover:border-[#E6E4DE] hover:bg-[#F2F1ED] focus-visible:border-[#E6E4DE] focus-visible:bg-[#F2F1ED] focus-visible:outline-none',
-        quiet ? 'text-[#9B9590]' : live ? 'text-[#3F7A50]' : 'text-[#6E6C7C]'
+        'hover:border-border hover:bg-muted focus-visible:border-border focus-visible:bg-muted focus-visible:outline-none',
+        quiet ? 'text-subtle' : live ? 'text-[#3F7A50]' : 'text-muted-foreground'
       )}
     >
       <span className="relative flex h-[7px] w-[7px]">
@@ -36,16 +36,16 @@ export function LivePill({ count, status, onClick }: LivePillProps): ReactElemen
         <span
           className={cn(
             'relative inline-flex h-[7px] w-[7px] rounded-full',
-            live && !quiet ? 'bg-mint' : 'bg-[#B5B0AA]'
+            live && !quiet ? 'bg-mint' : 'bg-faint'
           )}
         />
       </span>
       <span className="tabular-nums">
         {count} online{live || quiet ? (quiet ? '' : ' now') : ''}
       </span>
-      {!live && !quiet && <span className="font-medium text-[#B5B0AA]">· every 30s</span>}
+      {!live && !quiet && <span className="font-medium text-faint">· every 30s</span>}
       <ChevronRight
-        className="h-3.5 w-3.5 text-[#B5B0AA] transition-transform group-hover:translate-x-px"
+        className="h-3.5 w-3.5 text-faint transition-transform group-hover:translate-x-px"
         strokeWidth={2}
       />
     </button>

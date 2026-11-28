@@ -101,20 +101,24 @@ export function CreateTokenModal({
           <DialogBody>
             <div className="space-y-4">
               <label className="block">
-                <span className="mb-1.5 block text-[12px] font-semibold text-[#6E6C7C]">Name</span>
+                <span className="mb-1.5 block text-[12px] font-semibold text-muted-foreground">
+                  Name
+                </span>
                 <Input
                   autoFocus
                   placeholder={defaultName || 'e.g. Claude Code'}
                   value={name}
                   maxLength={100}
                   onChange={e => setName(e.target.value)}
-                  className="h-10 bg-[#F2F1ED] px-4 text-[13px] focus:shadow-[inset_0_0_0_1.5px_var(--ring)]"
+                  className="h-10 bg-muted px-4 text-[13px] focus:shadow-[inset_0_0_0_1.5px_var(--ring)]"
                 />
               </label>
               <div>
-                <span className="mb-1.5 block text-[12px] font-semibold text-[#6E6C7C]">Scope</span>
+                <span className="mb-1.5 block text-[12px] font-semibold text-muted-foreground">
+                  Scope
+                </span>
                 <ScopeToggle value={scope} onChange={setScope} />
-                <p className="mt-2 text-[12px] leading-relaxed text-[#9B9590]">
+                <p className="mt-2 text-[12px] leading-relaxed text-subtle">
                   Manage can create and edit goals and funnels. Read-only sees stats.
                   {hint && <> {hint}</>}
                 </p>
@@ -160,15 +164,15 @@ export function ScopeToggle({
       aria-pressed={value === s}
       className={`rounded-full px-3 py-[5px] text-[12px] transition-colors cursor-pointer ${
         value === s
-          ? 'bg-white font-semibold text-[#3D3B4F] shadow-[inset_0_0_0_1px_#E6E4DE]'
-          : 'text-[#6E6C7C] hover:text-[#3D3B4F]'
+          ? 'bg-card font-semibold text-foreground shadow-[inset_0_0_0_1px_var(--border)]'
+          : 'text-muted-foreground hover:text-foreground'
       }`}
     >
       {label}
     </button>
   );
   return (
-    <div className="inline-flex rounded-full bg-[#F2F1ED] p-[3px]">
+    <div className="inline-flex rounded-full bg-muted p-[3px]">
       {seg('manage', 'Manage')}
       {seg('read', 'Read-only')}
     </div>
@@ -181,12 +185,12 @@ export function ScopeToggle({
  */
 export function ScopePill({ scope }: { scope: TokenScope }): ReactElement {
   return scope === 'manage' ? (
-    <span className="inline-flex shrink-0 items-center gap-1 rounded-[6px] bg-[#28E99F]/20 px-1.5 py-0.5 text-[11px] font-medium text-[#3D3B4F]">
+    <span className="inline-flex shrink-0 items-center gap-1 rounded-[6px] bg-[#28E99F]/20 px-1.5 py-0.5 text-[11px] font-medium text-foreground">
       <PenLine className="h-3 w-3" strokeWidth={2} aria-hidden />
       Manage
     </span>
   ) : (
-    <span className="inline-flex shrink-0 items-center gap-1 rounded-[6px] bg-[#F2F1ED] px-1.5 py-0.5 text-[11px] font-medium text-[#6E6C7C]">
+    <span className="inline-flex shrink-0 items-center gap-1 rounded-[6px] bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
       <Eye className="h-3 w-3" strokeWidth={2} aria-hidden />
       Read-only
     </span>

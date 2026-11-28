@@ -43,19 +43,19 @@ export function WorkspaceSwitcher(): ReactElement | null {
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button className="flex min-w-0 items-center gap-1.5 rounded-lg px-2 py-1 text-[13.5px] font-medium text-[#3D3B4F] transition-colors hover:bg-[#F2F2F0] focus:outline-none focus-visible:bg-[#F2F2F0]">
+          <button className="flex min-w-0 items-center gap-1.5 rounded-lg px-2 py-1 text-[13.5px] font-medium text-foreground transition-colors hover:bg-muted focus:outline-none focus-visible:bg-muted">
             <span className="max-w-[72px] truncate min-[360px]:max-w-[140px] sm:max-w-[180px]">
               {current.name}
             </span>
-            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[#A3A1AB]" />
+            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-subtle" />
           </button>
         </DropdownMenuTrigger>
 
         <DropdownMenuContent
           align="start"
-          className="w-60 rounded-2xl bg-white border-none shadow-float"
+          className="w-60 rounded-2xl bg-card border-none shadow-float"
         >
-          <DropdownMenuLabel className="px-4 pt-3 pb-1 text-[10.5px] font-bold uppercase tracking-[0.1em] text-[#9B9590]">
+          <DropdownMenuLabel className="px-4 pt-3 pb-1 text-[10.5px] font-bold uppercase tracking-[0.1em] text-subtle">
             Workspaces
           </DropdownMenuLabel>
           {workspaces.map(ws => (
@@ -65,14 +65,14 @@ export function WorkspaceSwitcher(): ReactElement | null {
               className="flex items-center gap-3 px-4 py-2.5 cursor-pointer"
             >
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-[13.5px] font-medium text-[#3D3B4F]">
+                <span className="block truncate text-[13.5px] font-medium text-foreground">
                   {ws.name}
                 </span>
-                <span className="block text-[11px] text-[#9B9590]">
+                <span className="block text-[11px] text-subtle">
                   {ws.siteCount} {ws.siteCount === 1 ? 'site' : 'sites'}
                 </span>
               </span>
-              {ws.id === current.id && <Check className="w-4 h-4 shrink-0 text-[#3D3B4F]" />}
+              {ws.id === current.id && <Check className="w-4 h-4 shrink-0 text-foreground" />}
             </DropdownMenuItem>
           ))}
           {canCreate && (
@@ -154,7 +154,7 @@ function CreateWorkspaceDialog({
 
         <DialogBody>
           <div>
-            <label className="mb-2 block text-[13px] font-medium text-[#3D3B4F]">Name</label>
+            <label className="mb-2 block text-[13px] font-medium text-foreground">Name</label>
             <Input
               placeholder="Client projects"
               value={name}
@@ -175,7 +175,7 @@ function CreateWorkspaceDialog({
           )}
         </DialogBody>
 
-        <DialogFooter className="border-t border-[#e6e5ea]/50 mx-6 px-0 pb-5 pt-4">
+        <DialogFooter className="border-t border-border/50 mx-6 px-0 pb-5 pt-4">
           <Button variant="ghost" onClick={handleClose} className="rounded-xl text-[13px]">
             Cancel
           </Button>

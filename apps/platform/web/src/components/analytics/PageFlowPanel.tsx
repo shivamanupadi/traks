@@ -47,8 +47,8 @@ interface PageFlowPanelProps {
 }
 
 // Connector strokes: ink at low opacity, darker for the hovered row.
-const LINE = 'rgba(61, 59, 79, 0.14)';
-const LINE_HOT = 'rgba(61, 59, 79, 0.42)';
+const LINE = 'color-mix(in srgb, var(--foreground) 14%, transparent)';
+const LINE_HOT = 'color-mix(in srgb, var(--foreground) 42%, transparent)';
 
 function share(n: number, total: number | undefined): string {
   return total ? `${Math.round((n / total) * 100)}%` : '';
@@ -84,7 +84,7 @@ function FlowSide({
     <div className="flex min-w-0 flex-col gap-1">
       <span
         className={cn(
-          'px-2.5 pb-1 text-[11px] font-medium uppercase tracking-wider text-[#B5B0AA]',
+          'px-2.5 pb-1 text-[11px] font-medium uppercase tracking-wider text-faint',
           towardRight && 'md:text-right'
         )}
       >
@@ -107,9 +107,7 @@ function FlowSide({
           />
         ))
       ) : side.rows.length === 0 ? (
-        <p
-          className={cn('px-2.5 py-3 text-[12.5px] text-[#9B9590]', towardRight && 'md:text-right')}
-        >
+        <p className={cn('px-2.5 py-3 text-[12.5px] text-subtle', towardRight && 'md:text-right')}>
           {emptyText}
         </p>
       ) : (
@@ -127,8 +125,8 @@ function FlowSide({
             onBlur={() => onHover(null)}
             title={`Follow to ${row.name}`}
             className={cn(
-              'relative flex h-[30px] w-full items-center justify-between gap-3 rounded-md px-2.5 text-left transition-colors hover:bg-[#E6E4DE] cursor-pointer',
-              hot === row.name && 'bg-[#F2F1ED]',
+              'relative flex h-[30px] w-full items-center justify-between gap-3 rounded-md px-2.5 text-left transition-colors hover:bg-border cursor-pointer',
+              hot === row.name && 'bg-muted',
               towardRight && 'md:flex-row-reverse md:text-right'
             )}
           >
@@ -137,14 +135,14 @@ function FlowSide({
               className="absolute inset-y-0 left-0 rounded-md bg-muted md:hidden"
               style={{ width: `${(row.sessions / max) * 100}%` }}
             />
-            <span className="relative z-10 min-w-0 truncate text-[13px] text-[#3D3B4F]">
+            <span className="relative z-10 min-w-0 truncate text-[13px] text-foreground">
               {row.name}
             </span>
             <span className="relative z-10 flex shrink-0 items-baseline gap-2 tabular-nums">
-              <span className="text-[13px] font-medium text-[#3D3B4F]">
+              <span className="text-[13px] font-medium text-foreground">
                 {formatNumber(row.sessions)}
               </span>
-              <span className="w-8 text-right text-[12px] text-[#9B9590]">
+              <span className="w-8 text-right text-[12px] text-subtle">
                 {share(row.sessions, total)}
               </span>
             </span>
@@ -161,7 +159,7 @@ function FlowSide({
 function PageCard({ page, totals }: { page: string; totals?: PathTotals }): ReactElement {
   const continued = totals ? Math.max(0, totals.visits - totals.exited) : 0;
   return (
-    <div className="flex min-w-0 flex-col gap-2.5 rounded-[16px] bg-[#3D3B4F] p-4 text-white">
+    <div className="flex min-w-0 flex-col gap-2.5 rounded-[16px] bg-btn p-4 text-white">
       <span className="truncate text-[13.5px] font-semibold" title={page}>
         {page}
       </span>
@@ -320,20 +318,20 @@ export function PageFlowPanel({
   }, [measure, page]);
 
   return (
-    <div className={cn('rounded-[20px] bg-white p-5 shadow-float sm:p-6', className)}>
+    <div className={cn('rounded-[20px] bg-card p-5 shadow-float sm:p-6', className)}>
       <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2.5">
-        <h3 className="text-[15px] font-bold tracking-[-0.01em] text-[#3D3B4F]">Page flow</h3>
+        <h3 className="text-[15px] font-bold tracking-[-0.01em] text-foreground">Page flow</h3>
         {options.length > 0 && (
           <DropdownMenu>
-            <DropdownMenuTrigger className="flex max-w-full items-center gap-1.5 rounded-full border border-[#E6E4DE] py-1 pl-3 pr-2 text-[13px] font-semibold text-[#3D3B4F] hover:bg-[#F2F1ED] transition-colors cursor-pointer sm:max-w-[20rem]">
+            <DropdownMenuTrigger className="flex max-w-full items-center gap-1.5 rounded-full border border-border py-1 pl-3 pr-2 text-[13px] font-semibold text-foreground hover:bg-muted transition-colors cursor-pointer sm:max-w-[20rem]">
               <span className="truncate">{page ?? 'Pick a page'}</span>
-              <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[#9B9590]" />
+              <ChevronDown className="h-3.5 w-3.5 shrink-0 text-subtle" />
             </DropdownMenuTrigger>
             <DropdownMenuContent
               align="start"
               className="max-h-80 w-72 max-w-[calc(100vw-3rem)] overflow-y-auto border-0 p-1.5 shadow-float-lg"
             >
-              <p className="px-2.5 pb-1 pt-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-[#B5B0AA]">
+              <p className="px-2.5 pb-1 pt-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-faint">
                 Show flow for
               </p>
               {options.map(p => (
@@ -341,12 +339,12 @@ export function PageFlowPanel({
                   key={p}
                   onClick={() => pick(p)}
                   className={cn(
-                    'gap-2 rounded-[10px] px-2.5 py-2 hover:bg-[#F2F1ED] focus:bg-[#F2F1ED]',
-                    p === page && 'bg-[#F2F1ED]'
+                    'gap-2 rounded-[10px] px-2.5 py-2 hover:bg-muted focus:bg-muted',
+                    p === page && 'bg-muted'
                   )}
                 >
-                  <span className="min-w-0 flex-1 truncate text-[13px] text-[#3D3B4F]">{p}</span>
-                  {p === page && <Check className="h-3.5 w-3.5 shrink-0 text-[#3D3B4F]" />}
+                  <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">{p}</span>
+                  {p === page && <Check className="h-3.5 w-3.5 shrink-0 text-foreground" />}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>
@@ -356,7 +354,7 @@ export function PageFlowPanel({
           <nav aria-label="Pages followed" className="flex min-w-0 flex-wrap items-center gap-1">
             <button
               onClick={() => jumpBack(trail.length - 1)}
-              className="flex items-center gap-1 rounded-full bg-[#F2F1ED] px-2.5 py-1 text-[12px] font-medium text-[#3D3B4F] hover:bg-[#E6E4DE] transition-colors cursor-pointer"
+              className="flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-[12px] font-medium text-foreground hover:bg-border transition-colors cursor-pointer"
             >
               <ArrowLeft className="h-3 w-3" strokeWidth={2} />
               Back
@@ -366,14 +364,14 @@ export function PageFlowPanel({
                 <button
                   onClick={() => jumpBack(i)}
                   title={`Back to ${p}`}
-                  className="max-w-[10rem] truncate rounded-md px-1.5 py-0.5 text-[12px] text-[#9B9590] hover:bg-[#F2F1ED] hover:text-[#3D3B4F] transition-colors cursor-pointer"
+                  className="max-w-[10rem] truncate rounded-md px-1.5 py-0.5 text-[12px] text-subtle hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
                 >
                   {p}
                 </button>
-                <span className="text-[11px] text-[#B5B0AA]">›</span>
+                <span className="text-[11px] text-faint">›</span>
               </span>
             ))}
-            <span className="max-w-[10rem] truncate px-1.5 text-[12px] font-semibold text-[#3D3B4F]">
+            <span className="max-w-[10rem] truncate px-1.5 text-[12px] font-semibold text-foreground">
               {page}
             </span>
           </nav>
@@ -381,9 +379,7 @@ export function PageFlowPanel({
       </div>
 
       {page === null ? (
-        <p className="py-10 text-center text-[13px] text-[#9B9590]">
-          No pageviews in this period yet
-        </p>
+        <p className="py-10 text-center text-[13px] text-subtle">No pageviews in this period yet</p>
       ) : (
         // Phones and small tablets stack the three parts; from md the page
         // card sits between its two sides with lines to each row.

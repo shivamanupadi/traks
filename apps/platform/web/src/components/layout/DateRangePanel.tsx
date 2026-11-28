@@ -51,9 +51,9 @@ function quickRanges(today: string): { label: string; from: string; to: string }
 }
 
 const NAV_BUTTON =
-  'flex h-8 w-8 items-center justify-center rounded-[10px] text-[#6E6C7C] transition-colors hover:bg-[#F2F1ED] hover:text-[#3D3B4F] disabled:pointer-events-none disabled:text-[#D9D5CF] cursor-pointer';
+  'flex h-8 w-8 items-center justify-center rounded-[10px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:text-border-strong cursor-pointer';
 
-const FOCUS_RING = 'outline-none focus-visible:shadow-[inset_0_0_0_1.5px_#3D3B4F]';
+const FOCUS_RING = 'outline-none focus-visible:shadow-[inset_0_0_0_1.5px_var(--foreground)]';
 
 /**
  * Range picker: quick ranges and a month calendar whose title zooms out to
@@ -149,15 +149,15 @@ export function DateRangePanel({
         aria-label={`${which === 'from' ? 'From' : 'To'}: ${formatDay(day, true)}`}
         aria-pressed={next}
         className={cn(
-          'min-w-0 flex-1 rounded-xl bg-[#F2F1ED] px-3 py-2 text-left transition-shadow cursor-pointer',
+          'min-w-0 flex-1 rounded-xl bg-muted px-3 py-2 text-left transition-shadow cursor-pointer',
           FOCUS_RING,
-          next && 'shadow-[inset_0_0_0_1.5px_#3D3B4F]'
+          next && 'shadow-[inset_0_0_0_1.5px_var(--foreground)]'
         )}
       >
-        <span className="block text-[11px] font-semibold text-[#6E6C7C]">
+        <span className="block text-[11px] font-semibold text-muted-foreground">
           {which === 'from' ? 'From' : 'To'}
         </span>
-        <span className="block truncate text-[13.5px] font-semibold text-[#3D3B4F]">
+        <span className="block truncate text-[13.5px] font-semibold text-foreground">
           {formatDay(day, true)}
         </span>
       </button>
@@ -168,7 +168,7 @@ export function DateRangePanel({
     <div className={cn('min-w-0', stacked ? 'px-1' : 'w-[316px] px-4 pt-4 pb-3')}>
       <div className="mb-3 flex items-center gap-2">
         {tile('from')}
-        <span aria-hidden className="text-[#B5B0AA]">
+        <span aria-hidden className="text-faint">
           →
         </span>
         {tile('to')}
@@ -210,7 +210,7 @@ export function DateRangePanel({
             zoom === 'days' ? `${monthTitle}, choose a month` : `${cursor.y}, choose a year`
           }
           className={cn(
-            'rounded-[10px] px-2.5 py-1 text-[14px] font-semibold text-[#3D3B4F] transition-colors hover:bg-[#F2F1ED] disabled:hover:bg-transparent cursor-pointer disabled:cursor-default',
+            'rounded-[10px] px-2.5 py-1 text-[14px] font-semibold text-foreground transition-colors hover:bg-muted disabled:hover:bg-transparent cursor-pointer disabled:cursor-default',
             FOCUS_RING
           )}
         >
@@ -258,7 +258,7 @@ export function DateRangePanel({
           {weekdays.map((w, i) => (
             <span
               key={i}
-              className="flex h-6 items-center justify-center text-[11px] font-semibold text-[#6E6C7C]"
+              className="flex h-6 items-center justify-center text-[11px] font-semibold text-muted-foreground"
             >
               {w}
             </span>
@@ -274,7 +274,7 @@ export function DateRangePanel({
                 key={day}
                 className={cn(
                   'flex h-9 items-center justify-center',
-                  inBand && 'bg-[#EEEDE8]',
+                  inBand && 'bg-muted',
                   inBand && (day === lo || col === 0 || day.endsWith('-01')) && 'rounded-l-full',
                   inBand &&
                     (day === hi || col === 6 || day === monthEnd(cursor.y, cursor.m)) &&
@@ -292,10 +292,10 @@ export function DateRangePanel({
                     'flex h-[34px] w-[34px] items-center justify-center rounded-full text-[13px] tabular-nums transition-colors cursor-pointer',
                     FOCUS_RING,
                     isEnd
-                      ? 'bg-[#3D3B4F] font-semibold text-white'
+                      ? 'bg-btn font-semibold text-white'
                       : disabled
-                        ? 'cursor-default text-[#D3CFC9]'
-                        : 'text-[#3D3B4F] hover:bg-[#E6E4DE]',
+                        ? 'cursor-default text-faint'
+                        : 'text-foreground hover:bg-border',
                     day === today && !isEnd && 'font-semibold shadow-[inset_0_0_0_1.5px_#28E99F]'
                   )}
                 >
@@ -326,10 +326,10 @@ export function DateRangePanel({
                   'h-11 rounded-full text-[13px] transition-colors cursor-pointer',
                   FOCUS_RING,
                   disabled
-                    ? 'cursor-default text-[#D3CFC9]'
+                    ? 'cursor-default text-faint'
                     : holds
-                      ? 'bg-[#EEEDE8] font-semibold text-[#3D3B4F] hover:bg-[#E6E4DE]'
-                      : 'text-[#3D3B4F] hover:bg-[#F2F1ED]'
+                      ? 'bg-muted font-semibold text-foreground hover:bg-border'
+                      : 'text-foreground hover:bg-muted'
                 )}
               >
                 {new Date(cursor.y, m, 1).toLocaleDateString(undefined, { month: 'short' })}
@@ -361,10 +361,10 @@ export function DateRangePanel({
                   'h-11 rounded-full text-[13px] tabular-nums transition-colors cursor-pointer',
                   FOCUS_RING,
                   disabled
-                    ? 'cursor-default text-[#D3CFC9]'
+                    ? 'cursor-default text-faint'
                     : holds
-                      ? 'bg-[#EEEDE8] font-semibold text-[#3D3B4F] hover:bg-[#E6E4DE]'
-                      : 'text-[#3D3B4F] hover:bg-[#F2F1ED]'
+                      ? 'bg-muted font-semibold text-foreground hover:bg-border'
+                      : 'text-foreground hover:bg-muted'
                 )}
               >
                 {y}
@@ -384,16 +384,16 @@ export function DateRangePanel({
         type="button"
         onClick={() => choose(range)}
         className={cn(
-          'text-[13px] text-[#3D3B4F] transition-colors cursor-pointer',
+          'text-[13px] text-foreground transition-colors cursor-pointer',
           FOCUS_RING,
           stacked
             ? cn(
                 'rounded-full border px-3 py-1.5',
-                on ? 'border-[#3D3B4F] font-semibold' : 'border-[#E6E4DE] hover:bg-[#F2F1ED]'
+                on ? 'border-foreground font-semibold' : 'border-border hover:bg-muted'
               )
             : cn(
                 'rounded-[10px] px-2.5 py-2 text-left',
-                on ? 'bg-[#F2F1ED] font-semibold' : 'hover:bg-[#F2F1ED]'
+                on ? 'bg-muted font-semibold' : 'hover:bg-muted'
               )
         )}
       >
@@ -411,7 +411,7 @@ export function DateRangePanel({
         </div>
       ) : (
         <div className="flex">
-          <div className="flex w-[148px] flex-col gap-0.5 border-r border-[#F2F1ED] px-2 py-3">
+          <div className="flex w-[148px] flex-col gap-0.5 border-r border-muted px-2 py-3">
             {quickList}
           </div>
           {calendar}
@@ -419,16 +419,16 @@ export function DateRangePanel({
       )}
       <div
         className={cn(
-          'flex items-center justify-between gap-3 border-t border-[#F2F1ED]',
+          'flex items-center justify-between gap-3 border-t border-muted',
           stacked ? 'mt-3 pt-4' : 'px-4 py-3'
         )}
       >
-        <div className="min-w-0 text-[12.5px] text-[#6E6C7C]">
+        <div className="min-w-0 text-[12.5px] text-muted-foreground">
           <p>
             {dayCount(from, to)} {dayCount(from, to) === 1 ? 'day' : 'days'} · pick a day for{' '}
             {end === 'from' ? 'From' : 'To'}
           </p>
-          <p className="text-[11.5px] text-[#9B9590]">
+          <p className="text-[11.5px] text-subtle">
             Both days included, in the site&apos;s timezone.
           </p>
         </div>

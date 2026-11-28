@@ -31,7 +31,7 @@ export function CountryFlag({ code }: { code?: string | null }): ReactElement {
   const cc = flagCode(code);
   const [failedCode, setFailedCode] = useState<string | null>(null);
   if (!cc || failedCode === cc) {
-    return <Globe className="h-3.5 w-3.5 text-[#B5B0AA]" strokeWidth={1.7} />;
+    return <Globe className="h-3.5 w-3.5 text-faint" strokeWidth={1.7} />;
   }
   return (
     <img

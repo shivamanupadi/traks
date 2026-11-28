@@ -54,7 +54,7 @@ function Drawer({ open, onOpenChange, children, className }: DrawerProps): React
             exit={{ x: 32, opacity: 0 }}
             transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
             className={cn(
-              'fixed inset-y-0 right-0 z-[45] flex w-full max-w-[400px] flex-col bg-white shadow-float-lg',
+              'fixed inset-y-0 right-0 z-[45] flex w-full max-w-[400px] flex-col bg-card shadow-float-lg',
               className
             )}
             onClick={(e: React.MouseEvent) => e.stopPropagation()}
@@ -83,7 +83,7 @@ function DrawerHeader({
       {onClose && (
         <button
           onClick={onClose}
-          className="-mr-2 -mt-1 shrink-0 rounded-full p-1.5 text-[#9B9590] hover:bg-muted hover:text-[#3D3B4F] transition-colors cursor-pointer"
+          className="-mr-2 -mt-1 shrink-0 rounded-full p-1.5 text-subtle hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
           aria-label="Close"
         >
           <X className="h-4 w-4" />
@@ -99,7 +99,7 @@ function DrawerTitle({
 }: React.HTMLAttributes<HTMLHeadingElement>): React.ReactNode {
   return (
     <h2
-      className={cn('text-[17px] font-semibold text-[#3D3B4F] tracking-[-0.01em]', className)}
+      className={cn('text-[17px] font-semibold text-foreground tracking-[-0.01em]', className)}
       {...props}
     />
   );
@@ -109,7 +109,7 @@ function DrawerDescription({
   className,
   ...props
 }: React.HTMLAttributes<HTMLParagraphElement>): React.ReactNode {
-  return <p className={cn('mt-0.5 text-[13px] text-[#9B9590]', className)} {...props} />;
+  return <p className={cn('mt-0.5 text-[13px] text-subtle', className)} {...props} />;
 }
 
 function DrawerBody({
@@ -126,7 +126,7 @@ function DrawerFooter({
   return (
     <div
       className={cn(
-        'flex items-center justify-between gap-2 border-t border-[#E6E4DE] px-6 py-3.5',
+        'flex items-center justify-between gap-2 border-t border-border px-6 py-3.5',
         className
       )}
       {...props}

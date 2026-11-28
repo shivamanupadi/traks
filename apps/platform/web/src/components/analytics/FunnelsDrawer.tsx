@@ -28,8 +28,7 @@ function stepLabel(s: FunnelStep): string {
   return s.propKey && s.propValue ? `${s.target} · ${s.propKey}=${s.propValue}` : s.target;
 }
 
-const MENU_ITEM =
-  'rounded-[10px] text-[12.5px] text-[#3D3B4F] hover:bg-[#F2F1ED] focus:bg-[#F2F1ED]';
+const MENU_ITEM = 'rounded-[10px] text-[12.5px] text-foreground hover:bg-muted focus:bg-muted';
 
 /**
  * Right-side drawer listing every funnel on the site. Adding and editing
@@ -116,7 +115,7 @@ export function FunnelsDrawer({
           </div>
           <button
             onClick={onAdd}
-            className="flex shrink-0 items-center gap-1.5 rounded-full bg-[#3D3B4F] px-3.5 py-1.5 text-[12px] font-semibold text-white hover:bg-[#2C2B3B] transition-colors cursor-pointer"
+            className="flex shrink-0 items-center gap-1.5 rounded-full bg-btn px-3.5 py-1.5 text-[12px] font-semibold text-white hover:bg-btn-hover transition-colors cursor-pointer"
           >
             <Plus className="h-3.5 w-3.5" />
             Add funnel
@@ -126,13 +125,13 @@ export function FunnelsDrawer({
 
       <DrawerBody>
         {showSearch && (
-          <div className="mb-2 flex h-[34px] items-center gap-2 rounded-xl bg-[#F2F1ED] px-3 focus-within:bg-white focus-within:shadow-[inset_0_0_0_1.5px_var(--ring)] transition-shadow">
-            <Search className="h-3.5 w-3.5 shrink-0 text-[#B5B0AA]" />
+          <div className="mb-2 flex h-[34px] items-center gap-2 rounded-xl bg-muted px-3 focus-within:bg-card focus-within:shadow-[inset_0_0_0_1.5px_var(--ring)] transition-shadow">
+            <Search className="h-3.5 w-3.5 shrink-0 text-faint" />
             <input
               value={query}
               onChange={e => setQuery(e.target.value)}
               placeholder="Search funnels"
-              className="h-full min-w-0 flex-1 bg-transparent text-[12.5px] text-[#3D3B4F] outline-none placeholder:text-[#B5B0AA]"
+              className="h-full min-w-0 flex-1 bg-transparent text-[12.5px] text-foreground outline-none placeholder:text-faint"
             />
           </div>
         )}
@@ -154,14 +153,14 @@ export function FunnelsDrawer({
         )}
         {!funnelsQ.isLoading && !funnelsQ.isError && funnels.length === 0 && (
           <div className="py-10 text-center">
-            <p className="text-[13px] font-medium text-[#9B9590]">No funnels yet</p>
-            <p className="mt-1 text-[12px] text-[#B5B0AA]">
+            <p className="text-[13px] font-medium text-subtle">No funnels yet</p>
+            <p className="mt-1 text-[12px] text-faint">
               Chain pages and events into ordered steps to see where visitors drop off.
             </p>
           </div>
         )}
         {q && funnels.length > 0 && visible.length === 0 && (
-          <p className="py-8 text-center text-[12.5px] text-[#9B9590]">
+          <p className="py-8 text-center text-[12.5px] text-subtle">
             No funnels match &ldquo;{query.trim()}&rdquo;.
           </p>
         )}
@@ -175,7 +174,7 @@ export function FunnelsDrawer({
                 key={funnel.id}
                 className={cn(
                   'rounded-[14px] p-3.5 transition-colors',
-                  confirming ? 'bg-[#fdf1ed]' : 'bg-[#F9F8F6] hover:bg-[#F2F1ED]'
+                  confirming ? 'bg-coral-soft' : 'bg-background hover:bg-muted'
                 )}
               >
                 <div className="flex items-start justify-between gap-2">
@@ -185,16 +184,16 @@ export function FunnelsDrawer({
                     title="Edit funnel"
                   >
                     <span className="flex items-center gap-1.5">
-                      <span className="truncate text-[13.5px] font-semibold text-[#3D3B4F]">
+                      <span className="truncate text-[13.5px] font-semibold text-foreground">
                         {funnel.name}
                       </span>
                       {isSelected && (
-                        <span className="shrink-0 rounded-full bg-white px-[7px] text-[10.5px] font-medium text-[#6E6C7C] shadow-[0_0_0_1px_#E6E4DE]">
+                        <span className="shrink-0 rounded-full bg-card px-[7px] text-[10.5px] font-medium text-muted-foreground shadow-[0_0_0_1px_var(--border)]">
                           on dashboard
                         </span>
                       )}
                     </span>
-                    <span className="mt-0.5 block text-[11.5px] text-[#9B9590]">
+                    <span className="mt-0.5 block text-[11.5px] text-subtle">
                       {funnel.steps.length} steps
                     </span>
                   </button>
@@ -202,13 +201,13 @@ export function FunnelsDrawer({
                     <DropdownMenu>
                       <DropdownMenuTrigger
                         aria-label={`${funnel.name} options`}
-                        className="-mr-1 -mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[#9B9590] hover:bg-[#E6E4DE] hover:text-[#3D3B4F] transition-colors cursor-pointer"
+                        className="-mr-1 -mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-subtle hover:bg-border hover:text-foreground transition-colors cursor-pointer"
                       >
                         <MoreHorizontal className="h-4 w-4" />
                       </DropdownMenuTrigger>
                       <DropdownMenuContent className="w-52 border-0 p-1.5 shadow-float-lg">
                         <DropdownMenuItem onClick={() => onEdit(funnel)} className={MENU_ITEM}>
-                          <Pencil className="h-3.5 w-3.5 text-[#6E6C7C]" />
+                          <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
                           Edit
                         </DropdownMenuItem>
                         {onSelect && !isSelected && (
@@ -216,7 +215,7 @@ export function FunnelsDrawer({
                             onClick={() => onSelect(funnel.id)}
                             className={MENU_ITEM}
                           >
-                            <Eye className="h-3.5 w-3.5 text-[#6E6C7C]" />
+                            <Eye className="h-3.5 w-3.5 text-muted-foreground" />
                             Show on dashboard
                           </DropdownMenuItem>
                         )}
@@ -225,17 +224,17 @@ export function FunnelsDrawer({
                             onClick={() => onDuplicate(funnel)}
                             className={MENU_ITEM}
                           >
-                            <Copy className="h-3.5 w-3.5 text-[#6E6C7C]" />
+                            <Copy className="h-3.5 w-3.5 text-muted-foreground" />
                             Duplicate
                           </DropdownMenuItem>
                         )}
-                        <DropdownMenuSeparator className="bg-[#ECEBE6]" />
+                        <DropdownMenuSeparator className="bg-muted" />
                         <DropdownMenuItem
                           onClick={() => {
                             setError('');
                             setConfirmId(funnel.id);
                           }}
-                          className="rounded-[10px] text-[12.5px] text-[#e07a5f] hover:bg-[#fdf1ed] focus:bg-[#fdf1ed]"
+                          className="rounded-[10px] text-[12.5px] text-[#e07a5f] hover:bg-coral-soft focus:bg-coral-soft"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                           Delete…
@@ -253,7 +252,7 @@ export function FunnelsDrawer({
                     <div className="flex shrink-0 items-center gap-1">
                       <button
                         onClick={() => setConfirmId(null)}
-                        className="rounded-full px-3 py-1 text-[12px] font-semibold text-[#6E6C7C] hover:bg-white transition-colors cursor-pointer"
+                        className="rounded-full px-3 py-1 text-[12px] font-semibold text-muted-foreground hover:bg-card transition-colors cursor-pointer"
                       >
                         Keep
                       </button>
@@ -271,18 +270,18 @@ export function FunnelsDrawer({
                     {funnel.steps.map((step, i) => (
                       <li key={i} className="flex min-w-0 max-w-full items-center gap-1">
                         {i > 0 && (
-                          <span aria-hidden className="text-[11px] text-[#B5B0AA]">
+                          <span aria-hidden className="text-[11px] text-faint">
                             →
                           </span>
                         )}
                         <span
-                          className="flex min-w-0 items-center gap-1.5 rounded-lg bg-white py-[3px] pl-1 pr-2 shadow-[0_0_0_1px_#E6E4DE]"
+                          className="flex min-w-0 items-center gap-1.5 rounded-lg bg-card py-[3px] pl-1 pr-2 shadow-[0_0_0_1px_var(--border)]"
                           title={stepLabel(step)}
                         >
-                          <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#F2F1ED] font-mono text-[9.5px] font-semibold text-[#6E6C7C]">
+                          <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-muted font-mono text-[9.5px] font-semibold text-muted-foreground">
                             {i + 1}
                           </span>
-                          <span className="truncate text-[11.5px] text-[#3D3B4F]">
+                          <span className="truncate text-[11.5px] text-foreground">
                             {stepLabel(step)}
                           </span>
                           <TypeChip
@@ -302,10 +301,10 @@ export function FunnelsDrawer({
       </DrawerBody>
 
       <DrawerFooter>
-        <span className="text-[11.5px] text-[#B5B0AA]">Click a funnel to edit its steps</span>
+        <span className="text-[11.5px] text-faint">Click a funnel to edit its steps</span>
         <button
           onClick={() => onOpenChange(false)}
-          className="rounded-full px-3.5 py-1.5 text-[12.5px] font-semibold text-[#6E6C7C] hover:bg-muted hover:text-[#3D3B4F] transition-colors cursor-pointer"
+          className="rounded-full px-3.5 py-1.5 text-[12.5px] font-semibold text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
         >
           Done
         </button>

@@ -79,27 +79,27 @@ export function FilterChips({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <Filter className="h-3.5 w-3.5 text-[#9B9590]" strokeWidth={1.7} />
+      <Filter className="h-3.5 w-3.5 text-subtle" strokeWidth={1.7} />
       {chips.map(chip => (
         <span
           key={chip.id}
-          className="flex items-center gap-1.5 rounded-full bg-muted py-1 pl-3 pr-1.5 text-[12px] text-[#3D3B4F]"
+          className="flex items-center gap-1.5 rounded-full bg-muted py-1 pl-3 pr-1.5 text-[12px] text-foreground"
         >
-          <span className="text-[#9B9590]">{chip.label}</span>
+          <span className="text-subtle">{chip.label}</span>
           <span className="max-w-[180px] truncate font-medium">{chip.value}</span>
           <button
             onClick={chip.remove}
-            className="flex h-4.5 w-4.5 items-center justify-center rounded-full hover:bg-[#E6E4DE] transition-colors cursor-pointer"
+            className="flex h-4.5 w-4.5 items-center justify-center rounded-full hover:bg-border transition-colors cursor-pointer"
             title="Remove filter"
           >
-            <X className="h-3 w-3 text-[#9B9590]" />
+            <X className="h-3 w-3 text-subtle" />
           </button>
         </span>
       ))}
       {(alwaysShowClear || chips.length > 1) && (
         <button
           onClick={onClear}
-          className="text-[12px] text-[#9B9590] hover:text-[#3D3B4F] transition-colors cursor-pointer"
+          className="text-[12px] text-subtle hover:text-foreground transition-colors cursor-pointer"
         >
           {clearLabel}
         </button>

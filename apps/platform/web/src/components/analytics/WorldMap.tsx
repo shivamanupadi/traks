@@ -72,7 +72,7 @@ export function WorldMap({ locations, onSelect, className }: WorldMapProps): Rea
 
   return (
     <div
-      className={cn('relative overflow-hidden rounded-[14px] bg-[#F9F8F6]', className)}
+      className={cn('relative overflow-hidden rounded-[14px] bg-background', className)}
       style={{ aspectRatio: `${w} / ${h}` }}
     >
       <svg
@@ -86,7 +86,13 @@ export function WorldMap({ locations, onSelect, className }: WorldMapProps): Rea
         }
       >
         {geo ? (
-          <path d={geo.path} fill="none" stroke="#CBC8D1" strokeWidth={2.3} strokeLinecap="round" />
+          <path
+            d={geo.path}
+            fill="none"
+            stroke="var(--border-strong)"
+            strokeWidth={2.3}
+            strokeLinecap="round"
+          />
         ) : null}
         {markers.map((m, i) => (
           <g
@@ -107,7 +113,7 @@ export function WorldMap({ locations, onSelect, className }: WorldMapProps): Rea
       </svg>
       {hovered && (
         <div
-          className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-[calc(100%+10px)] whitespace-nowrap rounded-[7px] bg-[#3D3B4F] px-2.5 py-1 text-[12px] font-semibold text-white shadow-float"
+          className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-[calc(100%+10px)] whitespace-nowrap rounded-[7px] bg-btn px-2.5 py-1 text-[12px] font-semibold text-white shadow-float"
           style={{
             left: `${(hovered.x / w) * 100}%`,
             top: `${(hovered.y / h) * 100}%`,
@@ -118,7 +124,7 @@ export function WorldMap({ locations, onSelect, className }: WorldMapProps): Rea
         </div>
       )}
       {geo && markers.length === 0 && (
-        <div className="pointer-events-none absolute inset-x-0 bottom-3 text-center text-[12px] text-[#B5B0AA]">
+        <div className="pointer-events-none absolute inset-x-0 bottom-3 text-center text-[12px] text-faint">
           Nobody&rsquo;s here right now
         </div>
       )}

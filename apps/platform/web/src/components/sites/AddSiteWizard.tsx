@@ -189,8 +189,8 @@ export function AddSiteWizard({
                 </DialogTitle>
                 <DialogDescription>
                   Your site was created. Analytics for{' '}
-                  <span className="font-semibold text-[#3D3B4F]">{createdSite?.domain}</span> starts
-                  as soon as the snippet below is installed.
+                  <span className="font-semibold text-foreground">{createdSite?.domain}</span>{' '}
+                  starts as soon as the snippet below is installed.
                 </DialogDescription>
               </motion.div>
             )}
@@ -209,7 +209,7 @@ export function AddSiteWizard({
                 className="space-y-5"
               >
                 <div>
-                  <label className="mb-2 block text-[13px] font-medium text-[#3D3B4F]">
+                  <label className="mb-2 block text-[13px] font-medium text-foreground">
                     Site Name
                   </label>
                   <Input
@@ -225,7 +225,7 @@ export function AddSiteWizard({
                   <FieldError message={touched.name ? nameError : null} />
                 </div>
                 <div>
-                  <label className="mb-2 block text-[13px] font-medium text-[#3D3B4F]">
+                  <label className="mb-2 block text-[13px] font-medium text-foreground">
                     Domain
                   </label>
                   <Input
@@ -243,7 +243,7 @@ export function AddSiteWizard({
                   {touched.domain && domainErr ? (
                     <FieldError message={domainErr} />
                   ) : (
-                    <p className="mt-2 text-[12px] text-[#B5B0AA]">
+                    <p className="mt-2 text-[12px] text-faint">
                       {domain.trim() && normalizeDomain(domain) !== domain.trim()
                         ? `Will be saved as ${normalizeDomain(domain)}`
                         : 'Just the domain (a pasted URL works too)'}
@@ -263,26 +263,26 @@ export function AddSiteWizard({
                 transition={{ duration: 0.15 }}
                 className="space-y-4"
               >
-                <p className="text-[12.5px] text-[#6E6C7C]">
+                <p className="text-[12.5px] text-muted-foreground">
                   Add this snippet to the{' '}
                   <code className="rounded bg-muted px-1.5 py-0.5 text-[12px] font-medium">
                     &lt;head&gt;
                   </code>{' '}
-                  of <span className="font-semibold text-[#3D3B4F]">{createdSite?.domain}</span>:
+                  of <span className="font-semibold text-foreground">{createdSite?.domain}</span>:
                 </p>
                 {/* Snippet card */}
-                <div className="relative rounded-xl border border-[#e6e5ea] bg-[#F9F8F6] overflow-hidden">
-                  <div className="flex items-center justify-between px-4 py-2.5 border-b border-[#e6e5ea]/60">
-                    <span className="text-[11px] font-medium text-[#B5B0AA] uppercase tracking-wider">
+                <div className="relative rounded-xl border border-border bg-background overflow-hidden">
+                  <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/60">
+                    <span className="text-[11px] font-medium text-faint uppercase tracking-wider">
                       HTML Snippet
                     </span>
                     <button
                       onClick={handleCopy}
-                      className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium text-[#9B9590] hover:text-foreground transition-colors"
+                      className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium text-subtle hover:text-foreground transition-colors"
                     >
                       {copied ? (
                         <>
-                          <Check className="w-3 h-3 text-[#6E6C7C]" />
+                          <Check className="w-3 h-3 text-muted-foreground" />
                           Copied
                         </>
                       ) : (
@@ -293,15 +293,18 @@ export function AddSiteWizard({
                       )}
                     </button>
                   </div>
-                  <pre className="text-[12px] leading-relaxed text-[#3D3B4F] font-mono whitespace-pre-wrap break-all select-all px-4 py-3.5">
+                  <pre className="text-[12px] leading-relaxed text-foreground font-mono whitespace-pre-wrap break-all select-all px-4 py-3.5">
                     {snippet}
                   </pre>
                 </div>
 
                 {/* Info note */}
-                <div className="flex gap-3 rounded-xl bg-[#F2F1ED] border border-[#E6E4DE] px-4 py-3.5">
-                  <Zap className="w-4 h-4 text-[#6E6C7C] shrink-0 mt-0.5" strokeWidth={1.7} />
-                  <p className="text-[12px] text-[#6E6C7C] leading-relaxed">
+                <div className="flex gap-3 rounded-xl bg-muted border border-border px-4 py-3.5">
+                  <Zap
+                    className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5"
+                    strokeWidth={1.7}
+                  />
+                  <p className="text-[12px] text-muted-foreground leading-relaxed">
                     1.5 KB gzipped, loads deferred - zero impact on page speed. Data appears within
                     seconds of the first visit.
                   </p>
@@ -311,7 +314,7 @@ export function AddSiteWizard({
           </AnimatePresence>
         </DialogBody>
 
-        <DialogFooter className="border-t border-[#e6e5ea]/50 mx-6 px-0 pb-5 pt-4">
+        <DialogFooter className="border-t border-border/50 mx-6 px-0 pb-5 pt-4">
           {step === 'details' ? (
             <>
               <Button variant="ghost" onClick={handleClose} className="rounded-xl text-[13px]">

@@ -35,9 +35,9 @@ interface StepTouched {
 
 function Label({ children, extra }: { children: ReactNode; extra?: ReactNode }): ReactElement {
   return (
-    <div className="mb-1.5 flex items-baseline justify-between text-[12px] font-semibold text-[#6E6C7C]">
+    <div className="mb-1.5 flex items-baseline justify-between text-[12px] font-semibold text-muted-foreground">
       <span>{children}</span>
-      {extra && <span className="font-normal text-[#B5B0AA]">{extra}</span>}
+      {extra && <span className="font-normal text-faint">{extra}</span>}
     </div>
   );
 }
@@ -56,7 +56,7 @@ function StepTypeToggle({
     <div
       role="radiogroup"
       aria-label={`Step ${index + 1} type`}
-      className="grid shrink-0 grid-cols-2 gap-[2px] rounded-[10px] bg-[#F2F1ED] p-[2px]"
+      className="grid shrink-0 grid-cols-2 gap-[2px] rounded-[10px] bg-muted p-[2px]"
     >
       {(['page', 'event'] as const).map(t => {
         const on = value === t;
@@ -65,10 +65,10 @@ function StepTypeToggle({
             key={t}
             className={cn(
               'cursor-pointer rounded-[8px] px-2 py-1 text-center text-[11.5px] font-semibold transition-colors',
-              'has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[#3D3B4F]/30',
+              'has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-foreground/30',
               on
-                ? 'bg-white text-[#3D3B4F] shadow-[0_0_0_1px_#E6E4DE]'
-                : 'text-[#6E6C7C] hover:text-[#3D3B4F]'
+                ? 'bg-card text-foreground shadow-[0_0_0_1px_var(--border)]'
+                : 'text-muted-foreground hover:text-foreground'
             )}
           >
             <input
@@ -96,14 +96,14 @@ function funnelPreview(steps: FunnelStep[]): ReactNode | null {
       Counts sessions that{' '}
       {filled.map((s, i) => (
         <span key={i}>
-          {i > 0 && <span className="text-[#B5B0AA]"> → </span>}
+          {i > 0 && <span className="text-faint"> → </span>}
           {s.type === 'page' ? 'visit ' : 'fire '}
-          <b className="font-semibold text-[#3D3B4F]">{s.target.trim()}</b>
+          <b className="font-semibold text-foreground">{s.target.trim()}</b>
           {s.type === 'event' && s.propKey?.trim() && s.propValue?.trim() && (
             <>
               {' '}
               with{' '}
-              <b className="font-semibold text-[#3D3B4F]">
+              <b className="font-semibold text-foreground">
                 {s.propKey.trim()} = {s.propValue.trim()}
               </b>
             </>
@@ -381,13 +381,13 @@ export function FunnelFormModal({
                               moveStep(i, e.key === 'ArrowUp' ? i - 1 : i + 1);
                             }
                           }}
-                          className="flex h-7 w-5 shrink-0 cursor-grab items-center justify-center rounded-md text-[#B5B0AA] hover:bg-[#F2F1ED] hover:text-[#6E6C7C] active:cursor-grabbing transition-colors"
+                          className="flex h-7 w-5 shrink-0 cursor-grab items-center justify-center rounded-md text-faint hover:bg-muted hover:text-muted-foreground active:cursor-grabbing transition-colors"
                           title="Drag, or use the arrow keys, to reorder"
                           aria-label={`Reorder step ${i + 1} (arrow keys move it)`}
                         >
                           <GripVertical className="h-3.5 w-3.5" />
                         </button>
-                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#F2F1ED] font-mono text-[10px] font-semibold text-[#6E6C7C]">
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted font-mono text-[10px] font-semibold text-muted-foreground">
                           {i + 1}
                         </span>
                         <StepTypeToggle
@@ -408,7 +408,7 @@ export function FunnelFormModal({
                         {step.type === 'page' ? (
                           <div
                             className={cn(
-                              'flex h-9 min-w-0 flex-1 items-center overflow-hidden rounded-xl bg-[#F2F1ED] transition-shadow focus-within:bg-white focus-within:shadow-[inset_0_0_0_1.5px_var(--ring)]',
+                              'flex h-9 min-w-0 flex-1 items-center overflow-hidden rounded-xl bg-muted transition-shadow focus-within:bg-card focus-within:shadow-[inset_0_0_0_1.5px_var(--ring)]',
                               touched[i]?.target &&
                                 targetErrors[i] &&
                                 'shadow-[inset_0_0_0_1.5px_var(--destructive)]'
@@ -416,7 +416,7 @@ export function FunnelFormModal({
                           >
                             {/* The domain prefix is context; phones keep the room for the path. */}
                             {domain && (
-                              <span className="flex h-full max-w-[40%] shrink-0 items-center truncate max-sm:hidden border-r border-[#E6E4DE] pl-3 pr-2 font-mono text-[11px] text-[#9B9590]">
+                              <span className="flex h-full max-w-[40%] shrink-0 items-center truncate max-sm:hidden border-r border-border pl-3 pr-2 font-mono text-[11px] text-subtle">
                                 {domain}
                               </span>
                             )}
@@ -429,7 +429,7 @@ export function FunnelFormModal({
                               onChange={e => setStep(i, { target: e.target.value })}
                               onBlur={e => touchTarget(i, e.currentTarget.value)}
                               onKeyDown={onEnter}
-                              className="h-full min-w-0 flex-1 bg-transparent px-2.5 text-[13px] text-[#3D3B4F] outline-none placeholder:text-[#B5B0AA]"
+                              className="h-full min-w-0 flex-1 bg-transparent px-2.5 text-[13px] text-foreground outline-none placeholder:text-faint"
                             />
                           </div>
                         ) : (
@@ -449,7 +449,7 @@ export function FunnelFormModal({
                           type="button"
                           onClick={() => removeStep(i)}
                           disabled={steps.length <= 2}
-                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[#B5B0AA] hover:bg-[#e07a5f]/10 hover:text-[#e07a5f] disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-[#B5B0AA] disabled:cursor-default transition-colors cursor-pointer"
+                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-faint hover:bg-[#e07a5f]/10 hover:text-[#e07a5f] disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-faint disabled:cursor-default transition-colors cursor-pointer"
                           title={
                             steps.length <= 2 ? 'A funnel needs at least two steps' : 'Remove step'
                           }
@@ -463,7 +463,7 @@ export function FunnelFormModal({
                         <div className="pl-[52px] pr-9">
                           {hasFilter ? (
                             <div className="mt-1.5">
-                              <div className="mb-1 flex items-baseline justify-between text-[11.5px] font-semibold text-[#6E6C7C]">
+                              <div className="mb-1 flex items-baseline justify-between text-[11.5px] font-semibold text-muted-foreground">
                                 <span>Only when a property matches</span>
                                 <button
                                   type="button"
@@ -475,7 +475,7 @@ export function FunnelFormModal({
                                       return next;
                                     });
                                   }}
-                                  className="font-medium text-[#9B9590] hover:text-[#3D3B4F] transition-colors cursor-pointer"
+                                  className="font-medium text-subtle hover:text-foreground transition-colors cursor-pointer"
                                 >
                                   Remove
                                 </button>
@@ -500,7 +500,7 @@ export function FunnelFormModal({
                                   onKeyDown={onEnter}
                                   className="h-8 rounded-xl px-3 text-[12px]"
                                 />
-                                <span className="shrink-0 text-[12px] text-[#B5B0AA]">=</span>
+                                <span className="shrink-0 text-[12px] text-faint">=</span>
                                 <Input
                                   placeholder="e.g. pro"
                                   value={step.propValue ?? ''}
@@ -517,7 +517,7 @@ export function FunnelFormModal({
                             <button
                               type="button"
                               onClick={() => setFilter(i, true)}
-                              className="mt-1 text-[11.5px] font-semibold text-[#6E6C7C] hover:text-[#3D3B4F] transition-colors cursor-pointer"
+                              className="mt-1 text-[11.5px] font-semibold text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                             >
                               + Only when a property matches
                             </button>
@@ -537,7 +537,7 @@ export function FunnelFormModal({
                 <button
                   type="button"
                   onClick={addStep}
-                  className="mt-2.5 flex items-center gap-1.5 rounded-full bg-[#F2F1ED] px-3 py-1.5 text-[12px] font-semibold text-[#3D3B4F] hover:bg-[#E6E4DE] transition-colors cursor-pointer"
+                  className="mt-2.5 flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5 text-[12px] font-semibold text-foreground hover:bg-border transition-colors cursor-pointer"
                 >
                   <Plus className="h-3.5 w-3.5" />
                   Add step
@@ -547,20 +547,20 @@ export function FunnelFormModal({
 
             {/* Always holds its row: the dialog is centered, so the line
               appearing or vanishing would shift the steps under the cursor. */}
-            <div className="flex items-start gap-2.5 rounded-[14px] bg-[#F9F8F6] px-3.5 py-2.5 text-[12.5px] leading-relaxed text-[#6E6C7C]">
+            <div className="flex items-start gap-2.5 rounded-[14px] bg-background px-3.5 py-2.5 text-[12.5px] leading-relaxed text-muted-foreground">
               <span
                 className={cn(
                   'mt-[7px] h-2 w-2 shrink-0 rounded-full',
-                  preview ? 'bg-[#28E99F]' : 'bg-[#E6E4DE]'
+                  preview ? 'bg-[#28E99F]' : 'bg-border'
                 )}
               />
-              <span className={cn(!preview && 'text-[#B5B0AA]')}>{preview ?? readbackHint}</span>
+              <span className={cn(!preview && 'text-faint')}>{preview ?? readbackHint}</span>
             </div>
             {error && <p className="text-[13px] text-[#e07a5f]">{error}</p>}
           </div>
         </DialogBody>
 
-        <DialogFooter className="border-t border-[#e6e5ea]/50 mx-6 px-0 pb-5 pt-4">
+        <DialogFooter className="border-t border-border/50 mx-6 px-0 pb-5 pt-4">
           <Button
             variant="ghost"
             onClick={() => onOpenChange(false)}
@@ -571,7 +571,7 @@ export function FunnelFormModal({
           <Button
             onClick={submit}
             isLoading={saveFunnel.isPending}
-            className="bg-[#3D3B4F] hover:bg-[#2C2B3B] text-white shadow-none text-[13px] px-5 cursor-pointer"
+            className="bg-btn hover:bg-btn-hover text-white shadow-none text-[13px] px-5 cursor-pointer"
           >
             {editing ? (
               <>

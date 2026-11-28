@@ -28,7 +28,7 @@ export const Route = createFileRoute('/portal/tokens')({
   component: TokensPage,
 });
 
-const CARD = 'rounded-[20px] bg-white shadow-float';
+const CARD = 'rounded-[20px] bg-card shadow-float';
 
 /**
  * API tokens: personal bearer tokens that agents and scripts use against the
@@ -74,13 +74,13 @@ function TokensPage(): ReactElement {
     <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
       <div className="mb-6 flex max-w-4xl flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-[26px] font-bold text-[#3D3B4F] tracking-[-0.02em]">API tokens</h1>
-          <p className="mt-1 max-w-[62ch] text-[14px] text-[#9B9590]">
+          <h1 className="text-[26px] font-bold text-foreground tracking-[-0.02em]">API tokens</h1>
+          <p className="mt-1 max-w-[62ch] text-[14px] text-subtle">
             Let agents and scripts read {current ? current.name : 'this workspace'}&rsquo;s
             analytics through the API and the{' '}
             <Link
               to="/portal/mcp"
-              className="font-medium text-[#6E6C7C] underline-offset-2 hover:text-[#3D3B4F] hover:underline"
+              className="font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
             >
               MCP server
             </Link>
@@ -112,15 +112,13 @@ function TokensPage(): ReactElement {
 
         <section className={CARD}>
           <div className="flex flex-wrap items-center justify-between gap-2 px-5 pb-3 pt-4 sm:px-6">
-            <h2 className="text-[14.5px] font-semibold text-[#3D3B4F]">
+            <h2 className="text-[14.5px] font-semibold text-foreground">
               Your tokens
-              {current && (
-                <span className="ml-1.5 font-normal text-[#9B9590]">in {current.name}</span>
-              )}
+              {current && <span className="ml-1.5 font-normal text-subtle">in {current.name}</span>}
             </h2>
             {tokensQ.isSuccess && (
               <span
-                className={`text-[12px] tabular-nums ${atLimit ? 'font-medium text-[#c9694f]' : 'text-[#9B9590]'}`}
+                className={`text-[12px] tabular-nums ${atLimit ? 'font-medium text-coral-deep' : 'text-subtle'}`}
                 title="Across all your workspaces"
               >
                 {all.length} of {TOKEN_LIMIT} used
@@ -132,7 +130,7 @@ function TokensPage(): ReactElement {
           {tokensQ.isPending ? (
             <div className="space-y-2 px-5 pb-5 sm:px-6">
               {[0, 1].map(i => (
-                <div key={i} className="h-[58px] animate-pulse rounded-[14px] bg-[#F2F1ED]" />
+                <div key={i} className="h-[58px] animate-pulse rounded-[14px] bg-muted" />
               ))}
             </div>
           ) : tokensQ.isError ? (
@@ -141,17 +139,17 @@ function TokensPage(): ReactElement {
             </p>
           ) : tokens.length === 0 ? (
             <div className="flex flex-col items-center px-5 pb-10 pt-6 text-center">
-              <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-[12px] bg-[#28E99F]/20 text-[#3D3B4F]">
+              <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-[12px] bg-[#28E99F]/20 text-foreground">
                 <KeyRound className="h-[18px] w-[18px]" strokeWidth={1.8} />
               </span>
-              <p className="text-[13.5px] font-semibold text-[#3D3B4F]">No tokens yet</p>
-              <p className="mt-1 max-w-[44ch] text-[12.5px] leading-relaxed text-[#9B9590]">
+              <p className="text-[13.5px] font-semibold text-foreground">No tokens yet</p>
+              <p className="mt-1 max-w-[44ch] text-[12.5px] leading-relaxed text-subtle">
                 Create one to connect Claude Code or another agent, then follow the setup on the MCP
                 server tab.
               </p>
             </div>
           ) : (
-            <ul className="border-t border-[#F2F1ED]">
+            <ul className="border-t border-muted">
               {tokens.map(t => (
                 <TokenItem
                   key={t.id}
@@ -221,26 +219,26 @@ function TokenItem({
 }): ReactElement {
   return (
     <li
-      className={`flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-[#F2F1ED] px-5 py-3.5 last:border-b-0 sm:px-6 ${
-        confirming ? 'bg-[#fdf1ed]' : ''
+      className={`flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-muted px-5 py-3.5 last:border-b-0 sm:px-6 ${
+        confirming ? 'bg-coral-soft' : ''
       }`}
     >
       <div className="flex min-w-0 flex-1 basis-[240px] items-center gap-3">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-[#28E99F]/20 text-[#3D3B4F]">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-[#28E99F]/20 text-foreground">
           <KeyRound className="h-4 w-4" strokeWidth={1.8} />
         </span>
         <div className="min-w-0">
           <p className="flex items-center gap-2">
-            <span className="truncate text-[13.5px] font-semibold text-[#3D3B4F]">
+            <span className="truncate text-[13.5px] font-semibold text-foreground">
               {token.name}
             </span>
             {isNew && (
-              <span className="shrink-0 rounded-full bg-[#28E99F]/20 px-2 py-0.5 text-[10.5px] font-semibold text-[#3D3B4F]">
+              <span className="shrink-0 rounded-full bg-[#28E99F]/20 px-2 py-0.5 text-[10.5px] font-semibold text-foreground">
                 New
               </span>
             )}
           </p>
-          <p className="truncate font-mono text-[11.5px] text-[#9B9590]">
+          <p className="truncate font-mono text-[11.5px] text-subtle">
             {maskedToken(token.suffix)}
             {token.workspaceId === null && (
               <span className="ml-2 font-sans">· works in all workspaces (older token)</span>
@@ -251,13 +249,13 @@ function TokenItem({
 
       {confirming ? (
         <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
-          <p className="text-[12.5px] text-[#c9694f]">
+          <p className="text-[12.5px] text-coral-deep">
             Revoke? Anything using it stops working right away.
           </p>
           <div className="flex gap-1">
             <button
               onClick={onCancel}
-              className="rounded-full px-3 py-1.5 text-[12px] font-semibold text-[#6E6C7C] hover:bg-white transition-colors cursor-pointer"
+              className="rounded-full px-3 py-1.5 text-[12px] font-semibold text-muted-foreground hover:bg-card transition-colors cursor-pointer"
             >
               Keep
             </button>
@@ -276,16 +274,16 @@ function TokenItem({
             <ScopePill scope={token.scope} />
           </div>
           <div className="min-w-0 flex-1 text-[12px] leading-snug sm:w-[150px] sm:flex-none">
-            <p className={`truncate ${token.lastUsedAt ? 'text-[#6E6C7C]' : 'text-[#B5B0AA]'}`}>
+            <p className={`truncate ${token.lastUsedAt ? 'text-muted-foreground' : 'text-faint'}`}>
               {token.lastUsedAt ? `Used ${formatWhen(token.lastUsedAt)}` : 'Never used'}
             </p>
             {token.createdAt && (
-              <p className="truncate text-[#B5B0AA]">Created {formatWhen(token.createdAt)}</p>
+              <p className="truncate text-faint">Created {formatWhen(token.createdAt)}</p>
             )}
           </div>
           <button
             onClick={onAskRevoke}
-            className="ml-auto shrink-0 rounded-full border border-[#E6E4DE] px-3 py-1.5 text-[12px] font-semibold text-[#6E6C7C] hover:border-[#f1c9bd] hover:bg-[#fdf1ed] hover:text-[#c9694f] transition-colors cursor-pointer"
+            className="ml-auto shrink-0 rounded-full border border-border px-3 py-1.5 text-[12px] font-semibold text-muted-foreground hover:border-[#f1c9bd] hover:bg-coral-soft hover:text-coral-deep transition-colors cursor-pointer"
           >
             Revoke
           </button>
@@ -331,21 +329,21 @@ function NewTokenPanel({
       <button
         onClick={onDismiss}
         aria-label="Dismiss"
-        className="absolute right-3 top-3 rounded-full p-1.5 text-[#9B9590] hover:bg-[#F2F1ED] hover:text-[#3D3B4F] transition-colors cursor-pointer"
+        className="absolute right-3 top-3 rounded-full p-1.5 text-subtle hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
       >
         <X className="h-4 w-4" />
       </button>
-      <h2 className="pr-8 text-[14.5px] font-semibold text-[#3D3B4F]">
+      <h2 className="pr-8 text-[14.5px] font-semibold text-foreground">
         Copy &ldquo;{token.name}&rdquo; now
       </h2>
-      <p className="mt-0.5 text-[12.5px] text-[#9B9590]">
+      <p className="mt-0.5 text-[12.5px] text-subtle">
         This is the only time the full token is shown. Put it in your agent&rsquo;s config before
         you leave this page.
       </p>
       <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
         <code
           id="new-token-secret"
-          className="min-w-0 flex-1 select-all break-all rounded-[12px] bg-[#F2F1ED] px-3.5 py-2.5 font-mono text-[12.5px] text-[#3D3B4F]"
+          className="min-w-0 flex-1 select-all break-all rounded-[12px] bg-muted px-3.5 py-2.5 font-mono text-[12.5px] text-foreground"
         >
           {secret}
         </code>
@@ -356,7 +354,7 @@ function NewTokenPanel({
       </div>
       <Link
         to="/portal/mcp"
-        className="mt-3 inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-[#6E6C7C] hover:text-[#3D3B4F]"
+        className="mt-3 inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-muted-foreground hover:text-foreground"
       >
         Connect a client on the MCP server tab
         <ArrowRight className="h-3.5 w-3.5" />
@@ -376,12 +374,12 @@ function Fact({
 }): ReactElement {
   return (
     <div className="flex gap-3">
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[#F2F1ED] text-[#6E6C7C]">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-muted text-muted-foreground">
         {icon}
       </span>
       <div className="min-w-0">
-        <p className="text-[13px] font-semibold text-[#3D3B4F]">{title}</p>
-        <p className="mt-0.5 text-[12px] leading-relaxed text-[#9B9590]">{children}</p>
+        <p className="text-[13px] font-semibold text-foreground">{title}</p>
+        <p className="mt-0.5 text-[12px] leading-relaxed text-subtle">{children}</p>
       </div>
     </div>
   );

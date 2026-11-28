@@ -39,15 +39,15 @@ interface Invite {
   expiresAt: string;
 }
 
-const CARD = 'rounded-[20px] bg-white shadow-float';
-const EYEBROW = 'text-[10.5px] font-bold uppercase tracking-[0.1em] text-[#9B9590]';
+const CARD = 'rounded-[20px] bg-card shadow-float';
+const EYEBROW = 'text-[10.5px] font-bold uppercase tracking-[0.1em] text-subtle';
 // Phones drop the role column: the pill rides beside the name instead.
 const ROW_GRID =
   'grid grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1fr)_110px_120px] items-center gap-3';
 
 // Deterministic avatar tint per person - the chart palette, so the roster
 // reads with the rest of the product.
-const AVATAR_COLORS = ['#3D3B4F', '#5B9A6F', '#6B8EAD', '#D4A574', '#E07A5F'];
+const AVATAR_COLORS = ['var(--btn)', '#5B9A6F', '#6B8EAD', '#D4A574', '#E07A5F'];
 
 /**
  * Members (owner view): the roster as a table on the left - people, then
@@ -61,8 +61,8 @@ function MembersPage(): ReactElement {
   return (
     <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
       <div className="mb-6">
-        <h1 className="text-[26px] font-bold text-[#3D3B4F] tracking-[-0.02em]">Members</h1>
-        <p className="mt-1 max-w-[62ch] text-[14px] text-[#9B9590]">
+        <h1 className="text-[26px] font-bold text-foreground tracking-[-0.02em]">Members</h1>
+        <p className="mt-1 max-w-[62ch] text-[14px] text-subtle">
           {current ? `People with access to ${current.name}. ` : 'People with access. '}
           Members view dashboards; owners manage sites, tokens and invites.
         </p>
@@ -73,10 +73,10 @@ function MembersPage(): ReactElement {
       ) : (
         <div className={`${CARD} max-w-[620px] px-8 py-14 text-center`}>
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-muted">
-            <Users className="h-6 w-6 text-[#9B9590]" strokeWidth={1.6} />
+            <Users className="h-6 w-6 text-subtle" strokeWidth={1.6} />
           </div>
-          <p className="text-[15px] font-semibold text-[#3D3B4F]">Owners manage members</p>
-          <p className="mx-auto mt-2 max-w-sm text-[13px] text-[#9B9590]">
+          <p className="text-[15px] font-semibold text-foreground">Owners manage members</p>
+          <p className="mx-auto mt-2 max-w-sm text-[13px] text-subtle">
             Only a workspace owner can view and invite members here.
           </p>
         </div>
@@ -148,14 +148,14 @@ function OwnerView({
       {/* Roster */}
       <div className={`${CARD} overflow-hidden`}>
         <div className="flex items-center justify-between gap-3 px-5 pb-2.5 pt-4">
-          <p className="text-[14px] font-semibold text-[#3D3B4F]">
+          <p className="text-[14px] font-semibold text-foreground">
             {members.length} {members.length === 1 ? 'member' : 'members'}
-            <span className="font-normal text-[#9B9590]">
+            <span className="font-normal text-subtle">
               {' '}
               · {owners} {owners === 1 ? 'owner' : 'owners'}
             </span>
           </p>
-          <p className="text-[12px] text-[#9B9590]">
+          <p className="text-[12px] text-subtle">
             {invites.length > 0
               ? `${invites.length} ${invites.length === 1 ? 'invite' : 'invites'} pending`
               : 'No pending invites'}
@@ -167,19 +167,19 @@ function OwnerView({
           return (
             <div
               key={m.userId}
-              className={`${ROW_GRID} px-5 py-3 ${i ? 'border-t border-[#F2F1ED]' : ''}`}
+              className={`${ROW_GRID} px-5 py-3 ${i ? 'border-t border-muted' : ''}`}
             >
               <div className="flex min-w-0 items-center gap-3">
                 <Avatar name={m.name || m.email} index={i} />
                 <div className="flex min-w-0 flex-col">
-                  <span className="flex min-w-0 items-center gap-1.5 text-[13.5px] font-semibold text-[#3D3B4F]">
+                  <span className="flex min-w-0 items-center gap-1.5 text-[13.5px] font-semibold text-foreground">
                     <span className="truncate">{m.name || m.email.split('@')[0]}</span>
-                    {isMe && <span className="shrink-0 font-normal text-[#9B9590]">(you)</span>}
+                    {isMe && <span className="shrink-0 font-normal text-subtle">(you)</span>}
                     <span className="shrink-0 sm:hidden">
                       <RolePill role={m.role} />
                     </span>
                   </span>
-                  <span className="truncate text-[12px] text-[#9B9590]">
+                  <span className="truncate text-[12px] text-subtle">
                     {m.email}
                     {m.joinedAt && <> · joined {formatDate(m.joinedAt)}</>}
                   </span>
@@ -211,33 +211,33 @@ function OwnerView({
         })}
 
         {members.length === 0 && (
-          <p className="border-t border-[#F2F1ED] px-5 py-8 text-center text-[13px] text-[#9B9590]">
+          <p className="border-t border-muted px-5 py-8 text-center text-[13px] text-subtle">
             {membersQ.isPending ? 'Loading…' : 'No members yet.'}
           </p>
         )}
 
         {invites.length > 0 && (
           <>
-            <div className={`${EYEBROW} border-t border-[#F2F1ED] px-5 pb-1.5 pt-3.5`}>
+            <div className={`${EYEBROW} border-t border-muted px-5 pb-1.5 pt-3.5`}>
               Pending invites
             </div>
             {invites.map(inv => (
               <div
                 key={inv.id}
-                className={`${ROW_GRID} border-t border-dashed border-[#E6E4DE] px-5 py-2.5`}
+                className={`${ROW_GRID} border-t border-dashed border-border px-5 py-2.5`}
               >
                 <div className="flex min-w-0 items-center gap-3">
-                  <span className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full border-[1.5px] border-dashed border-[#C7C6D2] text-[#9B9590]">
+                  <span className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full border-[1.5px] border-dashed border-border-strong text-subtle">
                     <Mail className="h-3.5 w-3.5" strokeWidth={1.8} />
                   </span>
                   <div className="flex min-w-0 flex-col">
-                    <span className="flex min-w-0 items-center gap-1.5 text-[13.5px] font-medium text-[#6E6C7C]">
+                    <span className="flex min-w-0 items-center gap-1.5 text-[13.5px] font-medium text-muted-foreground">
                       <span className="truncate">{inv.email}</span>
                       <span className="shrink-0 sm:hidden">
                         <RolePill role={inv.role === 'owner' ? 'owner' : 'member'} />
                       </span>
                     </span>
-                    <span className="flex items-center gap-1.5 text-[12px] text-[#9B9590]">
+                    <span className="flex items-center gap-1.5 text-[12px] text-subtle">
                       <Clock className="h-3 w-3" strokeWidth={1.8} />
                       Invite expires {formatRelative(inv.expiresAt)}
                     </span>
@@ -291,7 +291,7 @@ function OwnerView({
                     : `${confirmMember.email} immediately loses access to ${workspaceName}. If this is their only workspace on this instance, their account here is removed entirely and a new invitation would be needed to bring them back. Sites and analytics data stay in the workspace.`}
                 </DialogDescription>
               </DialogHeader>
-              <DialogFooter className="mx-6 border-t border-[#e6e5ea]/50 px-0 pb-5 pt-4">
+              <DialogFooter className="mx-6 border-t border-border/50 px-0 pb-5 pt-4">
                 <Button
                   variant="ghost"
                   onClick={() => setConfirmMember(null)}
@@ -369,12 +369,12 @@ function InvitePanel({ workspaceId }: { workspaceId: string }): ReactElement {
   return (
     <div className={`${CARD} p-[22px]`}>
       <div className="mb-4 flex items-center gap-3">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px] bg-[#F2F1ED] text-[#3D3B4F]">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px] bg-muted text-foreground">
           <Users className="h-[18px] w-[18px]" strokeWidth={1.8} />
         </span>
         <div className="flex min-w-0 flex-col">
-          <span className="text-[14px] font-semibold text-[#3D3B4F]">Invite someone</span>
-          <span className="text-[12px] text-[#9B9590]">
+          <span className="text-[14px] font-semibold text-foreground">Invite someone</span>
+          <span className="text-[12px] text-subtle">
             You get a link to share - no email is sent
           </span>
         </div>
@@ -382,14 +382,14 @@ function InvitePanel({ workspaceId }: { workspaceId: string }): ReactElement {
 
       {inviteUrl ? (
         <div className="flex flex-col gap-3">
-          <div className="flex items-center gap-2 rounded-xl bg-[#E3F6EE] px-3.5 py-3">
+          <div className="flex items-center gap-2 rounded-xl bg-mint-soft px-3.5 py-3">
             <Check className="h-4 w-4 shrink-0 text-[#1C9C6C]" />
-            <p className="min-w-0 text-[12.5px] font-semibold text-[#123326]">
+            <p className="min-w-0 text-[12.5px] font-semibold text-[#123326] dark:text-[#7df0c0]">
               Link for <span className="break-all">{invitedEmail}</span> - shown once.
             </p>
           </div>
-          <div className="flex items-center gap-2 rounded-[14px] bg-[#F2F1ED] py-2.5 pl-3.5 pr-2.5">
-            <code className="min-w-0 flex-1 truncate font-mono text-[12px] text-[#3D3B4F]">
+          <div className="flex items-center gap-2 rounded-[14px] bg-muted py-2.5 pl-3.5 pr-2.5">
+            <code className="min-w-0 flex-1 truncate font-mono text-[12px] text-foreground">
               {inviteUrl}
             </code>
             <Button variant="dark" size="sm" onClick={() => void copy()} className="text-[12px]">
@@ -397,8 +397,8 @@ function InvitePanel({ workspaceId }: { workspaceId: string }): ReactElement {
               {copied ? 'Copied' : 'Copy link'}
             </Button>
           </div>
-          <p className="flex gap-2 text-[11.5px] leading-relaxed text-[#9B9590]">
-            <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#B5B0AA]" strokeWidth={1.8} />
+          <p className="flex gap-2 text-[11.5px] leading-relaxed text-subtle">
+            <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-faint" strokeWidth={1.8} />
             <span>
               Valid 7 days, single use, {role} role. Revoke it from the roster any time - it shows
               as pending until they accept.
@@ -452,7 +452,7 @@ function InvitePanel({ workspaceId }: { workspaceId: string }): ReactElement {
           {createInvite.isError && (
             <p className="text-[12px] text-[#e5484d]">{createInvite.error.message}</p>
           )}
-          <p className="text-[11.5px] leading-relaxed text-[#9B9590]">
+          <p className="text-[11.5px] leading-relaxed text-subtle">
             Valid 7 days, single use, only that email can accept it. The link is shown once.
           </p>
         </form>
@@ -480,19 +480,19 @@ function RoleChoice({
       type="button"
       onClick={() => onChange(value)}
       className={`flex gap-2.5 rounded-xl px-3 py-2.5 text-left transition-colors cursor-pointer ${
-        on ? 'bg-white shadow-[inset_0_0_0_1.5px_#3D3B4F]' : 'bg-[#F2F1ED] hover:bg-[#E6E4DE]'
+        on ? 'bg-card shadow-[inset_0_0_0_1.5px_var(--foreground)]' : 'bg-muted hover:bg-border'
       }`}
     >
       <span
         className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full ${
-          on ? 'bg-[#3D3B4F]' : 'shadow-[inset_0_0_0_1.5px_#C7C6D2]'
+          on ? 'bg-btn' : 'shadow-[inset_0_0_0_1.5px_var(--border-strong)]'
         }`}
       >
         {on && <span className="h-[5px] w-[5px] rounded-full bg-[#28E99F]" />}
       </span>
       <span className="flex flex-col">
-        <span className="text-[13px] font-semibold text-[#3D3B4F]">{title}</span>
-        <span className="text-[11.5px] leading-snug text-[#9B9590]">{desc}</span>
+        <span className="text-[13px] font-semibold text-foreground">{title}</span>
+        <span className="text-[11.5px] leading-snug text-subtle">{desc}</span>
       </span>
     </button>
   );
@@ -516,11 +516,11 @@ function Avatar({ name, index }: { name: string; index: number }): ReactElement 
 
 function RolePill({ role }: { role: Role }): ReactElement {
   return role === 'owner' ? (
-    <span className="inline-flex rounded-full bg-[#3D3B4F] px-2 py-0.5 text-[11px] font-medium text-white">
+    <span className="inline-flex rounded-full bg-btn px-2 py-0.5 text-[11px] font-medium text-white">
       Owner
     </span>
   ) : (
-    <span className="inline-flex rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-[#6E6C7C] shadow-[inset_0_0_0_1px_#E6E4DE]">
+    <span className="inline-flex rounded-full bg-card px-2 py-0.5 text-[11px] font-medium text-muted-foreground shadow-[inset_0_0_0_1px_var(--border)]">
       Member
     </span>
   );

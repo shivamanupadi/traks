@@ -16,8 +16,8 @@ export function SiteTileStats({
     return (
       <div className="grid grid-cols-3 gap-2">
         {[...Array(3)].map((_, i) => (
-          <div key={i} className="rounded-xl bg-[#F2F1ED] px-2.5 py-2">
-            <div className="text-[15px] font-semibold text-[#B5B0AA]">-</div>
+          <div key={i} className="rounded-xl bg-muted px-2.5 py-2">
+            <div className="text-[15px] font-semibold text-faint">-</div>
           </div>
         ))}
       </div>
@@ -27,7 +27,7 @@ export function SiteTileStats({
     return (
       <div className="grid grid-cols-3 gap-2">
         {[...Array(3)].map((_, i) => (
-          <div key={i} className="rounded-xl bg-[#F2F1ED] px-2.5 py-2">
+          <div key={i} className="rounded-xl bg-muted px-2.5 py-2">
             <div className="mb-1.5 h-3.5 w-12 animate-pulse rounded bg-muted" />
             <div className="ml-0.5 h-4 w-8 animate-pulse rounded bg-muted" />
           </div>
@@ -46,18 +46,18 @@ export function SiteTileStats({
   return (
     <div className="grid grid-cols-3 gap-2">
       {items.map(item => (
-        <div key={item.label} className="rounded-xl bg-[#F2F1ED] px-2.5 py-2">
+        <div key={item.label} className="rounded-xl bg-muted px-2.5 py-2">
           <div className="mb-1.5 flex items-center gap-1.5">
             {/* Below 360px the label alone fills the chip. */}
             <item.icon
-              className="h-3.5 w-3.5 shrink-0 text-[#3D3B4F] max-[359px]:hidden"
+              className="h-3.5 w-3.5 shrink-0 text-foreground max-[359px]:hidden"
               strokeWidth={1.8}
             />
-            <span className="text-[10.5px] font-semibold leading-none text-[#9B9590]">
+            <span className="text-[10.5px] font-semibold leading-none text-subtle">
               {item.label}
             </span>
           </div>
-          <span className="pl-0.5 text-[15px] font-bold leading-none tabular-nums text-[#3D3B4F]">
+          <span className="pl-0.5 text-[15px] font-bold leading-none tabular-nums text-foreground">
             {formatNumber(item.value)}
           </span>
         </div>

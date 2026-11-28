@@ -104,7 +104,7 @@ const DropdownMenuContent = React.forwardRef<
           exit={{ opacity: 0, scale: 0.98 }}
           transition={{ duration: 0.08 }}
           className={cn(
-            `absolute ${alignClass} z-50 min-w-[8rem] overflow-hidden rounded-xl border bg-white p-1 text-foreground shadow-lg`,
+            `absolute ${alignClass} z-50 min-w-[8rem] overflow-hidden rounded-xl border bg-card p-1 text-foreground shadow-lg`,
             className
           )}
           style={{ marginTop: sideOffset }}

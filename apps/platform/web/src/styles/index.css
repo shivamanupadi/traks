@@ -1,6 +1,8 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
+@custom-variant dark (&:is(.dark *));
+
 /*
  * Traks Design System - Ink & Mint
  * Neutral slate ink (#3D3B4F) anchors text, dark buttons, chart strokes,
@@ -30,6 +32,17 @@
   --border: #e5e5eb;
   --input: #e5e5eb;
   --ring: #3d3b4f;
+  /* Extra ink/surface steps (hardcoded hexes used to live in components) */
+  --subtle: #9b9590;
+  --faint: #b5b0aa;
+  --border-strong: #d8d5cd;
+  --btn: #3d3b4f;
+  --btn-hover: #2c2b3b;
+  --coral-soft: #fdf1ed;
+  --coral-deep: #c9694f;
+  --coral-ink: #8a3a27;
+  --success-ink: #2e7d57;
+  --mint-soft: #e3f6ee;
   /* Chart colors */
   --chart-1: #3d3b4f;
   --chart-2: #5b9a6f;
@@ -45,6 +58,50 @@
   --sidebar-accent-foreground: #3d3b4f;
   --sidebar-border: #e5e5eb;
   --sidebar-ring: #3d3b4f;
+}
+
+/* Dark theme: toggled with the .dark class on <html> (see lib/theme.ts). */
+.dark {
+  color-scheme: dark;
+  --background: #14131a;
+  --foreground: #ecebf3;
+  --card: #1e1d27;
+  --card-foreground: #ecebf3;
+  --popover: #23222d;
+  --popover-foreground: #ecebf3;
+  --primary: #28e99f;
+  --primary-foreground: #1b1a26;
+  --secondary: #2a2933;
+  --secondary-foreground: #ecebf3;
+  --muted: #2a2933;
+  --muted-foreground: #a9a7b8;
+  --accent: #2a2933;
+  --accent-foreground: #ecebf3;
+  --destructive: #ef5a5f;
+  --border: #33323f;
+  --input: #33323f;
+  --ring: #ecebf3;
+  --subtle: #8e8b9e;
+  --faint: #656274;
+  --border-strong: #4a4859;
+  --btn: #4b4963;
+  --btn-hover: #5d5b79;
+  --coral-soft: #3a2521;
+  --coral-deep: #ee9279;
+  --coral-ink: #f3b3a3;
+  --success-ink: #5fd6a0;
+  --mint-soft: #123a2c;
+  --chart-1: #ecebf3;
+  --sidebar: #1e1d27;
+  --sidebar-foreground: #ecebf3;
+  --sidebar-primary-foreground: #1b1a26;
+  --sidebar-accent: #2a2933;
+  --sidebar-accent-foreground: #ecebf3;
+  --sidebar-border: #33323f;
+  --sidebar-ring: #ecebf3;
+  --shadow-float: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 32px rgba(0, 0, 0, 0.35);
+  --shadow-float-lg: 0 2px 4px rgba(0, 0, 0, 0.35), 0 20px 48px rgba(0, 0, 0, 0.5);
+  --shadow-pill: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 14px rgba(0, 0, 0, 0.3);
 }
 
 /* shadcn theme mapping */
@@ -71,6 +128,16 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-subtle: var(--subtle);
+  --color-faint: var(--faint);
+  --color-border-strong: var(--border-strong);
+  --color-btn: var(--btn);
+  --color-btn-hover: var(--btn-hover);
+  --color-coral-soft: var(--coral-soft);
+  --color-coral-deep: var(--coral-deep);
+  --color-coral-ink: var(--coral-ink);
+  --color-success-ink: var(--success-ink);
+  --color-mint-soft: var(--mint-soft);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);

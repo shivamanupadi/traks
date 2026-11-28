@@ -34,7 +34,7 @@ const FEATURES = [
 
 function BrandPanel(): ReactElement {
   return (
-    <div className="relative hidden w-[46%] flex-col justify-between overflow-hidden bg-[#3D3B4F] p-12 lg:flex">
+    <div className="relative hidden w-[46%] flex-col justify-between overflow-hidden bg-btn p-12 lg:flex">
       {/* dot grid on ink */}
       <div
         aria-hidden
@@ -132,26 +132,26 @@ function LoginPage(): ReactElement {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#F9F8F6]">
+    <div className="flex min-h-screen bg-background">
       <BrandPanel />
 
       <div className="relative flex flex-1 flex-col items-center justify-center px-4 py-12">
         <div className="relative w-full max-w-[384px]">
           <div className="mb-9 flex flex-col items-center lg:hidden">
             <img src="/logo.svg" alt="Traks" className="h-11 w-11" />
-            <span className="mt-3 text-[19px] font-bold tracking-tight text-[#3D3B4F]">Traks</span>
+            <span className="mt-3 text-[19px] font-bold tracking-tight text-foreground">Traks</span>
           </div>
 
-          <div className="rounded-[20px] bg-white p-8 shadow-float">
+          <div className="rounded-[20px] bg-card p-8 shadow-float">
             {firstRun === null ? (
-              <p className="py-8 text-center text-[14px] text-[#9B99A6]">Loading...</p>
+              <p className="py-8 text-center text-[14px] text-subtle">Loading...</p>
             ) : (
               <>
                 <div className="mb-6">
-                  <h1 className="text-[18px] font-bold tracking-[-0.01em] text-[#3D3B4F]">
+                  <h1 className="text-[18px] font-bold tracking-[-0.01em] text-foreground">
                     {firstRun ? 'Create your owner account' : 'Sign in'}
                   </h1>
-                  <p className="mt-1.5 text-[13px] leading-relaxed text-[#9B99A6]">
+                  <p className="mt-1.5 text-[13px] leading-relaxed text-subtle">
                     {firstRun
                       ? 'This instance is unclaimed. The account you create here becomes its owner, and sign-ups close afterwards.'
                       : 'Welcome back. Sign in to your dashboard.'}
@@ -160,7 +160,7 @@ function LoginPage(): ReactElement {
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div>
-                    <label className="mb-1.5 block text-[12.5px] font-semibold text-[#3D3B4F]">
+                    <label className="mb-1.5 block text-[12.5px] font-semibold text-foreground">
                       Email
                     </label>
                     <Input
@@ -173,14 +173,14 @@ function LoginPage(): ReactElement {
                       autoFocus={!email}
                     />
                     {firstRun && (
-                      <p className="mt-1.5 text-[12px] text-[#B3B1BE]">
+                      <p className="mt-1.5 text-[12px] text-faint">
                         Deployed with Sign in with Cloudflare? Use that account’s email.
                       </p>
                     )}
                   </div>
                   {firstRun && needsCode && !urlParams.get('claim') && (
                     <div>
-                      <label className="mb-1.5 block text-[12.5px] font-semibold text-[#3D3B4F]">
+                      <label className="mb-1.5 block text-[12.5px] font-semibold text-foreground">
                         Claim code
                       </label>
                       <Input
@@ -192,14 +192,14 @@ function LoginPage(): ReactElement {
                         onChange={e => setClaimCode(e.target.value)}
                         className="h-11 px-4 font-mono text-[14px]"
                       />
-                      <p className="mt-1.5 text-[12px] text-[#B3B1BE]">
+                      <p className="mt-1.5 text-[12px] text-faint">
                         Shown on the traks.dev deploy page when this instance was created. Lost it?
                         Run Update there to get a new one.
                       </p>
                     </div>
                   )}
                   <div>
-                    <label className="mb-1.5 block text-[12.5px] font-semibold text-[#3D3B4F]">
+                    <label className="mb-1.5 block text-[12.5px] font-semibold text-foreground">
                       Password
                     </label>
                     <Input
@@ -213,7 +213,7 @@ function LoginPage(): ReactElement {
                       autoFocus={Boolean(email)}
                     />
                     {firstRun && (
-                      <p className="mt-1.5 text-[12px] text-[#B3B1BE]">At least 8 characters</p>
+                      <p className="mt-1.5 text-[12px] text-faint">At least 8 characters</p>
                     )}
                   </div>
 
@@ -231,7 +231,7 @@ function LoginPage(): ReactElement {
             )}
           </div>
 
-          <p className="mt-7 text-center font-mono text-[10.5px] font-medium uppercase tracking-[0.14em] text-[#B3B1BE]">
+          <p className="mt-7 text-center font-mono text-[10.5px] font-medium uppercase tracking-[0.14em] text-faint">
             Self-hosted instance · {window.location.host}
           </p>
         </div>

@@ -84,28 +84,28 @@ function InvitePage(): ReactElement {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#F9F8F6] px-4 py-12">
+    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
       <div className="w-full max-w-[420px]">
         <div className="mb-8 flex flex-col items-center">
           <img src="/logo.svg" alt="Traks" className="h-11 w-11" />
-          <span className="mt-3 text-[19px] font-bold tracking-tight text-[#3D3B4F]">Traks</span>
+          <span className="mt-3 text-[19px] font-bold tracking-tight text-foreground">Traks</span>
         </div>
 
-        <div className="rounded-[20px] border border-[#E9E9EE] bg-white p-8 shadow-float">
+        <div className="rounded-[20px] border border-border bg-card p-8 shadow-float">
           {isLoading || sessionPending ? (
-            <p className="py-8 text-center text-[14px] text-[#9B99A6]">Loading invitation...</p>
+            <p className="py-8 text-center text-[14px] text-subtle">Loading invitation...</p>
           ) : inviteError || !invite ? (
             <div className="py-4 text-center">
-              <p className="text-[16px] font-semibold text-[#3D3B4F]">
+              <p className="text-[16px] font-semibold text-foreground">
                 This invitation isn&rsquo;t valid
               </p>
-              <p className="mx-auto mt-2 max-w-[300px] text-[13px] text-[#9B9590]">
+              <p className="mx-auto mt-2 max-w-[300px] text-[13px] text-subtle">
                 It may have expired, been revoked, or already been used. Ask the workspace owner for
                 a new link.
               </p>
               <Link
                 to="/login"
-                className="mt-5 inline-flex h-10 items-center rounded-full bg-[#3D3B4F] px-5 text-[13px] font-semibold text-white transition-colors hover:bg-[#2C2B3B]"
+                className="mt-5 inline-flex h-10 items-center rounded-full bg-btn px-5 text-[13px] font-semibold text-white transition-colors hover:bg-btn-hover"
               >
                 Go to sign in
               </Link>
@@ -116,21 +116,21 @@ function InvitePage(): ReactElement {
                 <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-muted">
                   <Layers className="h-5 w-5 text-foreground" strokeWidth={1.7} />
                 </div>
-                <h1 className="text-[17px] font-semibold tracking-[-0.01em] text-[#3D3B4F]">
+                <h1 className="text-[17px] font-semibold tracking-[-0.01em] text-foreground">
                   Join {invite.workspaceName}
                 </h1>
-                <p className="mt-1 text-[13px] text-[#9B9590]">
+                <p className="mt-1 text-[13px] text-subtle">
                   {invite.invitedBy} invited you to the{' '}
-                  <span className="font-semibold text-[#3D3B4F]">{invite.workspaceName}</span>{' '}
+                  <span className="font-semibold text-foreground">{invite.workspaceName}</span>{' '}
                   workspace as {invite.role === 'owner' ? 'an owner' : 'a member'}.
                 </p>
               </div>
 
               {session ? (
                 <div>
-                  <p className="mb-4 text-[13px] text-[#9B9590]">
+                  <p className="mb-4 text-[13px] text-subtle">
                     You&rsquo;re signed in as{' '}
-                    <span className="font-semibold text-[#3D3B4F]">{session.user.email}</span>.
+                    <span className="font-semibold text-foreground">{session.user.email}</span>.
                   </p>
                   <Button
                     onClick={() => void joinAsExisting()}
@@ -144,7 +144,7 @@ function InvitePage(): ReactElement {
               ) : (
                 <form onSubmit={e => void signUpAndJoin(e)} className="space-y-4">
                   <div>
-                    <label className="mb-2 block text-[13px] font-medium text-[#3D3B4F]">
+                    <label className="mb-2 block text-[13px] font-medium text-foreground">
                       Your name
                     </label>
                     <Input
@@ -162,7 +162,7 @@ function InvitePage(): ReactElement {
                     />
                   </div>
                   <div>
-                    <label className="mb-2 block text-[13px] font-medium text-[#3D3B4F]">
+                    <label className="mb-2 block text-[13px] font-medium text-foreground">
                       Email
                     </label>
                     <Input
@@ -175,13 +175,13 @@ function InvitePage(): ReactElement {
                       className="h-11 px-4 text-[14px]"
                     />
                     {lockedEmail && (
-                      <p className="mt-1.5 text-[12px] text-[#B5B0AA]">
+                      <p className="mt-1.5 text-[12px] text-faint">
                         This invitation is for {lockedEmail}
                       </p>
                     )}
                   </div>
                   <div>
-                    <label className="mb-2 block text-[13px] font-medium text-[#3D3B4F]">
+                    <label className="mb-2 block text-[13px] font-medium text-foreground">
                       Password
                     </label>
                     <Input
@@ -199,9 +199,9 @@ function InvitePage(): ReactElement {
                     <UserPlus className="h-4 w-4" />
                     Create account &amp; join
                   </Button>
-                  <p className="text-center text-[12px] text-[#B5B0AA]">
+                  <p className="text-center text-[12px] text-faint">
                     Already have an account here?{' '}
-                    <Link to="/login" className="font-semibold text-[#3D3B4F] hover:underline">
+                    <Link to="/login" className="font-semibold text-foreground hover:underline">
                       Sign in
                     </Link>{' '}
                     first, then open this link again.

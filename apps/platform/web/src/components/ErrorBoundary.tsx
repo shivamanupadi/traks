@@ -23,26 +23,26 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, { error: E
     if (!error) return this.props.children;
 
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#F9F8F6] px-6">
-        <div className="w-full max-w-md rounded-[20px] bg-white p-8 text-center shadow-float">
+      <div className="flex min-h-screen items-center justify-center bg-background px-6">
+        <div className="w-full max-w-md rounded-[20px] bg-card p-8 text-center shadow-float">
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-muted">
             <AlertCircle className="h-7 w-7 text-[#e07a5f]" strokeWidth={1.6} />
           </div>
-          <h1 className="text-[17px] font-semibold text-[#3D3B4F]">Something went wrong</h1>
-          <p className="mx-auto mt-2 max-w-sm text-[13.5px] leading-relaxed text-[#9B9590]">
+          <h1 className="text-[17px] font-semibold text-foreground">Something went wrong</h1>
+          <p className="mx-auto mt-2 max-w-sm text-[13.5px] leading-relaxed text-subtle">
             This screen hit an unexpected error. Your analytics data is unaffected. Reloading
             usually clears it.
           </p>
           <div className="mt-6 flex items-center justify-center gap-3">
             <button
               onClick={() => window.location.reload()}
-              className="h-10 rounded-full bg-[#3D3B4F] px-5 text-[13.5px] font-semibold text-white transition-colors hover:bg-[#2C2B3B]"
+              className="h-10 rounded-full bg-btn px-5 text-[13.5px] font-semibold text-white transition-colors hover:bg-btn-hover"
             >
               Reload
             </button>
             <a
               href="/portal/sites"
-              className="h-10 rounded-full px-5 text-[13.5px] font-semibold leading-10 text-[#6E6C7C] transition-colors hover:bg-muted"
+              className="h-10 rounded-full px-5 text-[13.5px] font-semibold leading-10 text-muted-foreground transition-colors hover:bg-muted"
             >
               Back to sites
             </a>

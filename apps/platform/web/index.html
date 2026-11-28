@@ -8,7 +8,18 @@
       name="description"
       content="Privacy-friendly web analytics, self-hosted on Cloudflare. No cookies, your data in your own account."
     />
-    <meta name="theme-color" content="#9b72cf" />
+    <meta name="theme-color" content="#f9f8f6" />
+    <script>
+      // Set the theme before first paint so dark users don't see a light flash.
+      (function () {
+        try {
+          var t = localStorage.getItem('traks.theme');
+          var dark =
+            t === 'dark' || (t !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
+          if (dark) document.documentElement.classList.add('dark');
+        } catch (e) {}
+      })();
+    </script>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />

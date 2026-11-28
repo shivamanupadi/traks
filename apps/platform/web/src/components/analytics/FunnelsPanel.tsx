@@ -70,10 +70,10 @@ function StepHeading({
   const label = stepLabel(step);
   return (
     <div className={cn('flex items-center gap-1.5', className)} title={label}>
-      <span className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full bg-[#F2F1ED] font-mono text-[10px] font-semibold text-[#6E6C7C]">
+      <span className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full bg-muted font-mono text-[10px] font-semibold text-muted-foreground">
         {index + 1}
       </span>
-      <span className="min-w-0 truncate text-[12.5px] text-[#3D3B4F]">{label}</span>
+      <span className="min-w-0 truncate text-[12.5px] text-foreground">{label}</span>
       <TypeChip type={step.type} className="shrink-0" />
       {children}
     </div>
@@ -91,7 +91,7 @@ function StepRate({
   className?: string;
 }): ReactElement {
   return (
-    <p className={cn('text-[11.5px] tabular-nums text-[#9B9590]', className)}>
+    <p className={cn('text-[11.5px] tabular-nums text-subtle', className)}>
       {prev ? (
         <>
           {step.rateFromPrev}% of previous
@@ -149,24 +149,24 @@ export function FunnelsPanel({
     hasEntries && stat ? Math.min(Math.max(stat.steps[i].rateFromFirst, 0), 100) : 0;
 
   return (
-    <div className={cn('rounded-[20px] bg-white p-5 shadow-float sm:p-6', className)}>
+    <div className={cn('rounded-[20px] bg-card p-5 shadow-float sm:p-6', className)}>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <h3 className="mr-1 text-[15px] font-bold tracking-[-0.01em] text-[#3D3B4F]">Funnels</h3>
+          <h3 className="mr-1 text-[15px] font-bold tracking-[-0.01em] text-foreground">Funnels</h3>
           {/* Switcher and the funnel's own menu sit together: the menu acts
             on whichever funnel the switcher shows. */}
           <div className="flex min-w-0 items-center gap-0.5">
             {hasFunnels && funnels.length > 1 ? (
               <DropdownMenu>
-                <DropdownMenuTrigger className="flex max-w-[16rem] items-center gap-1.5 rounded-full border border-[#E6E4DE] py-1 pl-3 pr-2 text-[12.5px] font-semibold text-[#3D3B4F] hover:bg-[#F2F1ED] transition-colors cursor-pointer">
+                <DropdownMenuTrigger className="flex max-w-[16rem] items-center gap-1.5 rounded-full border border-border py-1 pl-3 pr-2 text-[12.5px] font-semibold text-foreground hover:bg-muted transition-colors cursor-pointer">
                   <span className="truncate">{selected?.name ?? 'Select funnel'}</span>
-                  <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[#9B9590]" />
+                  <ChevronDown className="h-3.5 w-3.5 shrink-0 text-subtle" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
                   align="start"
                   className="max-h-80 w-72 max-w-[calc(100vw-8rem)] overflow-y-auto border-0 p-1.5 shadow-float-lg"
                 >
-                  <p className="px-2.5 pb-1 pt-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-[#B5B0AA]">
+                  <p className="px-2.5 pb-1 pt-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-faint">
                     Show funnel
                   </p>
                   {funnels.map(f => {
@@ -176,27 +176,27 @@ export function FunnelsPanel({
                         key={f.id}
                         onClick={() => onSelect(f.id)}
                         className={cn(
-                          'items-start gap-2.5 rounded-[10px] px-2.5 py-2 hover:bg-[#F2F1ED] focus:bg-[#F2F1ED]',
-                          on && 'bg-[#F2F1ED]'
+                          'items-start gap-2.5 rounded-[10px] px-2.5 py-2 hover:bg-muted focus:bg-muted',
+                          on && 'bg-muted'
                         )}
                       >
                         <span className="min-w-0 flex-1">
                           <span
                             className={cn(
                               'block truncate text-[12.5px]',
-                              on ? 'font-semibold text-[#3D3B4F]' : 'font-medium text-[#3D3B4F]'
+                              on ? 'font-semibold text-foreground' : 'font-medium text-foreground'
                             )}
                           >
                             {f.name}
                           </span>
-                          <span className="block truncate text-[11px] text-[#9B9590]">
+                          <span className="block truncate text-[11px] text-subtle">
                             {f.steps.length} steps · {f.steps[0]?.target} →{' '}
                             {f.steps[f.steps.length - 1]?.target}
                           </span>
                         </span>
                         <Check
                           className={cn(
-                            'mt-0.5 h-3.5 w-3.5 shrink-0 text-[#3D3B4F]',
+                            'mt-0.5 h-3.5 w-3.5 shrink-0 text-foreground',
                             !on && 'invisible'
                           )}
                         />
@@ -207,7 +207,7 @@ export function FunnelsPanel({
               </DropdownMenu>
             ) : (
               selected && (
-                <span className="max-w-[16rem] truncate px-1 text-[12.5px] font-semibold text-[#6E6C7C]">
+                <span className="max-w-[16rem] truncate px-1 text-[12.5px] font-semibold text-muted-foreground">
                   {selected.name}
                 </span>
               )
@@ -216,7 +216,7 @@ export function FunnelsPanel({
               <DropdownMenu>
                 <DropdownMenuTrigger
                   aria-label={`${selected.name} options`}
-                  className="flex h-7 w-7 items-center justify-center rounded-full text-[#9B9590] hover:bg-[#F2F1ED] hover:text-[#3D3B4F] transition-colors cursor-pointer"
+                  className="flex h-7 w-7 items-center justify-center rounded-full text-subtle hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
                 >
                   <MoreHorizontal className="h-4 w-4" />
                 </DropdownMenuTrigger>
@@ -228,27 +228,27 @@ export function FunnelsPanel({
                 >
                   <DropdownMenuItem
                     onClick={() => onEdit(selected)}
-                    className="rounded-[10px] text-[12.5px] text-[#3D3B4F] hover:bg-[#F2F1ED] focus:bg-[#F2F1ED]"
+                    className="rounded-[10px] text-[12.5px] text-foreground hover:bg-muted focus:bg-muted"
                   >
-                    <Pencil className="h-3.5 w-3.5 shrink-0 text-[#6E6C7C]" />
+                    <Pencil className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                     <span className="truncate">Edit &ldquo;{selected.name}&rdquo;</span>
                   </DropdownMenuItem>
                   {onDuplicate && (
                     <DropdownMenuItem
                       onClick={() => onDuplicate(selected)}
-                      className="rounded-[10px] text-[12.5px] text-[#3D3B4F] hover:bg-[#F2F1ED] focus:bg-[#F2F1ED]"
+                      className="rounded-[10px] text-[12.5px] text-foreground hover:bg-muted focus:bg-muted"
                     >
-                      <Copy className="h-3.5 w-3.5 text-[#6E6C7C]" />
+                      <Copy className="h-3.5 w-3.5 text-muted-foreground" />
                       Duplicate
                     </DropdownMenuItem>
                   )}
-                  <DropdownMenuSeparator className="bg-[#ECEBE6]" />
+                  <DropdownMenuSeparator className="bg-muted" />
                   <DropdownMenuItem
                     onClick={() => {
                       setDeleteError('');
                       setConfirmId(selected.id);
                     }}
-                    className="rounded-[10px] text-[12.5px] text-[#e07a5f] hover:bg-[#fdf1ed] focus:bg-[#fdf1ed]"
+                    className="rounded-[10px] text-[12.5px] text-[#e07a5f] hover:bg-coral-soft focus:bg-coral-soft"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                     Delete…
@@ -258,7 +258,7 @@ export function FunnelsPanel({
             )}
           </div>
           {overall !== null && (
-            <span className="rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-semibold tabular-nums text-[#6E6C7C]">
+            <span className="rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-semibold tabular-nums text-muted-foreground">
               {overall}% end to end
             </span>
           )}
@@ -267,7 +267,7 @@ export function FunnelsPanel({
           {onManage && hasFunnels && (
             <button
               onClick={onManage}
-              className="rounded-full border border-[#E6E4DE] px-3.5 py-1.5 text-[12px] font-semibold text-[#6E6C7C] hover:bg-[#F2F1ED] hover:text-[#3D3B4F] transition-colors cursor-pointer"
+              className="rounded-full border border-border px-3.5 py-1.5 text-[12px] font-semibold text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
             >
               All funnels
             </button>
@@ -275,7 +275,7 @@ export function FunnelsPanel({
           {onAdd && (
             <button
               onClick={onAdd}
-              className="flex items-center gap-1.5 rounded-full bg-[#3D3B4F] px-3.5 py-1.5 text-[12px] font-semibold text-white hover:bg-[#2C2B3B] transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 rounded-full bg-btn px-3.5 py-1.5 text-[12px] font-semibold text-white hover:bg-btn-hover transition-colors cursor-pointer"
             >
               <Plus className="h-3.5 w-3.5" />
               Add funnel
@@ -285,14 +285,14 @@ export function FunnelsPanel({
       </div>
 
       {confirming && (
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[14px] bg-[#fdf1ed] px-4 py-3">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[14px] bg-coral-soft px-4 py-3">
           <p className="min-w-0 text-[12.5px] text-[#e07a5f]">
             Delete <b className="font-semibold">{selected.name}</b>? Past reports keep its history.
           </p>
           <div className="flex shrink-0 gap-1">
             <button
               onClick={() => setConfirmId(null)}
-              className="rounded-full px-3 py-1 text-[12px] font-semibold text-[#6E6C7C] hover:bg-white transition-colors cursor-pointer"
+              className="rounded-full px-3 py-1 text-[12px] font-semibold text-muted-foreground hover:bg-card transition-colors cursor-pointer"
             >
               Keep
             </button>
@@ -315,15 +315,15 @@ export function FunnelsPanel({
         </div>
       ) : !hasFunnels && funnels !== undefined ? (
         <div className="flex flex-col items-center justify-center py-10">
-          <Filter className="mb-2 h-5 w-5 text-[#B5B0AA]" strokeWidth={1.5} />
-          <p className="text-[13px] font-medium text-[#9B9590]">No funnels yet</p>
-          <p className="mt-1 max-w-[44ch] text-center text-[12px] text-[#B5B0AA]">
+          <Filter className="mb-2 h-5 w-5 text-faint" strokeWidth={1.5} />
+          <p className="text-[13px] font-medium text-subtle">No funnels yet</p>
+          <p className="mt-1 max-w-[44ch] text-center text-[12px] text-faint">
             Chain pages and events into ordered steps to see where visitors drop off.
           </p>
           {onAdd && (
             <button
               onClick={onAdd}
-              className="mt-3 rounded-full bg-muted px-4 py-2 text-[12px] font-semibold text-foreground hover:bg-[#E6E4DE] transition-colors cursor-pointer"
+              className="mt-3 rounded-full bg-muted px-4 py-2 text-[12px] font-semibold text-foreground hover:bg-border transition-colors cursor-pointer"
             >
               Create your first funnel
             </button>
@@ -350,11 +350,11 @@ export function FunnelsPanel({
               return (
                 <li key={`${step.type}-${step.target}-${i}`} className="min-w-0">
                   <StepHeading step={step} index={i} className="min-w-0">
-                    <span className="ml-auto shrink-0 pl-2 text-[15px] font-bold tabular-nums text-[#3D3B4F]">
+                    <span className="ml-auto shrink-0 pl-2 text-[15px] font-bold tabular-nums text-foreground">
                       {formatNumber(step.sessions)}
                     </span>
                   </StepHeading>
-                  <div className="relative mt-1.5 h-2.5 overflow-hidden rounded-full bg-[#F9F8F6]">
+                  <div className="relative mt-1.5 h-2.5 overflow-hidden rounded-full bg-background">
                     {prev && (
                       <div
                         aria-hidden
@@ -364,7 +364,7 @@ export function FunnelsPanel({
                     )}
                     <div
                       aria-hidden
-                      className="absolute inset-y-0 left-0 rounded-full bg-[#3D3B4F]"
+                      className="absolute inset-y-0 left-0 rounded-full bg-btn"
                       style={{
                         width: `${heightOf(i)}%`,
                         minWidth: step.sessions > 0 && hasEntries ? 4 : 0,
@@ -389,7 +389,7 @@ export function FunnelsPanel({
               const height = heightOf(i);
               return (
                 <li key={`${step.type}-${step.target}-${i}`} className="min-w-0">
-                  <div className="relative h-[140px] overflow-hidden rounded-xl bg-[#F9F8F6]">
+                  <div className="relative h-[140px] overflow-hidden rounded-xl bg-background">
                     {prev && (
                       <div
                         aria-hidden
@@ -399,7 +399,7 @@ export function FunnelsPanel({
                     )}
                     <div
                       aria-hidden
-                      className="absolute inset-x-0 bottom-0 rounded-t-lg bg-[#3D3B4F]"
+                      className="absolute inset-x-0 bottom-0 rounded-t-lg bg-btn"
                       style={{
                         height: `${height}%`,
                         minHeight: step.sessions > 0 && hasEntries ? 2 : 0,
@@ -407,7 +407,7 @@ export function FunnelsPanel({
                     />
                   </div>
                   <StepHeading step={step} index={i} className="mt-2.5 min-w-0" />
-                  <p className="mt-1 text-[20px] font-bold leading-tight tracking-[-0.02em] tabular-nums text-[#3D3B4F]">
+                  <p className="mt-1 text-[20px] font-bold leading-tight tracking-[-0.02em] tabular-nums text-foreground">
                     {formatNumber(step.sessions)}
                   </p>
                   <StepRate step={step} prev={prev} />

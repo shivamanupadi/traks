@@ -118,7 +118,7 @@ function RangePopover({
       initial={{ opacity: 0, y: -4 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.12 }}
-      className="absolute right-0 top-full z-50 mt-2 overflow-hidden rounded-[20px] bg-white shadow-float"
+      className="absolute right-0 top-full z-50 mt-2 overflow-hidden rounded-[20px] bg-card shadow-float"
     >
       {children}
     </motion.div>
@@ -184,52 +184,52 @@ export function PeriodPicker({
         <DropdownMenu>
           <DropdownMenuTrigger
             aria-label="Period"
-            className="flex h-[36px] items-center gap-2 rounded-[10px] bg-[#F2F1ED] pl-2.5 pr-3 text-[12.5px] font-semibold text-[#3D3B4F] cursor-pointer"
+            className="flex h-[36px] items-center gap-2 rounded-[10px] bg-muted pl-2.5 pr-3 text-[12.5px] font-semibold text-foreground cursor-pointer"
           >
             <Sticker name="calendar" className="h-[18px] w-[18px] max-[359px]:hidden" />
             <span className="whitespace-nowrap">{shortLabel}</span>
-            <ChevronDown className="h-3.5 w-3.5 text-[#9B9590]" />
+            <ChevronDown className="h-3.5 w-3.5 text-subtle" />
           </DropdownMenuTrigger>
           {/* Right-aligned under the pill; below 360px the pill wraps to the
               start of its row, so the menu opens rightward instead. */}
           <DropdownMenuContent
             align="end"
-            className="w-48 rounded-2xl border-none bg-white p-1.5 shadow-float max-[359px]:left-0 max-[359px]:right-auto"
+            className="w-48 rounded-2xl border-none bg-card p-1.5 shadow-float max-[359px]:left-0 max-[359px]:right-auto"
           >
             {PERIOD_OPTIONS.map(option => (
               <DropdownMenuItem
                 key={option.value}
                 onClick={() => onChange(option.value)}
                 className={cn(
-                  'justify-between rounded-[10px] px-3 py-2.5 text-[13.5px] text-[#3D3B4F]',
-                  value === option.value && 'bg-[#F2F1ED] font-semibold'
+                  'justify-between rounded-[10px] px-3 py-2.5 text-[13.5px] text-foreground',
+                  value === option.value && 'bg-muted font-semibold'
                 )}
               >
                 {PERIOD_NAMES[option.value]}
-                {value === option.value && <Check className="h-4 w-4 text-[#3D3B4F]" />}
+                {value === option.value && <Check className="h-4 w-4 text-foreground" />}
               </DropdownMenuItem>
             ))}
             {allowCustom && (
               <DropdownMenuItem
                 onClick={() => setCustomOpen('dialog')}
                 className={cn(
-                  'justify-between rounded-[10px] px-3 py-2.5 text-[13.5px] text-[#3D3B4F]',
-                  isCustom && 'bg-[#F2F1ED] font-semibold'
+                  'justify-between rounded-[10px] px-3 py-2.5 text-[13.5px] text-foreground',
+                  isCustom && 'bg-muted font-semibold'
                 )}
               >
                 Custom range…
-                {isCustom && <Check className="h-4 w-4 text-[#3D3B4F]" />}
+                {isCustom && <Check className="h-4 w-4 text-foreground" />}
               </DropdownMenuItem>
             )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
       <div ref={switchRef} className="relative hidden md:block">
-        <div ref={trackRef} className="relative inline-flex rounded-full bg-[#F2F1ED] p-[3px]">
+        <div ref={trackRef} className="relative inline-flex rounded-full bg-muted p-[3px]">
           {thumb && (
             <span
               aria-hidden
-              className="absolute bottom-[3px] top-[3px] rounded-full bg-[#3D3B4F] transition-[left,width] duration-300 ease-[cubic-bezier(.3,.7,.2,1)] motion-reduce:transition-none"
+              className="absolute bottom-[3px] top-[3px] rounded-full bg-btn transition-[left,width] duration-300 ease-[cubic-bezier(.3,.7,.2,1)] motion-reduce:transition-none"
               style={{ left: thumb.left, width: thumb.width }}
             />
           )}
@@ -245,7 +245,7 @@ export function PeriodPicker({
                 'relative z-[1] rounded-full px-[11px] py-1.5 text-[12.5px] transition-colors cursor-pointer',
                 value === option.value
                   ? 'font-semibold text-white'
-                  : 'font-medium text-[#6E6C7C] hover:text-[#3D3B4F]'
+                  : 'font-medium text-muted-foreground hover:text-foreground'
               )}
             >
               {option.label}

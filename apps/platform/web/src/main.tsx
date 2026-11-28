@@ -6,6 +6,7 @@ import { routeTree } from './routeTree.gen';
 import { isRetryableError } from '@/lib/api';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import '@/styles/index.css';
+import '@/lib/theme';
 
 const router = createRouter({ routeTree });
 

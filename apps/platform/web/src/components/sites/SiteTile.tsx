@@ -33,7 +33,7 @@ function Sparkline({
   const sx = (i: number): number => 4 + (i * (w - 8)) / (values.length - 1);
   const sy = (v: number): number => 4 + (h - 10) * (1 - (v - min + pad) / (max - min + 2 * pad));
   const line = values.map((v, i) => `${sx(i)},${sy(v)}`).join(' L ');
-  const gid = `spark-${color.deep.slice(1)}`;
+  const gid = `spark-${color.deep.replace(/\W/g, '')}`;
   const lastI = values.length - 1;
 
   return (
@@ -107,19 +107,19 @@ export function SiteTile({
       <Link
         to="/portal/site/$siteId"
         params={{ siteId: site.id }}
-        className="group relative block rounded-[20px] bg-white p-[22px] shadow-float transition-all duration-300 hover:-translate-y-[3px] hover:shadow-float-lg"
+        className="group relative block rounded-[20px] bg-card p-[22px] shadow-float transition-all duration-300 hover:-translate-y-[3px] hover:shadow-float-lg"
       >
         {/* Header row: icon + name */}
         <div className="flex items-center gap-3">
           {/* Neutral chip for every site; the tile's hue lives in the chart line only. */}
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-[#F2F1ED] transition-transform duration-300 group-hover:scale-110">
-            <SiteFavicon favicon={site.favicon} size={24} fallbackClassName="text-[#3D3B4F]" />
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-muted transition-transform duration-300 group-hover:scale-110">
+            <SiteFavicon favicon={site.favicon} size={24} fallbackClassName="text-foreground" />
           </div>
           <div className="min-w-0 flex-1">
-            <h3 className="truncate text-[15px] font-bold leading-tight text-[#3D3B4F]">
+            <h3 className="truncate text-[15px] font-bold leading-tight text-foreground">
               {site.name}
             </h3>
-            <span className="mt-0.5 block truncate text-[12px] text-[#B5B0AA]">{site.domain}</span>
+            <span className="mt-0.5 block truncate text-[12px] text-faint">{site.domain}</span>
           </div>
         </div>
 
@@ -134,7 +134,7 @@ export function SiteTile({
 
         {/* Stats - today */}
         <div className="mt-3.5">
-          <span className="mb-2.5 block text-[10.5px] font-bold uppercase tracking-[0.1em] text-[#9B9590]">
+          <span className="mb-2.5 block text-[10.5px] font-bold uppercase tracking-[0.1em] text-subtle">
             Today
           </span>
           <SiteTileStats stats={stats} isLoading={isStatsLoading} />
@@ -142,7 +142,7 @@ export function SiteTile({
 
         {/* View analytics footer */}
         <div className="mt-4 flex items-center justify-between">
-          <span className="text-[12px] font-semibold text-[#9B9590] transition-colors group-hover:text-[#3D3B4F]">
+          <span className="text-[12px] font-semibold text-subtle transition-colors group-hover:text-foreground">
             View Analytics
           </span>
           <ArrowRight

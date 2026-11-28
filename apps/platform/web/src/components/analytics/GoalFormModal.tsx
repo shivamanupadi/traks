@@ -35,9 +35,9 @@ const TYPE_OPTIONS: { value: GoalType; label: string }[] = [
 
 function Label({ children, extra }: { children: ReactNode; extra?: ReactNode }): ReactElement {
   return (
-    <div className="mb-1.5 flex items-baseline justify-between text-[12px] font-semibold text-[#6E6C7C]">
+    <div className="mb-1.5 flex items-baseline justify-between text-[12px] font-semibold text-muted-foreground">
       <span>{children}</span>
-      {extra && <span className="font-normal text-[#B5B0AA]">{extra}</span>}
+      {extra && <span className="font-normal text-faint">{extra}</span>}
     </div>
   );
 }
@@ -52,7 +52,7 @@ function rulePreview(
   const t = target.trim();
   if (!t) return null;
   const B = ({ children }: { children: ReactNode }): ReactElement => (
-    <b className="font-semibold text-[#3D3B4F]">{children}</b>
+    <b className="font-semibold text-foreground">{children}</b>
   );
   if (type === 'page') {
     if (t.endsWith('/*')) {
@@ -204,7 +204,7 @@ export function GoalFormModal({
             <div
               role="radiogroup"
               aria-label="What counts"
-              className="grid grid-cols-2 gap-[3px] rounded-[13px] bg-[#F2F1ED] p-[3px]"
+              className="grid grid-cols-2 gap-[3px] rounded-[13px] bg-muted p-[3px]"
             >
               {TYPE_OPTIONS.map(opt => {
                 const on = type === opt.value;
@@ -213,10 +213,10 @@ export function GoalFormModal({
                     key={opt.value}
                     className={cn(
                       'cursor-pointer rounded-[10px] py-1.5 text-center text-[12.5px] font-semibold transition-colors',
-                      'has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[#3D3B4F]/30',
+                      'has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-foreground/30',
                       on
-                        ? 'bg-white text-[#3D3B4F] shadow-[0_0_0_1px_#E6E4DE]'
-                        : 'text-[#6E6C7C] hover:text-[#3D3B4F]'
+                        ? 'bg-card text-foreground shadow-[0_0_0_1px_var(--border)]'
+                        : 'text-muted-foreground hover:text-foreground'
                     )}
                   >
                     <input
@@ -271,9 +271,9 @@ export function GoalFormModal({
                   />
                   <FieldError message={touched.target ? targetErr : null} />
                   {!(touched.target && targetErr) && (
-                    <p className="mt-1.5 text-[11px] text-[#B5B0AA]">
+                    <p className="mt-1.5 text-[11px] text-faint">
                       Send it with{' '}
-                      <code className="rounded bg-muted px-1 py-0.5 text-[#6E6C7C]">
+                      <code className="rounded bg-muted px-1 py-0.5 text-muted-foreground">
                         traks(&apos;{target.trim() || 'signup'}&apos;
                         {propKey.trim() && propValue.trim()
                           ? `, { ${propKey.trim()}: '${propValue.trim()}' }`
@@ -307,7 +307,7 @@ export function GoalFormModal({
                       onKeyDown={onEnter}
                       className="h-10 px-4 text-[13px]"
                     />
-                    <span className="shrink-0 text-[13px] text-[#B5B0AA]">=</span>
+                    <span className="shrink-0 text-[13px] text-faint">=</span>
                     <Input
                       placeholder="e.g. claimed"
                       value={propValue}
@@ -329,12 +329,12 @@ export function GoalFormModal({
                 <Label>Path</Label>
                 <div
                   className={cn(
-                    'flex h-10 items-center overflow-hidden rounded-2xl bg-[#F2F1ED] transition-shadow focus-within:bg-white focus-within:shadow-[inset_0_0_0_1.5px_var(--ring)]',
+                    'flex h-10 items-center overflow-hidden rounded-2xl bg-muted transition-shadow focus-within:bg-card focus-within:shadow-[inset_0_0_0_1.5px_var(--ring)]',
                     touched.target && targetErr && 'shadow-[inset_0_0_0_1.5px_var(--destructive)]'
                   )}
                 >
                   {domain && (
-                    <span className="flex h-full max-w-[45%] shrink-0 items-center truncate border-r border-[#E6E4DE] pl-4 pr-3 font-mono text-[12px] text-[#9B9590]">
+                    <span className="flex h-full max-w-[45%] shrink-0 items-center truncate border-r border-border pl-4 pr-3 font-mono text-[12px] text-subtle">
                       {domain}
                     </span>
                   )}
@@ -349,29 +349,33 @@ export function GoalFormModal({
                     }}
                     onBlur={e => markTouched(e, 'target')}
                     onKeyDown={onEnter}
-                    className="h-full min-w-0 flex-1 bg-transparent px-3 text-[13px] text-[#3D3B4F] outline-none placeholder:text-[#B5B0AA]"
+                    className="h-full min-w-0 flex-1 bg-transparent px-3 text-[13px] text-foreground outline-none placeholder:text-faint"
                   />
                 </div>
                 <FieldError message={touched.target ? targetErr : null} />
                 {!(touched.target && targetErr) && (
-                  <p className="mt-1.5 text-[11px] text-[#B5B0AA]">
+                  <p className="mt-1.5 text-[11px] text-faint">
                     End with{' '}
-                    <code className="rounded bg-muted px-1 py-0.5 text-[#6E6C7C]">{'/*'}</code> to
-                    count a whole section, e.g.{' '}
-                    <code className="rounded bg-muted px-1 py-0.5 text-[#6E6C7C]">{'/blog/*'}</code>
+                    <code className="rounded bg-muted px-1 py-0.5 text-muted-foreground">
+                      {'/*'}
+                    </code>{' '}
+                    to count a whole section, e.g.{' '}
+                    <code className="rounded bg-muted px-1 py-0.5 text-muted-foreground">
+                      {'/blog/*'}
+                    </code>
                   </p>
                 )}
               </div>
             )}
 
-            <div className="flex items-start gap-2.5 rounded-[14px] bg-[#F9F8F6] px-3.5 py-2.5 text-[12.5px] text-[#6E6C7C]">
+            <div className="flex items-start gap-2.5 rounded-[14px] bg-background px-3.5 py-2.5 text-[12.5px] text-muted-foreground">
               <span
                 className={cn(
                   'mt-[6px] h-2 w-2 shrink-0 rounded-full',
-                  preview ? 'bg-[#28E99F]' : 'bg-[#E6E4DE]'
+                  preview ? 'bg-[#28E99F]' : 'bg-border'
                 )}
               />
-              <span className={cn(!preview && 'text-[#B5B0AA]')}>
+              <span className={cn(!preview && 'text-faint')}>
                 {preview ??
                   (target.trim()
                     ? `Fix the ${type === 'event' ? 'event name' : 'path'} to see what counts.`
@@ -382,7 +386,7 @@ export function GoalFormModal({
           </div>
         </DialogBody>
 
-        <DialogFooter className="border-t border-[#e6e5ea]/50 mx-6 px-0 pb-5 pt-4">
+        <DialogFooter className="border-t border-border/50 mx-6 px-0 pb-5 pt-4">
           <Button
             variant="ghost"
             onClick={() => onOpenChange(false)}
@@ -393,7 +397,7 @@ export function GoalFormModal({
           <Button
             onClick={submit}
             isLoading={saveGoal.isPending}
-            className="bg-[#3D3B4F] hover:bg-[#2C2B3B] text-white shadow-none text-[13px] px-5 cursor-pointer"
+            className="bg-btn hover:bg-btn-hover text-white shadow-none text-[13px] px-5 cursor-pointer"
           >
             {editing ? (
               <>

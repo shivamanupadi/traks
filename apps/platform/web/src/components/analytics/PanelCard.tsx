@@ -105,8 +105,8 @@ export function PanelTabs({
           className={cn(
             'shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-medium transition-all cursor-pointer',
             activeTab === tab.key
-              ? 'bg-white text-[#3D3B4F]'
-              : 'text-[#9B9590] hover:text-[#6b6560]'
+              ? 'bg-card text-foreground'
+              : 'text-subtle hover:text-muted-foreground'
           )}
         >
           {tab.label}
@@ -141,13 +141,13 @@ export function PanelCard({
   return (
     <div
       className={cn(
-        'flex flex-col rounded-[20px] bg-white p-5 shadow-float sm:p-6 lg:min-h-[22rem]',
+        'flex flex-col rounded-[20px] bg-card p-5 shadow-float sm:p-6 lg:min-h-[22rem]',
         className
       )}
     >
       {/* Header: title + tabs */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-2.5">
-        <h3 className="truncate text-[15px] font-bold tracking-[-0.01em] text-[#3D3B4F]">
+        <h3 className="truncate text-[15px] font-bold tracking-[-0.01em] text-foreground">
           {title}
         </h3>
         {headerAction}
@@ -163,7 +163,7 @@ export function PanelCard({
           {onRetry && (
             <button
               onClick={onRetry}
-              className="mt-2 rounded-full bg-muted px-3 py-1 text-[12px] font-semibold text-[#3D3B4F] transition-colors hover:bg-[#E6E4DE]"
+              className="mt-2 rounded-full bg-muted px-3 py-1 text-[12px] font-semibold text-foreground transition-colors hover:bg-border"
             >
               Try again
             </button>
@@ -180,14 +180,14 @@ export function PanelCard({
         </div>
       ) : items.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center py-8 lg:py-0">
-          <BarChart3 className="mb-2 h-5 w-5 text-[#B5B0AA]" strokeWidth={1.5} />
-          <p className="text-[13px] font-medium text-[#9B9590]">{emptyText}</p>
-          <p className="mt-1 text-[12px] text-[#B5B0AA]">Data will appear once visitors arrive</p>
+          <BarChart3 className="mb-2 h-5 w-5 text-faint" strokeWidth={1.5} />
+          <p className="text-[13px] font-medium text-subtle">{emptyText}</p>
+          <p className="mt-1 text-[12px] text-faint">Data will appear once visitors arrive</p>
         </div>
       ) : (
         <div className="space-y-1">
           {/* Column headers */}
-          <div className="flex items-center justify-between px-2.5 pb-1 text-[11px] font-medium uppercase tracking-wider text-[#B5B0AA]">
+          <div className="flex items-center justify-between px-2.5 pb-1 text-[11px] font-medium uppercase tracking-wider text-faint">
             <span>{labelHeader}</span>
             <div className="flex gap-5">
               <span className="w-12 text-right">{valueHeader}</span>
@@ -209,7 +209,7 @@ export function PanelCard({
                 onClick={clickable ? () => onItemClick!(item) : undefined}
                 className={cn(
                   'relative flex h-[30px] w-full items-center justify-between rounded-md px-2.5',
-                  clickable && 'cursor-pointer transition-colors hover:bg-[#E6E4DE]'
+                  clickable && 'cursor-pointer transition-colors hover:bg-border'
                 )}
                 title={clickable ? `Filter by ${display}` : undefined}
               >
@@ -219,14 +219,16 @@ export function PanelCard({
                 />
                 <span className="relative z-10 flex min-w-0 items-center gap-2 pr-4">
                   {item.icon && <span className="flex shrink-0 items-center">{item.icon}</span>}
-                  <span className="truncate text-[13px] text-[#3D3B4F]">{display || '(none)'}</span>
+                  <span className="truncate text-[13px] text-foreground">
+                    {display || '(none)'}
+                  </span>
                 </span>
-                <div className="relative z-10 flex shrink-0 gap-5 text-[13px] font-medium tabular-nums text-[#3D3B4F]">
+                <div className="relative z-10 flex shrink-0 gap-5 text-[13px] font-medium tabular-nums text-foreground">
                   <span className="w-12 text-right">{formatNumber(item.visitors)}</span>
                   {showPageviews && (
                     <span className="w-12 text-right">{formatNumber(item.pageviews || 0)}</span>
                   )}
-                  {showPercentage && <span className="w-10 text-right text-[#9B9590]">{pct}%</span>}
+                  {showPercentage && <span className="w-10 text-right text-subtle">{pct}%</span>}
                 </div>
               </Row>
             );

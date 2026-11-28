@@ -143,16 +143,16 @@ function CodeCard({ label, code }: { label?: string; code: string }): ReactEleme
     setTimeout(() => setCopied(false), 2000);
   };
   return (
-    <div className="relative rounded-xl border border-[#e6e5ea] bg-[#F9F8F6] overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-2 border-b border-[#e6e5ea]/60">
-        <span className="font-mono text-[11px] text-[#B5B0AA]">{label ?? 'Snippet'}</span>
+    <div className="relative rounded-xl border border-border bg-background overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-border/60">
+        <span className="font-mono text-[11px] text-faint">{label ?? 'Snippet'}</span>
         <button
           onClick={() => void copy()}
-          className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium text-[#9B9590] hover:text-foreground transition-colors cursor-pointer"
+          className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[11px] font-medium text-subtle hover:text-foreground transition-colors cursor-pointer"
         >
           {copied ? (
             <>
-              <Check className="w-3 h-3 text-[#6E6C7C]" />
+              <Check className="w-3 h-3 text-muted-foreground" />
               Copied
             </>
           ) : (
@@ -163,7 +163,7 @@ function CodeCard({ label, code }: { label?: string; code: string }): ReactEleme
           )}
         </button>
       </div>
-      <pre className="text-[12px] leading-relaxed text-[#3D3B4F] font-mono whitespace-pre-wrap break-all select-all px-4 py-3.5">
+      <pre className="text-[12px] leading-relaxed text-foreground font-mono whitespace-pre-wrap break-all select-all px-4 py-3.5">
         {code}
       </pre>
     </div>
@@ -200,12 +200,12 @@ function InstallModal({
       <DialogContent onClose={() => onOpenChange(false)} className="max-w-lg">
         <DialogHeader>
           <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center mb-3">
-            <Code2 className="w-5 h-5 text-[#6E6C7C]" strokeWidth={1.7} />
+            <Code2 className="w-5 h-5 text-muted-foreground" strokeWidth={1.7} />
           </div>
           <DialogTitle>Installation</DialogTitle>
           <DialogDescription>
             Install the tracker on{' '}
-            <span className="font-semibold text-[#3D3B4F]">{site?.domain}</span>. Pick your stack
+            <span className="font-semibold text-foreground">{site?.domain}</span>. Pick your stack
             for exact steps with your site key filled in.
           </DialogDescription>
         </DialogHeader>
@@ -217,11 +217,13 @@ function InstallModal({
             <div className="space-y-4">
               {guide.steps.map((step, i) => (
                 <div key={step.title}>
-                  <p className="text-[13px] font-semibold text-[#3D3B4F]">
+                  <p className="text-[13px] font-semibold text-foreground">
                     {i + 1}. {step.title}
                   </p>
                   {step.body && (
-                    <p className="mt-1 text-[12px] leading-relaxed text-[#6E6C7C]">{step.body}</p>
+                    <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+                      {step.body}
+                    </p>
                   )}
                   {step.code && (
                     <div className="mt-2">
@@ -233,9 +235,9 @@ function InstallModal({
             </div>
 
             {/* Info note */}
-            <div className="flex gap-3 rounded-xl bg-[#F2F1ED] border border-[#E6E4DE] px-4 py-3.5">
-              <Zap className="w-4 h-4 text-[#6E6C7C] shrink-0 mt-0.5" strokeWidth={1.7} />
-              <p className="text-[12px] text-[#6E6C7C] leading-relaxed">
+            <div className="flex gap-3 rounded-xl bg-muted border border-border px-4 py-3.5">
+              <Zap className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" strokeWidth={1.7} />
+              <p className="text-[12px] text-muted-foreground leading-relaxed">
                 1.5 KB gzipped, loads deferred - zero impact on page speed. Data appears within
                 seconds of the first visit.
               </p>
@@ -243,7 +245,7 @@ function InstallModal({
           </div>
         </DialogBody>
 
-        <DialogFooter className="border-t border-[#e6e5ea]/50 mx-6 px-0 pb-5 pt-4">
+        <DialogFooter className="border-t border-border/50 mx-6 px-0 pb-5 pt-4">
           <Button
             variant="ghost"
             onClick={() => void handleCopy()}
@@ -254,7 +256,7 @@ function InstallModal({
           </Button>
           <Button
             onClick={() => onOpenChange(false)}
-            className="bg-[#3D3B4F] hover:bg-[#2C2B3B] text-white shadow-none text-[13px] px-5 cursor-pointer"
+            className="bg-btn hover:bg-btn-hover text-white shadow-none text-[13px] px-5 cursor-pointer"
           >
             <Check className="w-3.5 h-3.5" />
             Done
@@ -348,7 +350,9 @@ function EditSiteModal({
         <DialogBody>
           <div className="space-y-5">
             <div>
-              <label className="mb-2 block text-[13px] font-medium text-[#3D3B4F]">Site Name</label>
+              <label className="mb-2 block text-[13px] font-medium text-foreground">
+                Site Name
+              </label>
               <Input
                 placeholder="My SaaS"
                 value={name}
@@ -365,7 +369,7 @@ function EditSiteModal({
               <FieldError message={touched.name ? nameError : null} />
             </div>
             <div>
-              <label className="mb-2 block text-[13px] font-medium text-[#3D3B4F]">Domain</label>
+              <label className="mb-2 block text-[13px] font-medium text-foreground">Domain</label>
               <Input
                 placeholder="example.com"
                 value={domain}
@@ -384,7 +388,7 @@ function EditSiteModal({
               {touched.domain && domainErr ? (
                 <FieldError message={domainErr} />
               ) : (
-                <p className="mt-2 text-[12px] text-[#B5B0AA]">
+                <p className="mt-2 text-[12px] text-faint">
                   {domain.trim() && normalizeDomain(domain) !== domain.trim()
                     ? `Will be saved as ${normalizeDomain(domain)}`
                     : 'Just the domain (a pasted URL works too)'}
@@ -392,7 +396,7 @@ function EditSiteModal({
               )}
             </div>
             <div>
-              <label className="mb-2 block text-[13px] font-medium text-[#3D3B4F]">Timezone</label>
+              <label className="mb-2 block text-[13px] font-medium text-foreground">Timezone</label>
               <TimezoneSelect
                 value={timezone}
                 onChange={tz => {
@@ -400,7 +404,7 @@ function EditSiteModal({
                   setError('');
                 }}
               />
-              <p className="mt-2 text-[12px] text-[#B5B0AA]">
+              <p className="mt-2 text-[12px] text-faint">
                 Dashboard days and hours are bucketed in this timezone.
               </p>
             </div>
@@ -408,7 +412,7 @@ function EditSiteModal({
           </div>
         </DialogBody>
 
-        <DialogFooter className="border-t border-[#e6e5ea]/50 mx-6 px-0 pb-5 pt-4">
+        <DialogFooter className="border-t border-border/50 mx-6 px-0 pb-5 pt-4">
           <Button variant="ghost" onClick={() => onOpenChange(false)} className="text-[13px]">
             Cancel
           </Button>
@@ -479,7 +483,7 @@ function DeleteSiteModal({
 
         <DialogBody>
           <div className="space-y-3">
-            <p className="text-[13px] text-[#3D3B4F]">
+            <p className="text-[13px] text-foreground">
               Type <span className="font-semibold select-all">{site?.domain}</span> to confirm:
             </p>
             <Input
@@ -499,7 +503,7 @@ function DeleteSiteModal({
           </div>
         </DialogBody>
 
-        <DialogFooter className="border-t border-[#e6e5ea]/50 mx-6 px-0 pb-5 pt-4">
+        <DialogFooter className="border-t border-border/50 mx-6 px-0 pb-5 pt-4">
           <Button
             variant="ghost"
             onClick={() => onOpenChange(false)}
@@ -542,7 +546,7 @@ const BOT_TABS: { key: 'all' | BotGroup; label: string; empty: string }[] = [
  *  its own left divider, so the first of each row drops it and the second
  *  row gets a top hairline. */
 const METRIC_GRID =
-  'grid grid-cols-3 border-b border-[#F3F0EA] lg:grid-cols-6 max-lg:[&>*:nth-child(3n+1)]:border-l-0 max-lg:[&>*:nth-child(n+4)]:border-t max-lg:[&>*:nth-child(n+4)]:border-t-[#F1EFEA]';
+  'grid grid-cols-3 border-b border-border lg:grid-cols-6 max-lg:[&>*:nth-child(3n+1)]:border-l-0 max-lg:[&>*:nth-child(n+4)]:border-t max-lg:[&>*:nth-child(n+4)]:border-t-[#F1EFEA]';
 
 function MetricTile({
   label,
@@ -570,11 +574,11 @@ function MetricTile({
       onClick={onClick}
       disabled={!onClick}
       className={cn(
-        'relative flex min-w-0 flex-col items-start gap-[7px] border-l border-[#F1EFEA] px-3.5 py-4 text-left transition-colors first:border-l-0 sm:px-[22px] sm:py-5',
-        onClick && 'cursor-pointer hover:bg-[#FBFAF8]'
+        'relative flex min-w-0 flex-col items-start gap-[7px] border-l border-muted px-3.5 py-4 text-left transition-colors first:border-l-0 sm:px-[22px] sm:py-5',
+        onClick && 'cursor-pointer hover:bg-muted/60'
       )}
     >
-      <span className="max-w-full truncate text-[10px] font-bold uppercase tracking-[0.07em] text-[#9B9590] sm:text-[10.5px] sm:tracking-[0.09em]">
+      <span className="max-w-full truncate text-[10px] font-bold uppercase tracking-[0.07em] text-subtle sm:text-[10.5px] sm:tracking-[0.09em]">
         {shortLabel ? (
           <>
             <span className="sm:hidden">{shortLabel}</span>
@@ -587,7 +591,7 @@ function MetricTile({
       <span
         className={cn(
           'text-[21px] sm:text-[25px] leading-none tracking-[-0.02em] tabular-nums',
-          active || !onClick ? 'font-bold text-[#3D3B4F]' : 'font-semibold text-[#6E6C7C]'
+          active || !onClick ? 'font-bold text-foreground' : 'font-semibold text-muted-foreground'
         )}
       >
         {value}
@@ -596,7 +600,7 @@ function MetricTile({
         <span
           className={cn(
             'flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10.5px] font-bold',
-            isGood ? 'bg-[#28E99F]/15 text-[#2E7D57]' : 'bg-[#E07A5F]/15 text-[#B3402F]'
+            isGood ? 'bg-[#28E99F]/15 text-success-ink' : 'bg-coral/15 text-coral-ink'
           )}
         >
           {delta.isPositive ? (
@@ -607,12 +611,12 @@ function MetricTile({
           {delta.text}
         </span>
       ) : (
-        <span className="text-[10.5px] font-semibold text-[#C9C3BC]">-</span>
+        <span className="text-[10.5px] font-semibold text-faint">-</span>
       )}
       {/* Active indicator: the same ink underline as the nav tabs */}
       <span
         className={cn(
-          'absolute inset-x-3.5 bottom-0 h-[2px] rounded-t-full bg-[#3D3B4F] transition-opacity sm:inset-x-[22px]',
+          'absolute inset-x-3.5 bottom-0 h-[2px] rounded-t-full bg-btn transition-opacity sm:inset-x-[22px]',
           active ? 'opacity-100' : 'opacity-0'
         )}
       />
@@ -645,10 +649,10 @@ function ChartCard({
     stats && stats.sessions > 0 ? (stats.pageviews / stats.sessions).toFixed(2) : '0';
 
   return (
-    <div className="overflow-hidden rounded-[20px] bg-white shadow-float">
+    <div className="overflow-hidden rounded-[20px] bg-card shadow-float">
       {/* KPI columns */}
       {statsError ? (
-        <p className="border-b border-[#F3F0EA] px-6 py-5 text-[13px] text-[#e07a5f]">
+        <p className="border-b border-border px-6 py-5 text-[13px] text-[#e07a5f]">
           Failed to load stats
         </p>
       ) : statsLoading || !stats ? (
@@ -656,7 +660,7 @@ function ChartCard({
           {[...Array(6)].map((_, i) => (
             <div
               key={i}
-              className="flex flex-col gap-2 border-l border-[#F5F2EC] px-3.5 py-4 first:border-l-0 sm:px-[22px] sm:py-5"
+              className="flex flex-col gap-2 border-l border-muted px-3.5 py-4 first:border-l-0 sm:px-[22px] sm:py-5"
             >
               <div className="h-3 w-20 animate-pulse rounded bg-muted" />
               <div className="h-6 w-14 animate-pulse rounded bg-muted" />
@@ -713,14 +717,14 @@ function ChartCard({
       {/* Chart */}
       <div className="px-4 pb-4 pt-5 sm:px-6">
         <div className="mb-3.5 flex items-baseline justify-between">
-          <h3 className="text-[15px] font-bold tracking-[-0.01em] text-[#3D3B4F]">
+          <h3 className="text-[15px] font-bold tracking-[-0.01em] text-foreground">
             {metric === 'visitors'
               ? 'Unique Visitors'
               : metric === 'pageviews'
                 ? 'Total Pageviews'
                 : 'Visits'}
           </h3>
-          <span className="text-[12px] text-[#B5B0AA]">{periodLabel(period)}</span>
+          <span className="text-[12px] text-faint">{periodLabel(period)}</span>
         </div>
         <TimeseriesChart
           data={timeseries}
@@ -738,7 +742,7 @@ function ChartCard({
  *  dividers - the cluster must NOT clip (the dropdowns inside render
  *  absolutely within it), so slots round themselves. */
 const SEG_BTN =
-  'flex h-8 w-8 sm:h-[34px] sm:w-[34px] items-center justify-center rounded-[10px] hover:bg-[#F2F1ED] transition-colors cursor-pointer';
+  'flex h-8 w-8 sm:h-[34px] sm:w-[34px] items-center justify-center rounded-[10px] hover:bg-muted transition-colors cursor-pointer';
 /** Sticker size inside a header action slot. */
 const SEG_ICON = 'h-[22px] w-[22px]';
 
@@ -748,7 +752,7 @@ function IconTip({ label, children }: { label: string; children: ReactNode }): R
   return (
     <span className="group relative flex">
       {children}
-      <span className="pointer-events-none absolute -bottom-8 left-1/2 z-50 -translate-x-1/2 whitespace-nowrap rounded-lg bg-[#3D3B4F] px-2.5 py-1 text-[11px] font-medium text-[#F9F8F6] opacity-0 transition-opacity delay-150 duration-100 group-hover:opacity-100 [@media(hover:none)]:hidden">
+      <span className="pointer-events-none absolute -bottom-8 left-1/2 z-50 -translate-x-1/2 whitespace-nowrap rounded-lg bg-btn px-2.5 py-1 text-[11px] font-medium text-background opacity-0 transition-opacity delay-150 duration-100 group-hover:opacity-100 [@media(hover:none)]:hidden">
         {label}
       </span>
     </span>
@@ -840,22 +844,22 @@ function SegmentsMenu({
             rightward from the button instead of hanging off-screen. */}
         <DropdownMenuContent
           align="end"
-          className="w-64 rounded-2xl bg-white border-none shadow-float max-sm:left-0 max-sm:right-auto"
+          className="w-64 rounded-2xl bg-card border-none shadow-float max-sm:left-0 max-sm:right-auto"
         >
-          <DropdownMenuLabel className="px-4 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wider text-[#B5B0AA]">
+          <DropdownMenuLabel className="px-4 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wider text-faint">
             Segments
           </DropdownMenuLabel>
           {/* isPending, not isLoading: the query is disabled until the menu
               opens, and isLoading is false for that first frame - it would
               flash the "No saved segments" empty state before the fetch. */}
           {segmentsQ.isPending ? (
-            <p className="px-4 pb-3 pt-1 text-[12.5px] text-[#9B9590]">Loading segments…</p>
+            <p className="px-4 pb-3 pt-1 text-[12.5px] text-subtle">Loading segments…</p>
           ) : segmentsQ.isError ? (
             <p className="px-4 pb-3 pt-1 text-[12.5px] leading-relaxed text-[#e07a5f]">
               Couldn&rsquo;t load your saved segments.
             </p>
           ) : segments.length === 0 ? (
-            <p className="px-4 pb-3 pt-1 text-[12.5px] leading-relaxed text-[#9B9590]">
+            <p className="px-4 pb-3 pt-1 text-[12.5px] leading-relaxed text-subtle">
               No saved segments. Filter the dashboard (click any row), then save the view here.
             </p>
           ) : (
@@ -866,10 +870,10 @@ function SegmentsMenu({
                 className="group flex items-center justify-between gap-2 px-4 py-2.5 cursor-pointer"
               >
                 <span className="min-w-0">
-                  <span className="block truncate text-[13px] font-medium text-[#3D3B4F]">
+                  <span className="block truncate text-[13px] font-medium text-foreground">
                     {segment.name}
                   </span>
-                  <span className="block truncate text-[11px] text-[#9B9590]">
+                  <span className="block truncate text-[11px] text-subtle">
                     {Object.entries(segment.filters)
                       .filter(([, v]) => v)
                       .map(([k, v]) => describeFilter(k as keyof AnalyticsFilters, v))
@@ -881,7 +885,7 @@ function SegmentsMenu({
                     e.stopPropagation();
                     deleteSegment.mutate(segment.id);
                   }}
-                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[#B5B0AA] opacity-0 transition-all hover:text-[#e07a5f] group-hover:opacity-100 [@media(hover:none)]:opacity-100 cursor-pointer"
+                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-faint opacity-0 transition-all hover:text-[#e07a5f] group-hover:opacity-100 [@media(hover:none)]:opacity-100 cursor-pointer"
                   title="Delete segment"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -894,9 +898,9 @@ function SegmentsMenu({
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={() => setSaveOpen(true)}
-                className="flex items-center gap-2.5 px-4 py-2.5 cursor-pointer text-[13px] font-medium text-[#3D3B4F]"
+                className="flex items-center gap-2.5 px-4 py-2.5 cursor-pointer text-[13px] font-medium text-foreground"
               >
-                <BookmarkPlus className="h-4 w-4 text-[#6E6C7C]" />
+                <BookmarkPlus className="h-4 w-4 text-muted-foreground" />
                 Save current filters…
               </DropdownMenuItem>
             </>
@@ -908,7 +912,7 @@ function SegmentsMenu({
         <DialogContent onClose={() => setSaveOpen(false)} className="max-w-sm">
           <DialogHeader>
             <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center mb-3">
-              <BookmarkPlus className="w-5 h-5 text-[#6E6C7C]" strokeWidth={1.7} />
+              <BookmarkPlus className="w-5 h-5 text-muted-foreground" strokeWidth={1.7} />
             </div>
             <DialogTitle>Save segment</DialogTitle>
             <DialogDescription>
@@ -922,7 +926,7 @@ function SegmentsMenu({
                 {activeEntries.map(([key, value]) => (
                   <span
                     key={key}
-                    className="flex items-center gap-1.5 rounded-full bg-muted py-1 px-3 text-[12px] text-[#3D3B4F]"
+                    className="flex items-center gap-1.5 rounded-full bg-muted py-1 px-3 text-[12px] text-foreground"
                   >
                     {key === 'props' ? (
                       <span className="max-w-[220px] truncate font-medium">
@@ -930,7 +934,7 @@ function SegmentsMenu({
                       </span>
                     ) : (
                       <>
-                        <span className="text-[#9B9590]">{FILTER_LABELS[key]}</span>
+                        <span className="text-subtle">{FILTER_LABELS[key]}</span>
                         <span className="max-w-[160px] truncate font-medium">{value}</span>
                       </>
                     )}
@@ -954,7 +958,7 @@ function SegmentsMenu({
             </div>
           </DialogBody>
 
-          <DialogFooter className="border-t border-[#e6e5ea]/50 mx-6 px-0 pb-5 pt-4">
+          <DialogFooter className="border-t border-border/50 mx-6 px-0 pb-5 pt-4">
             <Button
               variant="ghost"
               onClick={() => setSaveOpen(false)}
@@ -966,7 +970,7 @@ function SegmentsMenu({
               onClick={() => createSegment.mutate()}
               disabled={name.trim().length === 0}
               isLoading={createSegment.isPending}
-              className="bg-[#3D3B4F] hover:bg-[#2C2B3B] text-white shadow-none text-[13px] px-5 cursor-pointer"
+              className="bg-btn hover:bg-btn-hover text-white shadow-none text-[13px] px-5 cursor-pointer"
             >
               <BookmarkPlus className="w-3.5 h-3.5" />
               Save segment
@@ -1623,17 +1627,17 @@ export function SiteDashboard({
   if (siteError || (!siteLoading && !site)) {
     return (
       <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
-        <div className="rounded-[20px] bg-white px-8 py-16 text-center shadow-float">
+        <div className="rounded-[20px] bg-card px-8 py-16 text-center shadow-float">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-muted">
-            <Globe className="h-8 w-8 text-[#9B9590]" />
+            <Globe className="h-8 w-8 text-subtle" />
           </div>
-          <p className="text-[17px] font-semibold text-[#3D3B4F]">Site not found</p>
-          <p className="mx-auto mt-2 max-w-sm text-[14px] text-[#9B9590]">
+          <p className="text-[17px] font-semibold text-foreground">Site not found</p>
+          <p className="mx-auto mt-2 max-w-sm text-[14px] text-subtle">
             It may have been deleted, or this link points somewhere that no longer exists.
           </p>
           <Link
             to="/portal/sites"
-            className="mt-5 inline-flex h-10 items-center gap-2 rounded-full bg-[#3D3B4F] px-5 text-[13.5px] font-semibold text-white transition-colors hover:bg-[#2C2B3B]"
+            className="mt-5 inline-flex h-10 items-center gap-2 rounded-full bg-btn px-5 text-[13.5px] font-semibold text-white transition-colors hover:bg-btn-hover"
           >
             Back to sites
           </Link>
@@ -1716,18 +1720,18 @@ export function SiteDashboard({
         {/* Pinned only with room to spare: on phones it stacks to two rows,
             and on a landscape phone it would cover half the screen, so in
             both cases it scrolls away. */}
-        <div className="z-30 -mx-4 flex flex-wrap items-center justify-between gap-3 bg-[#F9F8F6] px-4 pb-4 pt-3 sm:top-14 sm:-mx-6 sm:px-6 sm:[@media(min-height:600px)]:sticky">
+        <div className="z-30 -mx-4 flex flex-wrap items-center justify-between gap-3 bg-background px-4 pb-4 pt-3 sm:top-14 sm:-mx-6 sm:px-6 sm:[@media(min-height:600px)]:sticky">
           <div className="flex min-w-0 items-center gap-3">
             {!shared && (
               <Link
                 to="/portal/sites"
                 title="All sites"
-                className="-mr-1 flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full transition-colors hover:bg-[#F2F1ED] cursor-pointer"
+                className="-mr-1 flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full transition-colors hover:bg-muted cursor-pointer"
               >
                 <Sticker name="back" className="h-5 w-5" />
               </Link>
             )}
-            <span className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-[12px] bg-white ring-1 ring-[#E6E4DE]">
+            <span className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-[12px] bg-card ring-1 ring-border">
               {site?.favicon ? (
                 <img
                   src={site.favicon}
@@ -1736,24 +1740,24 @@ export function SiteDashboard({
                   className="h-[22px] w-[22px] rounded-[5px] object-contain"
                 />
               ) : (
-                <Globe className="h-[18px] w-[18px] text-[#6E6C7C]" strokeWidth={1.7} />
+                <Globe className="h-[18px] w-[18px] text-muted-foreground" strokeWidth={1.7} />
               )}
             </span>
             <div className="min-w-0">
-              <h1 className="truncate text-[21px] font-bold leading-tight text-[#3D3B4F] tracking-[-0.025em]">
+              <h1 className="truncate text-[21px] font-bold leading-tight text-foreground tracking-[-0.025em]">
                 {site?.name || 'Analytics'}
               </h1>
               {/* Domain · Public · live, separated by small dots. */}
               <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px]">
-                {site?.domain && <span className="truncate text-[#9B9590]">{site.domain}</span>}
+                {site?.domain && <span className="truncate text-subtle">{site.domain}</span>}
                 {!shared && site?.public && (
                   <>
-                    {site?.domain && <span className="h-[3px] w-[3px] rounded-full bg-[#B5B0AA]" />}
+                    {site?.domain && <span className="h-[3px] w-[3px] rounded-full bg-faint" />}
                     <span className="font-medium text-[#12A06B]">Public</span>
                   </>
                 )}
                 {!shared && site?.domain && currentVisitors !== null && (
-                  <span className="h-[3px] w-[3px] rounded-full bg-[#B5B0AA]" />
+                  <span className="h-[3px] w-[3px] rounded-full bg-faint" />
                 )}
                 {!shared && (
                   <LivePill
@@ -1822,11 +1826,11 @@ export function SiteDashboard({
                     </DropdownMenuTrigger>
                     <DropdownMenuContent
                       align="end"
-                      className="w-44 rounded-2xl bg-white border-none shadow-float"
+                      className="w-44 rounded-2xl bg-card border-none shadow-float"
                     >
                       <DropdownMenuItem
                         onClick={() => setDeleteOpen(true)}
-                        className="flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-[#e5484d] focus:text-[#e5484d] focus:bg-red-50 cursor-pointer"
+                        className="flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-[#e5484d] focus:text-[#e5484d] focus:bg-coral-soft cursor-pointer"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                         Delete site
@@ -1836,7 +1840,7 @@ export function SiteDashboard({
                 </IconTip>
               )}
             </div>
-            <span className="mx-1 hidden h-5 w-px bg-[#E6E4DE] md:block" />
+            <span className="mx-1 hidden h-5 w-px bg-border md:block" />
             <PeriodPicker value={period} onChange={setPeriod} allowCustom={!shared} />
           </div>
         </div>

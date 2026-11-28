@@ -15,7 +15,7 @@ export const Route = createLazyFileRoute('/portal/sites')({
 });
 
 const TILE_COLORS = [
-  { deep: '#3D3B4F', pastel: '#C9C8D4' },
+  { deep: 'var(--chart-1)', pastel: 'var(--border-strong)' },
   { deep: '#6b8ead', pastel: '#b8cbd9' },
   { deep: '#e07a5f', pastel: '#f2b5a4' },
 ];
@@ -156,8 +156,8 @@ function SitesPage(): ReactElement {
           search taking the slack and Refresh shrinking to its icon. */}
       <div className="mb-6 flex flex-wrap items-center justify-between gap-x-3 gap-y-4 sm:mb-8">
         <div>
-          <h1 className="text-[26px] font-bold text-[#3D3B4F] tracking-[-0.02em]">Your Sites</h1>
-          <p className="mt-1 text-[14px] text-[#9B9590]">
+          <h1 className="text-[26px] font-bold text-foreground tracking-[-0.02em]">Your Sites</h1>
+          <p className="mt-1 text-[14px] text-subtle">
             {workspace ? `Sites in ${workspace.name}` : 'Select a site to view its analytics'}
           </p>
         </div>
@@ -165,7 +165,7 @@ function SitesPage(): ReactElement {
           {!isLoading && allSites.length > 0 && (
             <div className="relative min-w-0 flex-1 sm:flex-none">
               <Search
-                className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#B5B0AA]"
+                className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-faint"
                 strokeWidth={1.8}
               />
               <Input
@@ -177,7 +177,7 @@ function SitesPage(): ReactElement {
               {search && (
                 <button
                   onClick={() => handleSearchChange('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#B5B0AA] hover:text-[#3D3B4F] transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-faint hover:text-foreground transition-colors"
                 >
                   <X className="w-4 h-4" strokeWidth={1.8} />
                 </button>
@@ -220,33 +220,35 @@ function SitesPage(): ReactElement {
       {isLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {[...Array(3)].map((_, i) => (
-            <div key={i} className="h-[248px] animate-pulse rounded-[20px] bg-white shadow-float" />
+            <div key={i} className="h-[248px] animate-pulse rounded-[20px] bg-card shadow-float" />
           ))}
         </div>
       ) : isError ? (
-        <div className="rounded-[20px] bg-white px-8 py-16 text-center shadow-float">
+        <div className="rounded-[20px] bg-card px-8 py-16 text-center shadow-float">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-muted">
-            <Globe className="h-8 w-8 text-[#9B9590]" />
+            <Globe className="h-8 w-8 text-subtle" />
           </div>
-          <p className="text-[17px] font-semibold text-[#3D3B4F]">Couldn&rsquo;t load your sites</p>
-          <p className="mx-auto mt-2 max-w-sm text-[14px] text-[#9B9590]">
+          <p className="text-[17px] font-semibold text-foreground">
+            Couldn&rsquo;t load your sites
+          </p>
+          <p className="mx-auto mt-2 max-w-sm text-[14px] text-subtle">
             Your sites are safe; this instance just couldn&rsquo;t be reached. Check your connection
             and try again.
           </p>
           <button
             onClick={() => void refetch()}
-            className="mt-5 inline-flex h-10 items-center gap-2 rounded-full bg-[#3D3B4F] px-5 text-[13.5px] font-semibold text-white transition-colors hover:bg-[#2C2B3B]"
+            className="mt-5 inline-flex h-10 items-center gap-2 rounded-full bg-btn px-5 text-[13.5px] font-semibold text-white transition-colors hover:bg-btn-hover"
           >
             Try again
           </button>
         </div>
       ) : allSites.length === 0 ? (
-        <div className="rounded-[20px] bg-white px-8 py-16 text-center shadow-float">
+        <div className="rounded-[20px] bg-card px-8 py-16 text-center shadow-float">
           <div className="mx-auto w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
             <Globe className="h-8 w-8 text-foreground" />
           </div>
-          <p className="text-[17px] font-semibold text-[#3D3B4F]">No sites yet</p>
-          <p className="mt-2 text-[14px] text-[#9B9590] max-w-sm mx-auto">
+          <p className="text-[17px] font-semibold text-foreground">No sites yet</p>
+          <p className="mt-2 text-[14px] text-subtle max-w-sm mx-auto">
             {isWorkspaceOwner
               ? 'Add your first website to start tracking visitors, pageviews, and more'
               : 'A workspace owner needs to add a site before there is anything to see here'}
@@ -259,12 +261,12 @@ function SitesPage(): ReactElement {
           )}
         </div>
       ) : filteredSites.length === 0 ? (
-        <div className="rounded-[20px] bg-white px-8 py-12 text-center shadow-float">
-          <Search className="mx-auto h-8 w-8 text-[#B5B0AA] mb-3" strokeWidth={1.5} />
-          <p className="text-[15px] font-medium text-[#3D3B4F]">
+        <div className="rounded-[20px] bg-card px-8 py-12 text-center shadow-float">
+          <Search className="mx-auto h-8 w-8 text-faint mb-3" strokeWidth={1.5} />
+          <p className="text-[15px] font-medium text-foreground">
             No sites match &quot;{search}&quot;
           </p>
-          <p className="mt-1 text-[13px] text-[#9B9590]">Try a different search term</p>
+          <p className="mt-1 text-[13px] text-subtle">Try a different search term</p>
         </div>
       ) : (
         <>

@@ -25,9 +25,9 @@ const S = {
 } as const;
 
 const MINT = '#28E99F';
-const MINT_TINT = '#CFF7E5';
-const CORAL_TINT = '#F6D5CC';
-const WARM = '#EDEBE6';
+const MINT_TINT = 'var(--mint-soft)';
+const CORAL_TINT = 'var(--coral-soft)';
+const WARM = 'var(--muted)';
 
 const ART: Record<StickerName, ReactElement> = {
   back: <path d="M30 12 18 24l12 12" fill="none" {...S} />,
@@ -48,14 +48,14 @@ const ART: Record<StickerName, ReactElement> = {
     <>
       <path d="m18.5 21.5 11-6.5M18.5 26.5l11 6.5" fill="none" {...S} />
       <circle cx="34" cy="12" r="6" fill={MINT} {...S} />
-      <circle cx="13" cy="24" r="6" fill="#fff" {...S} />
+      <circle cx="13" cy="24" r="6" fill="var(--card)" {...S} />
       <circle cx="34" cy="36" r="6" fill={MINT_TINT} {...S} />
     </>
   ),
   settings: (
     <>
       <path d="M8 16h32M8 32h32" fill="none" {...S} />
-      <circle cx="18" cy="16" r="5.5" fill="#fff" {...S} />
+      <circle cx="18" cy="16" r="5.5" fill="var(--card)" {...S} />
       <circle cx="30" cy="32" r="5.5" fill={CORAL_TINT} {...S} />
     </>
   ),
@@ -79,7 +79,7 @@ const ART: Record<StickerName, ReactElement> = {
   ),
   calendar: (
     <>
-      <rect x="7" y="10" width="34" height="31" rx="7" fill="#fff" {...S} />
+      <rect x="7" y="10" width="34" height="31" rx="7" fill="var(--card)" {...S} />
       <path d="M7 17a7 7 0 0 1 7-7h20a7 7 0 0 1 7 7v4H7Z" fill={CORAL_TINT} {...S} />
       <path d="M17 6v8M31 6v8" fill="none" {...S} />
       <rect x="26" y="28" width="7" height="7" rx="2" fill={MINT} {...S} strokeWidth={2} />
@@ -98,7 +98,7 @@ export function Sticker({
     <svg
       viewBox="0 0 48 48"
       aria-hidden="true"
-      className={cn('shrink-0 overflow-visible text-[#3D3B4F]', className)}
+      className={cn('shrink-0 overflow-visible text-foreground', className)}
     >
       {ART[name]}
     </svg>

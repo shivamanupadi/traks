@@ -153,8 +153,8 @@ const TOOLS: { name: string; desc: string; manage?: boolean }[] = [
 
 /* ── page ───────────────────────────────────────────────────────── */
 
-const CARD = 'rounded-[20px] bg-white shadow-float';
-const EYEBROW = 'text-[10.5px] font-bold uppercase tracking-[0.1em] text-[#9B9590]';
+const CARD = 'rounded-[20px] bg-card shadow-float';
+const EYEBROW = 'text-[10.5px] font-bold uppercase tracking-[0.1em] text-subtle';
 
 /**
  * MCP server: the endpoint strip, then a guided "connect a client" stepper
@@ -223,7 +223,7 @@ function McpPage(): ReactElement {
       variant="outline"
       size="sm"
       onClick={() => void copy(text, tag)}
-      className="h-8 shrink-0 rounded-full px-3 text-[12px] text-[#3D3B4F]"
+      className="h-8 shrink-0 rounded-full px-3 text-[12px] text-foreground"
     >
       {copied === tag ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
       {copied === tag ? 'Copied' : 'Copy'}
@@ -233,8 +233,8 @@ function McpPage(): ReactElement {
   return (
     <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
       <div className="mb-6">
-        <h1 className="text-[26px] font-bold text-[#3D3B4F] tracking-[-0.02em]">MCP server</h1>
-        <p className="mt-1 max-w-[62ch] text-[14px] text-[#9B9590]">
+        <h1 className="text-[26px] font-bold text-foreground tracking-[-0.02em]">MCP server</h1>
+        <p className="mt-1 max-w-[62ch] text-[14px] text-subtle">
           Give Claude Code and other agents their own analytics tools: read stats, set up goals and
           funnels, pull the tracking snippet.
         </p>
@@ -245,30 +245,28 @@ function McpPage(): ReactElement {
         <div className="min-w-0 flex-1 basis-full sm:basis-0">
           <span className={`${EYEBROW} mb-2 block`}>Your MCP endpoint</span>
           <div className="flex items-center gap-2.5">
-            <code className="min-w-0 flex-1 truncate rounded-[10px] bg-[#F2F1ED] px-3.5 py-2.5 font-mono text-[12.5px] text-[#3D3B4F]">
+            <code className="min-w-0 flex-1 truncate rounded-[10px] bg-muted px-3.5 py-2.5 font-mono text-[12.5px] text-foreground">
               {mcpUrl}
             </code>
             <CopyButton text={mcpUrl} tag="url" />
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 sm:block sm:text-right">
-          <span className="inline-flex rounded-full bg-[#E3F6EE] px-2.5 py-0.5 text-[11.5px] font-bold text-[#123326]">
+          <span className="inline-flex rounded-full bg-mint-soft px-2.5 py-0.5 text-[11.5px] font-bold text-[#123326] dark:text-[#7df0c0]">
             {TOOLS.length} tools available
           </span>
-          <p className="text-[11.5px] text-[#9B9590] sm:mt-1.5">
-            Streamable HTTP · Bearer token auth
-          </p>
+          <p className="text-[11.5px] text-subtle sm:mt-1.5">Streamable HTTP · Bearer token auth</p>
         </div>
       </div>
 
       <div className="mt-4 grid items-start gap-4 lg:grid-cols-[7fr_5fr]">
         {/* Guided setup */}
         <div className={`${CARD} p-5 sm:p-6`}>
-          <h2 className="mb-5 text-[15px] font-semibold text-[#3D3B4F]">Connect a client</h2>
+          <h2 className="mb-5 text-[15px] font-semibold text-foreground">Connect a client</h2>
 
           <div className="grid grid-cols-[26px_1fr] gap-x-3.5">
             <Step n={1} done>
-              <p className="pt-0.5 text-[13.5px] font-semibold text-[#3D3B4F]">
+              <p className="pt-0.5 text-[13.5px] font-semibold text-foreground">
                 Choose your client
               </p>
               <div className="mt-2 flex flex-wrap gap-1.5">
@@ -280,8 +278,8 @@ function McpPage(): ReactElement {
                     className={cn(
                       'inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-[12px] transition-colors cursor-pointer',
                       client === c.id
-                        ? 'bg-[#3D3B4F] font-semibold text-white'
-                        : 'border border-[#E6E4DE] bg-white font-medium text-[#6E6C7C] hover:bg-[#F2F1ED] hover:text-[#3D3B4F]'
+                        ? 'bg-btn font-semibold text-white'
+                        : 'border border-border bg-card font-medium text-muted-foreground hover:bg-muted hover:text-foreground'
                     )}
                   >
                     <img
@@ -296,7 +294,7 @@ function McpPage(): ReactElement {
             </Step>
 
             <Step n={2} done={tokenDone}>
-              <p className="pt-0.5 text-[13.5px] font-semibold text-[#3D3B4F]">Pick a token</p>
+              <p className="pt-0.5 text-[13.5px] font-semibold text-foreground">Pick a token</p>
               <div className="mt-2 flex flex-wrap items-center gap-2.5">
                 <div className="relative min-w-0 flex-1 basis-full sm:basis-0">
                   <select
@@ -306,7 +304,7 @@ function McpPage(): ReactElement {
                       if (minted && e.target.value !== minted.id) setMinted(null);
                     }}
                     disabled={!current}
-                    className="h-10 w-full cursor-pointer appearance-none rounded-[10px] bg-[#F2F1ED] pl-4 pr-9 text-[13px] text-[#3D3B4F] outline-none focus:shadow-[inset_0_0_0_1.5px_var(--ring)] disabled:cursor-default"
+                    className="h-10 w-full cursor-pointer appearance-none rounded-[10px] bg-muted pl-4 pr-9 text-[13px] text-foreground outline-none focus:shadow-[inset_0_0_0_1.5px_var(--ring)] disabled:cursor-default"
                   >
                     <option value="">Select a token…</option>
                     {tokens.map(t => (
@@ -315,14 +313,14 @@ function McpPage(): ReactElement {
                       </option>
                     ))}
                   </select>
-                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9B9590]" />
+                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle" />
                 </div>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setCreating(true)}
                   disabled={!current}
-                  className="h-10 rounded-full px-4 text-[12px] text-[#3D3B4F]"
+                  className="h-10 rounded-full px-4 text-[12px] text-foreground"
                 >
                   <Plus className="h-3.5 w-3.5" />
                   Create token
@@ -337,18 +335,18 @@ function McpPage(): ReactElement {
                   <button
                     type="button"
                     onClick={() => void copy(minted.secret, 'secret')}
-                    className="text-[12px] text-[#6E6C7C] underline-offset-2 hover:underline cursor-pointer"
+                    className="text-[12px] text-muted-foreground underline-offset-2 hover:underline cursor-pointer"
                   >
                     {copied === 'secret' ? 'Copied' : 'Copy token'}
                   </button>
                 </div>
               ) : (
-                <p className="mt-2 text-[12px] leading-relaxed text-[#9B9590]">
+                <p className="mt-2 text-[12px] leading-relaxed text-subtle">
                   Stored tokens are hashed, so an existing token leaves a blank to fill in. Create
                   one here to get a paste-ready config.{' '}
                   <Link
                     to="/portal/tokens"
-                    className="font-semibold text-[#6E6C7C] underline-offset-2 hover:text-[#3D3B4F] hover:underline"
+                    className="font-semibold text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
                   >
                     Manage tokens
                   </Link>
@@ -358,21 +356,23 @@ function McpPage(): ReactElement {
 
             <Step n={3} done={false}>
               <div className="flex items-center justify-between gap-3 pt-0.5">
-                <p className="text-[13.5px] font-semibold text-[#3D3B4F]">{cfg.title}</p>
+                <p className="text-[13.5px] font-semibold text-foreground">{cfg.title}</p>
                 <CopyButton text={cfg.snippet} tag="cmd" />
               </div>
-              <pre className="mt-2 overflow-x-auto rounded-xl border border-[#E6E4DE] bg-white px-4 py-3.5 font-mono text-[12px] leading-[1.7] text-[#3D3B4F]">
+              <pre className="mt-2 overflow-x-auto rounded-xl border border-border bg-card px-4 py-3.5 font-mono text-[12px] leading-[1.7] text-foreground">
                 {cfg.snippet}
               </pre>
-              <p className="mt-2 text-[12px] leading-relaxed text-[#9B9590]">{cfg.hint}</p>
+              <p className="mt-2 text-[12px] leading-relaxed text-subtle">{cfg.hint}</p>
             </Step>
 
             <Step n={4} done={false} last>
-              <p className="pt-0.5 text-[13.5px] font-semibold text-[#3D3B4F]">Give it the skill</p>
-              <p className="mt-1 text-[12px] leading-relaxed text-[#9B9590]">
+              <p className="pt-0.5 text-[13.5px] font-semibold text-foreground">
+                Give it the skill
+              </p>
+              <p className="mt-1 text-[12px] leading-relaxed text-subtle">
                 SKILL.md teaches the agent to instrument your site and use these tools well. Put it
                 in{' '}
-                <code className="rounded bg-[#F2F1ED] px-1.5 py-0.5 font-mono text-[11px] text-[#3D3B4F]">
+                <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-foreground">
                   .claude/skills/traks/
                 </code>
                 .
@@ -393,25 +393,24 @@ function McpPage(): ReactElement {
         {/* Tools reference */}
         <div className={`${CARD} p-5 sm:p-6`}>
           <div className="flex items-center justify-between">
-            <h2 className="text-[15px] font-semibold text-[#3D3B4F]">Tools</h2>
-            <span className="rounded-full bg-[#E3F6EE] px-2.5 py-0.5 text-[11.5px] font-bold text-[#123326]">
+            <h2 className="text-[15px] font-semibold text-foreground">Tools</h2>
+            <span className="rounded-full bg-mint-soft px-2.5 py-0.5 text-[11.5px] font-bold text-[#123326] dark:text-[#7df0c0]">
               {TOOLS.length}
             </span>
           </div>
-          <p className="mt-1 text-[13px] leading-relaxed text-[#9B9590]">
+          <p className="mt-1 text-[13px] leading-relaxed text-subtle">
             What a connected agent can do, scoped by the token it authenticates with.
           </p>
           <div className="mt-3">
             {TOOLS.map((t, i) => (
               <div
                 key={t.name}
-                className={cn(
-                  'flex items-baseline gap-2.5 py-2',
-                  i > 0 && 'border-t border-[#F2F1ED]'
-                )}
+                className={cn('flex items-baseline gap-2.5 py-2', i > 0 && 'border-t border-muted')}
               >
-                <code className="font-mono text-[12px] font-semibold text-[#3D3B4F]">{t.name}</code>
-                <span className="min-w-0 flex-1 text-[12px] text-[#6E6C7C]">{t.desc}</span>
+                <code className="font-mono text-[12px] font-semibold text-foreground">
+                  {t.name}
+                </code>
+                <span className="min-w-0 flex-1 text-[12px] text-muted-foreground">{t.desc}</span>
                 {t.manage && <ScopePill scope="manage" />}
               </div>
             ))}
@@ -462,12 +461,12 @@ function Step({
             'flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full text-[11px] font-bold',
             done
               ? 'bg-mint text-[#123326]'
-              : 'border-[1.5px] border-[#D9D6CF] bg-white text-[#9B9590]'
+              : 'border-[1.5px] border-border-strong bg-card text-subtle'
           )}
         >
           {done ? <Check className="h-3.5 w-3.5" strokeWidth={3} /> : n}
         </span>
-        {!last && <span className="mt-1.5 w-px flex-1 bg-[#E6E4DE]" />}
+        {!last && <span className="mt-1.5 w-px flex-1 bg-border" />}
       </div>
       <div className={cn('min-w-0', !last && 'pb-6')}>{children}</div>
     </>

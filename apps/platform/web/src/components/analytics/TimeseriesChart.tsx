@@ -25,8 +25,8 @@ interface TimeseriesChartProps {
 
 /* All metrics share the same treatment: ink stroke over a whisper of fill -
  * the metric rail above carries the "which metric" signal. */
-const STROKE = '#3D3B4F';
-const WASH = '#3D3B4F';
+const STROKE = 'var(--foreground)';
+const WASH = 'var(--foreground)';
 
 /**
  * Bucket keys are pre-computed at ingest in the *site's* IANA timezone
@@ -131,7 +131,7 @@ export function TimeseriesChart({
 }: TimeseriesChartProps): ReactElement {
   const stroke = color ?? STROKE;
   const fill = color ?? WASH;
-  const frame = bare ? '' : 'rounded-[20px] bg-white shadow-float';
+  const frame = bare ? '' : 'rounded-[20px] bg-card shadow-float';
 
   if (isError) {
     return (
@@ -162,9 +162,9 @@ export function TimeseriesChart({
   if (data.length === 0) {
     return (
       <div className={`flex h-[200px] sm:h-[300px] flex-col items-center justify-center ${frame}`}>
-        <TrendingUp className="w-5 h-5 text-[#B5B0AA] mb-2" strokeWidth={1.5} />
-        <p className="text-[13px] font-medium text-[#9B9590]">No data yet</p>
-        <p className="text-[12px] text-[#B5B0AA] mt-1">
+        <TrendingUp className="w-5 h-5 text-faint mb-2" strokeWidth={1.5} />
+        <p className="text-[13px] font-medium text-subtle">No data yet</p>
+        <p className="text-[12px] text-faint mt-1">
           Embed the tracking script to start collecting data
         </p>
       </div>
@@ -185,28 +185,34 @@ export function TimeseriesChart({
               <stop offset="100%" stopColor={fill} stopOpacity={0} />
             </linearGradient>
           </defs>
-          <CartesianGrid stroke="#F1EFEA" vertical={false} />
+          <CartesianGrid stroke="var(--muted)" vertical={false} />
           <XAxis
             dataKey="date"
             tickFormatter={formatAxis}
-            stroke="#B5B0AA"
+            stroke="var(--faint)"
             fontSize={11.5}
             tickLine={false}
             axisLine={false}
           />
-          <YAxis stroke="#B5B0AA" fontSize={11.5} tickLine={false} axisLine={false} width={40} />
+          <YAxis
+            stroke="var(--faint)"
+            fontSize={11.5}
+            tickLine={false}
+            axisLine={false}
+            width={40}
+          />
           <Tooltip
             contentStyle={{
-              backgroundColor: '#3D3B4F',
+              backgroundColor: 'var(--btn)',
               border: 'none',
               borderRadius: '10px',
               fontSize: '12px',
               color: '#F9F8F6',
-              boxShadow: '0 8px 20px rgba(61,59,79,0.25)',
+              boxShadow: '0 8px 20px rgba(0,0,0,0.25)',
             }}
             labelStyle={{ color: '#C9C3BC', marginBottom: 2 }}
             itemStyle={{ color: '#F9F8F6', fontWeight: 700 }}
-            cursor={{ stroke: '#3D3B4F', strokeOpacity: 0.35, strokeDasharray: '3 3' }}
+            cursor={{ stroke: 'var(--foreground)', strokeOpacity: 0.35, strokeDasharray: '3 3' }}
             labelFormatter={formatTooltip}
           />
           <Area
@@ -236,8 +242,8 @@ export function TimeseriesChart({
   if (bare) return chart;
 
   return (
-    <div className="rounded-[20px] bg-white p-6 shadow-float">
-      <h3 className="mb-4 text-[15px] font-bold tracking-[-0.01em] text-[#3D3B4F]">
+    <div className="rounded-[20px] bg-card p-6 shadow-float">
+      <h3 className="mb-4 text-[15px] font-bold tracking-[-0.01em] text-foreground">
         {metric === 'visitors' ? 'Visitors' : metric === 'pageviews' ? 'Pageviews' : 'Sessions'}
       </h3>
       {chart}

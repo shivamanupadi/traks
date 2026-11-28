@@ -63,7 +63,7 @@ const DialogContent = React.forwardRef<
     exit={{ opacity: 0, scale: 0.96, y: 8 }}
     transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
     className={cn(
-      'relative max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-[20px] border-none bg-white shadow-float-lg',
+      'relative max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-[20px] border-none bg-card shadow-float-lg',
       className
     )}
     onClick={(e: React.MouseEvent) => e.stopPropagation()}
@@ -72,7 +72,7 @@ const DialogContent = React.forwardRef<
     {onClose && (
       <button
         onClick={onClose}
-        className="absolute right-4 top-4 rounded-full p-1.5 text-[#9B9590] hover:bg-muted hover:text-[#3D3B4F] transition-colors"
+        className="absolute right-4 top-4 rounded-full p-1.5 text-subtle hover:bg-muted hover:text-foreground transition-colors"
       >
         <X className="h-4 w-4" />
       </button>
@@ -95,7 +95,7 @@ function DialogTitle({
 }: React.HTMLAttributes<HTMLHeadingElement>): React.ReactNode {
   return (
     <h2
-      className={cn('text-[17px] font-semibold text-[#3D3B4F] tracking-[-0.01em]', className)}
+      className={cn('text-[17px] font-semibold text-foreground tracking-[-0.01em]', className)}
       {...props}
     />
   );
@@ -105,7 +105,7 @@ function DialogDescription({
   className,
   ...props
 }: React.HTMLAttributes<HTMLParagraphElement>): React.ReactNode {
-  return <p className={cn('mt-1 text-[13px] text-[#9B9590]', className)} {...props} />;
+  return <p className={cn('mt-1 text-[13px] text-subtle', className)} {...props} />;
 }
 
 function DialogBody({

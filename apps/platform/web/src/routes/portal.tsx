@@ -17,7 +17,11 @@ import {
   Check,
   Github,
   Menu,
+  Sun,
+  Moon,
+  Monitor,
 } from 'lucide-react';
+import { useTheme } from '@/lib/theme';
 import { authClient } from '@/lib/auth-client';
 import { destroyUrl, updateUrl, useInstanceConfig, useLatestVersion } from '@/lib/config';
 import { useWorkspace, WorkspaceProvider } from '@/lib/workspace';
@@ -64,8 +68,8 @@ function PortalLayout(): React.ReactNode {
 
   if (isPending) {
     return (
-      <div className="min-h-screen bg-[#F9F8F6] flex items-center justify-center">
-        <div className="text-[14px] text-[#9B9590]">Loading...</div>
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-[14px] text-subtle">Loading...</div>
       </div>
     );
   }
@@ -76,7 +80,7 @@ function PortalLayout(): React.ReactNode {
 
   return (
     <WorkspaceProvider>
-      <div className="min-h-screen bg-[#F9F8F6]">
+      <div className="min-h-screen bg-background">
         <PortalHeader />
         <UpdateBanner />
 
@@ -106,12 +110,12 @@ function PortalHeader(): React.ReactNode {
     // One-line chrome: identity, navigation, and account share a single row -
     // the old tab rail's 42px goes back to the content. Below lg the tabs
     // don't fit beside the workspace switcher, so they fold into a menu.
-    <header className="sticky top-0 z-40 border-b border-[#ECEAE5] bg-white">
+    <header className="sticky top-0 z-40 border-b border-border bg-card">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-2 px-4 sm:px-6">
         <div className="flex h-full min-w-0 items-center">
           <Link to="/portal/sites" className="flex shrink-0 items-center gap-2">
             <img src="/logo.svg" alt="Traks" className="h-6 w-6" />
-            <span className="hidden lg:block text-[15px] font-semibold tracking-[-0.01em] text-[#3D3B4F]">
+            <span className="hidden lg:block text-[15px] font-semibold tracking-[-0.01em] text-foreground">
               Traks
             </span>
           </Link>
@@ -137,7 +141,7 @@ function PortalHeader(): React.ReactNode {
             aria-label={menuOpen ? 'Close menu' : 'Open menu'}
             aria-expanded={menuOpen}
             aria-controls="mobile-nav"
-            className="flex h-9 w-9 items-center justify-center rounded-full text-[#3D3B4F] transition-colors hover:bg-[#F2F1ED] lg:hidden cursor-pointer"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-foreground transition-colors hover:bg-muted lg:hidden cursor-pointer"
           >
             {menuOpen ? (
               <X className="h-[18px] w-[18px]" strokeWidth={1.8} />
@@ -184,11 +188,11 @@ function MobileNav({
       <div
         aria-hidden
         onClick={onClose}
-        className="fixed inset-x-0 bottom-0 top-14 bg-[#3D3B4F]/20 lg:hidden animate-in fade-in-0 duration-150"
+        className="fixed inset-x-0 bottom-0 top-14 bg-btn/20 lg:hidden animate-in fade-in-0 duration-150"
       />
       <nav
         id="mobile-nav"
-        className="absolute inset-x-0 top-full border-b border-[#ECEAE5] bg-white px-4 pb-3 pt-2 shadow-float lg:hidden animate-in slide-in-from-top-1 fade-in-0 duration-150 sm:px-6"
+        className="absolute inset-x-0 top-full border-b border-border bg-card px-4 pb-3 pt-2 shadow-float lg:hidden animate-in slide-in-from-top-1 fade-in-0 duration-150 sm:px-6"
       >
         {tabs.map(tab => {
           const isActive =
@@ -201,8 +205,8 @@ function MobileNav({
               onClick={onClose}
               className={`flex h-11 items-center rounded-[10px] px-3 text-[15px] transition-colors ${
                 isActive
-                  ? 'bg-[#F2F1ED] font-semibold text-[#3D3B4F]'
-                  : 'text-[#6F6D7A] hover:bg-[#F2F2F0] hover:text-[#3D3B4F]'
+                  ? 'bg-muted font-semibold text-foreground'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
               }`}
             >
               {tab.label}
@@ -215,7 +219,7 @@ function MobileNav({
 }
 
 function BreadcrumbSlash(): React.ReactNode {
-  return <span aria-hidden className="mx-3 h-[22px] w-px shrink-0 rotate-[18deg] bg-[#E3E2E6]" />;
+  return <span aria-hidden className="mx-3 h-[22px] w-px shrink-0 rotate-[18deg] bg-border" />;
 }
 
 function HeaderTab({
@@ -237,15 +241,13 @@ function HeaderTab({
       <span
         className={`rounded-[7px] px-2.5 py-1.5 text-[13.5px] transition-colors ${
           isActive
-            ? 'font-semibold text-[#3D3B4F]'
-            : 'text-[#6F6D7A] hover:bg-[#F2F2F0] hover:text-[#3D3B4F]'
+            ? 'font-semibold text-foreground'
+            : 'text-muted-foreground hover:bg-muted hover:text-foreground'
         }`}
       >
         {children}
       </span>
-      {isActive && (
-        <span className="absolute inset-x-3 -bottom-px h-[2px] rounded-t-sm bg-[#3D3B4F]" />
-      )}
+      {isActive && <span className="absolute inset-x-3 -bottom-px h-[2px] rounded-t-sm bg-btn" />}
     </Link>
   );
 }
@@ -270,12 +272,12 @@ function UpdateBanner(): React.ReactNode {
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-4">
-      <div className="flex items-center justify-between gap-3 rounded-2xl border border-[#E6E4DE] bg-white px-4 py-3">
-        <p className="flex items-center gap-2.5 text-[13px] text-[#3D3B4F]">
-          <ArrowUpCircle className="w-4 h-4 shrink-0 text-[#3D3B4F]" />
+      <div className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-card px-4 py-3">
+        <p className="flex items-center gap-2.5 text-[13px] text-foreground">
+          <ArrowUpCircle className="w-4 h-4 shrink-0 text-foreground" />
           <span>
             <span className="font-semibold">Traks {latest} is available</span>
-            <span className="text-[#9B9590]"> (you&rsquo;re running {config.version})</span>
+            <span className="text-subtle"> (you&rsquo;re running {config.version})</span>
           </span>
         </p>
         <div className="flex items-center gap-2">
@@ -283,7 +285,7 @@ function UpdateBanner(): React.ReactNode {
             href={updateUrl(config)}
             target="_blank"
             rel="noopener noreferrer"
-            className="rounded-full bg-[#3D3B4F] px-4 py-1.5 text-[12px] font-semibold text-white hover:bg-[#2C2B3B] transition-colors"
+            className="rounded-full bg-btn px-4 py-1.5 text-[12px] font-semibold text-white hover:bg-btn-hover transition-colors"
           >
             Update
           </a>
@@ -293,7 +295,7 @@ function UpdateBanner(): React.ReactNode {
               setDismissed(true);
             }}
             aria-label="Dismiss update notice"
-            className="w-7 h-7 flex items-center justify-center rounded-full text-[#9B9590] hover:text-[#3D3B4F] hover:bg-muted transition-colors"
+            className="w-7 h-7 flex items-center justify-center rounded-full text-subtle hover:text-foreground hover:bg-muted transition-colors"
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -333,7 +335,7 @@ function VersionPill(): React.ReactNode {
   return (
     <span
       title={updateAvailable ? `Traks ${latest} is available` : 'Up to date'}
-      className="hidden sm:flex h-8 items-center rounded-full border border-[#E6E4DE] bg-white px-3 font-mono text-[11px] text-[#9B9590]"
+      className="hidden sm:flex h-8 items-center rounded-full border border-border bg-card px-3 font-mono text-[11px] text-subtle"
     >
       v{config.version}
     </span>
@@ -349,7 +351,7 @@ function ContactButton(): React.ReactNode {
         onClick={() => setOpen(true)}
         aria-label="Contact us"
         title="Contact us"
-        className="hidden sm:flex h-9 w-9 items-center justify-center rounded-full border border-transparent text-[#6E6C7C] transition-colors hover:border-[#E6E4DE] hover:bg-[#F2F1ED] hover:text-[#3D3B4F] cursor-pointer"
+        className="hidden sm:flex h-9 w-9 items-center justify-center rounded-full border border-transparent text-muted-foreground transition-colors hover:border-border hover:bg-muted hover:text-foreground cursor-pointer"
       >
         <Mail className="h-[18px] w-[18px]" strokeWidth={1.8} />
       </button>
@@ -395,6 +397,8 @@ function UserMenu(): React.ReactNode {
     window.location.href = '/';
   };
 
+  const { theme, cycle: cycleTheme } = useTheme();
+  const ThemeIcon = theme === 'dark' ? Moon : theme === 'light' ? Sun : Monitor;
   const [destroyOpen, setDestroyOpen] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
 
@@ -406,25 +410,25 @@ function UserMenu(): React.ReactNode {
         <DropdownMenuTrigger asChild>
           <button
             aria-label={`${displayName} - account menu`}
-            className="flex items-center gap-2 pl-1.5 pr-1.5 sm:pr-3 py-1.5 rounded-full bg-white border border-[#E6E4DE] transition-colors hover:border-[#D8D5CD] focus:outline-none"
+            className="flex items-center gap-2 pl-1.5 pr-1.5 sm:pr-3 py-1.5 rounded-full bg-card border border-border transition-colors hover:border-border-strong focus:outline-none"
           >
             <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center">
               <User className="w-4 h-4 text-foreground" />
             </div>
-            <span className="hidden sm:block text-sm font-medium text-[#3D3B4F] max-w-[100px] truncate">
+            <span className="hidden sm:block text-sm font-medium text-foreground max-w-[100px] truncate">
               {displayName}
             </span>
-            <ChevronDown className="hidden sm:block w-3.5 h-3.5 text-[#9B9590]" />
+            <ChevronDown className="hidden sm:block w-3.5 h-3.5 text-subtle" />
           </button>
         </DropdownMenuTrigger>
 
         <DropdownMenuContent
           align="end"
-          className="w-56 rounded-2xl bg-white border-none shadow-float"
+          className="w-56 rounded-2xl bg-card border-none shadow-float"
         >
           <DropdownMenuLabel className="px-4 py-3 bg-muted -mx-1 -mt-1 rounded-t-xl">
-            <p className="text-sm font-semibold text-[#3D3B4F] truncate">{displayName}</p>
-            <p className="text-xs text-[#9B9590] font-normal truncate">{email}</p>
+            <p className="text-sm font-semibold text-foreground truncate">{displayName}</p>
+            <p className="text-xs text-subtle font-normal truncate">{email}</p>
           </DropdownMenuLabel>
 
           <DropdownMenuSeparator />
@@ -432,9 +436,9 @@ function UserMenu(): React.ReactNode {
           {/* Everyday actions first, then instance-level ones, sign-out last. */}
           <DropdownMenuItem asChild className="flex items-center gap-3 px-4 py-2.5 cursor-pointer">
             <a href="https://traks.dev" target="_blank" rel="noopener noreferrer">
-              <Globe className="w-4 h-4 text-[#9B9590]" />
+              <Globe className="w-4 h-4 text-subtle" />
               <span className="flex-1">traks.dev</span>
-              <ExternalLink className="w-3.5 h-3.5 text-[#B5B0AA]" />
+              <ExternalLink className="w-3.5 h-3.5 text-faint" />
             </a>
           </DropdownMenuItem>
 
@@ -442,9 +446,21 @@ function UserMenu(): React.ReactNode {
             onClick={() => setContactOpen(true)}
             className="flex items-center gap-3 px-4 py-2.5 cursor-pointer"
           >
-            <Mail className="w-4 h-4 text-[#9B9590]" />
+            <Mail className="w-4 h-4 text-subtle" />
             Contact us
           </DropdownMenuItem>
+
+          {/* Plain button so the menu stays open and the change is visible. */}
+          <button
+            onClick={e => {
+              e.stopPropagation();
+              cycleTheme();
+            }}
+            className="flex w-full cursor-pointer items-center gap-3 px-4 py-2.5 text-left text-sm text-foreground hover:bg-muted transition-colors"
+          >
+            <ThemeIcon className="w-4 h-4 text-subtle" />
+            Theme: {theme === 'system' ? 'System' : theme === 'light' ? 'Light' : 'Dark'}
+          </button>
 
           {config?.version && (
             <>
@@ -457,9 +473,9 @@ function UserMenu(): React.ReactNode {
                   void checkForUpdates();
                 }}
                 disabled={checking}
-                className="flex w-full cursor-pointer items-center gap-3 px-4 py-2.5 text-left text-sm text-[#3D3B4F] hover:bg-muted transition-colors disabled:opacity-60"
+                className="flex w-full cursor-pointer items-center gap-3 px-4 py-2.5 text-left text-sm text-foreground hover:bg-muted transition-colors disabled:opacity-60"
               >
-                <RefreshCw className={`w-4 h-4 text-[#9B9590] ${checking ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-4 h-4 text-subtle ${checking ? 'animate-spin' : ''}`} />
                 {checkNote ?? 'Check for updates'}
               </button>
 
@@ -467,7 +483,7 @@ function UserMenu(): React.ReactNode {
 
               <DropdownMenuItem
                 onClick={() => setDestroyOpen(true)}
-                className="flex items-center gap-3 px-4 py-2.5 text-[#9B9590] focus:text-[#e5484d] focus:bg-red-50 cursor-pointer"
+                className="flex items-center gap-3 px-4 py-2.5 text-subtle focus:text-[#e5484d] focus:bg-coral-soft cursor-pointer"
               >
                 <Trash2 className="w-4 h-4" />
                 Destroy this instance…
@@ -479,7 +495,7 @@ function UserMenu(): React.ReactNode {
 
           <DropdownMenuItem
             onClick={() => void signOut()}
-            className="flex items-center gap-3 px-4 py-2.5 text-[#e5484d] focus:text-[#e5484d] focus:bg-red-50 cursor-pointer"
+            className="flex items-center gap-3 px-4 py-2.5 text-[#e5484d] focus:text-[#e5484d] focus:bg-coral-soft cursor-pointer"
           >
             <LogOut className="w-4 h-4" />
             Sign out
@@ -547,21 +563,21 @@ function ContactDialog({
           </DialogDescription>
         </DialogHeader>
         <DialogBody className="flex flex-col gap-3">
-          <div className="flex items-center justify-between gap-3 rounded-[14px] bg-[#F2F1ED] py-2 pl-4 pr-2">
+          <div className="flex items-center justify-between gap-3 rounded-[14px] bg-muted py-2 pl-4 pr-2">
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9B9590]">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-subtle">
                 Email
               </p>
               <p
                 id="contact-email"
-                className="select-all truncate text-[14px] font-semibold text-[#3D3B4F]"
+                className="select-all truncate text-[14px] font-semibold text-foreground"
               >
                 {CONTACT_EMAIL}
               </p>
             </div>
             <button
               onClick={() => copy(CONTACT_EMAIL, 'email', 'contact-email')}
-              className="flex shrink-0 items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-[12px] font-semibold text-[#3D3B4F] shadow-[0_0_0_1px_#E6E4DE] hover:bg-[#F9F8F6] transition-colors cursor-pointer"
+              className="flex shrink-0 items-center gap-1.5 rounded-full bg-card px-3 py-1.5 text-[12px] font-semibold text-foreground shadow-[0_0_0_1px_var(--border)] hover:bg-background transition-colors cursor-pointer"
             >
               {copied === 'email' ? (
                 <>
@@ -581,40 +597,40 @@ function ContactDialog({
             href={ISSUES_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center justify-between gap-3 rounded-[14px] border border-[#E6E4DE] px-4 py-3 hover:bg-[#F9F8F6] transition-colors"
+            className="flex items-center justify-between gap-3 rounded-[14px] border border-border px-4 py-3 hover:bg-background transition-colors"
           >
             <span className="flex min-w-0 items-center gap-3">
-              <Github className="h-4 w-4 shrink-0 text-[#3D3B4F]" strokeWidth={1.8} />
+              <Github className="h-4 w-4 shrink-0 text-foreground" strokeWidth={1.8} />
               <span className="min-w-0">
-                <span className="block text-[13px] font-semibold text-[#3D3B4F]">
+                <span className="block text-[13px] font-semibold text-foreground">
                   Report a bug or request a feature
                 </span>
-                <span className="block truncate text-[12px] text-[#9B9590]">
+                <span className="block truncate text-[12px] text-subtle">
                   Open an issue on GitHub
                 </span>
               </span>
             </span>
-            <ExternalLink className="h-3.5 w-3.5 shrink-0 text-[#9B9590]" />
+            <ExternalLink className="h-3.5 w-3.5 shrink-0 text-subtle" />
           </a>
 
           {details && (
             <div className="flex items-center justify-between gap-3 px-1">
-              <p className="min-w-0 text-[12px] leading-relaxed text-[#9B9590]">
+              <p className="min-w-0 text-[12px] leading-relaxed text-subtle">
                 Reporting a problem? Include{' '}
-                <span id="contact-details" className="select-all font-mono text-[#6E6C7C]">
+                <span id="contact-details" className="select-all font-mono text-muted-foreground">
                   {details}
                 </span>
               </p>
               <button
                 onClick={() => copy(details, 'details', 'contact-details')}
-                className="shrink-0 text-[12px] font-semibold text-[#6E6C7C] hover:text-[#3D3B4F] transition-colors cursor-pointer"
+                className="shrink-0 text-[12px] font-semibold text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
               >
                 {copied === 'details' ? 'Copied' : 'Copy'}
               </button>
             </div>
           )}
         </DialogBody>
-        <DialogFooter className="mx-6 border-t border-[#e6e5ea]/50 px-0 pb-5 pt-4">
+        <DialogFooter className="mx-6 border-t border-border/50 px-0 pb-5 pt-4">
           <Button onClick={() => onOpenChange(false)} className="px-5 text-[13px] shadow-none">
             Done
           </Button>
@@ -666,30 +682,30 @@ function DestroyDialog({
           </DialogDescription>
         </DialogHeader>
         <DialogBody className="flex flex-col gap-3">
-          <div className="rounded-[14px] bg-[#F2F1ED] px-4 py-3">
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#9B9590]">
+          <div className="rounded-[14px] bg-muted px-4 py-3">
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-subtle">
               Removed from your account
             </p>
             <ul className="flex flex-col gap-1.5">
               {removed.map(item => (
                 <li key={item.label} className="flex items-baseline gap-2.5 text-[13px]">
-                  <span aria-hidden className="h-1 w-1 shrink-0 rounded-full bg-[#B5B0AA]" />
-                  <span className="font-medium text-[#3D3B4F]">{item.label}</span>
-                  <span className="text-[#9B9590]">{item.detail}</span>
+                  <span aria-hidden className="h-1 w-1 shrink-0 rounded-full bg-faint" />
+                  <span className="font-medium text-foreground">{item.label}</span>
+                  <span className="text-subtle">{item.detail}</span>
                 </li>
               ))}
             </ul>
           </div>
-          <div className="rounded-[14px] bg-[#FBEDE8] px-4 py-3 text-[12.5px] leading-relaxed text-[#8A3A27]">
+          <div className="rounded-[14px] bg-coral-soft px-4 py-3 text-[12.5px] leading-relaxed text-coral-ink">
             The raw events bucket is emptied only if you give the wizard a storage token. Without
             one it stays in your account and keeps costing R2 storage.
           </div>
-          <p className="text-[12px] leading-relaxed text-[#9B9590]">
+          <p className="text-[12px] leading-relaxed text-subtle">
             Nothing is deleted yet. The wizard on traks.dev asks you to type the instance name
             before it removes anything.
           </p>
         </DialogBody>
-        <DialogFooter className="mx-6 border-t border-[#e6e5ea]/50 px-0 pb-5 pt-4">
+        <DialogFooter className="mx-6 border-t border-border/50 px-0 pb-5 pt-4">
           <Button
             variant="ghost"
             onClick={() => onOpenChange(false)}

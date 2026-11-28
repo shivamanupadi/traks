@@ -73,10 +73,10 @@ export function PlatformSelect({
   const current = guides.find(g => g.slug === value) ?? guides[0];
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className="flex h-10 w-full items-center gap-2.5 rounded-2xl bg-[#F2F1ED] px-3.5 text-left text-[13px] font-medium text-[#3D3B4F] hover:bg-[#E6E4DE] transition-colors cursor-pointer focus:outline-none focus-visible:bg-white focus-visible:shadow-[inset_0_0_0_1.5px_var(--ring)]">
+      <DropdownMenuTrigger className="flex h-10 w-full items-center gap-2.5 rounded-2xl bg-muted px-3.5 text-left text-[13px] font-medium text-foreground hover:bg-border transition-colors cursor-pointer focus:outline-none focus-visible:bg-card focus-visible:shadow-[inset_0_0_0_1.5px_var(--ring)]">
         <PlatformLogo slug={current.slug} />
         <span className="min-w-0 flex-1 truncate">{current.name}</span>
-        <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[#9B9590]" />
+        <ChevronDown className="h-3.5 w-3.5 shrink-0 text-subtle" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="max-h-72 w-full overflow-y-auto">
         {guides.map(g => {
@@ -87,7 +87,7 @@ export function PlatformSelect({
               onClick={() => onChange(g.slug)}
               className={cn(
                 'gap-2.5 py-2 text-[12.5px]',
-                on ? 'font-semibold text-[#3D3B4F]' : 'text-[#6E6C7C]'
+                on ? 'font-semibold text-foreground' : 'text-muted-foreground'
               )}
             >
               <PlatformLogo slug={g.slug} />

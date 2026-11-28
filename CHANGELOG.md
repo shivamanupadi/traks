@@ -6,6 +6,10 @@ ships separately and is not listed here.
 
 ## Unreleased
 
+### Added
+
+- Dark mode for the dashboard. The account menu has a Theme row that cycles System, Light and Dark. System follows your device and is the default; your choice is remembered in this browser, and the page no longer flashes light before a dark theme loads.
+
 ## 0.1.48 - 2026-11-04
 
 ### Fixed

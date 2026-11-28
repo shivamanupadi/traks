@@ -41,11 +41,11 @@ function SkillPage(): ReactElement {
     <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="flex items-center gap-2.5 text-[26px] font-bold text-[#3D3B4F] tracking-[-0.02em]">
+          <h1 className="flex items-center gap-2.5 text-[26px] font-bold text-foreground tracking-[-0.02em]">
             <Bot className="h-6 w-6" strokeWidth={1.8} />
             Agent skill
           </h1>
-          <p className="mt-1 max-w-[62ch] text-[14px] text-[#9B9590]">
+          <p className="mt-1 max-w-[62ch] text-[14px] text-subtle">
             Drop this SKILL.md into your project&rsquo;s{' '}
             <code className="rounded bg-muted px-1.5 py-0.5 text-[12px]">
               .claude/skills/traks/
@@ -55,7 +55,7 @@ function SkillPage(): ReactElement {
             in{' '}
             <Link
               to="/portal/mcp"
-              className="font-semibold text-[#3D3B4F] underline-offset-2 hover:underline"
+              className="font-semibold text-foreground underline-offset-2 hover:underline"
             >
               the MCP server tab
             </Link>
@@ -75,10 +75,10 @@ function SkillPage(): ReactElement {
       </div>
 
       {/* Connect command */}
-      <div className="mb-6 rounded-[20px] bg-white p-5 shadow-float">
-        <p className="mb-2 text-[12px] font-semibold text-[#3D3B4F]">Connect the MCP server</p>
+      <div className="mb-6 rounded-[20px] bg-card p-5 shadow-float">
+        <p className="mb-2 text-[12px] font-semibold text-foreground">Connect the MCP server</p>
         <div className="flex items-center gap-2">
-          <code className="min-w-0 flex-1 truncate rounded-lg bg-[#F2F1ED] px-3 py-2.5 font-mono text-[11.5px] text-[#6E6C7C]">
+          <code className="min-w-0 flex-1 truncate rounded-lg bg-muted px-3 py-2.5 font-mono text-[11.5px] text-muted-foreground">
             {mcpCommand}
           </code>
           <Button
@@ -97,14 +97,12 @@ function SkillPage(): ReactElement {
       </div>
 
       {/* The skill itself */}
-      <div className="overflow-hidden rounded-[20px] bg-white shadow-float">
-        <div className="flex items-center justify-between border-b border-[#EEEDE9] px-5 py-3">
-          <span className="font-mono text-[11.5px] text-[#9B9590]">SKILL.md</span>
-          <span className="text-[11px] text-[#B5B0AA]">
-            Your instance URLs are already filled in
-          </span>
+      <div className="overflow-hidden rounded-[20px] bg-card shadow-float">
+        <div className="flex items-center justify-between border-b border-border px-5 py-3">
+          <span className="font-mono text-[11.5px] text-subtle">SKILL.md</span>
+          <span className="text-[11px] text-faint">Your instance URLs are already filled in</span>
         </div>
-        <pre className="max-h-[560px] overflow-y-auto whitespace-pre-wrap px-5 py-4 font-mono text-[12px] leading-relaxed text-[#3D3B4F]">
+        <pre className="max-h-[560px] overflow-y-auto whitespace-pre-wrap px-5 py-4 font-mono text-[12px] leading-relaxed text-foreground">
           {markdown}
         </pre>
       </div>

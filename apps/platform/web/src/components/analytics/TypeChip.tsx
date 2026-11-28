@@ -13,7 +13,9 @@ export function TypeChip({
     <span
       className={cn(
         'inline-flex h-[18px] items-center rounded-full px-[7px] text-[10.5px] font-medium',
-        type === 'event' ? 'bg-[#eceff9] text-[#4c5b8f]' : 'bg-[#f0f0e0] text-[#6c6f3f]',
+        type === 'event'
+          ? 'bg-[#eceff9] text-[#4c5b8f] dark:bg-[#262B44] dark:text-[#A9B7EE]'
+          : 'bg-[#f0f0e0] text-[#6c6f3f] dark:bg-[#33331F] dark:text-[#CFD28B]',
         className
       )}
     >

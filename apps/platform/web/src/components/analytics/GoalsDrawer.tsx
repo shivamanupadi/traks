@@ -25,8 +25,7 @@ import { TypeChip } from './TypeChip';
 /** Search only earns its space once the list is long enough to lose things in. */
 const SEARCH_THRESHOLD = 8;
 
-const MENU_ITEM =
-  'rounded-[10px] text-[12.5px] text-[#3D3B4F] hover:bg-[#F2F1ED] focus:bg-[#F2F1ED]';
+const MENU_ITEM = 'rounded-[10px] text-[12.5px] text-foreground hover:bg-muted focus:bg-muted';
 
 /**
  * Right-side drawer listing every goal on the site as cards: rule, and the
@@ -120,7 +119,7 @@ export function GoalsDrawer({
           </div>
           <button
             onClick={onAdd}
-            className="flex shrink-0 items-center gap-1.5 rounded-full bg-[#3D3B4F] px-3.5 py-1.5 text-[12px] font-semibold text-white hover:bg-[#2C2B3B] transition-colors cursor-pointer"
+            className="flex shrink-0 items-center gap-1.5 rounded-full bg-btn px-3.5 py-1.5 text-[12px] font-semibold text-white hover:bg-btn-hover transition-colors cursor-pointer"
           >
             <Plus className="h-3.5 w-3.5" />
             Add goal
@@ -130,13 +129,13 @@ export function GoalsDrawer({
 
       <DrawerBody>
         {showSearch && (
-          <div className="mb-2 flex h-[34px] items-center gap-2 rounded-xl bg-[#F2F1ED] px-3 focus-within:bg-white focus-within:shadow-[inset_0_0_0_1.5px_var(--ring)] transition-shadow">
-            <Search className="h-3.5 w-3.5 shrink-0 text-[#B5B0AA]" />
+          <div className="mb-2 flex h-[34px] items-center gap-2 rounded-xl bg-muted px-3 focus-within:bg-card focus-within:shadow-[inset_0_0_0_1.5px_var(--ring)] transition-shadow">
+            <Search className="h-3.5 w-3.5 shrink-0 text-faint" />
             <input
               value={query}
               onChange={e => setQuery(e.target.value)}
               placeholder="Search goals"
-              className="h-full min-w-0 flex-1 bg-transparent text-[12.5px] text-[#3D3B4F] outline-none placeholder:text-[#B5B0AA]"
+              className="h-full min-w-0 flex-1 bg-transparent text-[12.5px] text-foreground outline-none placeholder:text-faint"
             />
           </div>
         )}
@@ -158,14 +157,14 @@ export function GoalsDrawer({
         )}
         {!goalsQ.isLoading && !goalsQ.isError && goals.length === 0 && (
           <div className="py-10 text-center">
-            <p className="text-[13px] font-medium text-[#9B9590]">No goals yet</p>
-            <p className="mt-1 text-[12px] text-[#B5B0AA]">
+            <p className="text-[13px] font-medium text-subtle">No goals yet</p>
+            <p className="mt-1 text-[12px] text-faint">
               Mark a custom event or page visit as a conversion to start counting.
             </p>
           </div>
         )}
         {q && goals.length > 0 && visible.length === 0 && (
-          <p className="py-8 text-center text-[12.5px] text-[#9B9590]">
+          <p className="py-8 text-center text-[12.5px] text-subtle">
             No goals match &ldquo;{query.trim()}&rdquo;.
           </p>
         )}
@@ -183,7 +182,7 @@ export function GoalsDrawer({
                 key={goal.id}
                 className={cn(
                   'rounded-[14px] p-3.5 transition-colors',
-                  confirming ? 'bg-[#fdf1ed]' : 'bg-[#F9F8F6] hover:bg-[#F2F1ED]'
+                  confirming ? 'bg-coral-soft' : 'bg-background hover:bg-muted'
                 )}
               >
                 <div className="flex items-start justify-between gap-2">
@@ -192,12 +191,12 @@ export function GoalsDrawer({
                     className="min-w-0 flex-1 cursor-pointer text-left"
                     title="Edit goal"
                   >
-                    <span className="block truncate text-[13.5px] font-semibold text-[#3D3B4F]">
+                    <span className="block truncate text-[13.5px] font-semibold text-foreground">
                       {goal.name}
                     </span>
                     <span className="mt-1 flex min-w-0 items-center gap-1.5">
                       <TypeChip type={goal.type} />
-                      <span className="truncate text-[11.5px] text-[#9B9590]" title={rule}>
+                      <span className="truncate text-[11.5px] text-subtle" title={rule}>
                         {rule}
                       </span>
                     </span>
@@ -210,13 +209,13 @@ export function GoalsDrawer({
                         <p
                           className={cn(
                             'text-[15px] font-bold leading-tight tabular-nums',
-                            stat ? 'text-[#3D3B4F]' : 'text-[#B5B0AA]'
+                            stat ? 'text-foreground' : 'text-faint'
                           )}
                         >
                           {stat ? `${stat.conversionRate}%` : '-'}
                         </p>
                         {stat && (
-                          <p className="text-[11px] tabular-nums text-[#9B9590]">
+                          <p className="text-[11px] tabular-nums text-subtle">
                             {formatNumber(stat.uniques)} uniques
                           </p>
                         )}
@@ -224,13 +223,13 @@ export function GoalsDrawer({
                       <DropdownMenu>
                         <DropdownMenuTrigger
                           aria-label={`${goal.name} options`}
-                          className="-mr-1 -mt-0.5 flex h-7 w-7 items-center justify-center rounded-full text-[#9B9590] hover:bg-[#E6E4DE] hover:text-[#3D3B4F] transition-colors cursor-pointer"
+                          className="-mr-1 -mt-0.5 flex h-7 w-7 items-center justify-center rounded-full text-subtle hover:bg-border hover:text-foreground transition-colors cursor-pointer"
                         >
                           <MoreHorizontal className="h-4 w-4" />
                         </DropdownMenuTrigger>
                         <DropdownMenuContent className="w-44 border-0 p-1.5 shadow-float-lg">
                           <DropdownMenuItem onClick={() => onEdit(goal)} className={MENU_ITEM}>
-                            <Pencil className="h-3.5 w-3.5 text-[#6E6C7C]" />
+                            <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
                             Edit
                           </DropdownMenuItem>
                           {onDuplicate && (
@@ -238,17 +237,17 @@ export function GoalsDrawer({
                               onClick={() => onDuplicate(goal)}
                               className={MENU_ITEM}
                             >
-                              <Copy className="h-3.5 w-3.5 text-[#6E6C7C]" />
+                              <Copy className="h-3.5 w-3.5 text-muted-foreground" />
                               Duplicate
                             </DropdownMenuItem>
                           )}
-                          <DropdownMenuSeparator className="bg-[#ECEBE6]" />
+                          <DropdownMenuSeparator className="bg-muted" />
                           <DropdownMenuItem
                             onClick={() => {
                               setError('');
                               setConfirmId(goal.id);
                             }}
-                            className="rounded-[10px] text-[12.5px] text-[#e07a5f] hover:bg-[#fdf1ed] focus:bg-[#fdf1ed]"
+                            className="rounded-[10px] text-[12.5px] text-[#e07a5f] hover:bg-coral-soft focus:bg-coral-soft"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                             Delete…
@@ -267,7 +266,7 @@ export function GoalsDrawer({
                     <div className="flex shrink-0 items-center gap-1">
                       <button
                         onClick={() => setConfirmId(null)}
-                        className="rounded-full px-3 py-1 text-[12px] font-semibold text-[#6E6C7C] hover:bg-white transition-colors cursor-pointer"
+                        className="rounded-full px-3 py-1 text-[12px] font-semibold text-muted-foreground hover:bg-card transition-colors cursor-pointer"
                       >
                         Keep
                       </button>
@@ -289,10 +288,10 @@ export function GoalsDrawer({
       </DrawerBody>
 
       <DrawerFooter>
-        <span className="text-[11.5px] text-[#B5B0AA]">Conversions · {periodLabel}</span>
+        <span className="text-[11.5px] text-faint">Conversions · {periodLabel}</span>
         <button
           onClick={() => onOpenChange(false)}
-          className="rounded-full px-3.5 py-1.5 text-[12.5px] font-semibold text-[#6E6C7C] hover:bg-muted hover:text-[#3D3B4F] transition-colors cursor-pointer"
+          className="rounded-full px-3.5 py-1.5 text-[12.5px] font-semibold text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
         >
           Done
         </button>
